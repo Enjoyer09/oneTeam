@@ -15,8 +15,22 @@
 # not run on alpine, so the container died in ways that looked like application
 # bugs rather than packaging mistakes.
 #
-# Dependencies are installed inside the image. They are never copied from here.
+# READ THIS BEFORE EDITING — .dockerignore IS NOT .gitignore
+# ----------------------------------------------------------
+# A pattern containing no `/` matches ONLY at the top level. `*.tsbuildinfo`
+# therefore ignores `./tsconfig.tsbuildinfo` and silently lets
+# `./packages/types/tsconfig.tsbuildinfo` through, whereas the identical line in
+# .gitignore does match at every depth, because gitignore treats a slash-less
+# pattern as matching any path segment.
+#
+# That difference was not academic. A stale `packages/types/tsconfig.tsbuildinfo`
+# reached the image, `tsc --build` read it, concluded the package was already up
+# to date, and emitted no `dist/`. Every `@oneteam/*` import then failed with
+# TS2307 inside the container while passing on the developer's machine.
+#
+# Anything that must be excluded at depth uses `**/`. Keep it that way.
 
+# Dependencies are installed inside the image, never copied from the host.
 node_modules
 **/node_modules
 .pnpm-store
@@ -27,16 +41,23 @@ venv
 # injects these at runtime; the example files are kept so the list of required
 # variables stays discoverable.
 .env
+**/.env
 .env.*
-!.env.example
-!.env.production.example
-*.pem
-*.key
+**/.env.*
+!**/.env.example
+!**/.env.production.example
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
 
 # Build output is produced inside the image, never shipped into it.
 dist
 **/dist
 *.tsbuildinfo
+**/*.tsbuildinfo
+.turbo
+**/.turbo
 
 # Not referenced by either image built from this context.
 web
@@ -48,21 +69,23 @@ docs
 .github
 
 # Model weights and media.
-*.pt
-*.onnx
-*.jpg
-*.jpeg
-*.png
-*.mp4
+**/*.pt
+**/*.onnx
+**/*.jpg
+**/*.jpeg
+**/*.png
+**/*.mp4
 
 # Local tooling, editor state and OS noise.
 .git
 .gitignore
-.DS_Store
+**/.DS_Store
 .workbuddy-ai
 .claude
 .gemini
 .codex
 .yolo_config
-*.bak
-*.log
+**/*.bak
+**/*.log
+**/*.orig
+**/*.rej

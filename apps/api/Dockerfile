@@ -2,8 +2,13 @@
 # oneTeam Core API (NestJS) — Production Dockerfile
 # ==============================================================================
 
-# Stage 1: Build workspace packages and NestJS application
-FROM node:20-alpine AS builder
+# Node 22, not 20.
+#
+# Several dependencies declare `engines: { node: ">=22" }` — @supabase/supabase-js
+# and file-type among them. On node:20-alpine npm prints EBADENGINE warnings
+# during install and the packages run on an unsupported runtime. `.nvmrc` pins 22
+# as well, so this also stops the image from disagreeing with local development.
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -18,6 +23,29 @@ COPY apps/api/package*.json ./apps/api/
 
 # Install all workspace dependencies
 RUN npm install
+
+# ------------------------------------------------------------------------------
+# Link the workspace packages BEFORE anything tries to resolve @oneteam/*
+# ------------------------------------------------------------------------------
+# This has to happen here, not after the build.
+#
+# `tsc --build` resolves a project reference through node_modules — that is how
+# build mode knows a referenced project is already compiled. It does NOT use the
+# `paths` mapping for that, unlike a plain `tsc --project` run. So with the links
+# created afterwards, the compiler reported:
+#
+#     error TS2307: Cannot find module '@oneteam/types'
+#
+# for every import, plus a trail of TS7006 "implicitly has an 'any' type" errors
+# that were only consequences of those unresolved modules.
+#
+# The links are created explicitly rather than relying on npm's workspace
+# linking, because at this point each workspace directory contains only its
+# package.json.
+RUN rm -rf node_modules/@oneteam && \
+    mkdir -p node_modules/@oneteam && \
+    ln -sfn /app/packages/types node_modules/@oneteam/types && \
+    ln -sfn /app/packages/database node_modules/@oneteam/database
 
 # Copy source trees and configs
 COPY tsconfig.json ./
@@ -34,13 +62,10 @@ COPY apps/api ./apps/api
 # day someone adds a fourth package and does not notice the list needs updating.
 RUN node ./node_modules/typescript/bin/tsc --build apps/api/tsconfig.json
 
-# Ensure workspace packages are symlinked in node_modules
-RUN mkdir -p node_modules/@oneteam && \
-    ln -sf /app/packages/types node_modules/@oneteam/types && \
-    ln -sf /app/packages/database node_modules/@oneteam/database
-
+# ------------------------------------------------------------------------------
 # Stage 2: Lean Production Runtime
-FROM node:20-alpine AS runner
+# ------------------------------------------------------------------------------
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 
@@ -62,8 +87,12 @@ COPY --from=builder /app/apps/api/dist ./apps/api/dist
 # Expose API port
 EXPOSE 3001
 
-# Container healthcheck
+# Container healthcheck.
+#
+# Points at /api/health, which is unauthenticated by design. The previous target
+# was /api/tasks, which sits behind AuthGuard: wget received a 401, counted it as
+# a failure, and marked a perfectly healthy container unhealthy.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/api/tasks || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || exit 1
 
 CMD ["node", "apps/api/dist/main.js"]

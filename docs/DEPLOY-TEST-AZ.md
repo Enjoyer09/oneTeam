@@ -308,13 +308,21 @@ idarəetmə paneli açılır.
 
 **7.3. API-ni yoxlayın**
 
-Brauzerdə API ünvanının sonuna `/api/tasks` əlavə edin:
+Brauzerdə API ünvanının sonuna `/api/health` əlavə edin:
 
 ```
-https://<api-ünvanı>/api/tasks
+https://<api-ünvanı>/api/health
 ```
 
-Gözlənilən: `[` ilə başlayan siyahı (boş `[]` olsa da yaxşıdır).
+Gözlənilən cavab:
+
+```json
+{ "status": "ok", "service": "oneteam-api", "uptimeSeconds": 42, "timestamp": 1789306800000 }
+```
+
+> **Diqqət:** `/api/tasks` ünvanını açsanız **401 Unauthorized** görəcəksiniz. Bu **xəta deyil** —
+> tapşırıq siyahısı giriş tələb edir və 401 girişin işlədiyini sübut edir. Yoxlama üçün
+> `/api/health` istifadə edin.
 
 **7.4. Botu yoxlayın**
 

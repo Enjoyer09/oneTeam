@@ -1,16 +1,34 @@
 # ==============================================================================
 # oneTeam Telegram Bot Worker — Production Dockerfile
 # ==============================================================================
-FROM node:20-alpine
+#
+# Node 22: several dependencies require it (see the API Dockerfile for the
+# longer explanation), and .nvmrc pins the same major.
+
+FROM node:22-alpine
 
 WORKDIR /app
 
-# Copy dependency manifests
-COPY package*.json pnpm-workspace.yaml* ./
+# ------------------------------------------------------------------------------
+# Dependency manifests
+# ------------------------------------------------------------------------------
+# apps/api/package.json is copied even though the bot never imports it. The root
+# package.json declares `workspaces: ["apps/*", "packages/*"]`, and npm resolves
+# that glob against the filesystem — leaving apps/ absent makes the workspace map
+# depend on a directory that is not there.
+COPY package*.json pnpm-workspace.yaml* turbo.json* ./
 COPY packages/types/package*.json ./packages/types/
 COPY packages/database/package*.json ./packages/database/
+COPY apps/api/package*.json ./apps/api/
 
 RUN npm install
+
+# Link the workspace packages before the source tree is copied in, so that
+# `@oneteam/*` resolves the same way it does in the API image.
+RUN rm -rf node_modules/@oneteam && \
+    mkdir -p node_modules/@oneteam && \
+    ln -sfn /app/packages/types node_modules/@oneteam/types && \
+    ln -sfn /app/packages/database node_modules/@oneteam/database
 
 # Copy application files
 COPY . ./

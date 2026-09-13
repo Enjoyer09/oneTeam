@@ -3,7 +3,9 @@
 # ==============================================================================
 
 # Stage 1: Build React/Vite production assets
-FROM node:20-alpine AS builder
+# Node 22, not 20 — see apps/api/Dockerfile. .nvmrc pins 22, and several
+# workspace dependencies declare `engines: { node: ">=22" }`.
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -54,8 +56,13 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 
-# Container healthcheck
+# Container healthcheck.
+#
+# Probes 127.0.0.1 rather than `localhost`. In this image `localhost` resolves to
+# ::1 first, and a refused IPv6 connection reads as a failed healthcheck even
+# while nginx is serving happily on IPv4. An explicit address removes the
+# ambiguity; nginx.conf also listens on IPv6 now, so either would work.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1/ || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]

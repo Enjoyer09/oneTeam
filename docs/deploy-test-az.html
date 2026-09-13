@@ -524,9 +524,14 @@ SUPABASE_ANON_KEY=mock-anon-key</code></pre>
       idarəetmə paneli açılır.</p>
 
     <p><b>7.3 · API-ni yoxlayın</b><br>
-      Brauzerdə API ünvanının sonuna <code>/api/tasks</code> əlavə edin:</p>
-    <pre><code>https://<span class="ph">&lt;api-ünvanı&gt;</span>/api/tasks</code></pre>
-    <p>Gözlənilən: <code>[</code> ilə başlayan siyahı (boş <code>[]</code> olsa da yaxşıdır).</p>
+      Brauzerdə API ünvanının sonuna <code>/api/health</code> əlavə edin:</p>
+    <pre><code>https://<span class="ph">&lt;api-ünvanı&gt;</span>/api/health</code></pre>
+    <p>Gözlənilən cavab:</p>
+<pre><code>{ "status": "ok", "service": "oneteam-api", "uptimeSeconds": 42, "timestamp": 1789306800000 }</code></pre>
+    <div class="callout warn">
+      <span class="tag">Diqqət</span>
+      <p><code>/api/tasks</code> ünvanını açsanız <b>401 Unauthorized</b> görəcəksiniz. Bu <b>xəta deyil</b> — tapşırıq siyahısı giriş tələb edir və 401 girişin işlədiyini sübut edir. Yoxlama üçün <code>/api/health</code> istifadə edin.</p>
+    </div>
 
     <p><b>7.4 · Botu yoxlayın</b><br>
       Telegram-da botunuza girib <b>/start</b> yazın. Cavab gəlməlidir.</p>
