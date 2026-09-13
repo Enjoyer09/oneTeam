@@ -234,6 +234,32 @@ class PortalApiClient {
     return submissions ?? [];
   }
 
+  /**
+   * Tells the API that the field worker has taken the task on.
+   *
+   * Without this the audit is unreviewable. The lifecycle only allows a review
+   * from SUBMITTED, and the photo submission only advances a task that is
+   * already ACKNOWLEDGED — so a task left at PUBLISHED would collect evidence
+   * that no supervisor could ever approve.
+   *
+   * In the notification flow this happens automatically: the push marks the task
+   * DELIVERED and the button tap marks it ACKNOWLEDGED. The bot polls instead of
+   * receiving webhooks, so the chat calls this when the merchandiser opens the
+   * task, which is the same act.
+   *
+   * Failure is not fatal to the flow — the photo can still be filed — so callers
+   * should log it rather than stop.
+   */
+  async acknowledgeTask(
+    taskId: string,
+    chatId: number | string
+  ): Promise<{ taskId: string; currentState: string; advanced: boolean }> {
+    return await request<{ taskId: string; currentState: string; advanced: boolean }>(
+      `/api/portal/field/tasks/${encodeURIComponent(taskId)}/acknowledge`,
+      { method: 'POST', body: JSON.stringify({ chatId }) }
+    );
+  }
+
   // -------------------------------------------------------------------------
   // Writes
   // -------------------------------------------------------------------------

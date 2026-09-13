@@ -289,15 +289,20 @@ async function runTestSuite() {
   }
   logSuccess(`Task "${sampleTask.title}" active for photo upload.`);
 
+  // --------------------------------------------------------------------------
+  // STEP 6: The chat acknowledged the task
+  // --------------------------------------------------------------------------
   // A submission can only be reviewed from SUBMITTED, and the state machine is
   // strict: PUBLISHED -> DELIVERED -> ACKNOWLEDGED -> IN_PROGRESS -> SUBMITTED.
-  // In production the notification webhook walks the first two steps.
-  logStep(6, 'Notification webhook delivers and the merchandiser acknowledges');
-  for (const state of ['DELIVERED', 'ACKNOWLEDGED']) {
-    await supervisorApi(`/api/tasks/${encodeURIComponent(sampleTask.id)}/transition`, {
-      method: 'POST',
-      body: JSON.stringify({ targetState: state, notes: 'E2E test — state machine walk' }),
-    });
+  // The notification webhook walks the first two steps in the push flow; the bot
+  // polls instead, so opening the task in the chat has to do it — otherwise the
+  // photo below would land on a task no supervisor could ever approve.
+  logStep(6, 'Opening the task in the chat acknowledged it');
+  const rawTask = await supervisorApi<{ status?: string }>(
+    `/api/tasks/${encodeURIComponent(sampleTask.id)}`
+  );
+  if (rawTask?.status !== 'ACKNOWLEDGED') {
+    throw new Error(`Expected ACKNOWLEDGED, got ${rawTask?.status}`);
   }
   logSuccess('Task is ACKNOWLEDGED and ready for field work.');
 
@@ -339,6 +344,16 @@ async function runTestSuite() {
     throw new Error(`Expected pending_review, got ${created.status}`);
   }
   logSuccess('A task with a required checklist was accepted — the chat channel gap is recorded, not blocking.');
+
+  // The whole point of the acknowledgement above: the photo must carry the task
+  // to SUBMITTED, which is the only state a supervisor can approve from.
+  const submittedTask = await supervisorApi<{ status?: string }>(
+    `/api/tasks/${encodeURIComponent(sampleTask.id)}`
+  );
+  if (submittedTask?.status !== 'SUBMITTED') {
+    throw new Error(`Expected SUBMITTED after the photo, got ${submittedTask?.status}`);
+  }
+  logSuccess('Task advanced to SUBMITTED — it is now reviewable.');
 
   // --------------------------------------------------------------------------
   // STEP 8: /mystatus Inspection

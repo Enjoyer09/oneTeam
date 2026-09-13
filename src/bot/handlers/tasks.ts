@@ -112,6 +112,23 @@ export async function handleTaskSelectCallback(ctx: BotContext) {
     return;
   }
 
+  // Opening the task is the chat's equivalent of tapping "Acknowledge" on the
+  // notification. The lifecycle only lets a supervisor review a SUBMITTED task,
+  // and only an ACKNOWLEDGED task can become SUBMITTED — so skipping this would
+  // leave the merchandiser's photo permanently unapprovable.
+  //
+  // A failure here is logged and the flow continues: the merchandiser can still
+  // send the photo, and a supervisor can move the task on manually.
+  try {
+    const ack = await portalApi.acknowledgeTask(task.id, ctx.chat!.id);
+    if (ack.advanced) {
+      console.log(`[oneTeam Bot] Task ${task.id} -> ${ack.currentState} (acknowledged by chat)`);
+    }
+  } catch (error) {
+    const detail = error instanceof PortalApiError ? error.message : String(error);
+    console.error(`[oneTeam Bot] Acknowledge failed for ${task.id}:`, detail);
+  }
+
   ctx.session.activeTaskId = task.id;
   ctx.session.activeTaskTitle = task.title;
   ctx.session.step = 'awaiting_photo';

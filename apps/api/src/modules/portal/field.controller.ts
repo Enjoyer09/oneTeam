@@ -68,6 +68,15 @@ export class FieldController {
     return { success: true, data: task };
   }
 
+  @Post('tasks/:id/acknowledge')
+  @HttpCode(HttpStatus.OK)
+  async acknowledge(@Param('id') id: string, @Body() body: { chatId?: string | number }) {
+    if (body?.chatId === undefined || body.chatId === null || body.chatId === '') {
+      throw new BadRequestException('chatId tələb olunur');
+    }
+    return this.fieldService.acknowledgeTask(body.chatId, id);
+  }
+
   @Get('submissions')
   getSubmissions(@Query('chatId') chatId?: string, @Query('limit') limit?: string) {
     if (!chatId) throw new BadRequestException('chatId parametri tələb olunur');

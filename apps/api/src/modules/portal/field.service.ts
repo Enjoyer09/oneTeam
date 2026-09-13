@@ -32,10 +32,11 @@
  */
 
 import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
-import { UserRole } from '@oneteam/types';
+import { TaskState, UserRole } from '@oneteam/types';
 import { db } from '@oneteam/database';
 import { PortalService, PanelStore, PanelTask, PanelSubmission } from './portal.service';
 import { EvidenceService } from '../evidences/evidence.service';
+import { TaskStateService } from '../tasks/task-state.service';
 import { AuthenticatedPrincipal } from '../../common/auth/authenticated-principal';
 
 /** Largest photo accepted as a data URL. See the note in submitSubmission. */
@@ -47,7 +48,8 @@ export class FieldService {
 
   constructor(
     private readonly portal: PortalService,
-    private readonly evidenceService: EvidenceService
+    private readonly evidenceService: EvidenceService,
+    private readonly taskStateService: TaskStateService
   ) {}
 
   /** Resolves a chat to a user row, or null when the chat has never bound. */
@@ -170,6 +172,79 @@ export class FieldService {
   // -------------------------------------------------------------------------
   // Reads
   // -------------------------------------------------------------------------
+
+  /**
+   * Marks a task as received and accepted by the field worker.
+   *
+   * WHY THE CHAT CHANNEL NEEDS THIS, AND WHY IT IS NOT OPTIONAL
+   * ----------------------------------------------------------
+   * The lifecycle is strict: PUBLISHED -> DELIVERED -> ACKNOWLEDGED ->
+   * IN_PROGRESS -> SUBMITTED, and a review is only legal from SUBMITTED.
+   * `EvidenceService` performs the last two steps, so the first two have to
+   * happen before a photo arrives or the submission lands on a task that can
+   * never be approved — the supervisor's Approve button returns a 400 and the
+   * audit is stuck.
+   *
+   * In the notification flow, DELIVERED is written when the message is pushed
+   * and ACKNOWLEDGED when the merchandiser taps the callback button. The bot
+   * polls rather than receiving webhooks, so neither of those runs. Opening the
+   * task in the chat is the same act as tapping that button, so this walks the
+   * two steps then.
+   *
+   * It is idempotent and only ever moves forward: a task already at
+   * ACKNOWLEDGED or beyond is returned untouched, and a DRAFT is refused by the
+   * state machine.
+   */
+  async acknowledgeTask(chatId: string | number, taskId: string) {
+    const actor = this.requireActor(chatId);
+
+    const task = db.getTask(taskId);
+    if (!task) {
+      throw new HttpException(
+        `Tapşırıq tapılmadı: ${taskId}`,
+        HttpStatus.NOT_FOUND
+      );
+    }
+
+    if (!db.canUserAccessTask(actor.userId, actor.role, taskId)) {
+      throw new HttpException('Bu tapşırıq üçün icazə yoxdur', HttpStatus.FORBIDDEN);
+    }
+
+    // Ordered, so each step is a legal transition from the one before it.
+    const chain = [
+      TaskState.PUBLISHED,
+      TaskState.DELIVERED,
+      TaskState.ACKNOWLEDGED,
+    ];
+
+    const targetIndex = chain.indexOf(TaskState.ACKNOWLEDGED);
+    const currentIndex = chain.indexOf(task.status);
+
+    // Already at or past ACKNOWLEDGED: nothing to do.
+    if (currentIndex === -1 || currentIndex >= targetIndex) {
+      return {
+        success: true,
+        data: { taskId, currentState: task.status, advanced: false },
+      };
+    }
+
+    let state = task.status;
+    for (let i = currentIndex + 1; i <= targetIndex; i++) {
+      const result = await this.taskStateService.transitionTask(
+        taskId,
+        chain[i],
+        actor,
+        i === targetIndex
+          ? 'Sahə işçisi tapşırığı Telegram çatında açdı (qəbul edildi)'
+          : 'Tapşırıq işçiyə çatdırıldı'
+      );
+      state = result.currentState;
+    }
+
+    this.logger.log(`📥 [FIELD ACK] Task ${taskId} acknowledged by ${actor.userId}`);
+
+    return { success: true, data: { taskId, currentState: state, advanced: true } };
+  }
 
   getStoreByCode(code: string): PanelStore | null {
     const store = db.getStoreByCode(code);
