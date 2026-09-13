@@ -100,7 +100,7 @@ export class TaskStateService {
         updatedAt: new Date(),
       };
 
-      db.storeTasks.push(newTask);
+      db.createStoreTask(newTask);
       createdTasks.push(newTask);
 
       // Audit Log

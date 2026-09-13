@@ -1,4 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
+import { db } from '@oneteam/database';
 
 /**
  * Liveness probe — deliberately unauthenticated.
@@ -29,6 +30,15 @@ export class HealthController {
       service: 'oneteam-api',
       uptimeSeconds: Math.round(process.uptime()),
       timestamp: Date.now(),
+      // Reports which storage the repository decided to use at start-up.
+      //
+      // This is a value recorded once by db.init(), not a live query, so it
+      // does not break the rule above: a database that goes down after start-up
+      // still must not make this endpoint fail. The point is that "the API is
+      // running on seed data and will lose your writes" is otherwise invisible
+      // — which is exactly how the database came to be provisioned and unused.
+      persistence: db.persistence,
+      persistenceDetail: db.persistenceDetail,
     };
   }
 }

@@ -51,8 +51,15 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # Applied only when the data directory is empty, i.e. on first boot.
-      - ./init_schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-      - ./seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      #
+      # These are the API's schema, not the Supabase one. The API reads
+      # users / regions / stores / campaigns / task_templates / store_tasks /
+      # task_evidences / audit_logs; init_schema.sql and seed.sql describe a
+      # different product (profiles / tasks / task_assignments / submissions)
+      # and both files declare a `stores` table, so they cannot share a
+      # database. See db/api-schema.sql for the full explanation.
+      - ./db/api-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./db/api-seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-oneteam}"]
       interval: 10s

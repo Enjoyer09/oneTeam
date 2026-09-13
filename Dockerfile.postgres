@@ -22,12 +22,26 @@
 #  NOTE: init scripts run ONLY when the volume is empty. Changing these files
 #  and redeploying will NOT re-apply them to an existing volume — the volume
 #  has to be deleted (or the scripts run by hand) for a re-seed.
+#
+#  WHICH SCHEMA, AND WHY IT CHANGED
+#  --------------------------------
+#  This image used to install init_schema.sql and seed.sql, which describe the
+#  Supabase product (profiles / stores / tasks / task_assignments / submissions,
+#  with RLS policies bound to auth.uid()). The NestJS API does not use that
+#  model — it reads users / regions / stores / campaigns / task_templates /
+#  store_tasks / task_evidences / audit_logs — so every query it made against
+#  this database failed, and it silently kept everything in memory instead.
+#
+#  db/api-schema.sql and db/api-seed.sql are the API's schema. init_schema.sql
+#  and seed.sql remain in the repository for the Supabase path; they are simply
+#  no longer installed into this container. The two cannot coexist in one
+#  database because both define a `stores` table with different columns.
 # =============================================================================
 
 FROM postgres:16-alpine
 
-COPY init_schema.sql /docker-entrypoint-initdb.d/01-schema.sql
-COPY seed.sql        /docker-entrypoint-initdb.d/02-seed.sql
+COPY db/api-schema.sql /docker-entrypoint-initdb.d/01-schema.sql
+COPY db/api-seed.sql   /docker-entrypoint-initdb.d/02-seed.sql
 
 # The base image already declares VOLUME /var/lib/postgresql/data and the
 # matching entrypoint, so nothing else is needed here.

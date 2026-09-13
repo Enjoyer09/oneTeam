@@ -1,69 +1,24 @@
 /**
  * oneTeam Retail Execution Platform — Database Layer & Repository
+ *
+ * The repository keeps its working set in memory and, when a PostgreSQL
+ * connection string is configured, treats the database as authoritative:
+ * `init()` hydrates the arrays from real rows at start-up, and every mutation
+ * is written through. See postgres.ts for why the driver is `pg` and not
+ * Prisma, and for the single-instance caveat that comes with it.
  */
 
 export * from './seed';
+export * from './types';
 import { SEED_DATA } from './seed';
 import { TaskState, UserRole } from '@oneteam/types';
-
-export interface InMemoryStoreTask {
-  id: string;
-  templateId: string;
-  storeId: string;
-  assignedUserId?: string;
-  status: TaskState;
-  deadline: Date;
-  publishedAt?: Date;
-  deliveredAt?: Date;
-  acknowledgedAt?: Date;
-  submittedAt?: Date;
-  reviewedAt?: Date;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface InMemoryEvidence {
-  id: string;
-  storeTaskId: string;
-  submittedById: string;
-  photoUrl: string;
-  photoType?: 'before' | 'after' | 'standard';
-  checklistAnswers?: any[];
-  latitude: number;
-  longitude: number;
-  gpsDistanceMeters: number;
-  /**
-   * AI vision results.
-   *
-   * `null` is deliberate and distinct from `undefined`:
-   *   - `undefined` / absent -> the field was never set on this record
-   *   - `null`               -> the AI pass ran but produced no result yet
-   *   - value                -> the AI pass produced a result
-   *
-   * These were declared as plain optionals (`aiScore?: number`), which made
-   * the `null` written by EvidenceService a type error (TS2322). Widening the
-   * type is the honest fix: the stored state really does have three cases.
-   */
-  aiScore?: number | null;
-  aiDetections?: any[];
-  aiSummary?: string | null;
-  reviewerFeedback?: string;
-  submittedAt: Date;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface InMemoryAuditLog {
-  id: string;
-  entityType: string;
-  entityId: string;
-  action: string;
-  fromState?: string;
-  toState?: string;
-  actorId?: string;
-  payload?: any;
-  createdAt: Date;
-}
+import type {
+  InMemoryStoreTask,
+  InMemoryEvidence,
+  InMemoryAuditLog,
+} from './types';
+import * as pg from './postgres';
+import type { Pool } from 'pg';
 
 /**
  * Enterprise In-Memory Database Repository
@@ -115,6 +70,107 @@ export class EnterpriseDatabase {
   public evidences: InMemoryEvidence[] = [];
   public auditLogs: InMemoryAuditLog[] = [];
 
+  // -------------------------------------------------------------------------
+  // Persistence
+  // -------------------------------------------------------------------------
+
+  private pool: Pool | null = null;
+
+  /**
+   * Where reads are actually coming from, reported through /api/health.
+   *
+   * This is deliberately public and explicit. The original bug was not that
+   * the database was misconfigured — it was that nothing anywhere said the
+   * database was unused, so the application looked healthy while losing every
+   * write on restart.
+   */
+  public persistence: 'postgres' | 'memory' = 'memory';
+  public persistenceDetail = 'DATABASE_URL is not set — running on seed data';
+
+  /**
+   * Connects to PostgreSQL and replaces the seeded arrays with real rows.
+   *
+   * Failure is logged and survived rather than fatal: a database that is
+   * briefly unavailable should not take the API down with it, and the API is
+   * still useful on seed data. What must not happen is failing silently, so the
+   * mode is logged at error level and surfaced by /api/health.
+   */
+  public async init(): Promise<void> {
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) {
+      console.warn(
+        '⚠️  [oneTeam DB] DATABASE_URL is not set. Running entirely in memory — ' +
+          'every task, evidence and audit entry will be lost on restart.'
+      );
+      return;
+    }
+
+    try {
+      this.pool = pg.createPool(connectionString);
+      await pg.ping(this.pool);
+
+      const state = await pg.loadAll(this.pool);
+
+      if (state.users.length > 0) {
+        this.users = state.users as typeof this.users;
+        if (state.region) this.region = state.region as typeof this.region;
+        this.stores = state.stores as typeof this.stores;
+        if (state.campaign) this.campaign = state.campaign as typeof this.campaign;
+        this.templates = state.templates as typeof this.templates;
+        this.storeTasks = state.storeTasks;
+        this.evidences = state.evidences;
+        this.auditLogs = state.auditLogs;
+      } else {
+        console.warn(
+          '⚠️  [oneTeam DB] Connected, but the users table is empty. Keeping the ' +
+            'built-in seed data in memory. Run db/api-seed.sql against this database.'
+        );
+      }
+
+      this.persistence = 'postgres';
+      this.persistenceDetail =
+        `postgres — ${this.users.length} users, ${this.stores.length} stores, ` +
+        `${this.storeTasks.length} tasks, ${this.evidences.length} evidences, ` +
+        `${this.auditLogs.length} audit entries`;
+      console.log('✅ [oneTeam DB] ' + this.persistenceDetail);
+    } catch (error) {
+      this.pool = null;
+      this.persistence = 'memory';
+      this.persistenceDetail =
+        'postgres unavailable: ' + (error instanceof Error ? error.message : String(error));
+      console.error(
+        '⛔ [oneTeam DB] Could not use PostgreSQL. Falling back to in-memory seed ' +
+          'data; writes will NOT survive a restart. Reason: ' + this.persistenceDetail
+      );
+    }
+  }
+
+  /**
+   * Fire-and-forget write-through.
+   *
+   * The callers are synchronous and stay that way — see the note in
+   * postgres.ts. A failed write is logged loudly rather than thrown: an audit
+   * row that cannot be written should not fail the business operation that
+   * produced it, but it must be visible in the logs.
+   */
+  private persist(op: Promise<unknown>, label: string): void {
+    if (!this.pool) return;
+    op.catch((error) => {
+      console.error(
+        `⛔ [oneTeam DB] Failed to persist ${label}: ` +
+          (error instanceof Error ? error.message : String(error))
+      );
+    });
+  }
+
+  /** Closes the pool. Used by tests and by graceful shutdown. */
+  public async close(): Promise<void> {
+    if (this.pool) {
+      await this.pool.end();
+      this.pool = null;
+    }
+  }
+
   /**
    * Records immutable audit trail event
    */
@@ -139,7 +195,32 @@ export class EnterpriseDatabase {
       createdAt: new Date(),
     };
     this.auditLogs.push(entry);
+    if (this.pool) this.persist(pg.insertAuditLog(this.pool, entry), `audit ${entry.id}`);
     return entry;
+  }
+
+  /**
+   * Adds a store task and persists it.
+   *
+   * Replaces a direct `db.storeTasks.push(...)` in the task service. The push
+   * is still what makes the task visible to the running process; the insert is
+   * what makes it survive.
+   */
+  public createStoreTask(task: InMemoryStoreTask): InMemoryStoreTask {
+    this.storeTasks.push(task);
+    if (this.pool) this.persist(pg.insertStoreTask(this.pool, task), `task ${task.id}`);
+    return task;
+  }
+
+  /**
+   * Adds an evidence record and persists it.
+   *
+   * Replaces a direct `db.evidences.push(...)` in the evidence service.
+   */
+  public createEvidence(evidence: InMemoryEvidence): InMemoryEvidence {
+    this.evidences.push(evidence);
+    if (this.pool) this.persist(pg.insertEvidence(this.pool, evidence), `evidence ${evidence.id}`);
+    return evidence;
   }
 
   public getUser(userId: string) {
@@ -242,6 +323,8 @@ export class EnterpriseDatabase {
     if (newState === TaskState.APPROVED || newState === TaskState.REJECTED) {
       task.reviewedAt = new Date();
     }
+
+    if (this.pool) this.persist(pg.updateStoreTaskRow(this.pool, task), `task ${task.id} state`);
 
     return task;
   }

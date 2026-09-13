@@ -7,15 +7,14 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "db:generate": "node ../../node_modules/prisma/dist/prisma.js generate",
     "db:seed": "node ../../node_modules/tsx/dist/cli.mjs src/seed.ts"
   },
   "dependencies": {
     "@oneteam/types": "*",
-    "@prisma/client": "^7.10.0"
+    "pg": "^8.13.1"
   },
   "devDependencies": {
-    "prisma": "^7.10.0",
+    "@types/pg": "^8.11.10",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2"
   }

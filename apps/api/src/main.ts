@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { db } from '@oneteam/database';
 
 /**
  * Origins allowed to call this API from a browser.
@@ -61,6 +62,18 @@ function resolveAllowedOrigins(logger: Logger): string[] {
 async function bootstrap() {
   const logger = new Logger('oneTeam-API');
   const app = await NestFactory.create(AppModule);
+
+  // Load persisted state BEFORE the HTTP listener opens.
+  //
+  // The repository hydrates its working set from PostgreSQL here. Doing it
+  // after `listen()` would leave a window in which the first requests are
+  // answered from seed data and then silently replaced, which is the kind of
+  // race that only shows up as "the task I just created disappeared".
+  //
+  // init() never throws: if the database is unreachable it logs at error level
+  // and the API starts on in-memory seed data. /api/health reports which mode
+  // is in use, so this cannot go unnoticed.
+  await db.init();
 
   const allowedOrigins = resolveAllowedOrigins(logger);
 

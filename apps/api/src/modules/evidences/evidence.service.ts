@@ -260,7 +260,7 @@ export class EvidenceService {
       updatedAt: new Date(),
     };
 
-    db.evidences.push(evidenceRecord);
+    db.createEvidence(evidenceRecord);
 
     // 5. Record Evidence Submission in Audit Log
     db.logAuditEvent({
