@@ -51,8 +51,24 @@ RUN rm -rf /usr/share/nginx/html/*
 # Copy built distribution assets from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy custom enterprise Nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy the Nginx configuration as a TEMPLATE, not as a finished config.
+#
+# The official nginx image runs envsubst over /etc/nginx/templates/*.template at
+# container start and writes the result into /etc/nginx/conf.d/. That is how
+# ${API_UPSTREAM} in nginx.conf gets a platform-appropriate value without
+# baking a hostname into the image.
+#
+# NGINX_ENVSUBST_FILTER is load-bearing. Without it, envsubst substitutes EVERY
+# defined variable it can see — including nginx's own runtime ones. `$host`,
+# `$remote_addr` and `$request_uri` would each be replaced by the empty string,
+# silently breaking the proxy headers with no error anywhere.
+#
+# The default below suits docker-compose; Railway overrides it with the API's
+# private address (http://api.railway.internal:3001).
+ENV API_UPSTREAM=http://api:3001
+ENV NGINX_ENVSUBST_FILTER=^API_UPSTREAM$
+
+COPY nginx.conf /etc/nginx/templates/default.conf.template
 
 EXPOSE 80
 

@@ -1,0 +1,33 @@
+# =============================================================================
+#  oneTeam — PostgreSQL for the hosted test environment
+# =============================================================================
+#
+#  WHY THIS IS A CUSTOM IMAGE AND NOT JUST `postgres:16-alpine`
+#  -----------------------------------------------------------
+#  The official image runs every `*.sql` file placed in
+#  /docker-entrypoint-initdb.d/ exactly once, when the data directory is first
+#  created. That is the only supported hook for seeding a fresh database, and
+#  a plain image reference gives us no way to put files there — there is no
+#  build step to hook into.
+#
+#  Without this, a Railway Postgres service comes up as an empty server: the
+#  connection works, the database exists, and every table is missing. The
+#  failure surfaces much later as "relation does not exist" from whatever
+#  tries to read it, which is a confusing place to start debugging.
+#
+#  ORDER MATTERS. The init directory is executed in lexical order, so the
+#  schema is numbered 01 and the seed data 02. Reversing them would try to
+#  insert rows into tables that do not exist yet.
+#
+#  NOTE: init scripts run ONLY when the volume is empty. Changing these files
+#  and redeploying will NOT re-apply them to an existing volume — the volume
+#  has to be deleted (or the scripts run by hand) for a re-seed.
+# =============================================================================
+
+FROM postgres:16-alpine
+
+COPY init_schema.sql /docker-entrypoint-initdb.d/01-schema.sql
+COPY seed.sql        /docker-entrypoint-initdb.d/02-seed.sql
+
+# The base image already declares VOLUME /var/lib/postgresql/data and the
+# matching entrypoint, so nothing else is needed here.
