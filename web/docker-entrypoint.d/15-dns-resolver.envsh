@@ -30,7 +30,24 @@
 #  symptom is a 499 after exactly the client's timeout, on every upstream,
 #  private and public alike. Forcing IPv4 resolution removes the dead end.
 
-ns=$(awk '/^nameserver[[:space:]]/ { print $2; exit }' /etc/resolv.conf 2>/dev/null)
+# WHY IPv4 NAMESERVERS ONLY
+# -------------------------
+# Taking the *first* nameserver from /etc/resolv.conf is wrong. Railway lists
+# an IPv6 resolver first:
+#
+#     nameserver fd12::10
+#     nameserver 10.x.x.x
+#
+# nginx parses a bare IPv6 address as `host:port`, reads the trailing "10" as a
+# port number, and refuses to start:
+#
+#     [emerg] invalid port in resolver "fd12::10"
+#
+# The container then crash-loops behind a healthcheck, which is a slow and
+# confusing way to find out. Bracketing it ([fd12::10]) is not the fix either:
+# the whole point of this resolver is IPv4-only lookups, so an IPv4 nameserver
+# is what we actually want.
+ns=$(awk '/^nameserver[[:space:]]/ && $2 !~ /:/ { print $2; exit }' /etc/resolv.conf 2>/dev/null)
 
 # Fall back to Docker's embedded resolver so `docker compose up` keeps working
 # even if resolv.conf is unusual.
