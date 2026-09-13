@@ -224,6 +224,78 @@
     </div>
   </header>
 
+  <!-- ================= CANLI VƏZİYYƏT ================= -->
+  <section>
+    <h2><span class="num">✓</span> Canlı vəziyyət — deploy artıq edilib</h2>
+    <p class="lede">
+      Bu təlimatı <b>əllə izləmək lazım deyil.</b> Deploy 13 sentyabr 2026 tarixində
+      tamamlandı və hazırda işləyir. Aşağıdakı bölmələr isə nə edildiyini izah edir —
+      lazım olsa, köçürmə və ya bərpa üçün istinad kimi saxlayın.
+    </p>
+
+    <table>
+      <thead>
+        <tr><th style="width:38%">Nə</th><th>Ünvan / vəziyyət</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><b>Veb panel</b> — istifadəçilər üçün</td>
+          <td><a href="https://web-production-1392e.up.railway.app">web-production-1392e.up.railway.app</a> ✅</td>
+        </tr>
+        <tr>
+          <td><b>API</b> — proqramlar üçün</td>
+          <td><a href="https://api-production-c17b.up.railway.app/api/health">api-production-c17b.up.railway.app</a> ✅</td>
+        </tr>
+        <tr>
+          <td>Veb → API keçidi</td>
+          <td><a href="https://web-production-1392e.up.railway.app/api/health">…/api/health</a> ✅ cavab verir</td>
+        </tr>
+        <tr>
+          <td>Railway idarəetmə paneli</td>
+          <td><a href="https://railway.com/project/f400d4fb-57dc-4346-9512-294f616ec363">railway.com/project/f400d4fb…</a></td>
+        </tr>
+        <tr>
+          <td>Kod (private)</td>
+          <td><a href="https://github.com/Enjoyer09/oneTeam">github.com/Enjoyer09/oneTeam</a></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>Dörd hissənin hamısı <b>bir Railway layihəsi içindədir</b> (layihə adı: <code>oneTeam</code>):</p>
+
+    <table>
+      <thead>
+        <tr><th style="width:26%">Servis</th><th style="width:34%">Nədir</th><th>Vəziyyət</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>postgres</code></td><td>Verilənlər bazası (PostgreSQL 16 + disk)</td><td>✅ sxem və nümunə məlumat yüklənib</td></tr>
+        <tr><td><code>api</code></td><td>Backend (NestJS)</td><td>✅ işləyir</td></tr>
+        <tr><td><code>web</code></td><td>Veb panel (React + nginx)</td><td>✅ işləyir</td></tr>
+        <tr><td><code>bot</code></td><td>Telegram bot</td><td>⏸ deploy edilməyib — real bot tokeni tələb edir</td></tr>
+      </tbody>
+    </table>
+
+    <p>
+      <b>Yoxlanılıb (8/8):</b> veb panel açılır · səhifə başlığı düzgündür · dərin ünvanlar
+      işləyir · statik fayllar verilir · API cavab verir · veb → API keçidi işləyir ·
+      API giriş qoruması işləyir (401 qaytarır).
+    </p>
+
+    <p>
+      <b>Bot niyə işə salınmayıb:</b> Telegram-dan <i>real</i> bot tokeni olmadan o, dərhal
+      sönür və sonsuz yenidən başlama dövrünə düşür. Token əldə edəndə xəbər verin — bir
+      əmrlə işə salınar.
+    </p>
+
+    <p>
+      <b>Kodu yeniləmək üçün:</b> dəyişikliyi GitHub-a göndərin, sonra yeni versiyanı
+      Railway-ə ayrıca ötürmək lazımdır. <b>Diqqət:</b> Railway hazırda kodu GitHub-dan
+      <i>oxumur</i> — ona görə GitHub-a push etmək tək başına deploy etmir. Bunu avtomatik
+      etmək üçün Railway-də GitHub tətbiqini quraşdırmaq lazımdır (bir dəfəlik, brauzerdə
+      ~1 dəqiqə).
+    </p>
+  </section>
+
   <!-- ================= 0 ================= -->
   <section data-page-node-id="bYEy6cbOTIaY1PoEhweraG">
     <h2 data-page-node-id="TPjMhPgKkshecYLRKv4ntZ"><span class="num" data-page-node-id="KgJzdVrA7irCxjpRh3qMds">0</span> Qısa cavab: hansı servis?</h2>

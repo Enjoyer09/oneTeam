@@ -6,6 +6,53 @@
 
 ---
 
+## ✅ CANLI VƏZİYYƏT — deploy artıq edilib
+
+Bu təlimatı **əllə izləmək lazım deyil.** Deploy 13 sentyabr 2026 tarixində
+tamamlandı və hazırda işləyir.
+
+### İşləyən ünvanlar
+
+| Nə | Ünvan | Vəziyyət |
+|---|---|---|
+| **Veb panel** (istifadəçilər üçün) | https://web-production-1392e.up.railway.app | ✅ işləyir |
+| **API** (proqramlar üçün) | https://api-production-c17b.up.railway.app | ✅ işləyir |
+| API sağlamlıq yoxlaması | https://web-production-1392e.up.railway.app/api/health | ✅ cavab verir |
+| Railway idarəetmə paneli | https://railway.com/project/f400d4fb-57dc-4346-9512-294f616ec363 | — |
+| Kod (private) | https://github.com/Enjoyer09/oneTeam | — |
+
+### Nə qurulub
+
+Dörd hissə də **bir layihə içindədir** (Railway → `oneTeam`):
+
+| Servis | Nədir | Vəziyyət |
+|---|---|---|
+| `postgres` | Verilənlər bazası (PostgreSQL 16 + disk) | ✅ sxem və nümunə məlumat yüklənib |
+| `api` | Backend (NestJS) | ✅ |
+| `web` | Veb panel (React + nginx) | ✅ |
+| `bot` | Telegram bot | ⏸ **deploy edilməyib** — real bot tokeni tələb edir |
+
+`bot` xidməti yaradılıb, lakin işə salınmayıb: Telegram-dan **real** bot tokeni
+olmadan o, dərhal sönür. Token əldə edəndə xəbər verin — bir əmrlə işə salaram.
+
+### Yoxlanılıb (8/8)
+
+Veb panel açılır · səhifə başlığı düzgündür · dərin ünvanlar işləyir ·
+statik fayllar verilir · API cavab verir · **veb → API keçidi işləyir** ·
+API giriş qoruması işləyir (401 qaytarır).
+
+### Kodu yeniləmək istəsəniz
+
+1. Dəyişikliyi GitHub-a göndərin (`Enjoyer09/oneTeam`), **və ya**
+2. Mənə deyin — Railway-ə yeni versiyanı göndərim.
+
+**Vacib:** Railway hazırda kodu GitHub-dan **oxumur**. Ona görə GitHub-a push
+etmək tək başına deploy etmir; yeni versiyanı ayrıca göndərmək lazımdır.
+Bunu avtomatik etmək istəsəniz, Railway-də GitHub tətbiqini quraşdırmaq lazımdır
+(bir dəfəlik, brauzerdə ~1 dəqiqə) — deyin, birlikdə edək.
+
+---
+
 ## 0. Qısa cavab: hansı servis?
 
 **Railway** (`railway.com`).
