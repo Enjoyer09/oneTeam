@@ -61,6 +61,26 @@ Yoxlanılıb: yeni tapşırıq yaradıldı, status dəyişdirildi, API yenidən 
 Yoxlanılıb: GitHub-a göndərdikdən ~4 saniyə sonra Railway deploy-a başlayır.
 Əllə heç nə etmək lazım deyil.
 
+### Canlı yoxlama zamanı tapılan və düzəldilən iki nasazlıq
+
+Hər şey işləyirdi, amma yoxlama zamanı iki gizli problem tapıldı:
+
+**1. Telegram bot əslində ölü idi.** Konteyner işləyirdi, loglar «connected»
+yazırdı — amma bot heç nə cavablandırmırdı. Səbəb: hər deploy zamanı köhnə və
+yeni nüsxə qısa müddət eyni vaxtda işləyir, Telegram isə yalnız birinə icazə
+verir. Yenisi rədd cavabı (409) alırdı və bu xəta tutulmadığı üçün proqram
+dərhal sönürdü. İndi belə halda bot gözləyir və yenidən cəhd edir — sönmür.
+Commit `d597b9e`.
+
+**2. API baza ilə «yarışı» uduzurdu.** Deploy zamanı API `15:36:38`-də, baza isə
+`15:36:40`-da hazır olur — **2 saniyə fərq**. API bu 2 saniyəyə düşəndə bazaya
+birdəfəlik qoşula bilmirdi və səssizcə yaddaş rejimində qalırdı. İndi ilk
+qoşulma 12 dəfə təkrarlanır. Commit `225186b`.
+
+**Yekun yoxlama (canlı):** veb 200 · veb → API 200 · API bazaya qoşulub
+(4 tapşırıq, 6 audit qeydi — yəni əvvəlki yazılar 4 deploy-dan sonra da
+yerindədir) · giriş qoruması 401 · bot canlı.
+
 ---
 
 ## 0. Qısa cavab: hansı servis?
