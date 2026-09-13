@@ -269,30 +269,32 @@
       </thead>
       <tbody>
         <tr><td><code>postgres</code></td><td>Verilənlər bazası (PostgreSQL 16 + disk)</td><td>✅ sxem və nümunə məlumat yüklənib</td></tr>
-        <tr><td><code>api</code></td><td>Backend (NestJS)</td><td>✅ işləyir</td></tr>
+        <tr><td><code>api</code></td><td>Backend (NestJS)</td><td>✅ <b>bazaya yazır və oxuyur</b></td></tr>
         <tr><td><code>web</code></td><td>Veb panel (React + nginx)</td><td>✅ işləyir</td></tr>
-        <tr><td><code>bot</code></td><td>Telegram bot</td><td>⏸ deploy edilməyib — real bot tokeni tələb edir</td></tr>
+        <tr><td><code>bot</code></td><td>Telegram bot</td><td>✅ işləyir — <b>@oneTeamCCIbot</b></td></tr>
       </tbody>
     </table>
 
     <p>
-      <b>Yoxlanılıb (8/8):</b> veb panel açılır · səhifə başlığı düzgündür · dərin ünvanlar
+      <b>Yoxlanılıb:</b> veb panel açılır · səhifə başlığı düzgündür · dərin ünvanlar
       işləyir · statik fayllar verilir · API cavab verir · veb → API keçidi işləyir ·
-      API giriş qoruması işləyir (401 qaytarır).
+      API giriş qoruması işləyir (401 qaytarır) · Telegram bot cavab verir ·
+      verilənlər bazası oxuyur və yazır.
     </p>
 
     <p>
-      <b>Bot niyə işə salınmayıb:</b> Telegram-dan <i>real</i> bot tokeni olmadan o, dərhal
-      sönür və sonsuz yenidən başlama dövrünə düşür. Token əldə edəndə xəbər verin — bir
-      əmrlə işə salınar.
+      <b>Verilənlər bazası artıq həqiqətən istifadə olunur.</b> Əvvəl API hər şeyi
+      yaddaşda saxlayırdı və hər yenidən başlatmada itirirdi. İndi işə düşəndə məlumatı
+      bazadan oxuyur, hər dəyişikliyi bazaya yazır. <code>/api/health</code> cavabındakı
+      <code>persistence</code> sahəsi hansı rejimdə işlədiyini göstərir.
+      Yoxlanılıb: yeni tapşırıq yaradıldı, status dəyişdirildi, API yenidən başladıldı —
+      hər ikisi yerində qaldı.
     </p>
 
     <p>
-      <b>Kodu yeniləmək üçün:</b> dəyişikliyi GitHub-a göndərin, sonra yeni versiyanı
-      Railway-ə ayrıca ötürmək lazımdır. <b>Diqqət:</b> Railway hazırda kodu GitHub-dan
-      <i>oxumur</i> — ona görə GitHub-a push etmək tək başına deploy etmir. Bunu avtomatik
-      etmək üçün Railway-də GitHub tətbiqini quraşdırmaq lazımdır (bir dəfəlik, brauzerdə
-      ~1 dəqiqə).
+      <b>Kodu yeniləmək üçün:</b> dəyişikliyi GitHub-a göndərin — <b>bu kifayətdir.</b>
+      Railway kodu GitHub-dan avtomatik oxuyur və dörd servisi də özü yeniləyir.
+      Yoxlanılıb: GitHub-a göndərdikdən ~4 saniyə sonra Railway deploy-a başlayır.
     </p>
   </section>
 

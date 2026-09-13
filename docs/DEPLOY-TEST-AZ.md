@@ -28,28 +28,38 @@ Dörd hissə də **bir layihə içindədir** (Railway → `oneTeam`):
 | Servis | Nədir | Vəziyyət |
 |---|---|---|
 | `postgres` | Verilənlər bazası (PostgreSQL 16 + disk) | ✅ sxem və nümunə məlumat yüklənib |
-| `api` | Backend (NestJS) | ✅ |
+| `api` | Backend (NestJS) | ✅ **bazaya yazır və oxuyur** |
 | `web` | Veb panel (React + nginx) | ✅ |
-| `bot` | Telegram bot | ⏸ **deploy edilməyib** — real bot tokeni tələb edir |
+| `bot` | Telegram bot | ✅ işləyir — **@oneTeamCCIbot** |
 
-`bot` xidməti yaradılıb, lakin işə salınmayıb: Telegram-dan **real** bot tokeni
-olmadan o, dərhal sönür. Token əldə edəndə xəbər verin — bir əmrlə işə salaram.
+### Verilənlər bazası artıq həqiqətən istifadə olunur
 
-### Yoxlanılıb (8/8)
+Əvvəl API hər şeyi **yaddaşda** saxlayırdı: tapşırıqlar, sübutlar və audit
+qeydləri heç bir yerdə saxlanmırdı və hər yenidən başlatmada **itirdi**.
+Bazaya qoşulmaq olurdu, amma heç bir cədvəl uyğun gəlmirdi — ona görə API
+səssizcə yaddaşa keçirdi.
 
-Veb panel açılır · səhifə başlığı düzgündür · dərin ünvanlar işləyir ·
-statik fayllar verilir · API cavab verir · **veb → API keçidi işləyir** ·
-API giriş qoruması işləyir (401 qaytarır).
+İndi:
 
-### Kodu yeniləmək istəsəniz
+- API işə düşəndə məlumatı **bazadan** oxuyur;
+- hər dəyişiklik (tapşırıq yaratmaq, status dəyişmək, sübut yükləmək, audit
+  qeydi) **bazaya yazılır**;
+- `/api/health` cavabında `persistence` sahəsi hansı rejimdə işlədiyini göstərir.
 
-1. Dəyişikliyi GitHub-a göndərin (`Enjoyer09/oneTeam`), **və ya**
-2. Mənə deyin — Railway-ə yeni versiyanı göndərim.
+Yoxlanılıb: yeni tapşırıq yaradıldı, status dəyişdirildi, API yenidən başladıldı
+— hər ikisi **yerində qaldı**.
 
-**Vacib:** Railway hazırda kodu GitHub-dan **oxumur**. Ona görə GitHub-a push
-etmək tək başına deploy etmir; yeni versiyanı ayrıca göndərmək lazımdır.
-Bunu avtomatik etmək istəsəniz, Railway-də GitHub tətbiqini quraşdırmaq lazımdır
-(bir dəfəlik, brauzerdə ~1 dəqiqə) — deyin, birlikdə edək.
+> **Diqqət:** köhnə baza diski (Supabase tipli cədvəllər) silinib və yerinə yeni
+> disk yaradılıb. Köhnə diskin içində yalnız nümunə məlumat var idi və heç bir
+> proqram onu oxumurdu, ona görə itki yoxdur.
+
+### Kodu yeniləmək
+
+1. Dəyişikliyi GitHub-a göndərin (`Enjoyer09/oneTeam`) — **bu kifayətdir.**
+2. Railway kodu GitHub-dan **avtomatik oxuyur** və dörd servisi də özü yeniləyir.
+
+Yoxlanılıb: GitHub-a göndərdikdən ~4 saniyə sonra Railway deploy-a başlayır.
+Əllə heç nə etmək lazım deyil.
 
 ---
 
