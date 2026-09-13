@@ -90,12 +90,24 @@ export class EnterpriseDatabase {
   /**
    * Connects to PostgreSQL and replaces the seeded arrays with real rows.
    *
-   * Failure is logged and survived rather than fatal: a database that is
-   * briefly unavailable should not take the API down with it, and the API is
+   * RETRIES, BECAUSE THE DEPLOY RACE IS REAL
+   * ----------------------------------------
+   * A platform starts every service in a release at once. The database takes
+   * noticeably longer to become ready than an application container does, so
+   * the API regularly reaches its first query before Postgres is accepting
+   * connections. Observed on Railway: API started 15:36:38, Postgres ready
+   * 15:36:40 — a two-second gap that, with a single attempt, left the API
+   * permanently on in-memory seed data while reporting a healthy status.
+   *
+   * That is the exact failure this whole change exists to remove, so the first
+   * connection is retried for a bounded window rather than attempted once.
+   *
+   * Failure is still logged and survived rather than fatal: a database that is
+   * genuinely unavailable should not take the API down with it, and the API is
    * still useful on seed data. What must not happen is failing silently, so the
    * mode is logged at error level and surfaced by /api/health.
    */
-  public async init(): Promise<void> {
+  public async init(options?: { attempts?: number; delayMs?: number }): Promise<void> {
     const connectionString = process.env.DATABASE_URL;
     if (!connectionString) {
       console.warn(
@@ -105,43 +117,67 @@ export class EnterpriseDatabase {
       return;
     }
 
-    try {
-      this.pool = pg.createPool(connectionString);
-      await pg.ping(this.pool);
+    const attempts = options?.attempts ?? 12;
+    const delayMs = options?.delayMs ?? 3_000;
 
-      const state = await pg.loadAll(this.pool);
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        // A fresh pool per attempt: a pool that failed to connect is not
+        // necessarily reusable, and leaking one per retry would hold sockets.
+        if (this.pool) await this.pool.end().catch(() => undefined);
+        this.pool = pg.createPool(connectionString);
 
-      if (state.users.length > 0) {
-        this.users = state.users as typeof this.users;
-        if (state.region) this.region = state.region as typeof this.region;
-        this.stores = state.stores as typeof this.stores;
-        if (state.campaign) this.campaign = state.campaign as typeof this.campaign;
-        this.templates = state.templates as typeof this.templates;
-        this.storeTasks = state.storeTasks;
-        this.evidences = state.evidences;
-        this.auditLogs = state.auditLogs;
-      } else {
-        console.warn(
-          '⚠️  [oneTeam DB] Connected, but the users table is empty. Keeping the ' +
-            'built-in seed data in memory. Run db/api-seed.sql against this database.'
+        await pg.ping(this.pool);
+
+        const state = await pg.loadAll(this.pool);
+
+        if (state.users.length > 0) {
+          this.users = state.users as typeof this.users;
+          if (state.region) this.region = state.region as typeof this.region;
+          this.stores = state.stores as typeof this.stores;
+          if (state.campaign) this.campaign = state.campaign as typeof this.campaign;
+          this.templates = state.templates as typeof this.templates;
+          this.storeTasks = state.storeTasks;
+          this.evidences = state.evidences;
+          this.auditLogs = state.auditLogs;
+        } else {
+          console.warn(
+            '⚠️  [oneTeam DB] Connected, but the users table is empty. Keeping the ' +
+              'built-in seed data in memory. Run db/api-seed.sql against this database.'
+          );
+        }
+
+        this.persistence = 'postgres';
+        this.persistenceDetail =
+          `postgres — ${this.users.length} users, ${this.stores.length} stores, ` +
+          `${this.storeTasks.length} tasks, ${this.evidences.length} evidences, ` +
+          `${this.auditLogs.length} audit entries`;
+        console.log('✅ [oneTeam DB] ' + this.persistenceDetail);
+        return;
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+
+        if (attempt < attempts) {
+          console.warn(
+            `⏳ [oneTeam DB] Attempt ${attempt}/${attempts} failed (${reason}). ` +
+              `Retrying in ${Math.round(delayMs / 1000)}s — the database is often still ` +
+              'starting when the application container is already up.'
+          );
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          continue;
+        }
+
+        if (this.pool) {
+          await this.pool.end().catch(() => undefined);
+        }
+        this.pool = null;
+        this.persistence = 'memory';
+        this.persistenceDetail = 'postgres unavailable: ' + reason;
+        console.error(
+          `⛔ [oneTeam DB] Gave up after ${attempts} attempts. Falling back to in-memory ` +
+            'seed data; writes will NOT survive a restart. Reason: ' + reason
         );
       }
-
-      this.persistence = 'postgres';
-      this.persistenceDetail =
-        `postgres — ${this.users.length} users, ${this.stores.length} stores, ` +
-        `${this.storeTasks.length} tasks, ${this.evidences.length} evidences, ` +
-        `${this.auditLogs.length} audit entries`;
-      console.log('✅ [oneTeam DB] ' + this.persistenceDetail);
-    } catch (error) {
-      this.pool = null;
-      this.persistence = 'memory';
-      this.persistenceDetail =
-        'postgres unavailable: ' + (error instanceof Error ? error.message : String(error));
-      console.error(
-        '⛔ [oneTeam DB] Could not use PostgreSQL. Falling back to in-memory seed ' +
-          'data; writes will NOT survive a restart. Reason: ' + this.persistenceDetail
-      );
     }
   }
 

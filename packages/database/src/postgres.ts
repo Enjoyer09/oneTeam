@@ -81,7 +81,11 @@ export function createPool(connectionString: string): Pool {
     connectionString,
     max: 5,
     idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 10_000,
+    // 5s, not 10s, because this value multiplies the start-up retry loop in
+    // EnterpriseDatabase.init(): 10 attempts x (5s connect + 3s delay) is an
+    // 80-second worst case, which still fits inside the container healthcheck's
+    // grace period. At 10s it would not.
+    connectionTimeoutMillis: 5_000,
   });
 }
 
