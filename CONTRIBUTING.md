@@ -10,9 +10,9 @@ each rule — is in [`docs/ENGINEERING-STANDARDS.md`](docs/ENGINEERING-STANDARDS
 ```bash
 git clone <repository-url>
 cd oneTeam
-pnpm install          # NOT npm — see §2
-pnpm run type-check   # should print nothing
-pnpm run test:all     # should end with "ALL ... PASSED"
+npm install           # or `pnpm install` — see §2
+npm run type-check    # should print nothing
+npm run test:all      # should end with "ALL ... PASSED"
 ```
 
 Node version is pinned in `.nvmrc`. If you use `nvm`, run `nvm use` first.
@@ -25,33 +25,53 @@ or a screenshot.**
 
 ## 2. Package manager
 
-**This project uses pnpm.** Not npm, not yarn.
+**Both npm and pnpm work. npm is what the containers use.**
 
-The workspace packages reference each other with the `workspace:*` protocol:
+The three workspace packages reference each other with a plain `*`:
 
 ```json
-"@oneteam/types": "workspace:*"
+"@oneteam/types": "*"
 ```
 
-That syntax is **pnpm-only**. Running `npm install` fails outright with
-`EUNSUPPORTEDPROTOCOL`, which is why a fresh clone must use pnpm.
+### Why not `workspace:*`
 
-> If you see a `package-lock.json` in the repository root, it is stale and
-> should be deleted. Only `pnpm-lock.yaml` is authoritative.
+They used to say `workspace:*`. That syntax is **pnpm-only** — npm aborts with
+`EUNSUPPORTEDPROTOCOL`, and both `apps/api/Dockerfile` and `Dockerfile.bot` run
+`npm install`. The consequence was that neither image could ever build, and
+nothing in the test suite noticed, because tests run from an already-installed
+tree.
+
+`*` is understood by both tools. npm satisfies it with the local workspace
+package (the `@oneteam/*` packages are private and unpublished, so there is no
+registry version to prefer) and links it into `node_modules/@oneteam/`. pnpm
+does the same.
+
+### Two things to know
+
+- **`package-lock.json` is authoritative.** It was stale for a long time and
+  listed packages the manifests no longer referenced. It has been regenerated.
+  If you add a dependency, commit the updated lockfile with the manifest — a
+  lockfile that disagrees with `package.json` breaks `npm ci` in CI and in the
+  container build.
+- **`workspaces` in the root `package.json` lists only `apps/*` and
+  `packages/*`.** `web` and `mobile` are deliberately excluded: both have their
+  own lockfile and are installed independently, and listing them made the API
+  and bot Dockerfiles require manifests those Dockerfiles never copy into the
+  image. `pnpm-workspace.yaml` still lists them, so pnpm users see no difference.
 
 ---
 
 ## 3. The daily loop
 
 ```bash
-pnpm run web:dev      # portal with hot reload on http://localhost:5173
-pnpm run api:dev      # API on http://localhost:3001
+npm run web:dev      # portal with hot reload on http://localhost:5173
+npm run api:dev      # API on http://localhost:3001
 ```
 
 Before you push:
 
 ```bash
-pnpm run quality      # format check -> lint -> type-check -> tests
+npm run quality      # format check -> lint -> type-check -> tests
 ```
 
 That one command runs everything CI runs. If it is green locally, CI will be
@@ -61,14 +81,14 @@ green. Do not push red and hope.
 
 | Command | What it does |
 | --- | --- |
-| `pnpm run lint` | ESLint. Warnings are allowed; errors are not. |
-| `pnpm run lint:fix` | ESLint with autofix. |
-| `pnpm run format` | Prettier, rewriting files. |
-| `pnpm run format:check` | Prettier in check-only mode (what CI runs). |
-| `pnpm run type-check` | TypeScript across the whole workspace. |
-| `pnpm run test:all` | Every test suite. |
-| `pnpm run secrets:scan` | Scan staged files for credentials. |
-| `pnpm run web:build` | Production build of the portal. |
+| `npm run lint` | ESLint. Warnings are allowed; errors are not. |
+| `npm run lint:fix` | ESLint with autofix. |
+| `npm run format` | Prettier, rewriting files. |
+| `npm run format:check` | Prettier in check-only mode (what CI runs). |
+| `npm run type-check` | TypeScript across the whole workspace. |
+| `npm run test:all` | Every test suite. |
+| `npm run secrets:scan` | Scan staged files for credentials. |
+| `npm run web:build` | Production build of the portal. |
 
 ---
 

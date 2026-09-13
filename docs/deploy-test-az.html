@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="az">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>oneTeam — Test Deploy Təlimatı (Railway)</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --surface-2: #fbfcfd;
+    --border: #e3e6ea;
+    --border-strong: #cfd5dc;
+    --text: #1b1f24;
+    --text-muted: #5a636e;
+    --text-faint: #858e99;
+    --accent: #c8102e;      /* Coca-Cola red — brand nod */
+    --accent-soft: #fdf1f3;
+    --ok: #1a7f4b;
+    --ok-soft: #eef8f2;
+    --warn: #9a6200;
+    --warn-soft: #fdf6e7;
+    --info: #1257a8;
+    --info-soft: #eff5fd;
+    --code-bg: #f3f5f7;
+    --radius: 10px;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 860px; margin: 0 auto; padding: 40px 22px 90px; }
+
+  /* ---------- header ---------- */
+  header.doc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 30px 32px;
+    margin-bottom: 26px;
+  }
+  .kicker {
+    font-size: 12px; font-weight: 700; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 10px;
+  }
+  header.doc h1 { margin: 0 0 10px; font-size: 30px; line-height: 1.25; letter-spacing: -.02em; }
+  header.doc p { margin: 0; color: var(--text-muted); font-size: 15px; }
+  .meta {
+    margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border);
+    display: flex; flex-wrap: wrap; gap: 22px; font-size: 13px; color: var(--text-faint);
+  }
+  .meta b { color: var(--text-muted); font-weight: 600; }
+
+  /* ---------- sections ---------- */
+  section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px 32px;
+    margin-bottom: 22px;
+  }
+  section > h2 {
+    margin: 0 0 6px; font-size: 21px; letter-spacing: -.01em;
+    display: flex; align-items: baseline; gap: 12px;
+  }
+  section > h2 .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 30px; height: 30px; padding: 0 8px;
+    background: var(--accent); color: #fff;
+    border-radius: 8px; font-size: 14px; font-weight: 700;
+    flex: none; transform: translateY(-1px);
+  }
+  section > .lede { color: var(--text-muted); margin: 0 0 22px; font-size: 15px; }
+  h3 { font-size: 16px; margin: 26px 0 8px; letter-spacing: -.005em; }
+  h3:first-of-type { margin-top: 6px; }
+  p { margin: 0 0 12px; }
+  a { color: var(--info); }
+
+  /* ---------- callouts ---------- */
+  .callout {
+    border-left: 3px solid var(--border-strong);
+    background: var(--surface-2);
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px; margin: 18px 0; font-size: 14.5px;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout .tag {
+    display: block; font-size: 11.5px; font-weight: 700; letter-spacing: .07em;
+    text-transform: uppercase; margin-bottom: 5px;
+  }
+  .callout.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  .callout.warn .tag { color: var(--warn); }
+  .callout.info { border-left-color: var(--info); background: var(--info-soft); }
+  .callout.info .tag { color: var(--info); }
+  .callout.ok { border-left-color: var(--ok); background: var(--ok-soft); }
+  .callout.ok .tag { color: var(--ok); }
+  .callout.danger { border-left-color: var(--accent); background: var(--accent-soft); }
+  .callout.danger .tag { color: var(--accent); }
+
+  /* ---------- code ---------- */
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 16px; margin: 12px 0;
+    overflow-x: auto; font-family: var(--mono);
+    font-size: 13px; line-height: 1.6; color: #23282e;
+  }
+  code {
+    font-family: var(--mono); font-size: .89em;
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 4px; padding: 1px 5px; color: #23282e;
+  }
+  pre code { background: none; border: none; padding: 0; font-size: inherit; }
+  .ph { color: var(--accent); font-weight: 600; }
+
+  /* ---------- steps ---------- */
+  ol.steps { list-style: none; counter-reset: s; margin: 0; padding: 0; }
+  ol.steps > li {
+    counter-increment: s; position: relative;
+    padding: 0 0 4px 42px; margin-bottom: 16px;
+  }
+  ol.steps > li::before {
+    content: counter(s);
+    position: absolute; left: 0; top: 1px;
+    width: 27px; height: 27px; border-radius: 50%;
+    background: var(--accent-soft); color: var(--accent);
+    border: 1px solid #f0c9d0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+  }
+  ol.steps > li > p:last-child { margin-bottom: 0; }
+  ul.plain { margin: 8px 0 12px; padding-left: 22px; }
+  ul.plain li { margin-bottom: 5px; }
+
+  /* ---------- diagram ---------- */
+  .diagram {
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 22px; margin: 20px 0;
+  }
+  .diagram .frame {
+    border: 2px dashed var(--border-strong); border-radius: 8px;
+    padding: 14px; background: var(--surface);
+  }
+  .diagram .frame-label {
+    font-size: 11px; font-weight: 700; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--text-faint);
+    text-align: center; margin-bottom: 14px;
+  }
+  .diagram .row { display: flex; gap: 14px; flex-wrap: wrap; }
+  .node {
+    flex: 1 1 150px; background: var(--surface);
+    border: 1px solid var(--border-strong); border-radius: 8px;
+    padding: 12px 14px; text-align: center;
+  }
+  .node .n-name { font-weight: 700; font-size: 14px; display: block; }
+  .node .n-sub { font-size: 12px; color: var(--text-faint); display: block; margin-top: 3px; }
+  .node.db { border-color: #c9d6e8; background: #f6f9fd; }
+  .node.api { border-color: #e8d3c9; background: #fdf8f6; }
+  .node.ui { border-color: #c9e0d2; background: #f5fbf7; }
+  .node.bot { border-color: #ded3e8; background: #faf7fd; }
+
+  /* ---------- tables ---------- */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14.5px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th {
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--text-faint); font-weight: 700; border-bottom: 1px solid var(--border-strong);
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.mono { font-family: var(--mono); font-size: 12.5px; }
+
+  .pill {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    padding: 2px 8px; border-radius: 99px; letter-spacing: .03em;
+  }
+  .pill.must { background: var(--accent-soft); color: var(--accent); }
+  .pill.opt { background: #eef0f3; color: var(--text-muted); }
+
+  footer.doc {
+    text-align: center; color: var(--text-faint); font-size: 13px;
+    padding: 26px 0 0;
+  }
+  footer.doc a { color: var(--text-faint); }
+
+  @media (max-width: 620px) {
+    .wrap { padding: 22px 14px 60px; }
+    header.doc, section { padding: 22px 18px; }
+    header.doc h1 { font-size: 24px; }
+  }
+  @media print {
+    body { background: #fff; }
+    section, header.doc { border: 1px solid #ddd; break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="doc">
+    <div class="kicker">oneTeam · Test Deploy</div>
+    <h1>Proqramı onlayn yerləşdirmək üçün addım-addım təlimat</h1>
+    <p>
+      Bu sənəd texniki bilik tələb etmir. Hər addımda <b>nə edəcəyiniz</b> və
+      <b>nə yazacağınız</b> göstərilib. Şübhə etdiyiniz yerdə dayanın — tələm-tələsik
+      davam etməkdənsə bir addımı yavaş getmək yaxşıdır.
+    </p>
+    <div class="meta">
+      <span><b>Servis:</b> Railway</span>
+      <span><b>Təxmini xərc:</b> $5–15 / ay</span>
+      <span><b>Vaxt:</b> ~1 saat</span>
+      <span><b>Tarix:</b> 13 sentyabr 2026</span>
+    </div>
+  </header>
+
+  <!-- ================= 0 ================= -->
+  <section>
+    <h2><span class="num">0</span> Qısa cavab: hansı servis?</h2>
+    <p class="lede">Railway (<code>railway.com</code>). Səbəblər:</p>
+
+    <table>
+      <thead>
+        <tr><th style="width:38%">Səbəb</th><th>Nə deməkdir</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Layihənin 4 hissəsi <b>bir proyektdə</b> yaşayır</td>
+          <td>PostgreSQL + API + Veb panel + Bot — bir panel, bir hesab, bir hesab-faktura</td>
+        </tr>
+        <tr>
+          <td>Servislər bir-birini <b>daxili şəbəkədə</b> görür</td>
+          <td>Bazaya qoşulmaq üçün port açmaq, IP yazmaq lazım deyil</td>
+        </tr>
+        <tr>
+          <td>GitHub-a push edəndə <b>avtomatik yenilənir</b></td>
+          <td>Kodu dəyişdikdən sonra heç nə etmək lazım deyil</td>
+        </tr>
+        <tr>
+          <td><b>Server idarəçiliyi yoxdur</b></td>
+          <td>Linux yeniləmələri, sertifikatlar, gecə saat 2-də disk dolması — bunlar sizin işiniz deyil</td>
+        </tr>
+        <tr>
+          <td>Artıq <b>tanışsınız</b></td>
+          <td>BahAI-Agent layihəsini də Railway-da saxlayırsınız</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Alternativlər və niyə seçmədik</h3>
+    <table>
+      <thead>
+        <tr><th style="width:24%">Servis</th><th>Problem</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><b>Render</b></td>
+          <td>Veb üçün həqiqətən pulsuzdur, lakin <b>pulsuz PostgreSQL bazası 30 gündən sonra silinir</b>. Test deploy bir aydan çox yaşamalıdırsa, yaramaz.</td>
+        </tr>
+        <tr>
+          <td><b>Hetzner</b><br><span style="color:var(--text-faint);font-size:13px">€9.51/ay</span></td>
+          <td>Ən ucuz variant, lakin bütün Linux serverini özünüz idarə etməli olursunuz: SSH, yeniləmələr, ehtiyat nüsxələr. Texniki olmayan operator üçün deyil.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ================= 1 ================= -->
+  <section>
+    <h2><span class="num">1</span> Nə deploy edirik?</h2>
+    <p class="lede">Dörd hissə, hamısı bir yerdə.</p>
+
+    <div class="diagram">
+      <div class="frame">
+        <div class="frame-label">Bir Railway proyekti</div>
+        <div class="row">
+          <div class="node db">
+            <span class="n-name">PostgreSQL</span>
+            <span class="n-sub">verilənlər bazası</span>
+          </div>
+          <div class="node api">
+            <span class="n-name">API</span>
+            <span class="n-sub">backend (NestJS)</span>
+          </div>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <div class="node ui">
+            <span class="n-name">Veb panel</span>
+            <span class="n-sub">React · nəzarətçi ekranı</span>
+          </div>
+          <div class="node bot">
+            <span class="n-name">Telegram bot</span>
+            <span class="n-sub">sahə işçisi</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th style="width:20%">Hissə</th><th style="width:42%">Nə edir</th><th>İstifadəçi nə görür</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><b>PostgreSQL</b></td><td>Bütün məlumatı saxlayır</td><td>görmür</td></tr>
+        <tr><td><b>API</b></td><td>Biznes məntiqi, tapşırıqlar, yoxlamalar</td><td>görmür (bot ondan istifadə edir)</td></tr>
+        <tr><td><b>Veb panel</b></td><td>Nəzarətçi üçün idarəetmə ekranı</td><td><b>link açır, panel görür</b></td></tr>
+        <tr><td><b>Telegram bot</b></td><td>Sahə işçisi tapşırığı qəbul edir, foto göndərir</td><td><b>Telegram-da botla danışır</b></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ================= 2 ================= -->
+  <section>
+    <h2><span class="num">2</span> Başlamazdan əvvəl bilməli olduğunuz 3 şey</h2>
+
+    <h3>2.1 · Kod hələ GitHub-da deyil</h3>
+    <p>
+      Railway kodu GitHub-dan oxuyur. Layihə hələ GitHub-da olmadığı üçün
+      <b>Addım 0 məcburidir</b>.
+    </p>
+
+    <h3>2.2 · Veb panel hazırda <b>demo məlumat</b> göstərir</h3>
+    <p>
+      Veb panel məlumatı birbaşa <b>Supabase</b> adlı xarici xidmətdən oxuyur — API-dən yox.
+      Supabase qurulmayıbsa, panel açılır və işləyir, lakin gördüyünüz bütün mağazalar,
+      tapşırıqlar və yoxlamalar <b>uydurma nümunə məlumatdır</b>.
+    </p>
+    <div class="callout info">
+      <span class="tag">Bu normaldır</span>
+      <p>
+        Test deploy üçün məqsəd «proqram onlayn işləyir» olduğunu görməkdir — demo məlumat
+        bunun üçün kifayətdir. Real məlumat istəyirsinizsə, bu <b>Bölmə 6</b>-da əlavə addımdır.
+      </p>
+    </div>
+
+    <h3>2.3 · Şifrələr dəyişdirilməlidir</h3>
+    <p>
+      Köhnə <code>docker-compose.prod.yml</code> faylında <b>sabit, hamıya məlum</b> bir baza
+      şifrəsi var idi (<code>coca_cola_secret_2026</code>). Bu artıq düzəldildi: indi şifrə
+      verilməzsə sistem <b>ümumiyyətlə işə düşmür</b>. Aşağıdakı addımlarda öz şifrənizi
+      yaradacaqsınız.
+    </p>
+  </section>
+
+  <!-- ================= 3 ================= -->
+  <section>
+    <h2><span class="num">3</span> Addım-addım deploy</h2>
+    <p class="lede">Sıra ilə gedin. Hər addım əvvəlkinin üzərində qurulur.</p>
+
+    <!-- Step 0 -->
+    <h3>Addım 0 — Kodu GitHub-a yerləşdirin <span class="pill must">MƏCBURİ</span></h3>
+    <p>Layihə qovluğu artıq git üçün hazırdır (ilk commit edilib). İndi onu GitHub-a göndərmək lazımdır.</p>
+    <p><b>Ən asan yol — GitHub Desktop:</b></p>
+    <ol class="steps">
+      <li><p><code>desktop.github.com</code> ünvanından <b>GitHub Desktop</b> proqramını endirib quraşdırın.</p></li>
+      <li><p>Proqramı açın və GitHub hesabınızla daxil olun.</p></li>
+      <li><p>Yuxarı menyudan: <b>File → Add local repository…</b></p></li>
+      <li><p>Qovluq seçin: <code>/Users/macbookair/GitHub/oneTeam</code></p></li>
+      <li><p>Proqram «This directory does not appear to be a Git repository» yazsa, <b>«create a repository»</b> linkinə basın və <b>Create repository</b> düyməsini basın.</p></li>
+      <li><p>Yuxarıda <b>Publish repository</b> düyməsini basın.</p></li>
+      <li><p>Açılan pəncərədə: <b>Name:</b> <code>oneteam</code> · <b>☑ Keep this code private</b> — bu işarəni <b>mütləq qoyun</b>.</p></li>
+      <li><p><b>Publish repository</b> düyməsini basın.</p></li>
+    </ol>
+    <div class="callout danger">
+      <span class="tag">Niyə «private»?</span>
+      <p>Layihədə həssas məlumat ola bilər. Public repo = hamının gördüyü repo.</p>
+    </div>
+
+    <!-- Step 1 -->
+    <h3>Addım 1 — Railway hesabı</h3>
+    <ol class="steps">
+      <li><p><code>railway.com</code> ünvanına gedin.</p></li>
+      <li><p>Sağ yuxarıda <b>Login</b> düyməsinə basın.</p></li>
+      <li><p><b>Login with GitHub</b> seçin və icazə verin.</p></li>
+      <li><p>Hesabınıza <b>ödəniş kartı</b> əlavə etməli olacaqsınız (Bölmə 4-ə baxın).</p></li>
+    </ol>
+
+    <!-- Step 2 -->
+    <h3>Addım 2 — Yeni proyekt yaradın</h3>
+    <ol class="steps">
+      <li><p><code>railway.com/dashboard</code> səhifəsinə gedin.</p></li>
+      <li><p>Sağ yuxarıda <b>+ New Project</b> düyməsinə basın.</p></li>
+      <li><p><b>Empty Project</b> seçin.</p></li>
+      <li><p>Proyektin adını dəyişin: yuxarıdaki ada basıb <code>oneteam-test</code> yazın.</p></li>
+    </ol>
+    <p>Boş bir «kanvas» görəcəksiniz. Servisləri bura əlavə edəcəyik.</p>
+
+    <!-- Step 3 -->
+    <h3>Addım 3 — Verilənlər bazası (PostgreSQL)</h3>
+    <ol class="steps">
+      <li><p>Kanvasda <b>+ New</b> düyməsinə basın.</p></li>
+      <li><p><b>Database</b> → <b>Add PostgreSQL</b> seçin.</p></li>
+      <li><p>Railway bazanı yaradır və adını <b>Postgres</b> qoyur.</p></li>
+    </ol>
+    <div class="callout warn">
+      <span class="tag">Adı dəyişməyin</span>
+      <p>Servisin adı <code>Postgres</code> qalmalıdır, çünki növbəti addımlarda ona adı ilə istinad edəcəyik.</p>
+    </div>
+    <div class="callout warn">
+      <span class="tag">Ehtiyat nüsxə yoxdur</span>
+      <p>Railway-in bazaları «idarə olunmayan» (unmanaged) servislərdir — avtomatik backup yoxdur. Test üçün problem deyil; real istifadəyə keçəndə ayrıca qurulmalıdır.</p>
+    </div>
+
+    <!-- Step 4 -->
+    <h3>Addım 4 — Backend (API) servisi</h3>
+    <ol class="steps">
+      <li><p>Kanvasda <b>+ New</b> → <b>GitHub Repo</b> seçin.</p></li>
+      <li><p>Siyahıdan <b>oneteam</b> reposunu seçin.</p></li>
+      <li><p>Servisin adını dəyişin: <code>api</code></p></li>
+    </ol>
+
+    <p><b>a) Dockerfile yolu</b> — <b>Settings → Build</b> bölməsini açın. <b>Dockerfile Path</b> sahəsinə yazın:</p>
+    <pre><code>apps/api/Dockerfile</code></pre>
+
+    <p><b>b) Dəyişənlər</b> — servisin <b>Variables</b> tabına keçin, sağ yuxarıda <b>RAW Editor</b> düyməsinə basın, aşağıdakı sətirləri olduğu kimi yapışdırın və <span class="ph">&lt;…&gt;</span> yerlərini öz dəyərlərinizlə dəyişin:</p>
+<pre><code>NODE_ENV=production
+PORT=3001
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+TELEGRAM_BOT_TOKEN=<span class="ph">&lt;BotFather-dan aldığınız token&gt;</span>
+TELEGRAM_WEBHOOK_SECRET=<span class="ph">&lt;Bölmə 3.1-də yaratdığınız gizli açar&gt;</span>
+CORS_ALLOWED_ORIGINS=https://<span class="ph">&lt;veb-panel-ünvanı&gt;</span>
+SUPABASE_URL=https://mock-oneteam.supabase.co
+SUPABASE_ANON_KEY=mock-anon-key
+SUPABASE_SERVICE_ROLE_KEY=mock-service-role-key</code></pre>
+    <ul class="plain">
+      <li><code>${{Postgres.DATABASE_URL}}</code> hissəsini <b>olduğu kimi</b> saxlayın. Railway bunu avtomatik olaraq bazanın ünvanı ilə əvəz edir.</li>
+      <li><code>CORS_ALLOWED_ORIGINS</code> — bunu Addım 5-i bitirdikdən <b>sonra</b> doldurun.</li>
+    </ul>
+
+    <p><b>c) Ünvan yaratmaq</b> — <b>Settings → Networking</b> bölməsini açın, <b>Generate Domain</b> düyməsinə basın. Port soruşsa: <b>3001</b></p>
+    <p>Bu ünvanı kopyalayın — Telegram botu bura müraciət edəcək:</p>
+    <pre><code>api-production-xxxx.up.railway.app</code></pre>
+
+    <!-- Step 5 -->
+    <h3>Addım 5 — Veb panel servisi</h3>
+    <ol class="steps">
+      <li><p>Kanvasda <b>+ New</b> → <b>GitHub Repo</b> → yenə <b>oneteam</b> reposunu seçin.</p></li>
+      <li><p>Servisin adını dəyişin: <code>web</code></p></li>
+      <li><p><b>Settings → Build → Dockerfile Path</b> sahəsinə yazın: <code>web/Dockerfile</code></p></li>
+      <li>
+        <p><b>Variables</b> tabına keçin. Bu dəyişənlər <b>build vaxtı</b> istifadə olunur (Vite onları fayllara «yazır»), ona görə düzgün adla yazılmalıdır:</p>
+<pre><code>VITE_SUPABASE_URL=https://mock-oneteam.supabase.co
+VITE_SUPABASE_ANON_KEY=mock-anon-key</code></pre>
+        <p>Supabase qurmasanız da bu iki sətri yazın. Boş qalsa panel yenə açılır, sadəcə demo məlumatla.</p>
+      </li>
+      <li><p><b>Settings → Networking → Generate Domain</b>. Port soruşsa: <b>80</b></p></li>
+      <li><p>Bu ünvanı kopyalayın — <b>bu, panelinizin linkidir</b>. Komandaya göndərəcəyiniz link budur.</p></li>
+      <li>
+        <p>İndi <b>Addım 4-b</b>-ə qayıdın və <code>CORS_ALLOWED_ORIGINS</code> dəyərini bu ünvanla doldurun:</p>
+<pre><code>CORS_ALLOWED_ORIGINS=https://<span class="ph">&lt;burada-panel-ünvanı&gt;</span></code></pre>
+      </li>
+    </ol>
+    <div class="callout info">
+      <span class="tag">Niyə bu lazımdır?</span>
+      <p>Təhlükəsizlik üçün API yalnız <b>icazə verdiyiniz ünvandan</b> gələn sorğuları qəbul edir. Ünvanı yazmasanız, brauzerdən heç bir sorğu keçməyəcək.</p>
+    </div>
+
+    <!-- Step 6 -->
+    <h3>Addım 6 — Telegram bot servisi <span class="pill opt">İSTƏYƏ BAĞLI</span></h3>
+    <div class="callout warn">
+      <span class="tag">Bunu atlaya bilərsiniz</span>
+      <p>Yalnız paneli görmək istəyirsinizsə, birbaşa <b>Addım 7</b>-yə keçin. Botu atlamaq aylıq xərci də azaldır.</p>
+    </div>
+    <ol class="steps">
+      <li><p><b>+ New</b> → <b>GitHub Repo</b> → <b>oneteam</b>. Servisin adı: <code>bot</code></p></li>
+      <li><p><b>Settings → Build → Dockerfile Path</b>: <code>Dockerfile.bot</code></p></li>
+      <li>
+        <p><b>Variables</b>:</p>
+<pre><code>NODE_ENV=production
+TELEGRAM_BOT_TOKEN=<span class="ph">&lt;BotFather-dan aldığınız token&gt;</span>
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+API_BASE_URL=http://api.railway.internal:3001
+SUPABASE_URL=https://mock-oneteam.supabase.co
+SUPABASE_ANON_KEY=mock-anon-key</code></pre>
+        <p><code>http://api.railway.internal:3001</code> — bu, Railway-in daxili şəbəkə ünvanıdır. <code>api</code> servisin adıdır, <code>3001</code> isə onun portu. <b>Dəyişməyin.</b></p>
+      </li>
+      <li><p>Bu servisə <b>ünvan (domain) lazım deyil</b>. Bot özü Telegram-a qoşulur.</p></li>
+      <li>
+        <p>Telegram-a webhook-u bildirin. Terminal açın və yapışdırın (<span class="ph">&lt;TOKEN&gt;</span> və <span class="ph">&lt;API-ÜNVANI&gt;</span> yerlərini doldurun):</p>
+<pre><code>curl -X POST "https://api.telegram.org/bot<span class="ph">&lt;TOKEN&gt;</span>/setWebhook" \
+     -d "url=https://<span class="ph">&lt;API-ÜNVANI&gt;</span>/api/notifications/telegram/webhook" \
+     -d "secret_token=<span class="ph">&lt;TELEGRAM_WEBHOOK_SECRET&gt;</span>"</code></pre>
+        <p>Cavabda <code>{"ok":true, ...}</code> görməlisiniz.</p>
+      </li>
+    </ol>
+
+    <!-- Step 3.1 -->
+    <h3>Addım 3.1 — Gizli açarı yaratmaq</h3>
+    <p>Terminal açmaq üçün: <code>Cmd + Space</code> basın, <b>Terminal</b> yazın, Enter.</p>
+    <p>Terminalda bu əmri yapışdırıb Enter basın:</p>
+    <pre><code>openssl rand -hex 32</code></pre>
+    <p>Ekranda 64 simvollu təsadüfi bir mətn çıxacaq, məsələn:</p>
+    <pre><code>9f3a7c1e5b8d2046a1c9e7f3b5d8024e6a9c1f7b3d5e8024a6c9f1b3d5e7a902</code></pre>
+    <p>Bu mətni kopyalayın. <b>Bu, <code>TELEGRAM_WEBHOOK_SECRET</code> dəyəridir.</b> Onu:</p>
+    <ul class="plain">
+      <li>Addım 4-də API servisinin dəyişənlərinə,</li>
+      <li>Addım 6-da botun webhook əmrində <code>secret_token=</code> hissəsinə</li>
+    </ul>
+    <p>yazacaqsınız. Hər iki yerdə <b>eyni</b> olmalıdır.</p>
+    <div class="callout danger">
+      <span class="tag">Niyə bu lazımdır?</span>
+      <p>Telegram webhook ünvanını bilən hər kəs saxta sorğu göndərə bilər. Bu açar olmadan API <b>heç bir</b> webhook-u qəbul etmir — bu, qəsdən belədir.</p>
+    </div>
+
+    <!-- Step 7 -->
+    <h3>Addım 7 — Yoxlama</h3>
+    <p><b>7.1 · Servislərin işə düşdüyünü yoxlayın</b><br>
+      Kanvasda hər servisin üzərindəki rəngə baxın: <b style="color:var(--ok)">yaşıl</b> = işləyir,
+      <b style="color:var(--accent)">qırmızı</b> = xəta. Qırmızıdırsa, servisin üzərinə basıb
+      <b>Deploy Logs</b> bölməsindəki son 20 sətri oxuyun.</p>
+
+    <p><b>7.2 · Veb paneli yoxlayın</b><br>
+      Brauzerdə panel ünvanını açın. Gözlənilən: mağazalar, tapşırıqlar və yoxlamalar olan
+      idarəetmə paneli açılır.</p>
+
+    <p><b>7.3 · API-ni yoxlayın</b><br>
+      Brauzerdə API ünvanının sonuna <code>/api/tasks</code> əlavə edin:</p>
+    <pre><code>https://<span class="ph">&lt;api-ünvanı&gt;</span>/api/tasks</code></pre>
+    <p>Gözlənilən: <code>[</code> ilə başlayan siyahı (boş <code>[]</code> olsa da yaxşıdır).</p>
+
+    <p><b>7.4 · Botu yoxlayın</b><br>
+      Telegram-da botunuza girib <b>/start</b> yazın. Cavab gəlməlidir.</p>
+  </section>
+
+  <!-- ================= 4 ================= -->
+  <section>
+    <h2><span class="num">4</span> Nə qədər pul gedəcək?</h2>
+
+    <table>
+      <thead><tr><th style="width:58%">Xərc</th><th>Məbləğ</th></tr></thead>
+      <tbody>
+        <tr><td>Railway <b>Hobby</b> planı</td><td><b>$5/ay</b> (içində $5 istifadə daxildir)</td></tr>
+        <tr><td>Yeni hesab üçün birdəfəlik sınaq krediti</td><td><b>$5</b> (ilk günlər pulsuz)</td></tr>
+        <tr><td>Bu layihənin real istehlakı</td><td>təxminən <b>$5–15/ay</b></td></tr>
+      </tbody>
+    </table>
+
+    <p>Yekun gözlənti: <b>aylıq təxminən $5–15</b>. Dəqiq rəqəmi Railway panelində
+      <b>Usage</b> bölməsində görəcəksiniz — orada günlük xərc canlı göstərilir.</p>
+
+    <h3>Xərci azaltmağın yolları</h3>
+    <ul class="plain">
+      <li>Bot servisini hələlik əlavə etməyin (Addım 6-nı atlayın).</li>
+      <li>Servis yatmırsa (idle) belə pul gedir. Test bitdikdən sonra servisləri
+        <b>Settings → Danger → Delete Service</b> ilə silin və ya proyekti <b>paused</b> edin.</li>
+    </ul>
+
+    <div class="callout danger">
+      <span class="tag">Kart mütləqdir</span>
+      <p>Railway 2026-cı ilin mart ayından ödəniş kartı tələb edir. Kart əlavə etməsəniz deploy başlamayacaq.</p>
+    </div>
+  </section>
+
+  <!-- ================= 5 ================= -->
+  <section>
+    <h2><span class="num">5</span> Nə isə səhv olsa</h2>
+
+    <table>
+      <thead><tr><th style="width:36%">Əlamət</th><th>Səbəb və həll</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Servis qırmızı, logda <code>EUNSUPPORTEDPROTOCOL</code></td>
+          <td><code>package.json</code> faylındaki <code>workspace:*</code> düzəldilməyib. Bu, artıq düzəldilib — köhnə commit deploy olunursa yaranır. Yenidən push edin.</td>
+        </tr>
+        <tr>
+          <td>Servis qırmızı, logda <code>POSTGRES_PASSWORD is required</code></td>
+          <td>Dəyişənlər yazılmayıb. Addım 4-b-yə qayıdın.</td>
+        </tr>
+        <tr>
+          <td>Panel açılır, amma boşdur</td>
+          <td>Normal — demo məlumat. Bölmə 6-ya baxın.</td>
+        </tr>
+        <tr>
+          <td>Brauzer konsolunda <code>CORS</code> xətası</td>
+          <td><code>CORS_ALLOWED_ORIGINS</code> düzgün yazılmayıb. Protokol (<code>https://</code>) daxil olmaqla, panel ünvanını yazın.</td>
+        </tr>
+        <tr>
+          <td>Bot <b>/start</b>-a cavab vermir</td>
+          <td>(1) <code>TELEGRAM_BOT_TOKEN</code> düzgündürmü? (2) Addım 6-5-dəki webhook əmri icra olunubmu? (3) API logunda <code>503</code> varsa — <code>TELEGRAM_WEBHOOK_SECRET</code> boşdur.</td>
+        </tr>
+        <tr>
+          <td>Log: <code>PORT</code> ilə bağlı xəta</td>
+          <td>API servisində <code>PORT=3001</code> dəyəri yoxdur. Əlavə edin.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ================= 6 ================= -->
+  <section>
+    <h2><span class="num">6</span> Sonrakı addımlar (test-dən sonra)</h2>
+    <ol class="steps">
+      <li>
+        <p><b>Real Supabase bazası.</b> <code>supabase.com</code>-da pulsuz layihə açın,
+          <b>Settings → API</b> bölməsindən <b>URL</b> və <b>anon key</b> götürün. Sonra:</p>
+        <ul class="plain">
+          <li><code>web</code> servisinin <code>VITE_SUPABASE_URL</code> / <code>VITE_SUPABASE_ANON_KEY</code> dəyişənlərinə,</li>
+          <li><code>api</code> servisinin <code>SUPABASE_URL</code> / <code>SUPABASE_ANON_KEY</code> dəyişənlərinə yazın.</li>
+        </ul>
+        <p>Sonra <code>supabase/migrations</code> qovluğundaki SQL fayllarını Supabase-də işə salın.</p>
+      </li>
+      <li><p><b>Ehtiyat nüsxə.</b> Railway bazası avtomatik backup etmir. Gündəlik dump qurun.</p></li>
+      <li><p><b>Şifrələrin rotasiyası.</b> <code>TELEGRAM_BOT_TOKEN</code> və <code>TELEGRAM_WEBHOOK_SECRET</code> dəyərlərini mütəmadi dəyişin.</p></li>
+      <li><p><b>Domen.</b> Öz domeninizi qoşun (<b>Settings → Networking → Custom Domain</b>).</p></li>
+    </ol>
+  </section>
+
+  <footer class="doc">
+    oneTeam · Test Deploy Təlimatı · 13 sentyabr 2026<br>
+    <span style="font-size:12px">Markdown versiyası: <code>docs/DEPLOY-TEST-AZ.md</code></span>
+  </footer>
+
+</div>
+</body>
+</html>
