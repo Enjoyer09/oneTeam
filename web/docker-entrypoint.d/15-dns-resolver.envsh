@@ -1,0 +1,39 @@
+#!/bin/sh
+# =============================================================================
+#  Publish the container's own DNS resolver to nginx
+# =============================================================================
+#
+#  WHY THIS FILE IS NAMED .envsh
+#  -----------------------------
+#  The official nginx entrypoint walks /docker-entrypoint.d/ and dispatches by
+#  suffix:
+#
+#      *.envsh) . "$f" ;;      # sourced -> exports reach later scripts
+#      *.sh)    "$f" ;;        # executed -> exports are lost in a subshell
+#
+#  This file must be *sourced*, because 20-envsubst-on-templates.sh runs after
+#  it and only substitutes variables that are present in its own environment.
+#  Renaming this to .sh would silently produce an empty ${NGINX_RESOLVER} and
+#  an nginx that refuses to start.
+#
+#  WHY NGINX NEEDS THIS AT ALL
+#  ---------------------------
+#  The resolver address is a platform detail, not a property of this image:
+#  Docker's embedded DNS answers at 127.0.0.11, Railway uses its own. Reading
+#  it from /etc/resolv.conf at start-up means one image works on both, instead
+#  of hardcoding an address that is wrong everywhere else.
+#
+#  The paired `ipv6=off` in nginx.conf is what makes this load-bearing rather
+#  than cosmetic. Railway's DNS answers with AAAA records, this container has no
+#  IPv6 route, and packets sent into that hole are dropped rather than refused —
+#  so nginx waits for a reply that never comes and the client gives up. The
+#  symptom is a 499 after exactly the client's timeout, on every upstream,
+#  private and public alike. Forcing IPv4 resolution removes the dead end.
+
+ns=$(awk '/^nameserver[[:space:]]/ { print $2; exit }' /etc/resolv.conf 2>/dev/null)
+
+# Fall back to Docker's embedded resolver so `docker compose up` keeps working
+# even if resolv.conf is unusual.
+[ -n "$ns" ] || ns=127.0.0.11
+
+export NGINX_RESOLVER="$ns"

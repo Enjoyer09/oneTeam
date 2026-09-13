@@ -63,12 +63,17 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # `$remote_addr` and `$request_uri` would each be replaced by the empty string,
 # silently breaking the proxy headers with no error anywhere.
 #
-# The default below suits docker-compose; Railway overrides it with the API's
-# private address (http://api.railway.internal:3001).
+# NGINX_RESOLVER is exported by 15-dns-resolver.envsh, which the entrypoint
+# sources before this substitution runs.
 ENV API_UPSTREAM=http://api:3001
-ENV NGINX_ENVSUBST_FILTER=^API_UPSTREAM$
+ENV NGINX_ENVSUBST_FILTER=^API_UPSTREAM$|^NGINX_RESOLVER$
 
 COPY nginx.conf /etc/nginx/templates/default.conf.template
+
+# Must be SOURCED, not executed, for its export to reach the envsubst step —
+# hence the .envsh suffix, which the nginx entrypoint handles differently.
+COPY docker-entrypoint.d/15-dns-resolver.envsh /docker-entrypoint.d/15-dns-resolver.envsh
+RUN chmod +x /docker-entrypoint.d/15-dns-resolver.envsh
 
 EXPOSE 80
 
