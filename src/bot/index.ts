@@ -74,6 +74,66 @@ export function createBot(token?: string): Bot<BotContext> {
   return bot;
 }
 
+/**
+ * Is this error Telegram telling us another instance is already polling?
+ *
+ * Checked structurally rather than with `instanceof GrammyError`, so the retry
+ * does not depend on a class that grammy could rename or re-export differently.
+ * Telegram answers HTTP 409 for a second concurrent `getUpdates`.
+ */
+function isPollingConflict(error: unknown): boolean {
+  const candidate = error as { error_code?: number; message?: string } | null;
+  if (candidate?.error_code === 409) return true;
+  return /\b409\b/.test(String(candidate?.message ?? ''));
+}
+
+/**
+ * Starts polling, surviving the overlap with the instance being replaced.
+ *
+ * WHY THIS IS NOT JUST `bot.start()`
+ * ----------------------------------
+ * A deployment does not stop the old container before starting the new one;
+ * for a short window both are alive. Telegram allows exactly one consumer of
+ * `getUpdates`, so the new instance is refused with:
+ *
+ *     409: Conflict: terminated by other getUpdates request
+ *
+ * `bot.start()` REJECTS on that error, and the rejection was previously
+ * unhandled — `bot.catch()` only covers errors raised inside middleware, not
+ * the start promise. Node terminates the process on an unhandled rejection, so
+ * the bot crash-looped on every deploy until the old container finally went
+ * away, and could stay down if restarts kept landing inside the window.
+ *
+ * Treating 409 as "the previous instance is still shutting down" and retrying
+ * with a widening delay turns a fatal error into a few seconds of waiting.
+ * Every other error is still fatal and still exits non-zero, so the platform
+ * restarts the container.
+ */
+async function startPollingWithRetry(
+  bot: Bot<BotContext>,
+  maxAttempts = 20
+): Promise<void> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await bot.start({
+        onStart(botInfo) {
+          console.log(`✅ oneTeam Bot connected as @${botInfo.username}`);
+        },
+      });
+      return;
+    } catch (error) {
+      if (!isPollingConflict(error) || attempt === maxAttempts) throw error;
+
+      const delayMs = Math.min(30_000, 2_000 * attempt);
+      console.warn(
+        `⏳ [oneTeam Bot] Another instance is still polling (409). ` +
+          `Waiting ${Math.round(delayMs / 1000)}s before retry ${attempt + 1}/${maxAttempts}.`
+      );
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
 // Standalone entrypoint execution
 if (process.env.NODE_ENV !== 'test') {
   const isDirectRun =
@@ -91,10 +151,10 @@ if (process.env.NODE_ENV !== 'test') {
     } else {
       const bot = createBot(token);
       console.log('🚀 Starting oneTeam Telegram Bot in Polling Mode...');
-      bot.start({
-        onStart(botInfo) {
-          console.log(`✅ oneTeam Bot connected as @${botInfo.username}`);
-        },
+
+      startPollingWithRetry(bot).catch((error) => {
+        console.error('⛔ [oneTeam Bot] Polling stopped:', error);
+        process.exit(1);
       });
 
       // Graceful shutdown
