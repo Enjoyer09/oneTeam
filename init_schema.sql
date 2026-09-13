@@ -22,6 +22,71 @@ CREATE TABLE IF NOT EXISTS auth.users (
 );
 
 -- ----------------------------------------------------------------------------
+-- 0b. SUPABASE COMPATIBILITY SHIMS
+-- ----------------------------------------------------------------------------
+-- This file targets Supabase, which supplies objects that stock PostgreSQL does
+-- not have: the `authenticated` role and the `auth.uid()` function. The RLS
+-- policies further down reference both, so on a plain postgres image the script
+-- aborted part-way with:
+--
+--     ERROR: role "authenticated" does not exist
+--
+-- Because the postgres image runs init scripts with ON_ERROR_STOP=1, that one
+-- error killed the whole initialisation: the container exited with code 3, the
+-- `postgres` service never became healthy, and every service waiting on
+-- `depends_on: condition: service_healthy` was blocked behind it. The compose
+-- stack could not start at all.
+--
+-- Everything below is guarded, so on Supabase it is a no-op and the real
+-- objects are left untouched. That matters most for auth.uid(): replacing
+-- Supabase's implementation would silently break authentication there, so the
+-- function is created only when it is absent rather than with CREATE OR REPLACE.
+DO $$
+BEGIN
+    -- `authenticated` is the role Supabase assigns to a signed-in user. It is
+    -- the only role this schema's policies reference.
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+        CREATE ROLE authenticated NOLOGIN;
+    END IF;
+
+    -- `anon` and `service_role` are not referenced by any policy here, but they
+    -- are created for parity with Supabase so that local and hosted databases
+    -- present the same set of roles.
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+        CREATE ROLE anon NOLOGIN;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+        CREATE ROLE service_role NOLOGIN;
+    END IF;
+END $$;
+
+-- auth.uid() returns the id of the caller, and is the backbone of every
+-- row-level security policy in this file. On Supabase it is injected by the
+-- platform. This stand-in reads the same session setting Supabase uses, so
+-- policies behave identically when the caller sets it:
+--
+--     SET request.jwt.claim.sub = '<user-uuid>';
+--
+-- With no caller set it returns NULL, which makes the policies deny by default
+-- rather than grant — the correct direction for a security control.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'auth' AND p.proname = 'uid'
+    ) THEN
+        CREATE FUNCTION auth.uid() RETURNS uuid
+        LANGUAGE sql STABLE
+        AS $fn$
+            SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid
+        $fn$;
+    END IF;
+END $$;
+
+-- ----------------------------------------------------------------------------
 -- 1. ENUM TYPES
 -- ----------------------------------------------------------------------------
 DO $$ 

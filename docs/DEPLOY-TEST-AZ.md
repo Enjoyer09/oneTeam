@@ -78,6 +78,22 @@ Köhnə `docker-compose.prod.yml` faylında **sabit, hamıya məlum** bir baza �
 (`coca_cola_secret_2026`). Bu artıq düzəldildi: indi şifrə verilməzsə sistem **ümumiyyətlə
 işə düşmür**. Aşağıdakı addımlarda öz şifrənizi yaradacaqsınız.
 
+### 2.4. Hazırda məlumat bazada saxlanmır — yaddaşda saxlanır
+
+Bunu bilməyiniz vacibdir, çünki pul ödədiyiniz şeyə təsir edir.
+
+Hazırda API və bot bütün məlumatı **yaddaşda** saxlayır. Nəticələr:
+
+- Servis yenidən başladıqda (deploy, restart, nasazlıq) **bütün məlumat silinir**.
+- Postgres bazası qoşulub işləyir, lakin **heç bir proqram kodu ona qoşulmur**.
+- Yeganə real baza yolu **Supabase**-dir — veb panel birbaşa oradan oxuyur.
+
+Yəni test deploy üçün bu normaldır, lakin real istifadəyə keçməzdən əvvəl API-nin bazaya
+qoşulması ayrı bir işdir (Bölmə 6).
+
+> **Nəticə:** «hər şey bir yerdə» API, bot və veb panel üçün doğrudur. Məlumatın özü isə
+> hələlik yaddaşdadır və ya Supabase-dədir.
+
 ---
 
 ## 3. Addım-addım deploy
@@ -367,15 +383,19 @@ Yekun gözlənti: **aylıq təxminən $5–15**. Dəqiq rəqəmi Railway panelin
 
 ## 6. Sonrakı addımlar (test-dən sonra)
 
-1. **Real Supabase bazası** — `supabase.com`-da pulsuz layihə açın, `Settings → API`
+1. **API-ni real bazaya qoşmaq.** Ən böyük boşluq budur. `packages/database` hazırda
+   yaddaşdaki `SEED_DATA`-dan istifadə edir; `DATABASE_URL` dəyişəni heç oxunmur. Yəni
+   baza qoşulub işləyir, amma heç bir kod ona müraciət etmir. Bu, kod dəyişikliyi
+   tələb edir və ayrı bir işdir.
+2. **Real Supabase bazası** — `supabase.com`-da pulsuz layihə açın, `Settings → API`
    bölməsindən `URL` və `anon key` götürün, həm `web` servisinin
    `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` dəyişənlərinə, həm də `api`
    servisinin `SUPABASE_URL` / `SUPABASE_ANON_KEY` dəyişənlərinə yazın.
    Sonra `supabase/migrations` qovluğundaki SQL fayllarını Supabase-də işə salın.
-2. **Ehtiyat nüsxə** — Railway bazası avtomatik backup etmir. Gündəlik dump qurun.
-3. **Ehtiyat şifrələrin rotasiyası** — `TELEGRAM_BOT_TOKEN` və `TELEGRAM_WEBHOOK_SECRET`
+3. **Ehtiyat nüsxə** — Railway bazası avtomatik backup etmir. Gündəlik dump qurun.
+4. **Ehtiyat şifrələrin rotasiyası** — `TELEGRAM_BOT_TOKEN` və `TELEGRAM_WEBHOOK_SECRET`
    dəyərlərini mütəmadi dəyişin.
-4. **Domen** — öz domeninizi qoşun (`Settings → Networking → Custom Domain`).
+5. **Domen** — öz domeninizi qoşun (`Settings → Networking → Custom Domain`).
 
 ---
 

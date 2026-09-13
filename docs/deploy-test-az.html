@@ -350,6 +350,25 @@
       verilməzsə sistem <b>ümumiyyətlə işə düşmür</b>. Aşağıdakı addımlarda öz şifrənizi
       yaradacaqsınız.
     </p>
+
+    <h3>2.4 · Hazırda məlumat bazada saxlanmır — yaddaşda saxlanır</h3>
+    <p>Bunu bilməyiniz vacibdir, çünki pul ödədiyiniz şeyə təsir edir.</p>
+    <p>
+      Hazırda API və bot bütün məlumatı <b>yaddaşda</b> saxlayır. Nəticələr:
+    </p>
+    <ul class="plain">
+      <li>Servis yenidən başladıqda (deploy, restart, nasazlıq) <b>bütün məlumat silinir</b>.</li>
+      <li>Postgres bazası qoşulub işləyir, lakin <b>heç bir proqram kodu ona qoşulmur</b>.</li>
+      <li>Yeganə real baza yolu <b>Supabase</b>-dir — veb panel birbaşa oradan oxuyur.</li>
+    </ul>
+    <div class="callout danger">
+      <span class="tag">Nəticə</span>
+      <p>
+        «Hər şey bir yerdə» API, bot və veb panel üçün doğrudur. <b>Məlumatın özü</b> isə
+        hələlik yaddaşdadır və ya Supabase-dədir. Test üçün normaldır; real istifadəyə
+        keçməzdən əvvəl API-nin bazaya qoşulması ayrı bir işdir (Bölmə 6).
+      </p>
+    </div>
   </section>
 
   <!-- ================= 3 ================= -->
@@ -605,6 +624,12 @@ SUPABASE_ANON_KEY=mock-anon-key</code></pre>
   <section>
     <h2><span class="num">6</span> Sonrakı addımlar (test-dən sonra)</h2>
     <ol class="steps">
+      <li>
+        <p><b>API-ni real bazaya qoşmaq.</b> Ən böyük boşluq budur. <code>packages/database</code>
+          hazırda yaddaşdaki <code>SEED_DATA</code>-dan istifadə edir; <code>DATABASE_URL</code>
+          dəyişəni heç oxunmur. Yəni baza qoşulub işləyir, amma heç bir kod ona müraciət etmir.
+          Bu, kod dəyişikliyi tələb edir və ayrı bir işdir.</p>
+      </li>
       <li>
         <p><b>Real Supabase bazası.</b> <code>supabase.com</code>-da pulsuz layihə açın,
           <b>Settings → API</b> bölməsindən <b>URL</b> və <b>anon key</b> götürün. Sonra:</p>
