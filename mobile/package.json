@@ -1,0 +1,17 @@
+{
+  "name": "oneteam-mobile",
+  "version": "1.0.0",
+  "description": "oneTeam iOS Field Shelf Audit App for Coca-Cola In-Store Merchandisers",
+  "main": "src/App.tsx",
+  "scripts": {
+    "test": "node ../node_modules/tsx/dist/cli.mjs src/tests/mobile-test-runner.ts",
+    "type-check": "node ../node_modules/typescript/bin/tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.9",
+    "typescript": "^5.8.2"
+  }
+}

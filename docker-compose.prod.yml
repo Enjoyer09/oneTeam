@@ -1,0 +1,157 @@
+# ==============================================================================
+# oneTeam — production / staging stack
+# ==============================================================================
+#
+# Four services in one place: PostgreSQL, the NestJS API, the supervisor web
+# portal and the Telegram bot worker.
+#
+# REQUIRED ENVIRONMENT
+# --------------------
+# This file deliberately has no fallback values for secrets. It used to default
+# POSTGRES_PASSWORD to a hardcoded string, which meant a stack started without
+# a .env file came up with a publicly known database password — and, because
+# the same string was baked into DATABASE_URL, nothing warned you. A deployment
+# that is insecure by default is worse than one that refuses to start.
+#
+# Compose now stops with a clear message if any of these is missing:
+#
+#     POSTGRES_PASSWORD
+#     DATABASE_URL
+#     TELEGRAM_WEBHOOK_SECRET
+#     TELEGRAM_BOT_TOKEN
+#
+# Copy .env.production.example to .env.production, fill it in, then:
+#
+#     docker compose --env-file .env.production -f docker-compose.prod.yml up -d
+#
+# NOTE ON THE WEB PORTAL
+# ----------------------
+# The portal's Supabase settings are *build* arguments, not runtime variables.
+# Vite compiles them into the bundle. See the web service below.
+# ==============================================================================
+
+# The top-level `version` key is obsolete in Compose v2 and is ignored. It was
+# removed here because Compose warns about it on every single command.
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. PostgreSQL Relational Database
+  # ----------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: oneteam-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      # No default. See the header: a silent, well-known password is a bug.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - copy .env.production.example to .env.production and set it}
+      POSTGRES_DB: ${POSTGRES_DB:-oneteam}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Applied only when the data directory is empty, i.e. on first boot.
+      - ./init_schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-oneteam}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - oneteam-network
+
+  # ----------------------------------------------------------------------------
+  # 2. oneTeam NestJS Core API Engine
+  # ----------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: oneteam-api
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      API_PORT: 3001
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required - it must point at the postgres service}
+      SUPABASE_URL: ${SUPABASE_URL:-https://mock-oneteam.supabase.co}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-mock-anon-key}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-mock-service-role-key}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN is required}
+      # Verifies that an incoming webhook really came from Telegram. The API
+      # returns 503 rather than accepting unverified callers when this is unset,
+      # so it is required here too.
+      TELEGRAM_WEBHOOK_SECRET: "${TELEGRAM_WEBHOOK_SECRET:?TELEGRAM_WEBHOOK_SECRET is required - generate one with openssl rand -hex 32}"
+      # Comma-separated allow-list. An empty value blocks every browser origin.
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost,http://localhost:5173}
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/tasks"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - oneteam-network
+
+  # ----------------------------------------------------------------------------
+  # 3. oneTeam Supervisor Web Dashboard (Nginx + React SPA)
+  # ----------------------------------------------------------------------------
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      # Build-time only. Setting these under `environment:` would have no effect
+      # because Vite has already inlined them into the bundle by then.
+      args:
+        VITE_SUPABASE_URL: ${SUPABASE_URL:-}
+        VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+    container_name: oneteam-web
+    restart: always
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "5173:80"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - oneteam-network
+
+  # ----------------------------------------------------------------------------
+  # 4. oneTeam Field Merchandiser Telegram Bot Service
+  # ----------------------------------------------------------------------------
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    container_name: oneteam-bot
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: production
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN is required}
+      SUPABASE_URL: ${SUPABASE_URL:-https://mock-oneteam.supabase.co}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-mock-anon-key}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required - it must point at the postgres service}
+      API_BASE_URL: http://api:3001
+    networks:
+      - oneteam-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  oneteam-network:
+    driver: bridge

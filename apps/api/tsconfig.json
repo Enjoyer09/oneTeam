@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "declaration": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@oneteam/types": ["../../packages/types/dist/index.d.ts"],
+      "@oneteam/database": ["../../packages/database/dist/index.d.ts"]
+    }
+  },
+  "include": ["src/**/*"],
+
+  // Project references.
+  //
+  // WHY: the `paths` block above resolves @oneteam/* to *compiled* declaration
+  // files in packages/*/dist. Nothing enforced that those declarations were up
+  // to date, so the API once compiled cleanly against a `dist` that predated
+  // four methods — the compiler insisted those methods did not exist, and the
+  // resulting errors were entirely fictitious.
+  //
+  // With `references` plus `composite: true` in the referenced projects,
+  // `tsc --build` compiles dependencies first and refuses to use a stale
+  // declaration. Use `npm run build:packages` before type-checking the API,
+  // or `tsc --build` which handles the ordering itself.
+  "references": [
+    { "path": "../../packages/types" },
+    { "path": "../../packages/database" }
+  ]
+}

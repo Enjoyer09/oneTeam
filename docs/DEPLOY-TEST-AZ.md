@@ -1,0 +1,374 @@
+# oneTeam — Test Deploy Təlimatı (Railway)
+
+> Bu sənəd texniki bilik tələb etmir. Hər addımda **nə edəcəyiniz** və **nə yazacağınız**
+> göstərilib. Şübhə etdiyiniz yerdə dayanın və soruşun — tələm-tələsik davam etməkdənsə
+> bir addımı yavaş getmək yaxşıdır.
+
+---
+
+## 0. Qısa cavab: hansı servis?
+
+**Railway** (`railway.com`).
+
+Səbəblər:
+
+| Səbəb | Nə deməkdir |
+|---|---|
+| Layihənin 4 hissəsi **bir proyektdə** yaşayır | PostgreSQL + API + Veb panel + Bot — bir panel, bir hesab, bir hesab-faktura |
+| Servislər bir-birini **daxili şəbəkədə** görür | Bazaya qoşulmaq üçün port açmaq, IP yazmaq lazım deyil |
+| **GitHub-a push edəndə avtomatik yenilənir** | Kodu dəyişdikdən sonra heç nə etmək lazım deyil |
+| **Server idarəçiliyi yoxdur** | Linux yeniləmələri, sertifikatlar, gecə saat 2-də disk dolması — bunlar sizin işiniz deyil |
+| Artıq **tanışsınız** | BahAI-Agent layihəsini də Railway-da saxlayırsınız |
+
+**Alternativlər və niyə seçmədik:**
+
+- **Render** — veb üçün həqiqətən pulsuzdur, lakin **pulsuz PostgreSQL bazası 30 gündən sonra
+  silinir**. Test deploy-u bir aydan çox yaşamalıdırsa, bu yaramaz.
+- **Hetzner (€9.51/ay)** — ən ucuz variant, lakin bütün Linux serverini özünüz idarə etməli
+  olursunuz: SSH, yeniləmələr, ehtiyat nüsxələr. Texniki olmayan operator üçün deyil.
+
+---
+
+## 1. Nə deploy edirik? (4 hissə)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     BİR RAILWAY PROYEKTİ                     │
+│                                                              │
+│   ┌──────────────┐        ┌──────────────┐                  │
+│   │  PostgreSQL  │◄───────│  API (NestJS)│◄────┐             │
+│   │  verilənlər  │        │  backend     │     │             │
+│   │  bazası       │        └──────────────┘     │             │
+│   └──────────────┘                              │             │
+│                                                  │             │
+│   ┌──────────────┐        ┌──────────────┐      │             │
+│   │  Veb panel   │        │  Telegram    │──────┘             │
+│   │  (React)     │        │  bot         │                    │
+│   └──────────────┘        └──────────────┘                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+| Hissə | Nə edir | İstifadəçi nə görür |
+|---|---|---|
+| **PostgreSQL** | Bütün məlumatı saxlayır | görmür |
+| **API** | Biznes məntiqi, tapşırıqlar, yoxlamalar | görmür (bot ondan istifadə edir) |
+| **Veb panel** | Nəzarətçi üçün idarəetmə ekranı | **link açır, panel görür** |
+| **Telegram bot** | Sahə işçisi tapşırığı qəbul edir, foto göndərir | **Telegram-da botla danışır** |
+
+---
+
+## 2. Başlamazdan əvvəl bilməli olduğunuz 3 şey
+
+### 2.1. Kod hələ GitHub-da deyil
+
+Railway kodu GitHub-dan oxuyur. Layihə hələ GitHub-da olmadığı üçün **Addım 0** məcburidir.
+
+### 2.2. Veb panel hazırda **demo məlumat** göstərir
+
+Veb panel məlumatı birbaşa **Supabase** adlı xarici xidmətdən oxuyur — API-dən yox.
+Supabase qurulmayıbsa, panel açılır və işləyir, lakin gördüyünüz bütün mağazalar,
+tapşırıqlar və yoxlamalar **uydurma nümunə məlumatdır**.
+
+Bu test deploy üçün normaldır: məqsəd "proqram onlayn işləyir" olduğunu görməkdir.
+Real məlumat istəyirsinizsə, bu **Bölmə 6**-da əlavə addımdır.
+
+### 2.3. Şifrələr dəyişdirilməlidir
+
+Köhnə `docker-compose.prod.yml` faylında **sabit, hamıya məlum** bir baza şifrəsi var idi
+(`coca_cola_secret_2026`). Bu artıq düzəldildi: indi şifrə verilməzsə sistem **ümumiyyətlə
+işə düşmür**. Aşağıdakı addımlarda öz şifrənizi yaradacaqsınız.
+
+---
+
+## 3. Addım-addım deploy
+
+### Addım 0 — Kodu GitHub-a yerləşdirin
+
+Layihə qovluğu artıq git üçün hazırdır (ilk commit edilib). İndi onu GitHub-a göndərmək lazımdır.
+
+**Ən asan yol — GitHub Desktop:**
+
+1. `desktop.github.com` ünvanından **GitHub Desktop** proqramını endirib quraşdırın.
+2. Proqramı açın və GitHub hesabınızla daxil olun.
+3. Yuxarı menyudan: **File → Add local repository…**
+4. Qovluq seçin: `/Users/macbookair/GitHub/oneTeam`
+5. Proqram "This directory does not appear to be a Git repository" yazsa, **"create a repository"**
+   linkinə basın və **Create repository** düyməsini basın.
+6. Yuxarıda **Publish repository** düyməsini basın.
+7. Açılan pəncərədə:
+   - **Name:** `oneteam`
+   - **☑ Keep this code private** — bu işarəni **mütləq qoyun**.
+8. **Publish repository** düyməsini basın.
+
+> **Niyə "private"?** Layihədə həssas məlumat ola bilər. Public repo = hamının gördüyü repo.
+
+---
+
+### Addım 1 — Railway hesabı
+
+1. `railway.com` ünvanına gedin.
+2. Sağ yuxarıda **Login** düyməsinə basın.
+3. **Login with GitHub** seçin və icazə verin.
+4. Hesabınıza **ödəniş kartı** əlavə etməli olacaqsınız (Bölmə 4-ə baxın).
+
+---
+
+### Addım 2 — Yeni proyekt yaradın
+
+1. `railway.com/dashboard` səhifəsinə gedin.
+2. Sağ yuxarıda **+ New Project** düyməsinə basın.
+3. **Empty Project** seçin.
+4. Proyektin adını dəyişin: yuxarıdaki ada basıb **oneteam-test** yazın.
+
+Boş bir "kanvas" görəcəksiniz. Servisləri bura əlavə edəcəyik.
+
+---
+
+### Addım 3 — Verilənlər bazası (PostgreSQL)
+
+1. Kanvasda **+ New** düyməsinə basın.
+2. **Database** → **Add PostgreSQL** seçin.
+3. Railway bazanı yaradır və adını **Postgres** qoyur.
+
+**Bu addımı dəyişməyin.** Servisin adı `Postgres` qalmalıdır, çünki növbəti addımlarda
+ona adı ilə istinad edəcəyik.
+
+> **Qeyd:** Railway-in bazaları "idarə olunmayan" (unmanaged) servislərdir — avtomatik
+> ehtiyat nüsxə (backup) yoxdur. Test üçün problem deyil; real istifadəyə keçəndə
+> ehtiyat nüsxə ayrıca qurulmalıdır.
+
+---
+
+### Addım 4 — Backend (API) servisi
+
+1. Kanvasda **+ New** → **GitHub Repo** seçin.
+2. Siyahıdan **oneteam** reposunu seçin.
+3. Servisin adını dəyişin: **api**
+
+İndi servisin **Settings** bölməsinə keçin:
+
+**a) Dockerfile yolu**
+
+- **Settings → Build** bölməsini açın.
+- **Dockerfile Path** sahəsinə yazın:
+
+  ```
+  apps/api/Dockerfile
+  ```
+
+**b) Dəyişənlər (Variables)**
+
+- Servisin **Variables** tabına keçin.
+- Sağ yuxarıda **RAW Editor** düyməsinə basın.
+- Aşağıdakı sətirləri olduğu kimi yapışdırın və `<...>` yerlərini öz dəyərlərinizlə dəyişin:
+
+  ```
+  NODE_ENV=production
+  PORT=3001
+  DATABASE_URL=${{Postgres.DATABASE_URL}}
+  TELEGRAM_BOT_TOKEN=<BotFather-dan aldığınız token>
+  TELEGRAM_WEBHOOK_SECRET=<Bölmə 3.1-də yaratdığınız gizli açar>
+  CORS_ALLOWED_ORIGINS=https://<veb-panel-ünvanı>
+  SUPABASE_URL=https://mock-oneteam.supabase.co
+  SUPABASE_ANON_KEY=mock-anon-key
+  SUPABASE_SERVICE_ROLE_KEY=mock-service-role-key
+  ```
+
+  - `${{Postgres.DATABASE_URL}}` hissəsini **olduğu kimi** saxlayın. Railway bunu
+    avtomatik olaraq bazanın ünvanı ilə əvəz edir.
+  - `CORS_ALLOWED_ORIGINS` — bunu Addım 5-i bitirdikdən **sonra** doldurun.
+
+**c) Ünvan yaratmaq**
+
+- **Settings → Networking** bölməsini açın.
+- **Generate Domain** düyməsinə basın.
+- Port soruşsa: **3001**
+
+Bu ünvanı kopyalayın — Telegram botu bura müraciət edəcək. Belə görünəcək:
+`api-production-xxxx.up.railway.app`
+
+---
+
+### Addım 5 — Veb panel servisi
+
+1. Kanvasda **+ New** → **GitHub Repo** → yenə **oneteam** reposunu seçin.
+2. Servisin adını dəyişin: **web**
+3. **Settings → Build → Dockerfile Path** sahəsinə yazın:
+
+   ```
+   web/Dockerfile
+   ```
+
+4. **Variables** tabına keçin. Bu dəyişənlər **build vaxtı** istifadə olunur
+   (Vite onları fayllara "yazır"), ona görə düzgün adla yazılmalıdır:
+
+   ```
+   VITE_SUPABASE_URL=https://mock-oneteam.supabase.co
+   VITE_SUPABASE_ANON_KEY=mock-anon-key
+   ```
+
+   > Supabase qurmasanız da bu iki sətri yazın. Boş qalsa panel yenə açılır,
+   > sadəcə demo məlumatla.
+
+5. **Settings → Networking → Generate Domain**. Port soruşsa: **80**
+
+6. Bu ünvanı kopyalayın — **bu, panelinizin linkidir**. Komandaya göndərəcəyiniz link budur.
+
+7. İndi **Addım 4-b**-ə qayıdın və `CORS_ALLOWED_ORIGINS` dəyərini bu ünvanla doldurun:
+
+   ```
+   CORS_ALLOWED_ORIGINS=https://<burada-panel-ünvanı>
+   ```
+
+   > Niyə? Təhlükəsizlik üçün API yalnız **icazə verdiyiniz ünvandan** gələn
+   > sorğuları qəbul edir. Ünvanı yazmasanız, brauzerdən heç bir sorğu keçməyəcək.
+
+---
+
+### Addım 6 — Telegram bot servisi (istəyə bağlı)
+
+> Bu addımı **atlayıb sonra əlavə edə bilərsiniz**. Yalnız paneli görmək istəyirsinizsə,
+> birbaşa Addım 7-yə keçin. Botu atlamaq aylıq xərci də azaldır.
+
+1. **+ New** → **GitHub Repo** → **oneteam**
+2. Servisin adı: **bot**
+3. **Settings → Build → Dockerfile Path**:
+
+   ```
+   Dockerfile.bot
+   ```
+
+4. **Variables**:
+
+   ```
+   NODE_ENV=production
+   TELEGRAM_BOT_TOKEN=<BotFather-dan aldığınız token>
+   DATABASE_URL=${{Postgres.DATABASE_URL}}
+   API_BASE_URL=http://api.railway.internal:3001
+   SUPABASE_URL=https://mock-oneteam.supabase.co
+   SUPABASE_ANON_KEY=mock-anon-key
+   ```
+
+   - `http://api.railway.internal:3001` — bu, Railway-in daxili şəbəkə ünvanıdır.
+     `api` servisin adıdır, `3001` isə onun portu. **Dəyişməyin.**
+
+5. Bu servisə **ünvan (domain) lazım deyil**. Bot özü Telegram-a qoşulur.
+
+6. Telegram-a webhook-u bildirin. Terminal açın və yapışdırın
+   (`<TOKEN>` və `<API-ÜNVANI>` yerlərini doldurun):
+
+   ```bash
+   curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
+        -d "url=https://<API-ÜNVANI>/api/notifications/telegram/webhook" \
+        -d "secret_token=<TELEGRAM_WEBHOOK_SECRET>"
+   ```
+
+   Cavabda `{"ok":true, ...}` görməlisiniz.
+
+---
+
+### Addım 3.1 — Gizli açarı yaratmaq (TELEGRAM_WEBHOOK_SECRET)
+
+Terminal açmaq üçün: `Cmd + Space` basın, **Terminal** yazın, Enter.
+
+Terminalda bu əmri yapışdırıb Enter basın:
+
+```bash
+openssl rand -hex 32
+```
+
+Ekranda 64 simvollu təsadüfi bir mətn çıxacaq, məsələn:
+
+```
+9f3a7c1e5b8d2046a1c9e7f3b5d8024e6a9c1f7b3d5e8024a6c9f1b3d5e7a902
+```
+
+Bu mətni kopyalayın. **Bu, `TELEGRAM_WEBHOOK_SECRET` dəyəridir.** Onu:
+- Addım 4-də API servisinin dəyişənlərinə,
+- Addım 6-da botun webhook əmrində `secret_token=` hissəsinə
+
+yazacaqsınız. Hər iki yerdə **eyni** olmalıdır.
+
+> **Niyə bu lazımdır?** Telegram webhook ünvanını bilən hər kəs saxta sorğu göndərə bilər.
+> Bu açar olmadan API **heç bir** webhook-u qəbul etmir — bu, qəsdən belədir.
+
+---
+
+### Addım 7 — Yoxlama
+
+**7.1. Servislərin işə düşdüyünü yoxlayın**
+
+Kanvasda hər servisin üzərindəki rəngə baxın: **yaşıl** = işləyir, **qırmızı** = xəta.
+Qırmızıdırsa, servisin üzərinə basıb **Deploy Logs** bölməsindəki son 20 sətri oxuyun.
+
+**7.2. Veb paneli yoxlayın**
+
+Brauzerdə panel ünvanını açın. Gözlənilən: mağazalar, tapşırıqlar və yoxlamalar olan
+idarəetmə paneli açılır.
+
+**7.3. API-ni yoxlayın**
+
+Brauzerdə API ünvanının sonuna `/api/tasks` əlavə edin:
+
+```
+https://<api-ünvanı>/api/tasks
+```
+
+Gözlənilən: `[` ilə başlayan siyahı (boş `[]` olsa da yaxşıdır).
+
+**7.4. Botu yoxlayın**
+
+Telegram-da botunuza girib **/start** yazın. Cavab gəlməlidir.
+
+---
+
+## 4. Nə qədər pul gedəcək?
+
+| Xərc | Məbləğ |
+|---|---|
+| Railway **Hobby** planı | **$5/ay** (içində $5 istifadə daxildir) |
+| Yeni hesab üçün birdəfəlik sınaq krediti | **$5** (ilk günlər pulsuz) |
+| Bu layihənin real istehlakı | təxminən **$5–15/ay** |
+
+Yekun gözlənti: **aylıq təxminən $5–15**. Dəqiq rəqəmi Railway panelində
+**Usage** bölməsində görəcəksiniz — orada günlük xərc canlı göstərilir.
+
+**Xərci azaltmağın yolları:**
+
+- Bot servisini hələlik əlavə etməyin (Addım 6-nı atlayın).
+- Servis yatmırsa (idle) belə pul gedir. Test bitdikdən sonra servisləri
+  **Settings → Danger → Delete Service** ilə silin və ya proyekti **paused** edin.
+
+> **Kart mütləqdir.** Railway 2026-cı ilin mart ayından ödəniş kartı tələb edir.
+> Kart əlavə etməsəniz deploy başlamayacaq.
+
+---
+
+## 5. Nə isə səhv olsa
+
+| Əlamət | Səbəb və həll |
+|---|---|
+| Servis qırmızı, logda `EUNSUPPORTEDPROTOCOL` | `package.json` faylındaki `workspace:*` düzəldilməyib. Bu, artıq düzəldilib — köhnə commit deploy olunursa yaranır. Yenidən push edin. |
+| Servis qırmızı, logda `POSTGRES_PASSWORD is required` | Dəyişənlər yazılmayıb. Addım 4-b-yə qayıdın. |
+| Panel açılır, amma boşdur | Normal — demo məlumat. Bölmə 6-ya baxın. |
+| Brauzer konsolunda `CORS` xətası | `CORS_ALLOWED_ORIGINS` düzgün yazılmayıb. Protokol (`https://`) daxil olmaqla, panel ünvanını yazın. |
+| Bot `/start`-a cavab vermir | (1) `TELEGRAM_BOT_TOKEN` düzgündürmü? (2) Addım 6-6-daki webhook əmri icra olunubmu? (3) API logunda `503` varsa — `TELEGRAM_WEBHOOK_SECRET` boşdur. |
+| Log: `PORT` ilə bağlı xəta | API servisində `PORT=3001` dəyəri yoxdur. Əlavə edin. |
+
+---
+
+## 6. Sonrakı addımlar (test-dən sonra)
+
+1. **Real Supabase bazası** — `supabase.com`-da pulsuz layihə açın, `Settings → API`
+   bölməsindən `URL` və `anon key` götürün, həm `web` servisinin
+   `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` dəyişənlərinə, həm də `api`
+   servisinin `SUPABASE_URL` / `SUPABASE_ANON_KEY` dəyişənlərinə yazın.
+   Sonra `supabase/migrations` qovluğundaki SQL fayllarını Supabase-də işə salın.
+2. **Ehtiyat nüsxə** — Railway bazası avtomatik backup etmir. Gündəlik dump qurun.
+3. **Ehtiyat şifrələrin rotasiyası** — `TELEGRAM_BOT_TOKEN` və `TELEGRAM_WEBHOOK_SECRET`
+   dəyərlərini mütəmadi dəyişin.
+4. **Domen** — öz domeninizi qoşun (`Settings → Networking → Custom Domain`).
+
+---
+
+_Son yenilənmə: 13 sentyabr 2026_

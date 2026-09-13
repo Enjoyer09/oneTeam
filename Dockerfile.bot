@@ -1,0 +1,19 @@
+# ==============================================================================
+# oneTeam Telegram Bot Worker — Production Dockerfile
+# ==============================================================================
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy dependency manifests
+COPY package*.json pnpm-workspace.yaml* ./
+COPY packages/types/package*.json ./packages/types/
+COPY packages/database/package*.json ./packages/database/
+
+RUN npm install
+
+# Copy application files
+COPY . ./
+
+# Run bot daemon
+CMD ["node", "./node_modules/tsx/dist/cli.mjs", "src/bot/index.ts"]

@@ -1,0 +1,50 @@
+# Build output — regenerated, never hand-edited.
+dist/
+build/
+web/dist/
+apps/*/dist/
+packages/*/dist/
+.next/
+.turbo/
+coverage/
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Lockfiles — managed by the package manager, not by Prettier.
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Generated / vendored
+*.min.js
+*.min.css
+*.map
+*.tsbuildinfo
+
+# Database migrations are reviewed as SQL, not reformatted by a JS formatter.
+supabase/migrations/
+
+# Throwaway UI prototype and audit artefacts.
+ui-audit/
+ui-design/
+ui-glass/
+
+# Local tooling state
+.workbuddy-ai/
+.claude/
+.gemini/
+.codex/
+
+# Binary and model artefacts
+*.pt
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.ico
+*.pdf
+*.woff
+*.woff2

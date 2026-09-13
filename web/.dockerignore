@@ -1,0 +1,26 @@
+# ==============================================================================
+# Docker build context exclusions for the web portal image
+# ==============================================================================
+#
+# This one is load-bearing, not just an optimisation.
+#
+# web/Dockerfile installs dependencies with `npm ci` and *then* runs `COPY . ./`.
+# Without this file that second copy lays the host's macOS node_modules on top
+# of the freshly installed Linux ones. esbuild and rollup ship platform-specific
+# native binaries, so the mismatch makes `vite build` fail inside the image
+# while it still succeeds on the developer's machine — the most confusing
+# possible failure mode.
+
+node_modules
+dist
+
+# The SPA is compiled with VITE_* values supplied as build arguments. A stray
+# .env file would silently override them.
+.env
+.env.*
+!.env.example
+
+Dockerfile
+.dockerignore
+.DS_Store
+*.log

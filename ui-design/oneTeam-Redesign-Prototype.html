@@ -1,0 +1,1575 @@
+<!DOCTYPE html>
+<html lang="az" data-page-node-id="3hEqEBBliAOEEZ6wvtKtvg">
+<head data-page-node-id="D79rxrSu6xQRSqrzT6yPuB">
+<meta charset="utf-8" data-page-node-id="r6n7vHKA8uRdiEUPyYwbVh">
+<meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="uZM7BlnP1O228uJ83gLGbE">
+<title>oneTeam — Yeni İnterfeys Dizaynı (v2)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" data-page-node-id="V97rTvMZbji9OC1cnOXj83">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin data-page-node-id="t5EQ6CXd9iACEsAYb1k1oo">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" data-page-node-id="itNq7zcQyMPDaitFOjFvZF">
+<style>
+/* ============================================================
+   oneTeam UI v2 — design tokens
+   Evolves the v1.1 system in DESIGN.md. Every change is additive:
+   same brand red, same Azerbaijani-first copy, same status logic.
+   ============================================================ */
+:root{
+  /* brand */
+  --coke-50:#fff1f1; --coke-100:#ffdfdf; --coke-200:#ffc5c5;
+  --coke-500:#F40009; --coke-600:#D80008; --coke-700:#B50007;
+
+  /* ink */
+  --ink:#0f172a; --ink-2:#334155; --muted:#64748b; --faint:#94a3b8;
+
+  /* surfaces */
+  --canvas:#f4f6f9; --surface:#ffffff; --surface-2:#fafbfc;
+  --line:#e5e9f0; --line-soft:#eef1f6; --line-strong:#d5dbe5;
+
+  /* nav */
+  --nav-bg:#0f172a; --nav-bg-2:#131f38; --nav-line:rgba(255,255,255,.07);
+
+  /* status */
+  --ok:#047857;   --ok-bg:#ecfdf5;   --ok-bd:#a7f3d0;   --ok-dot:#10b981;
+  --warn:#b45309; --warn-bg:#fffbeb; --warn-bd:#fcd34d; --warn-dot:#f59e0b;
+  --bad:#be123c;  --bad-bg:#fff1f2;  --bad-bd:#fecdd3;  --bad-dot:#f43f5e;
+  --info:#4338ca; --info-bg:#eef2ff; --info-bd:#c7d2fe; --info-dot:#6366f1;
+
+  /* elevation — the layer that was missing in v1 */
+  --sh-card:0 1px 2px rgba(15,23,42,.04), 0 1px 3px rgba(15,23,42,.06);
+  --sh-hover:0 4px 12px -2px rgba(15,23,42,.10), 0 2px 6px -2px rgba(15,23,42,.06);
+  --sh-pop:0 24px 60px -20px rgba(15,23,42,.30), 0 8px 20px -8px rgba(15,23,42,.12);
+  --sh-brand:0 2px 8px -2px rgba(244,0,9,.35);
+
+  --r-sm:8px; --r-md:12px; --r-lg:16px; --r-xl:20px;
+  --hd:68px;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:'Plus Jakarta Sans',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:#e8ebf0; color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+  font-size:13px; line-height:1.45;
+}
+button{font-family:inherit;cursor:pointer;border:0;background:none;color:inherit}
+img{display:block;max-width:100%}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+
+/* focus ring — gap #9 in the v1 audit, fixed app-wide */
+:focus-visible{outline:2px solid var(--coke-500);outline-offset:2px;border-radius:8px}
+
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:99px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:#94a3b8;background-clip:content-box}
+
+/* ============================================================
+   Prototype chrome (not part of the product)
+   ============================================================ */
+.chrome{
+  position:sticky;top:0;z-index:80;
+  background:linear-gradient(180deg,#0f172a,#101a2e);
+  color:#fff; padding:11px 20px;
+  display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+  border-bottom:1px solid rgba(255,255,255,.08);
+}
+.chrome .brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:-.02em}
+.chrome .mark{width:26px;height:26px;border-radius:8px;background:var(--coke-500);display:grid;place-items:center;font-size:11px;font-weight:800}
+.chrome .tag{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#ff8a8f;border:1px solid rgba(244,0,9,.35);background:rgba(244,0,9,.14);padding:3px 7px;border-radius:6px}
+.chrome .spacer{flex:1}
+.chrome .group{display:flex;align-items:center;gap:8px}
+.chrome .glabel{font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#7c8aa5}
+.seg{display:flex;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:3px;gap:2px}
+.seg button{padding:6px 12px;border-radius:7px;font-size:11.5px;font-weight:700;color:#a9b6cc;transition:.15s}
+.seg button:hover{color:#fff}
+.seg button.on{background:#fff;color:#0f172a}
+.seg.warm button.on{background:var(--coke-500);color:#fff}
+
+.stage{padding:26px 20px 60px;display:flex;justify-content:center}
+
+/* ============================================================
+   App shell — three-tier responsive
+   ============================================================ */
+.app{
+  width:100%;max-width:1380px;min-height:790px;
+  background:var(--canvas);border-radius:var(--r-xl);overflow:hidden;
+  display:flex;position:relative;
+  box-shadow:0 30px 70px -30px rgba(15,23,42,.45), 0 0 0 1px rgba(15,23,42,.06);
+  transition:max-width .32s cubic-bezier(.4,0,.2,1);
+}
+.app[data-mode="tablet"]{max-width:920px}
+.app[data-mode="mobile"]{max-width:430px}
+
+/* ---------- Sidebar ---------- */
+.sb{
+  width:260px;flex-shrink:0;color:#fff;
+  background:linear-gradient(180deg,var(--nav-bg) 0%,var(--nav-bg-2) 100%);
+  border-right:1px solid var(--nav-line);
+  display:flex;flex-direction:column;
+  transition:width .32s cubic-bezier(.4,0,.2,1), transform .28s cubic-bezier(.4,0,.2,1);
+  z-index:50;
+}
+.sb-head{padding:18px 16px;border-bottom:1px solid var(--nav-line);display:flex;align-items:center;gap:11px}
+.sb-logo{width:38px;height:38px;border-radius:11px;flex-shrink:0;background:var(--coke-500);display:grid;place-items:center;box-shadow:var(--sh-brand);overflow:hidden;font-weight:800;font-size:13px}
+.sb-logo img{width:100%;height:100%;object-fit:cover}
+.sb-brand{min-width:0;flex:1}
+.sb-brand h1{margin:0;font-size:15px;font-weight:800;letter-spacing:-.02em;display:flex;align-items:center;gap:6px}
+.sb-brand .cc{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:2.5px 5px;border-radius:5px;background:rgba(244,0,9,.22);color:#ff8a8f;border:1px solid rgba(244,0,9,.3);white-space:nowrap}
+.sb-brand p{margin:2px 0 0;font-size:11px;color:#8b98b0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.sb-nav{flex:1;padding:16px 12px;overflow-y:auto}
+.sb-group{font-size:9.5px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:#6b7893;padding:0 10px 9px}
+.nav-item{
+  width:100%;display:flex;align-items:center;gap:11px;
+  padding:10px 11px;border-radius:10px;margin-bottom:3px;
+  font-size:12.5px;font-weight:600;color:#b7c2d6;
+  transition:.15s;position:relative;text-align:left;
+}
+.nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
+.nav-item.active{background:var(--coke-500);color:#fff;box-shadow:var(--sh-brand)}
+.nav-item .ico{width:17px;height:17px;flex-shrink:0}
+.nav-item .txt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav-item .pill{font-size:10px;font-weight:800;padding:2px 7px;border-radius:99px;background:rgba(255,255,255,.13);color:#dbe3ef}
+.nav-item.active .pill{background:rgba(255,255,255,.28);color:#fff}
+.nav-item .pill.attn{background:#f59e0b;color:#fff}
+
+.sb-foot{padding:14px;border-top:1px solid var(--nav-line);background:rgba(2,6,23,.45);display:flex;align-items:center;gap:10px}
+.avatar{width:34px;height:34px;border-radius:99px;flex-shrink:0;background:#1e293b;border:1px solid rgba(255,255,255,.1);display:grid;place-items:center;font-size:11px;font-weight:800;color:#cbd5e1}
+.sb-foot .who{min-width:0;flex:1}
+.sb-foot .who b{display:block;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-foot .who span{font-size:10.5px;color:#8b98b0;display:flex;align-items:center;gap:4px}
+
+/* tablet: icon rail */
+.app[data-mode="tablet"] .sb{width:74px}
+.app[data-mode="tablet"] .sb-head{justify-content:center;padding:18px 0}
+.app[data-mode="tablet"] .sb-brand,
+.app[data-mode="tablet"] .sb-group,
+.app[data-mode="tablet"] .nav-item .txt,
+.app[data-mode="tablet"] .nav-item .pill,
+.app[data-mode="tablet"] .sb-foot .who{display:none}
+.app[data-mode="tablet"] .sb-nav{padding:14px 10px}
+.app[data-mode="tablet"] .nav-item{justify-content:center;padding:11px 0;position:relative}
+.app[data-mode="tablet"] .nav-item::after{
+  content:attr(data-tip);position:absolute;left:calc(100% + 10px);top:50%;transform:translateY(-50%) scale(.94);
+  background:#0f172a;color:#fff;font-size:11px;font-weight:600;padding:6px 10px;border-radius:8px;
+  white-space:nowrap;opacity:0;pointer-events:none;transition:.15s;box-shadow:var(--sh-pop);z-index:70;
+}
+.app[data-mode="tablet"] .nav-item:hover::after{opacity:1;transform:translateY(-50%) scale(1)}
+.app[data-mode="tablet"] .sb-foot{justify-content:center;padding:14px 0}
+
+/* mobile: off-canvas drawer */
+.app[data-mode="mobile"] .sb{position:absolute;left:0;top:0;bottom:0;width:262px;transform:translateX(-100%);box-shadow:var(--sh-pop)}
+.app.drawer .sb{transform:translateX(0)}
+.scrim{position:absolute;inset:0;background:rgba(2,6,23,.5);backdrop-filter:blur(2px);z-index:45;opacity:0;pointer-events:none;transition:.25s}
+.app.drawer .scrim{opacity:1;pointer-events:auto}
+
+/* ---------- Main column ---------- */
+.col{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+
+.hd{
+  height:var(--hd);flex-shrink:0;background:var(--surface);
+  border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:14px;padding:0 22px;
+}
+.hd-t{min-width:0;flex:1}
+.hd-t h2{margin:0;font-size:16.5px;font-weight:800;letter-spacing:-.022em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hd-t p{margin:2px 0 0;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hd-actions{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.hamb{display:none;width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:#fff;place-items:center;flex-shrink:0}
+.clock{
+  display:flex;align-items:center;gap:7px;background:var(--surface-2);
+  border:1px solid var(--line);padding:7px 13px;border-radius:99px;
+  font-size:11.5px;font-weight:500;color:var(--ink-2);
+}
+.clock b{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:700;color:var(--ink)}
+
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  padding:9px 15px;border-radius:10px;font-size:12px;font-weight:700;
+  transition:.15s;white-space:nowrap;border:1px solid transparent;
+}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--coke-500);color:#fff;box-shadow:var(--sh-brand)}
+.btn-primary:hover{background:var(--coke-600)}
+.btn-ok{background:#047857;color:#fff}
+.btn-ok:hover{background:#065f46}
+.btn-bad{background:#e11d48;color:#fff}
+.btn-bad:hover{background:#be123c}
+.btn-ghost{background:#fff;border-color:var(--line-strong);color:var(--ink-2)}
+.btn-ghost:hover{background:var(--surface-2);border-color:var(--faint)}
+.btn-dark{background:#0f172a;color:#fff}
+
+.main{flex:1;overflow-y:auto;padding:22px;min-width:0}
+.wrap{max-width:1240px;margin:0 auto}
+
+/* mobile header behaviour */
+.app[data-mode="mobile"] .hd{padding:0 14px;gap:10px}
+.app[data-mode="mobile"] .hamb{display:grid}
+.app[data-mode="mobile"] .hd-t p{display:none}
+.app[data-mode="mobile"] .hd-t h2{font-size:14.5px}
+.app[data-mode="mobile"] .clock{display:none}
+.app[data-mode="mobile"] .btn .btn-txt{display:none}
+.app[data-mode="mobile"] .btn{padding:10px;width:40px;height:40px}
+.app[data-mode="mobile"] .main{padding:14px}
+
+/* ============================================================
+   Views
+   ============================================================ */
+.view{display:none;animation:fade .22s ease}
+.view.on{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+.stack{display:flex;flex-direction:column;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--sh-card)}
+.card.pad{padding:18px}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line-soft)}
+.card-h h3{margin:0;font-size:13px;font-weight:800;letter-spacing:-.01em}
+.card-h p{margin:2px 0 0;font-size:11px;color:var(--muted)}
+
+/* ---------- KPI row ---------- */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.kpi{padding:17px;border-radius:var(--r-md);background:var(--surface);border:1px solid var(--line);box-shadow:var(--sh-card);transition:.18s;position:relative;overflow:hidden}
+.kpi:hover{box-shadow:var(--sh-hover);transform:translateY(-1px)}
+.kpi-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.kpi-lbl{font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);line-height:1.35}
+.kpi-ico{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;flex-shrink:0;border:1px solid}
+.kpi-val{font-size:29px;font-weight:800;letter-spacing:-.035em;margin-top:11px;line-height:1}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:5px}
+.kpi-spark{margin-top:9px;height:26px}
+.kpi.attn{border-color:var(--warn-bd);box-shadow:0 0 0 3px rgba(245,158,11,.13),var(--sh-card)}
+.i-blue{background:#eff6ff;border-color:#dbeafe;color:#2563eb}
+.i-coke{background:var(--coke-50);border-color:var(--coke-200);color:var(--coke-500)}
+.i-amber{background:var(--warn-bg);border-color:var(--warn-bd);color:var(--warn)}
+.i-emerald{background:var(--ok-bg);border-color:var(--ok-bd);color:var(--ok)}
+
+/* ---------- Banner ---------- */
+.banner{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  background:linear-gradient(100deg,#f59e0b,#f97316 62%,#ea580c);
+  border-radius:var(--r-md);padding:15px 18px;color:#fff;box-shadow:var(--sh-card);
+}
+.banner .b-ico{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.2);display:grid;place-items:center;flex-shrink:0}
+.banner .b-txt{flex:1;min-width:180px}
+.banner b{display:block;font-size:12.5px;font-weight:800;letter-spacing:-.01em}
+.banner span{font-size:11.5px;opacity:.95}
+.banner .b-cta{background:#fff;color:#b45309;padding:9px 15px;border-radius:9px;font-size:11.5px;font-weight:800;display:inline-flex;align-items:center;gap:6px}
+.banner .b-cta:hover{background:#fffaf0}
+
+/* ---------- Dashboard columns ---------- */
+.cols{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;align-items:start}
+
+/* ---------- Table ---------- */
+.tbl-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{
+  text-align:left;font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted);padding:11px 11px;border-bottom:1px solid var(--line);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;background:var(--surface-2);
+}
+td{padding:11px 11px;border-bottom:1px solid var(--line-soft);vertical-align:middle;font-size:12px}
+/* photo is merged into the title cell to buy the table horizontal room */
+.cell-title{display:flex;align-items:center;gap:11px;min-width:0}
+.cell-title .tt{min-width:0}
+.cell-title .tt b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:12px;font-weight:700;letter-spacing:-.01em;line-height:1.3}
+tbody tr{transition:background .14s}
+tbody tr:hover{background:#f8fafc}
+tbody tr:last-child td{border-bottom:0}
+.cell-store{display:flex;flex-direction:column;gap:1px;min-width:0}
+.cell-store b{font-size:12px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell-store span{font-size:10.5px;color:var(--faint);font-family:ui-monospace,Menlo,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell-who{display:flex;align-items:center;gap:9px;min-width:0}
+.cell-who .av{width:30px;height:30px;border-radius:99px;background:#e2e8f0;display:grid;place-items:center;font-size:10px;font-weight:800;color:#475569;flex-shrink:0}
+.cell-who .nm{font-size:12px;font-weight:600;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell-who .rl{font-size:10px;color:var(--muted)}
+
+/* Fixed column widths so all 8 columns fit the card with no horizontal
+   scroll — text truncates instead of pushing the table wider. */
+.tbl-scroll table{table-layout:fixed}
+.tbl-scroll th:nth-child(1),.tbl-scroll td:nth-child(1){width:9%}
+.tbl-scroll th:nth-child(2),.tbl-scroll td:nth-child(2){width:24%}
+.tbl-scroll th:nth-child(3),.tbl-scroll td:nth-child(3){width:14%}
+.tbl-scroll th:nth-child(4),.tbl-scroll td:nth-child(4){width:10%}
+.tbl-scroll th:nth-child(5),.tbl-scroll td:nth-child(5){width:8%}
+.tbl-scroll th:nth-child(6),.tbl-scroll td:nth-child(6){width:9%}
+.tbl-scroll th:nth-child(7),.tbl-scroll td:nth-child(7){width:15%}
+.tbl-scroll th:nth-child(8),.tbl-scroll td:nth-child(8){width:11%}
+/* Submitter is avatar-only in the dense desktop table — the full name,
+   role and telemetry live in the comparison modal. */
+.app[data-mode="desktop"] .tbl-scroll td:nth-child(4) .cell-who > div:last-child,
+.app[data-mode="tablet"] .tbl-scroll td:nth-child(4) .cell-who > div:last-child{display:none}
+
+/* thumbnail with graceful fallback — v1 showed raw alt text */
+.thumb{width:42px;height:42px;border-radius:10px;flex-shrink:0;overflow:hidden;position:relative;background:linear-gradient(140deg,#e2e8f0,#cbd5e1);border:1px solid var(--line)}
+.thumb.a{background:linear-gradient(140deg,#fecaca,#fca5a5)}
+.thumb.b{background:linear-gradient(140deg,#fed7aa,#fdba74)}
+.thumb.c{background:linear-gradient(140deg,#bfdbfe,#93c5fd)}
+.thumb .fb{position:absolute;inset:0;display:grid;place-items:center;color:#64748b}
+
+/* ---------- Status & priority ---------- */
+.st{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700;border:1px solid;white-space:nowrap}
+.st.ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-bd)}
+.st.warn{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-bd)}
+.st.bad{background:var(--bad-bg);color:var(--bad);border-color:var(--bad-bd)}
+.st.neutral{background:#f1f5f9;color:#475569;border-color:#e2e8f0}
+.dot{width:6px;height:6px;border-radius:99px;flex-shrink:0}
+.d-ok{background:var(--ok-dot)} .d-warn{background:var(--warn-dot)} .d-bad{background:var(--bad-dot)} .d-neutral{background:#94a3b8}
+
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2.5px 7px;border-radius:6px;font-size:10px;font-weight:800;border:1px solid;white-space:nowrap}
+.chip.a{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-bd)}
+.chip.b{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-bd)}
+.chip.c{background:var(--bad-bg);color:var(--bad);border-color:var(--bad-bd)}
+
+.prio{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700}
+.prio i{width:8px;height:8px;border-radius:99px;display:block}
+.p-urgent i{background:#f43f5e} .p-high i{background:#fb923c}
+.p-medium i{background:#f59e0b} .p-low i{background:#10b981}
+
+/* score ring */
+.score{width:38px;height:38px;border-radius:99px;display:grid;place-items:center;font-size:11px;font-weight:800;position:relative;flex-shrink:0}
+.score::before{content:"";position:absolute;inset:0;border-radius:99px;border:3px solid currentColor;opacity:.2}
+.score s{text-decoration:none;position:relative}
+.sc-hi{color:#059669;background:#ecfdf5} .sc-mid{color:#b45309;background:#fffbeb} .sc-lo{color:#be123c;background:#fff1f2}
+
+/* ---------- Side rail ---------- */
+.rail{display:flex;flex-direction:column;gap:14px}
+.rail-item{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid var(--line-soft)}
+.rail-item:last-child{border-bottom:0;padding-bottom:0}
+.rail-item .n{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:12px;font-weight:800;flex-shrink:0}
+.rail-item .t{flex:1;min-width:0}
+.rail-item .t b{display:block;font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rail-item .t span{font-size:10px;color:var(--muted)}
+.rail-item .v{font-size:12.5px;font-weight:800}
+
+.bar{height:7px;border-radius:99px;background:#eef1f6;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:99px;transition:width .5s cubic-bezier(.4,0,.2,1)}
+.bar-ok i{background:linear-gradient(90deg,#34d399,#059669)}
+.bar-warn i{background:linear-gradient(90deg,#fbbf24,#d97706)}
+.bar-bad i{background:linear-gradient(90deg,#fb7185,#e11d48)}
+
+/* ---------- Toolbar ---------- */
+.toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 16px;border-radius:var(--r-md);background:var(--surface);border:1px solid var(--line);box-shadow:var(--sh-card)}
+.search{flex:1;min-width:190px;display:flex;align-items:center;gap:9px;background:var(--surface-2);border:1px solid var(--line-strong);border-radius:10px;padding:9px 13px}
+.search input{border:0;background:none;outline:none;font-family:inherit;font-size:12px;flex:1;color:var(--ink);min-width:0}
+.search input::placeholder{color:var(--faint)}
+.chips{display:flex;gap:6px;background:var(--surface-2);border:1px solid var(--line);padding:4px;border-radius:11px;flex-wrap:wrap}
+.fchip{padding:7px 13px;border-radius:8px;font-size:11.5px;font-weight:700;color:var(--muted);transition:.15s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.fchip:hover{color:var(--ink)}
+.fchip.on{background:#0f172a;color:#fff}
+.fchip .cnt{font-size:10px;font-weight:800;padding:1px 6px;border-radius:99px;background:rgba(148,163,184,.25)}
+.fchip.on .cnt{background:rgba(255,255,255,.22)}
+
+/* ---------- Card gallery ---------- */
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.gcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden;box-shadow:var(--sh-card);transition:.18s;text-align:left;display:flex;flex-direction:column}
+.gcard:hover{box-shadow:var(--sh-hover);transform:translateY(-2px)}
+.gcard .shot{aspect-ratio:4/3;position:relative;overflow:hidden;background:linear-gradient(140deg,#dbe3ee,#c3cede)}
+.gcard .shot .ph{position:absolute;inset:0;display:grid;place-items:center;color:#94a3b8}
+.gcard .shot .ovl{position:absolute;left:9px;right:9px;bottom:9px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.stamp{background:rgba(2,6,23,.78);backdrop-filter:blur(6px);color:#fff;font-size:9.5px;font-weight:800;padding:4px 8px;border-radius:7px;border:1px solid rgba(255,255,255,.16);letter-spacing:.02em}
+.gcard .body{padding:13px;display:flex;flex-direction:column;gap:9px;flex:1}
+.gcard .body b{font-size:12.5px;font-weight:700;line-height:1.3;letter-spacing:-.01em}
+.gcard .meta{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10.5px;color:var(--muted)}
+.gcard .foot{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:2px}
+
+/* ---------- Empty / loading states — gap #11 & #12 ---------- */
+.empty{padding:44px 22px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:11px}
+.empty .eico{width:52px;height:52px;border-radius:15px;background:var(--surface-2);border:1px solid var(--line);display:grid;place-items:center;color:var(--faint)}
+.empty b{font-size:13px;font-weight:700}
+.empty p{margin:0;font-size:11.5px;color:var(--muted);max-width:290px}
+.skel{background:linear-gradient(90deg,#eef1f6 25%,#e2e8f0 37%,#eef1f6 63%);background-size:400% 100%;animation:sk 1.4s ease infinite;border-radius:7px}
+@keyframes sk{0%{background-position:100% 50%}100%{background-position:0 50%}}
+
+/* ---------- Task rows ---------- */
+.trow{display:flex;align-items:center;gap:14px;padding:15px 18px;border-bottom:1px solid var(--line-soft);transition:background .14s}
+.trow:hover{background:#f8fafc}
+.trow:last-child{border-bottom:0}
+.trow .ti{width:40px;height:40px;border-radius:11px;background:var(--coke-50);border:1px solid var(--coke-200);display:grid;place-items:center;color:var(--coke-500);flex-shrink:0}
+.trow .tb{flex:1;min-width:0}
+.trow .tb b{display:block;font-size:12.5px;font-weight:700;letter-spacing:-.01em}
+.trow .tb .sub{display:flex;align-items:center;gap:9px;margin-top:4px;font-size:10.5px;color:var(--muted);flex-wrap:wrap}
+.trow .tp{width:150px;flex-shrink:0}
+.trow .tp .bar{margin-top:6px}
+.trow .tp .lbl{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);font-weight:600}
+
+/* ---------- Modal ---------- */
+.modal{position:absolute;inset:0;z-index:90;display:none;align-items:center;justify-content:center;padding:22px}
+.modal.on{display:flex}
+.modal-bg{position:absolute;inset:0;background:rgba(2,6,23,.62);backdrop-filter:blur(3px)}
+.modal-panel{
+  position:relative;background:#fff;border-radius:var(--r-lg);width:100%;max-width:1000px;
+  max-height:92%;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--sh-pop);
+  animation:pop .24s cubic-bezier(.34,1.4,.5,1);
+}
+@keyframes pop{from{opacity:0;transform:scale(.965) translateY(8px)}to{opacity:1;transform:none}}
+.modal-h{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
+.modal-h h3{margin:0;font-size:14.5px;font-weight:800;letter-spacing:-.02em}
+.modal-h p{margin:2px 0 0;font-size:11px;color:var(--muted)}
+.modal-b{padding:18px;overflow-y:auto;background:var(--canvas)}
+.modal-f{padding:14px 20px;border-top:1px solid var(--line);display:flex;align-items:center;gap:10px;background:#fff}
+.iconbtn{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:var(--muted);transition:.15s;flex-shrink:0}
+.iconbtn:hover{background:var(--surface-2);color:var(--ink)}
+
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.pane{background:#fff;border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden;box-shadow:var(--sh-card)}
+.pane-h{padding:11px 14px;border-bottom:1px solid var(--line-soft);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--surface-2)}
+.pane-h b{font-size:11.5px;font-weight:800;letter-spacing:-.01em}
+.pane-h span{font-size:10px;color:var(--muted)}
+.pane-img{aspect-ratio:4/3;background:linear-gradient(140deg,#dbe3ee,#c3cede);position:relative;display:grid;place-items:center;color:#94a3b8}
+.pane-img .grid-lines{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.5) 1px,transparent 1px);background-size:100% 33.33%}
+.pane-img .ghost{position:absolute;inset:12% 8%;border:2px dashed rgba(244,0,9,.55);border-radius:8px;background:rgba(244,0,9,.05)}
+.stamps{position:absolute;left:10px;top:10px;display:flex;flex-direction:column;gap:5px;align-items:flex-start}
+.check{padding:11px 14px;border-top:1px solid var(--line-soft);display:flex;flex-direction:column;gap:7px}
+.check .ci{display:flex;align-items:flex-start;gap:8px;font-size:11.5px;background:#f8fbff;border:1px solid #e0edff;border-radius:8px;padding:8px 10px}
+.check .ci .cb{width:16px;height:16px;border-radius:5px;display:grid;place-items:center;flex-shrink:0;margin-top:.5px}
+.cb.y{background:#d1fae5;color:#047857} .cb.n{background:#ffe4e6;color:#be123c}
+
+/* ---------- Toast ---------- */
+.toast{
+  position:absolute;bottom:20px;right:20px;z-index:95;
+  background:#0f172a;color:#fff;padding:12px 16px;border-radius:12px;
+  font-size:12px;font-weight:700;box-shadow:var(--sh-pop);display:flex;align-items:center;gap:9px;
+  opacity:0;transform:translateY(12px);pointer-events:none;transition:.25s;max-width:330px;
+}
+.toast.on{opacity:1;transform:none}
+
+/* ============================================================
+   Mobile field client
+   ============================================================ */
+.phones{display:flex;gap:24px;flex-wrap:wrap;justify-content:center;padding:6px 0}
+.phone{width:284px;flex-shrink:0}
+.phone-frame{background:#0b1220;border-radius:40px;padding:11px;box-shadow:0 26px 55px -22px rgba(15,23,42,.55),0 0 0 1px rgba(255,255,255,.08)}
+.phone-screen{background:#fff;border-radius:30px;overflow:hidden;height:576px;display:flex;flex-direction:column;position:relative}
+.phone-cap{text-align:center;margin-top:12px;font-size:11.5px;font-weight:700;color:var(--ink-2)}
+.phone-cap span{display:block;font-size:10px;font-weight:500;color:var(--muted);margin-top:2px}
+.notch{position:absolute;top:9px;left:50%;transform:translateX(-50%);width:72px;height:19px;background:#0b1220;border-radius:99px;z-index:5}
+
+.p-status{height:38px;display:flex;align-items:center;justify-content:space-between;padding:6px 22px 0;font-size:10px;font-weight:700;color:var(--ink);flex-shrink:0}
+.p-head{padding:8px 16px 13px;border-bottom:1px solid var(--line);flex-shrink:0}
+.p-head h4{margin:0;font-size:15px;font-weight:800;letter-spacing:-.025em}
+.p-head p{margin:3px 0 0;font-size:10.5px;color:var(--muted)}
+.p-body{flex:1;overflow-y:auto;padding:13px 16px;background:var(--canvas)}
+
+.geo{display:flex;align-items:center;gap:9px;background:var(--ok-bg);border:1px solid var(--ok-bd);border-radius:11px;padding:10px 12px;margin-bottom:11px}
+.geo .gi{width:28px;height:28px;border-radius:8px;background:#d1fae5;display:grid;place-items:center;color:#047857;flex-shrink:0}
+.geo b{display:block;font-size:11px;font-weight:800;color:#065f46}
+.geo span{font-size:9.5px;color:#047857}
+
+.mtask{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px;margin-bottom:10px;box-shadow:var(--sh-card)}
+.mtask .r1{display:flex;align-items:flex-start;justify-content:space-between;gap:9px}
+.mtask h5{margin:0;font-size:12.5px;font-weight:700;line-height:1.3;letter-spacing:-.01em}
+.mtask .specs{display:flex;gap:12px;margin-top:9px;flex-wrap:wrap}
+.spec{font-size:9.5px;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:4px}
+.spec b{color:var(--ink);font-weight:800;font-size:11px}
+.mtask .cta{margin-top:11px;width:100%;background:var(--coke-500);color:#fff;border-radius:9px;padding:10px;font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:6px}
+
+.cam{flex:1;position:relative;background:linear-gradient(170deg,#334155,#1e293b);overflow:hidden}
+.cam .shelf{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:14px;padding:0 14px}
+.cam .tier{display:flex;gap:7px;justify-content:center;align-items:flex-end;position:relative;padding-bottom:5px}
+.cam .tier::after{content:"";position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(255,255,255,.22);border-radius:2px}
+.bottle{width:22px;border-radius:4px 4px 6px 6px;background:linear-gradient(180deg,#ef4444,#b91c1c);opacity:.92}
+.bottle.g{background:linear-gradient(180deg,#22c55e,#15803d)}
+.bottle.o{background:linear-gradient(180deg,#f97316,#c2410c)}
+.bottle.dim{opacity:.28}
+.ghostbox{position:absolute;border:2px dashed rgba(255,255,255,.6);border-radius:6px;pointer-events:none}
+.cam-top{position:absolute;top:12px;left:12px;right:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;z-index:3}
+.rec{display:flex;align-items:center;gap:6px;background:rgba(2,6,23,.72);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.18);border-radius:99px;padding:5px 11px;font-size:9.5px;font-weight:800;color:#fff}
+.rec i{width:6px;height:6px;border-radius:99px;background:#f43f5e;display:block;animation:blink 1.4s infinite}
+@keyframes blink{50%{opacity:.25}}
+.tele{position:absolute;left:12px;bottom:14px;display:flex;flex-direction:column;gap:5px;z-index:3}
+.tele .row{background:rgba(2,6,23,.78);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.16);border-radius:7px;padding:4px 8px;font-size:8.5px;font-weight:800;color:#fff;letter-spacing:.03em;display:flex;gap:6px;align-items:center}
+.cam-bar{flex-shrink:0;background:#0b1220;padding:15px 0 19px;display:flex;align-items:center;justify-content:center;gap:34px}
+.shutter{width:60px;height:60px;border-radius:99px;border:3px solid rgba(255,255,255,.9);display:grid;place-items:center}
+.shutter i{width:46px;height:46px;border-radius:99px;background:#fff;display:block}
+.cam-side{width:38px;height:38px;border-radius:11px;background:rgba(255,255,255,.13);display:grid;place-items:center;color:#fff}
+
+.queue-item{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:11px;padding:11px;margin-bottom:9px;box-shadow:var(--sh-card)}
+.queue-item .qi{width:34px;height:34px;border-radius:9px;background:var(--warn-bg);border:1px solid var(--warn-bd);display:grid;place-items:center;color:var(--warn);flex-shrink:0}
+.queue-item .qt{flex:1;min-width:0}
+.queue-item .qt b{display:block;font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.queue-item .qt span{font-size:9.5px;color:var(--muted)}
+.sync-banner{display:flex;align-items:center;gap:10px;background:#0f172a;color:#fff;border-radius:11px;padding:11px 13px;margin-bottom:12px}
+.sync-banner .si{width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,.14);display:grid;place-items:center;flex-shrink:0}
+.sync-banner b{display:block;font-size:11.5px;font-weight:800}
+.sync-banner span{font-size:9.5px;color:#a9b6cc}
+
+/* ============================================================
+   Design system sheet
+   ============================================================ */
+.ds-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:14px}
+.sw{display:flex;align-items:center;gap:11px;padding:11px;border:1px solid var(--line);border-radius:11px;background:#fff}
+.sw .c{width:38px;height:38px;border-radius:10px;flex-shrink:0;border:1px solid rgba(15,23,42,.08)}
+.sw b{display:block;font-size:11.5px;font-weight:700}
+.sw span{font-size:10px;color:var(--muted);font-family:ui-monospace,Menlo,monospace}
+
+.tscale{display:flex;flex-direction:column;gap:0}
+.ts-row{display:flex;align-items:baseline;gap:14px;padding:11px 0;border-bottom:1px solid var(--line-soft)}
+.ts-row:last-child{border-bottom:0}
+.ts-row .spec{width:150px;flex-shrink:0;font-size:10px;color:var(--muted);font-family:ui-monospace,Menlo,monospace}
+.ts-row .demo{flex:1;min-width:0}
+
+.ds-notes{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.note{background:#fff;border:1px solid var(--line);border-radius:var(--r-md);padding:17px;box-shadow:var(--sh-card)}
+.note .nh{display:flex;align-items:center;gap:9px;margin-bottom:10px}
+.note .nh .n{width:26px;height:26px;border-radius:8px;background:var(--coke-50);border:1px solid var(--coke-200);color:var(--coke-500);display:grid;place-items:center;font-size:11px;font-weight:800;flex-shrink:0}
+.note h4{margin:0;font-size:12.5px;font-weight:800;letter-spacing:-.01em}
+.note p{margin:0 0 9px;font-size:11.5px;color:var(--ink-2);line-height:1.55}
+.note .was{font-size:11px;color:var(--bad);background:var(--bad-bg);border:1px solid var(--bad-bd);border-radius:8px;padding:8px 10px;margin-bottom:7px}
+.note .now{font-size:11px;color:var(--ok);background:var(--ok-bg);border:1px solid var(--ok-bd);border-radius:8px;padding:8px 10px}
+.note .was b,.note .now b{display:block;font-size:9px;letter-spacing:.09em;text-transform:uppercase;margin-bottom:3px;opacity:.8}
+
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.ba figure{margin:0;border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden;background:#fff;box-shadow:var(--sh-card)}
+.ba figcaption{padding:10px 13px;font-size:11px;font-weight:700;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:7px}
+.ba img{width:100%;display:block;background:#f1f5f9}
+
+code{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;background:#f1f5f9;border:1px solid var(--line);padding:1px 5px;border-radius:5px;color:#0f172a}
+pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:var(--r-md);overflow-x:auto;font-size:11px;line-height:1.6;margin:0;font-family:ui-monospace,Menlo,monospace}
+pre .k{color:#ff8a8f} pre .s{color:#86efac} pre .c{color:#7c8aa5}
+
+/* ---------- Mobile: the table becomes a card list ----------
+   An 8-column table is not scannable on a phone. Below md the same <tr>
+   is re-laid-out as a card using CSS grid, so no duplicate markup is
+   needed and the data stays in one place. */
+.app[data-mode="mobile"] .tbl-scroll{display:block;overflow:visible}
+.app[data-mode="mobile"] .tbl-scroll table,
+.app[data-mode="mobile"] .tbl-scroll tbody{display:block;width:100%}
+.app[data-mode="mobile"] .tbl-scroll thead{display:none}
+.app[data-mode="mobile"] .tbl-scroll tr{
+  display:grid;
+  grid-template-columns:52px minmax(0,1fr) auto;
+  gap:9px 10px;padding:13px;margin:0 0 10px;
+  border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:var(--sh-card);
+}
+.app[data-mode="mobile"] .tbl-scroll tbody tr:last-child{margin-bottom:0}
+.app[data-mode="mobile"] .tbl-scroll tbody tr:hover{background:#fff}
+.app[data-mode="mobile"] .tbl-scroll td{display:block;padding:0;border:0;text-align:left;width:auto}
+.app[data-mode="mobile"] .tbl-scroll td:nth-child(1){grid-area:1/1/2/2}
+.app[data-mode="mobile"] .tbl-scroll td:nth-child(2){grid-area:1/2/2/3}
+.app[data-mode="mobile"] .tbl-scroll td:nth-child(3){grid-area:2/1/3/4;border-top:1px solid var(--line-soft);padding-top:9px}
+.app[data-mode="mobile"] .tbl-scroll td:nth-child(4){grid-area:3/1/4/3}
+.app[data-mode="mobile"] .tbl-scroll td:nth-child(5){grid-area:3/3/4/4;text-align:right}
+.app[data-mode="mobile"] .tbl-scroll td:nth-child(6){grid-area:1/3/2/4}
+.app[data-mode="mobile"] .tbl-scroll td:nth-child(7){grid-area:4/1/5/3;align-self:center}
+.app[data-mode="mobile"] .tbl-scroll td:nth-child(8){grid-area:4/3/5/4}
+.app[data-mode="mobile"] .tbl-scroll td:nth-child(8) .btn{width:100%}
+.app[data-mode="mobile"] .tbl-scroll .thumb{width:48px;height:48px}
+
+/* ============================================================
+   Container-scoped responsive rules.
+   These key off the prototype's mode switch, NOT the browser width —
+   so the shell and the content reflow together at any window size.
+   In production these become standard md:/lg: breakpoints.
+   ============================================================ */
+.app[data-mode="tablet"] .kpis{grid-template-columns:repeat(2,1fr)}
+.app[data-mode="tablet"] .cols{grid-template-columns:1fr}
+
+.app[data-mode="mobile"] .kpis{grid-template-columns:repeat(2,1fr);gap:10px}
+.app[data-mode="mobile"] .kpi{padding:14px}
+.app[data-mode="mobile"] .kpi-val{font-size:24px;margin-top:9px}
+.app[data-mode="mobile"] .kpi-lbl{font-size:9px}
+.app[data-mode="mobile"] .kpi-spark{display:none}
+.app[data-mode="mobile"] .cols{grid-template-columns:1fr}
+.app[data-mode="mobile"] .card-h{flex-direction:column;align-items:flex-start;gap:10px}
+.app[data-mode="mobile"] .card-h .btn{width:100%}
+.app[data-mode="mobile"] .toolbar{flex-direction:column;align-items:stretch}
+.app[data-mode="mobile"] .chips{overflow-x:auto;flex-wrap:nowrap}
+.app[data-mode="mobile"] .banner{flex-direction:column;align-items:flex-start}
+.app[data-mode="mobile"] .banner .b-cta{width:100%;justify-content:center}
+.app[data-mode="mobile"] .trow{flex-wrap:wrap;gap:11px}
+.app[data-mode="mobile"] .trow .tb{flex:1 1 100%}
+.app[data-mode="mobile"] .trow .tp{width:100%;order:3}
+.app[data-mode="mobile"] .gallery{grid-template-columns:1fr}
+.app[data-mode="mobile"] .ba{grid-template-columns:1fr}
+.app[data-mode="mobile"] .ds-grid{grid-template-columns:1fr}
+.app[data-mode="mobile"] .ds-notes{grid-template-columns:1fr}
+.app[data-mode="mobile"] .cmp{grid-template-columns:1fr}
+.app[data-mode="mobile"] .modal{padding:10px}
+.app[data-mode="mobile"] .modal-f{flex-wrap:wrap}
+.app[data-mode="mobile"] .modal-f .btn{flex:1}
+.app[data-mode="mobile"] .phones{gap:16px}
+.app[data-mode="mobile"] .phone{width:100%;max-width:296px}
+.app[data-mode="mobile"] .phone-screen{height:540px}
+.app[data-mode="mobile"] .ts-row{flex-direction:column;gap:5px}
+.app[data-mode="mobile"] .ts-row .spec{width:auto}
+.app[data-mode="mobile"] .note .nh{align-items:flex-start}
+.app[data-mode="mobile"] pre{font-size:10px}
+
+@media (max-width:1100px){.kpis{grid-template-columns:repeat(2,1fr)}.cols{grid-template-columns:1fr}}
+@media (max-width:720px){.ba{grid-template-columns:1fr}.cmp{grid-template-columns:1fr}}
+</style>
+</head>
+<body data-page-node-id="0xHkW1smxtqygEBjn2TRKW">
+
+<!-- ============ prototype chrome ============ -->
+<div class="chrome" data-page-node-id="Br1OvoynnltCFBVA44LyLQ">
+  <div class="brand" data-page-node-id="n5XpLLG62BYmdgx4NTeFlR">
+    <div class="mark" data-page-node-id="1RY5vO0W87gELuB5L3vuVN">1T</div>
+    <span data-page-node-id="fQ3Bnwb0GHmVX4h6RBSsss">oneTeam</span>
+    <span class="tag" data-page-node-id="7OyTUm9qh0URtawHqWfbhu">UI v2 · Təklif</span>
+  </div>
+  <div class="spacer" data-page-node-id="KRGb45BOPvxaq4x1awQeGO"></div>
+  <div class="group" data-page-node-id="BQVv0zcRTGWUN0uB9EHj1z">
+    <span class="glabel" data-page-node-id="4Hmf5A6KltDtZE6HfGdDcG">Ölçü</span>
+    <div class="seg" id="seg-mode" data-page-node-id="W0LrsDsjAhgcEW2nt6FgQy">
+      <button data-m="desktop" class="on" data-page-node-id="8B47BkUvdwJBFaSOdJ4Bam">Masaüstü</button>
+      <button data-m="tablet" data-page-node-id="Mv5f8TPYhfqrf4ILvThcGC">Planşet</button>
+      <button data-m="mobile" data-page-node-id="jLODRdVGamid358XmP941g">Mobil</button>
+    </div>
+  </div>
+  <div class="group" data-page-node-id="LBIWWjDeeielKivD7cuHlz">
+    <span class="glabel" data-page-node-id="2ap3iapmd3ktP7tXmfT1H9">Ekran</span>
+    <div class="seg warm" id="seg-view" data-page-node-id="A53K512O2DxYjRf1KtN667">
+      <button data-v="dashboard" class="on" data-page-node-id="TsLOLRCR5Fyfzk8UqiO10K">İcmal</button>
+      <button data-v="review" data-page-node-id="TK8260s9G20FuB43ajE8Qk">Yoxlama</button>
+      <button data-v="tasks" data-page-node-id="Wxe4H2GQuRCDg48yHGaVha">Tapşırıqlar</button>
+      <button data-v="stores" data-page-node-id="48UKLX3HGgrPC9PCb76Par">Mağazalar</button>
+      <button data-v="mobile" data-page-node-id="SlMHuQnc8P5d1Ny6AKFI1Q">Mobil Klient</button>
+      <button data-v="system" data-page-node-id="BZaEe9wHUHUYsRb9waGZ4H">Dizayn Sistemi</button>
+    </div>
+  </div>
+</div>
+
+<div class="stage" data-page-node-id="2ok5hwRaMBnkaY210FVTEE">
+<div class="app" id="app" data-mode="desktop" data-page-node-id="Fbi0aEwn60Ixzc9blV2BU4">
+
+  <!-- ============ sidebar ============ -->
+  <aside class="sb" data-page-node-id="wupUcn2PwRcX7KM9ZwcxGz">
+    <div class="sb-head" data-page-node-id="EHJtEHlcFArqgMFyQhVQG2">
+      <div class="sb-logo" data-page-node-id="AKaGgAqK1SZ5KZFhxPkvuN"><img src="../logo.jpg" alt="oneTeam" onerror="this.style.display='none';this.parentNode.textContent='1T'" data-page-node-id="Q76a5hcjEn7G9i6dKWFFdk"></div>
+      <div class="sb-brand" data-page-node-id="Em1QbDDngCQxVIzCJoNfVE">
+        <h1 data-page-node-id="NU2bcnkQ7ymM1eAu5PnvqW">oneTeam <span class="cc" data-page-node-id="enBFHAHASUmjRgdXJFDMzJ">Coca-Cola</span></h1>
+        <p data-page-node-id="YjQfHrX9vpQnAjs6anumTr">Rəf Monitorinq Portalı</p>
+      </div>
+    </div>
+    <nav class="sb-nav" data-page-node-id="ypoGGxwxN8qPdaLEIKgG5a">
+      <div class="sb-group" data-page-node-id="V6AVcO1N5rKJxLIzUDPufA">Əsas Menyu</div>
+      <button class="nav-item active" data-view="dashboard" data-tip="İcmal & Statistika" data-page-node-id="Dcmut91Wv1ZWLyKGpMsgya">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" data-page-node-id="CrOdzCB97kfs5Zb0gAo9rI"><rect x="3" y="3" width="7" height="9" rx="1.5" data-page-node-id="dqyXmUlZcUtVg5LCDOFyYy"/><rect x="14" y="3" width="7" height="5" rx="1.5" data-page-node-id="2ZzlNZNW5rcS0XAAmGbOtF"/><rect x="14" y="12" width="7" height="9" rx="1.5" data-page-node-id="TqKvpTHU0FWQem3fYanOZL"/><rect x="3" y="16" width="7" height="5" rx="1.5" data-page-node-id="4DolymSChdQmC2R1ZJkgnO"/></svg>
+        <span class="txt" data-page-node-id="WRVy0RpEbzIIGcF85PPeqX">İcmal &amp; Statistika</span>
+      </button>
+      <button class="nav-item" data-view="review" data-tip="Rəf Auditi" data-page-node-id="Kywj19XYnfErCqViprPaZ2">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="WwPmN4fjebFj8sB95OONdA"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z" data-page-node-id="yYBgyvD9MghanQgIVjecYa"/><circle cx="12" cy="13" r="3.5" data-page-node-id="URR8ybOQb5g1JiSTUlF6Dp"/></svg>
+        <span class="txt" data-page-node-id="S1cK2bb7YgCFlrmgOeWAzA">Rəf Auditi</span>
+        <span class="pill attn" data-page-node-id="MDlIdBU1dO0zPWkGF7HaDw">2</span>
+      </button>
+      <button class="nav-item" data-view="tasks" data-tip="Planogram Tapşırıqları" data-page-node-id="0BpCvuwfQDSytBzdCfa8sr">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="OtL6fAOLIYIwkBKQ9btIRU"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" data-page-node-id="wYblQQfzdFI7zDpiuTyEiQ"/><rect x="8" y="2" width="8" height="4" rx="1" data-page-node-id="hLa9HvHjfVhVbnGt2c7DDN"/><path d="M9 12h6M9 16h4" data-page-node-id="Lvs0BRrTwGYgQ7LpDTWEMH"/></svg>
+        <span class="txt" data-page-node-id="V1jSe10I2RSwMpcsclFunj">Planogram Tapşırıqları</span>
+      </button>
+      <button class="nav-item" data-view="stores" data-tip="Mağazalar Şəbəkəsi" data-page-node-id="HgGIPTGhl7pnxaPH5VSWjS">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="cmvoQ6WoKuaJ4B6tucXWc2"><path d="M3 9.5 4.5 4h15L21 9.5" data-page-node-id="rOi9t7MIU7KRxQcOopCSTh"/><path d="M4 9.5V20h16V9.5" data-page-node-id="Wps4ULj7XkbdYkzevX3KK7"/><path d="M9 20v-6h6v6" data-page-node-id="bjPGNS2I7MzxW1RuRyvB4i"/></svg>
+        <span class="txt" data-page-node-id="Bj7LJoRyWtS82aD7nfXkAS">Mağazalar Şəbəkəsi</span>
+      </button>
+      <div class="sb-group" style="padding-top:16px" data-page-node-id="qv0HxCsJ31nRWcA9cqvwor">Sahə</div>
+      <button class="nav-item" data-view="mobile" data-tip="Mobil Sahə Klienti" data-page-node-id="a6hmEb1h9PyQq5aEZTfBbJ">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="LE4BXmXZFbcTnTkdRqO0dZ"><rect x="6" y="2" width="12" height="20" rx="2.5" data-page-node-id="KtrshehHzyVchxnvwuBjox"/><path d="M11 18.5h2" data-page-node-id="DAed9HUyRivPaQaZt8cmvi"/></svg>
+        <span class="txt" data-page-node-id="pa5kD2KeDFzxoPBGwAoAyi">Mobil Sahə Klienti</span>
+      </button>
+    </nav>
+    <div class="sb-foot" data-page-node-id="Dl2M38ER7bfoCL8t8EwS56">
+      <div class="avatar" data-page-node-id="eI4DbOPDowwCda6bvCQvgx">SA</div>
+      <div class="who" data-page-node-id="1CcqMMnDstgpAb6AfxllEf">
+        <b data-page-node-id="BFZrHBKFv9eyxOYBhT46Qv">Supervayzer Admin</b>
+        <span data-page-node-id="hEEJEqwQbfvK32n7euMGUz">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="JyRgJbrUFCBN38Edo6KhaF"><path d="M12 2 4 5.5v6c0 5 3.4 9.4 8 10.5 4.6-1.1 8-5.5 8-10.5v-6L12 2Z" data-page-node-id="KufcjRcPcoeO3IIo7mNMLa"/><path d="m9 12 2 2 4-4" data-page-node-id="yFkaMlQoTB8a9DOva6A174"/></svg>
+          FMCG Supervisor
+        </span>
+      </div>
+    </div>
+  </aside>
+
+  <div class="scrim" id="scrim" data-page-node-id="RHbhB9wuw51HhI4GVasnlR"></div>
+
+  <!-- ============ main column ============ -->
+  <div class="col" data-page-node-id="ey0hcCE4ANRYShF5C3hjvN">
+    <header class="hd" data-page-node-id="6ElawRhhCHIDuGV7IvGHNN">
+      <button class="hamb" id="hamb" aria-label="Menyunu aç" data-page-node-id="AZx9YS03rdnqPFpcEKDBqZ">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#0f172a" stroke-width="2.2" stroke-linecap="round" data-page-node-id="hSFS0MjbU5sgUQGlKGOsfc"><path d="M3 6h18M3 12h18M3 18h18" data-page-node-id="3mdADq4WI9HOzZbEWrjLvR"/></svg>
+      </button>
+      <div class="hd-t" data-page-node-id="cKWgkyd9hZE2TnVDhDqqte">
+        <h2 id="hd-title" data-page-node-id="0nr5jCFv0TFBtRn2xX9BWi">İcmal &amp; Əsas Göstəricilər</h2>
+        <p id="hd-sub" data-page-node-id="3Hjg4R7efwsegpDLZICZAA">Real-vaxt rəf monitorinqi və mağaza uyğunluq statistikası</p>
+      </div>
+      <div class="hd-actions" data-page-node-id="8r57HP53ch2Ll97vGFuE32">
+        <div class="clock" data-page-node-id="xgTKZQVpidiGtLn0sRlfAQ">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" data-page-node-id="EPds9UVD0SIPRf0kFsRK1o"><circle cx="12" cy="12" r="9" data-page-node-id="Q8EWovN4N4pISj9WtfcM4f"/><path d="M12 7.5V12l3 2" data-page-node-id="4VlGf7yvtH5woYhHE5G1Ug"/></svg>
+          <span data-page-node-id="Lnvtw0l57uTkoUteEv0SqW">Bakı:</span><b class="num" id="clock" data-page-node-id="uAtFKKIBBraMKFllollDGY">--:--:--</b>
+        </div>
+        <button class="btn btn-primary" onclick="toast('📌 Yeni təlimat forması açıldı')" data-page-node-id="SnzuHZBdwYCMnhvph2aJKq">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" data-page-node-id="DMxlyN9n3Wx1RbJVYGIXgC"><path d="M12 5v14M5 12h14" data-page-node-id="oMBIrbTfR3EvHKEvRYiwNZ"/></svg>
+          <span class="btn-txt" data-page-node-id="xFNHdaPEnqzJA86fyXodSZ">Yeni Təlimat</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="main" data-page-node-id="YXdarCTzH6IUHTjUI5EPjR">
+      <div class="wrap" data-page-node-id="5WBb2RRAtu8y7pYAmUO14x">
+
+        <!-- ==================== DASHBOARD ==================== -->
+        <section class="view on" id="view-dashboard" data-page-node-id="AnpO0RxIsgbRzZ1x8sLmsc">
+          <div class="stack" data-page-node-id="KdeANxrcZA6uo2sHa93SWC">
+
+            <div class="kpis" data-page-node-id="m5YqlbUsjEIF88ZQ4ViE3F">
+              <div class="kpi" data-page-node-id="vrSP5aOCWGifyrPx280adx">
+                <div class="kpi-top" data-page-node-id="rMEQVDQ3SDY0u7d9So9LcC">
+                  <div class="kpi-lbl" data-page-node-id="810y3w54f3ikatndwwkUod">Tərəfdaş<br data-page-node-id="Dq3MrT18sufYLJ8T1nk0Jo">Mağazalar</div>
+                  <div class="kpi-ico i-blue" data-page-node-id="9I90TxEY45HhENWkBYEcBb"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="IeFD1jF1wAAOtI8nOaSRPT"><path d="M3 9.5 4.5 4h15L21 9.5" data-page-node-id="E8mBemZImeiv4IHW43lixI"/><path d="M4 9.5V20h16V9.5" data-page-node-id="tCcDQA2oUzJyOMsAZHB4H4"/><path d="M9 20v-6h6v6" data-page-node-id="O3aOO47HMLYjwlxbsi2jqa"/></svg></div>
+                </div>
+                <div class="kpi-val num" data-page-node-id="vTHaWEqdEl0vumtv4OzQO0">4</div>
+                <div class="kpi-sub" data-page-node-id="ptwjcTLORrPVF0GjEpWjhh">Aktiv retail nöqtələri</div>
+                <svg class="kpi-spark" viewBox="0 0 100 26" preserveAspectRatio="none" data-page-node-id="fPHx6AtRbgMoxxk9xHBicm"><polyline points="0,20 20,17 40,18 60,11 80,9 100,5" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".85" data-page-node-id="JnrRqUc7Vl6BAi3rqik2Jh"/></svg>
+              </div>
+
+              <div class="kpi" data-page-node-id="677XEPRLEQjqZxSbSGpJ0s">
+                <div class="kpi-top" data-page-node-id="yFS0NTqFv71GePqtviuQxX">
+                  <div class="kpi-lbl" data-page-node-id="uxHTzRakghljGuXfejIu7t">Aktiv<br data-page-node-id="b9Iimg7WLqNMO8bPjRP9r9">Planogramlar</div>
+                  <div class="kpi-ico i-coke" data-page-node-id="2PrOLFFz4yC9jPqeADaPgW"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="HGA9YIrqNK6P4s5zilh0z7"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="kHHG18M7bTTmQ65dA7ClWU"/><path d="M3 9h18M9 21V9" data-page-node-id="Pk6G3Qw2S1uWDPSCglMiPQ"/></svg></div>
+                </div>
+                <div class="kpi-val num" data-page-node-id="uV9LTH156FAFKA6zzeVWBL">3</div>
+                <div class="kpi-sub" data-page-node-id="iWWFjBJ91EsjY9mgn6Ahvz">Cari yoxlama təlimatları</div>
+                <svg class="kpi-spark" viewBox="0 0 100 26" preserveAspectRatio="none" data-page-node-id="UQV9JuqXqulafwRFqjiINh"><polyline points="0,22 20,20 40,15 60,16 80,8 100,7" fill="none" stroke="#F40009" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".85" data-page-node-id="fQUkfjiIKTNFmFVPikYSQm"/></svg>
+              </div>
+
+              <div class="kpi attn" data-page-node-id="HmNfGRCtnyC6HoYYEgDbsP">
+                <div class="kpi-top" data-page-node-id="lMrSjY8bm4COCwjKSgngAJ">
+                  <div class="kpi-lbl" data-page-node-id="FBTrgT1HtA97mykGOYFNjL">Yoxlama<br data-page-node-id="5kvlFjyFwNSfmQYCrGZEDN">Gözləyən</div>
+                  <div class="kpi-ico i-amber" data-page-node-id="RQHshs2xrxXAcRhc16Lzle"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" data-page-node-id="CutIDUUhCMWFY725H09Lee"><circle cx="12" cy="12" r="9" data-page-node-id="IkekzCMxznoDCZlTLkMjtW"/><path d="M12 7.5V12l3 2" data-page-node-id="zP89mpvrgzl6iwOEDq8tNv"/></svg></div>
+                </div>
+                <div class="kpi-val num" style="color:#b45309" data-page-node-id="xa0yBTPTJEfDmAdCoClVlG">2</div>
+                <div class="kpi-sub" data-page-node-id="pY46zhprHTCHWG5aaeBDOs">Təsdiq tələb edən rəf fotoları</div>
+                <svg class="kpi-spark" viewBox="0 0 100 26" preserveAspectRatio="none" data-page-node-id="9WjyJd0rCodMpz05wAx3mi"><polyline points="0,24 20,18 40,20 60,12 80,14 100,6" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".85" data-page-node-id="fmysSAO7Tb3XBOSj5LHrRO"/></svg>
+              </div>
+
+              <div class="kpi" data-page-node-id="LwJgZZ6lE7n1xBwXwLbU7n">
+                <div class="kpi-top" data-page-node-id="FyG7qP5xPPv3XDO2Jjnos4">
+                  <div class="kpi-lbl" data-page-node-id="YfckQ1rfdmD0659RBM8EcB">Planogram<br data-page-node-id="DJWqg7DwhHvpRALecs9JGI">Uyğunluğu</div>
+                  <div class="kpi-ico i-emerald" data-page-node-id="T2AWhYnaobIJSfPqHzOZF2"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="2fQdv2yO7H85UqKuWjxbpW"><path d="m3 17 6-6 4 4 8-8" data-page-node-id="tKW68Me9KWFbT8Ju8evrUB"/><path d="M17 7h4v4" data-page-node-id="vbGSxiSCS2M42j2AQrP8g9"/></svg></div>
+                </div>
+                <div class="kpi-val num" data-page-node-id="XYLHKtVjEwFBsVeZWS5vjf">50<span style="font-size:17px" data-page-node-id="BXUuonHbtyH2fC488IZojm">%</span></div>
+                <div class="kpi-sub" data-page-node-id="46E67qPSumC5OqNlIgfe8M">Təsdiqlənmiş rəf dərəcəsi</div>
+                <svg class="kpi-spark" viewBox="0 0 100 26" preserveAspectRatio="none" data-page-node-id="iuEaV43HzbNwBKTJITvIlT"><polyline points="0,14 20,16 40,10 60,12 80,7 100,9" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".85" data-page-node-id="g4zyQyjaOTdToxmpqzO7wh"/></svg>
+              </div>
+            </div>
+
+            <div class="banner" data-page-node-id="QS3YlSgegxYLyHvtKEUJkU">
+              <div class="b-ico" data-page-node-id="P5kqepxjloCDdXFgMfFujJ"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" data-page-node-id="ELpuv8eI1tXPGCBjSSqfjR"><path d="M12 9v4M12 17h.01" data-page-node-id="H5yCD7ylOkujjlUWsYDNCg"/><path d="M10.3 3.9 2.4 17.5A2 2 0 0 0 4.1 20.5h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" data-page-node-id="fhe2OCHT1bGurOUKmekAHd"/></svg></div>
+              <div class="b-txt" data-page-node-id="2MfClFfpItyxljwOq4Avj6">
+                <b data-page-node-id="X9SHr18Ub5MzLoB8QyGtYm">Supervayzer Diqqətinə — 2 rəf auditi təsdiq gözləyir</b>
+                <span data-page-node-id="ltteQ7zmcxt9kqBAq6WZ4k">Sahə fotoğrafları göndərilib; təsdiqlənənə qədər mağaza uyğunluq balı hesablanmır.</span>
+              </div>
+              <button class="b-cta" data-goto="review" data-page-node-id="VR5n8zSqMEhyrIvdpugBhP">
+                Yoxlama Mərkəzinə Keç
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="ZPwm3aK8hptvkAFdPYFjh7"><path d="M5 12h14M13 6l6 6-6 6" data-page-node-id="OjzNjlX0kv366Nx18qIDEY"/></svg>
+              </button>
+            </div>
+
+            <div class="cols" data-page-node-id="OVxxmtZP2I2Mm0rhvYxDB7">
+              <div class="card" data-page-node-id="uvmX6NNHp27GFOEVTx9lyk">
+                <div class="card-h" data-page-node-id="HA6aFrS3ku6VNgCoAC3wTu">
+                  <div data-page-node-id="e51am01gDdoD6giqFtGjAq">
+                    <h3 data-page-node-id="7Bz5UBDlHoew1pJBeEqZUA">Son Göndərilən Rəf Yoxlamaları</h3>
+                    <p data-page-node-id="STp00wZvw4ReoPwKnfhLHF">Telegram Bot və Mobil tətbiqdən daxil olan audit axını</p>
+                  </div>
+                  <button class="btn btn-ghost" data-goto="review" style="padding:7px 11px;font-size:11px" data-page-node-id="etMPln0EeuYYop6GPXi7A1">Hamısına bax</button>
+                </div>
+                <div class="tbl-scroll" data-page-node-id="iGxUYKXtvmRGgSUIymFWtk">
+                  <table data-page-node-id="llS28HFujSA2QOo2wJvCAA">
+                    <thead data-page-node-id="PXF4zc4cnimnLMXshlRMZF">
+                      <tr data-page-node-id="gPxBC3yMUP6n3EkGVzXxon">
+                        <th style="width:56px" data-page-node-id="EDHgLibs1VAoKP2QIFizAj">Foto</th>
+                        <th data-page-node-id="uujrlrFqE0xNmLAMk2P0l7">Planogram Təlimatı</th>
+                        <th data-page-node-id="PWurVDSQQP8qGFfmU0UoDx">Mağaza</th>
+                        <th data-page-node-id="b5CuF8nVEHQPxOIQf23xCT">Təmsilçi</th>
+                        <th data-page-node-id="jT5ahNZgLQi0oG5UnRIEn6">Vaxt</th>
+                        <th style="text-align:center" data-page-node-id="k6bhMv0MgBVA4QdFB7xHhs">AI Balı</th>
+                        <th data-page-node-id="s5dTkoCaDm56J3VEIF17eA">Status</th>
+                        <th data-page-node-id="PrJ9mYvLoJxfiSdCEc5YHj"></th>
+                      </tr>
+                    </thead>
+                    <tbody data-page-node-id="B7WCHIYbBDyQSkC1noNGnj">
+                      <tr data-page-node-id="QMIZSwo1AkcHwYn8jdngJq">
+                        <td data-page-node-id="noZ730AdCoN0vlwRUPkyzo"><div class="thumb a" data-page-node-id="kMeizCsXdKuPqJIIHR5JeM"><div class="fb" data-page-node-id="zdziPxtqaQDLxTsKVC882B"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="jGOR6e2gAkHnekWyCXTqCo"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="hTP79l1oD68TRB3Kxczf6v"/><circle cx="8.5" cy="8.5" r="1.5" data-page-node-id="rBiXt70aPGcJhDPjYDvm2K"/><path d="m21 15-5-5L5 21" data-page-node-id="2p3HlwBC4RieYJKaA2JJZR"/></svg></div></div></td>
+                        <td data-page-node-id="OcAdbowknabWiPrTTowu7H">
+                          <div style="font-size:12px;font-weight:700;letter-spacing:-.01em" data-page-node-id="96fOIXCa2zjnpJNP7lJwXA">Coca-Cola 0.5L Cooler Placement Check</div>
+                          <div style="margin-top:4px" data-page-node-id="IfHfpf43UbECdELMXoeiCg"><span class="chip a" data-page-node-id="RdrCL9YxiM4g7Pb4No1W3L">Ssenari A</span></div>
+                        </td>
+                        <td data-page-node-id="LpT5HKNxEmW7H8Jhov036A"><div class="cell-store" data-page-node-id="f7BDKdfmkj0Ws6mKLX4UxZ"><b data-page-node-id="ADm8rpyF3gQtz0nFIr5fEI">Bravo Supermarket — 28 Mall</b><span data-page-node-id="qb01Uu2A1LQ93k5pjUya5G">BRAVO_28MAY_01</span></div></td>
+                        <td data-page-node-id="rDRYUz5HqHrctsNiCd7mlP"><div class="cell-who" data-page-node-id="Gv94ZNXinFcBi91MjeL5HC"><div class="av" data-page-node-id="cE30jXvRX6ADGj3gv3vEC3">EM</div><div data-page-node-id="hiDeujhrF2CddHGcW7kMEA"><div class="nm" data-page-node-id="D9tYob3HzsBAIhY1YTCME2">Eldar Mammadov</div><div class="rl" data-page-node-id="q2lvKL3QnB1Mpk3UbDzPF6">Merchandiser</div></div></div></td>
+                        <td class="num" style="color:var(--muted);white-space:nowrap" data-page-node-id="V076Rh5HxtLH7AqX6GW2gP">09-12<br data-page-node-id="VEZtt1NJD7wWwo8Cis88SQ">19:32</td>
+                        <td style="text-align:center" data-page-node-id="imCPROFsDCCK3MT8YlDMdd"><div class="score sc-hi" style="margin:0 auto" data-page-node-id="SG6cWJrC6rGhNpUp9cpXM1"><s class="num" data-page-node-id="eyoEOwxT3YqYzclrPdu4PZ">95</s></div></td>
+                        <td data-page-node-id="JKejWv3xdRQCKtvB0KgOT3"><span class="st ok" data-page-node-id="WG2yYz3LJqzRdxy7ghZgPj"><i class="dot d-ok" data-page-node-id="Q7hnIYZgt4Yc7yM8HLcGqp"></i>Təsdiqləndi</span></td>
+                        <td data-page-node-id="4zBgJeXtJuSVpyZ5eGnG9S"><button class="btn btn-ghost" style="padding:6px 11px;font-size:11px" onclick="openModal()" data-page-node-id="QN79mcBjdHfhDtBT48addF">Müqayisə</button></td>
+                      </tr>
+                      <tr data-page-node-id="H5GkXyJ6UcUkZl6tslGJmG">
+                        <td data-page-node-id="BlJbwheQJtfAodmLDLGf6s"><div class="thumb b" data-page-node-id="bZgAeIMRJiOnNeumSVsvg0"><div class="fb" data-page-node-id="xrMwFQrkKbT2vSRf4ha8xi"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="OBqyLCygw29sEveprjUPCc"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="FaHPkO4iri2BWg3YWGglGv"/><circle cx="8.5" cy="8.5" r="1.5" data-page-node-id="OrFDKAskM3qz4ltAoS7Qkl"/><path d="m21 15-5-5L5 21" data-page-node-id="Z87A5vS2p8pCe8qEE8YFR2"/></svg></div></div></td>
+                        <td data-page-node-id="NhCmrynmNRFR00RtAdsPAV">
+                          <div style="font-size:12px;font-weight:700;letter-spacing:-.01em" data-page-node-id="IHEYuXxqFzbolJZH7JxN2m">Coca-Cola Zero Sugar Promo Stand Display</div>
+                          <div style="margin-top:4px" data-page-node-id="rV8tnMTCWdHhAVSHyBDZmO"><span class="chip b" data-page-node-id="GFUTrWH4bBCQcWksjA17eT">Ssenari B</span></div>
+                        </td>
+                        <td data-page-node-id="bC2Jgx71vBb64FquRMxiDo"><div class="cell-store" data-page-node-id="MOB9brSv9uU3LYZmdxg2bB"><b data-page-node-id="gvNDGAuqhD4QaSXJghri01">Araz Superstore — Gənclik</b><span data-page-node-id="efRHVXPbG5xMKEeLB7kGQP">ARAZ_GENJLIK_02</span></div></td>
+                        <td data-page-node-id="l0WxSKywSS0DVAGzIJGgGT"><div class="cell-who" data-page-node-id="jRKczEMK58YQHNtnugQTkX"><div class="av" data-page-node-id="JIYJM9vyghPR2cvxTnr3ij">AQ</div><div data-page-node-id="YDlS5Nyjo38bETdf3Hud7D"><div class="nm" data-page-node-id="DEes7E5FEiZ8c2LcA9yFgc">Anar Qasımov</div><div class="rl" data-page-node-id="HOEThWJVFI5qB3VODCw4Ep">Store Staff</div></div></div></td>
+                        <td class="num" style="color:var(--muted);white-space:nowrap" data-page-node-id="hM2K4YvnlT7PAZYJtFWYhs">09-12<br data-page-node-id="Pd9xBeqV3vlqnsNfGFaoS8">19:17</td>
+                        <td style="text-align:center" data-page-node-id="hGKplA02BZPgoEAq3fecZg"><div class="score sc-mid" style="margin:0 auto" data-page-node-id="hnrXISt3OQGFoTwpHQXxYk"><s class="num" data-page-node-id="fPOXlv60Ad0t8on3BOXgYb">70</s></div></td>
+                        <td data-page-node-id="OFC3CPodWjONfn4dtimaSi"><span class="st warn" data-page-node-id="3qTs715MODR0Tk1Qpt7Oz0"><i class="dot d-warn" data-page-node-id="fwtHEV4g7s52xLhxNgdSxM"></i>Gözləyir</span></td>
+                        <td data-page-node-id="8ITqV8otR91mY2cG4gCuw7"><button class="btn btn-ghost" style="padding:6px 11px;font-size:11px" onclick="openModal()" data-page-node-id="k8LAfVcPpDpfUfaDmUUett">Müqayisə</button></td>
+                      </tr>
+                      <tr data-page-node-id="mFTGd5phtenRyXMZeWa3vw">
+                        <td data-page-node-id="CZqBcGVjGbwhIleH8H860v"><div class="thumb c" data-page-node-id="i5h2xrto7ELHxPJxOss7F0"><div class="fb" data-page-node-id="CgGqHuzGzRy6dPjW0DPwXy"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="Z66x0ygCYch0k7y6iPdUi5"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="EWuJVi0ICnINAce6nMsaZe"/><circle cx="8.5" cy="8.5" r="1.5" data-page-node-id="1rSU51uLR4JjIssHpFXhDC"/><path d="m21 15-5-5L5 21" data-page-node-id="hDrj8MyHuSA5Abo0JvSACE"/></svg></div></div></td>
+                        <td data-page-node-id="nhM16WuyhHYnEGo1MmEj2j">
+                          <div style="font-size:12px;font-weight:700;letter-spacing:-.01em" data-page-node-id="lZmPYOyhhvUxGLyv6GIvuC">Fanta Orange &amp; Sprite Göz Sığası Yoxlaması</div>
+                          <div style="margin-top:4px" data-page-node-id="CSh8hyYfVnDvbncqqAVyvb"><span class="chip c" data-page-node-id="obXCEc8eTp7Bulckj66yWn">Ssenari C</span></div>
+                        </td>
+                        <td data-page-node-id="avxwq8qJbMbQdKbcwfc2Ak"><div class="cell-store" data-page-node-id="iHsT2EdGF2hyyaX6rYTgIj"><b data-page-node-id="4PyJAEmM4rnh0ltv1vwx8H">Bravo Hypermarket — Təzəbazar</b><span data-page-node-id="yC0sPObbLrDtlINN2LbQOz">BRAVO_TEZEBZR_04</span></div></td>
+                        <td data-page-node-id="ClOXtf0KcmAU1EddUkdfvV"><div class="cell-who" data-page-node-id="5K28Qn5WPPvUGWcCtaiy66"><div class="av" data-page-node-id="XpcyoLzhbb4rKfMdCj2orH">NK</div><div data-page-node-id="L1eH0GUEyKkStcby2jo9fB"><div class="nm" data-page-node-id="SGou7A3nXAWBOMckLlVpk6">Nicat Karimov</div><div class="rl" data-page-node-id="8eapJ5Xjr7bqNObDHcDSfq">Merchandiser</div></div></div></td>
+                        <td class="num" style="color:var(--muted);white-space:nowrap" data-page-node-id="uWFsqyxecOiphdPIqfH0zG">09-12<br data-page-node-id="dmNC9XggJGvekUA8P2n3A9">19:02</td>
+                        <td style="text-align:center" data-page-node-id="qOtCBpUffPZHHg6QqoVY6A"><div class="score sc-lo" style="margin:0 auto" data-page-node-id="XwGUzsLqlV9OQDMa7vcHWc"><s class="num" data-page-node-id="61NUoc4juVBKLIJHCRScUa">55</s></div></td>
+                        <td data-page-node-id="lhXGmlLI1sLVnQYIJp8LtT"><span class="st warn" data-page-node-id="xwJjcY2D9Yf4BUBmCMqbMA"><i class="dot d-warn" data-page-node-id="swuEKHZgS1Dj5wMRO8AsWY"></i>Gözləyir</span></td>
+                        <td data-page-node-id="qqq1qnEoqCFwHsrqApTEUc"><button class="btn btn-ghost" style="padding:6px 11px;font-size:11px" onclick="openModal()" data-page-node-id="kDpiS6hkdCHiJIcozoiZpC">Müqayisə</button></td>
+                      </tr>
+                      <tr data-page-node-id="HKu9DVeHPhzkeg1QgFlylI">
+                        <td data-page-node-id="gWwuqD8o1EyjVq21Po8oUQ"><div class="thumb" data-page-node-id="VRgbwPCRsHZfWQFRCElFId"><div class="fb" data-page-node-id="7fRrmnMzdAkkXo1qWH1JMU"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="nkHY432dItmLFHYPHDtw0w"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="MFASD3WbF9CMzE4DcAMSCW"/><circle cx="8.5" cy="8.5" r="1.5" data-page-node-id="5fVp4Xtzkt9YwxSJEbCzgi"/><path d="m21 15-5-5L5 21" data-page-node-id="IOW4ipYcAYFpK22COqx79l"/></svg></div></div></td>
+                        <td data-page-node-id="qwjYiW1mfhrGaEsOX0Sf12">
+                          <div style="font-size:12px;font-weight:700;letter-spacing:-.01em" data-page-node-id="ACVxxOT0AoHISmoGgd1rDq">Fanta Orange &amp; Sprite Göz Sığası Yoxlaması</div>
+                          <div style="margin-top:4px" data-page-node-id="9bceQB5QXF4eIYWzujeldt"><span class="st neutral" style="font-size:10px" data-page-node-id="CCO89dL73bCMcxCytFwA0v">Prioritet yoxdur</span></div>
+                        </td>
+                        <td data-page-node-id="Wo9nGZnyBHFBkEhFyJsmBK"><div class="cell-store" data-page-node-id="Ua5IEmfyuEt2rmPcz3FYMW"><b data-page-node-id="bEvo26nvNokAZb8K1WX3Hj">Bazarstore Gourmet — Port Baku</b><span data-page-node-id="zEEB2LsWOmfxX9vtpRCFON">BAZAR_PORTBAKU_03</span></div></td>
+                        <td data-page-node-id="FrJ5yUcMd2qhKYpmQW7FD1"><div class="cell-who" data-page-node-id="5AekOQyB4jsD75PeLsfV0F"><div class="av" data-page-node-id="FK8K1kO8SsiJ3spGqXQtzn">NK</div><div data-page-node-id="PdaMBAlaro67eU0C1OJv2y"><div class="nm" data-page-node-id="7lnKnMs5WQfwmcpiJOeY4q">Nicat Karimov</div><div class="rl" data-page-node-id="NFv3oMEUpxAldFK7Mbuczd">Store Staff</div></div></div></td>
+                        <td class="num" style="color:var(--muted);white-space:nowrap" data-page-node-id="BSUwMQolZHSwikXYCTpsXc">09-11<br data-page-node-id="qqYwcbrIdYZHH54iBNEo29">15:05</td>
+                        <td style="text-align:center" data-page-node-id="EHS4kzADoUgYfZvJRsHSIl"><div class="score sc-mid" style="margin:0 auto" data-page-node-id="0oxIAeUwiZJGDEDjBTTrSN"><s class="num" data-page-node-id="qJmTlqu4pYRansClO8sZu7">62</s></div></td>
+                        <td data-page-node-id="l7NjfborUFETNR83tUES6I"><span class="st bad" data-page-node-id="H1GRROovRbcn060eQAtjY8"><i class="dot d-bad" data-page-node-id="UHmErokQSQN0X87A5oE6BM"></i>İmtina edildi</span></td>
+                        <td data-page-node-id="zTO0CsbmXwqQI3QMbEePbU"><button class="btn btn-ghost" style="padding:6px 11px;font-size:11px" onclick="openModal()" data-page-node-id="3ER7TWdXn1F3rhKlyFAqJl">Müqayisə</button></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <aside class="rail" data-page-node-id="pTOzVcj4SbU6q3YJzowy91">
+                <div class="card pad" data-page-node-id="hUzg2HQ4t9mCpiLSnkHi6A">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px" data-page-node-id="T4z1kwJDajcV1YjWkQSMqi">
+                    <h3 style="margin:0;font-size:13px;font-weight:800" data-page-node-id="WsagBBRPtXCKSCSQrsn3yx">Yoxlama Növbəsi</h3>
+                    <span class="st warn" style="font-size:10px" data-page-node-id="pyYgChxBa18C7Hor0HcgN7">2 gözləyir</span>
+                  </div>
+                  <div class="rail-item" data-page-node-id="hAkAkE0Yy3hkgWd6udoRcf">
+                    <div class="n" style="background:var(--warn-bg);color:var(--warn)" data-page-node-id="XonGirnq6wKDcKRTFpnlLL">2</div>
+                    <div class="t" data-page-node-id="706ReVMYhShQiAwDPgMWQ4"><b data-page-node-id="bzF3laJkuv1aFmquo7eUzR">Araz Superstore — Gənclik</b><span data-page-node-id="Tp3mDpSdEKrhSyGwm4iYnM">Ssenari B · 70 bal</span></div>
+                    <div class="v num" style="color:var(--warn)" data-page-node-id="ShjvBeGhLBkkhF85pZG5M6">19:17</div>
+                  </div>
+                  <div class="rail-item" data-page-node-id="96B3H3BpXn9cXaYD1xO1l2">
+                    <div class="n" style="background:var(--bad-bg);color:var(--bad)" data-page-node-id="YvQ16EfMAwExVr3FZ2bcdx">3</div>
+                    <div class="t" data-page-node-id="23FgIxdPqhCCGz0Vw6my6d"><b data-page-node-id="EeS3PxSwJ6inEipNLjsSgW">Bravo Hypermarket — Təzəbazar</b><span data-page-node-id="pSBvBx52ovIwBGMkGyEUVL">Ssenari C · 55 bal</span></div>
+                    <div class="v num" style="color:var(--bad)" data-page-node-id="ZlTZuGv5GelmyP40UNzGr7">19:02</div>
+                  </div>
+                  <button class="btn btn-dark" data-goto="review" style="width:100%;margin-top:13px" data-page-node-id="TieV0xLAzAMutMWbG8PXAr">Növbəni aç</button>
+                </div>
+
+                <div class="card pad" data-page-node-id="9Osgdh6t9F1R2OUahzNknL">
+                  <h3 style="margin:0 0 4px;font-size:13px;font-weight:800" data-page-node-id="ctoTBMQsUpfBpKjRdFXL86">Zəncir üzrə Uyğunluq</h3>
+                  <p style="margin:0 0 13px;font-size:11px;color:var(--muted)" data-page-node-id="tsCQuHLIE2rJrUVxdQyeoh">Təsdiqlənmiş audit nisbəti</p>
+                  <div style="margin-bottom:13px" data-page-node-id="yp3kIJDCpRgsJrTTkodGOZ">
+                    <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;margin-bottom:6px" data-page-node-id="kMKVbCjn3m4wAW4lAc6neC"><span data-page-node-id="oW8U74QicEv6M656e5E5Vr">Bravo</span><span class="num" data-page-node-id="pk8C67uBtXeUKSGYYM2G56">66%</span></div>
+                    <div class="bar bar-warn" data-page-node-id="g7mUyd4kBbTOglhMduDa0e"><i style="width:66%" data-page-node-id="I6PluZBbvSZoPEYSh4yJE9"></i></div>
+                  </div>
+                  <div style="margin-bottom:13px" data-page-node-id="swnmwwFOByWO6hFUHJ9bKM">
+                    <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;margin-bottom:6px" data-page-node-id="ubFbUSpfJR7eAxTTHcHfAy"><span data-page-node-id="buZp80Sv7viQdXC495dRm2">Araz</span><span class="num" data-page-node-id="cayMOdfLNhKoYOupC4bISL">50%</span></div>
+                    <div class="bar bar-warn" data-page-node-id="gE4WhlYXBYsuQ3qSQaVGxk"><i style="width:50%" data-page-node-id="KyHssORQ2A0LEseTgpOyNg"></i></div>
+                  </div>
+                  <div style="margin-bottom:13px" data-page-node-id="NJQtO5q09ok04LCrXtooJT">
+                    <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;margin-bottom:6px" data-page-node-id="Zol0axk4Zun1w3DNzNg4cl"><span data-page-node-id="W5aJWYh1ZXBj0vG2z3mBRx">Bazarstore</span><span class="num" data-page-node-id="zCDK2k47ta7JcKMVX28k7S">38%</span></div>
+                    <div class="bar bar-bad" data-page-node-id="jSXr8o3LvthjXdyxgHhLV2"><i style="width:38%" data-page-node-id="KKJhBLfmwxoAffVQSyQugB"></i></div>
+                  </div>
+                  <div data-page-node-id="uqJgXYCveO2Vhyyqdf0Rjj">
+                    <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;margin-bottom:6px" data-page-node-id="ZxGfJ0lCLsfciaW6VCtqqk"><span data-page-node-id="u3JqlNoqBI1GdnE8tkPXz1">Rahat Gourmet</span><span class="num" data-page-node-id="IhFed5D2hVRweHdSojJzpX">91%</span></div>
+                    <div class="bar bar-ok" data-page-node-id="9s4VIDB8Cv9SVy1tEv1rK9"><i style="width:91%" data-page-node-id="FLjG3I8UtpRpBPPaASJFEK"></i></div>
+                  </div>
+                </div>
+              </aside>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- ==================== REVIEW CENTER ==================== -->
+        <section class="view" id="view-review" data-page-node-id="HWIXRTtwUH6SfvHI53AFEV">
+          <div class="stack" data-page-node-id="CSofTeWKPHPoCV3EXHmnlG">
+            <div class="toolbar" data-page-node-id="YoBMuidsfVrHGOuUEHhPj1">
+              <div class="search" data-page-node-id="4vWUqUtD7noeKIwl7QTZRm">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.2" stroke-linecap="round" data-page-node-id="Gx6oWK7d0rbik2PIA9qIdr"><circle cx="11" cy="11" r="7" data-page-node-id="yVA1t0EC8PBakxqXeEQ9ew"/><path d="m20 20-3.5-3.5" data-page-node-id="KRRByenKKDI1OSA3iNPxAP"/></svg>
+                <input placeholder="Mağaza, kod və ya planogram axtar..." data-page-node-id="sFBzdMFZ7CZbd1if6PeoGc">
+              </div>
+              <div class="chips" data-page-node-id="o3tq0T6yLw7rABOWXSzmii">
+                <button class="fchip on" data-page-node-id="qMnaCwp46MbW7EEMXiI3I6">Bütün Fətolar <span class="cnt" data-page-node-id="bv9oYg5h6zTG70lDU8zgtI">4</span></button>
+                <button class="fchip" data-page-node-id="1AKkYzCGi92LF8GDIPRwcR">Gözləyən <span class="cnt" data-page-node-id="sWLWkXUvMhJl6IgCzX5Yxe">2</span></button>
+                <button class="fchip" data-page-node-id="roAmT0UjDql35aPsemCyEw">Təsdiqlənmiş <span class="cnt" data-page-node-id="LPymwZW8UKDJovv0bjfsU6">1</span></button>
+                <button class="fchip" data-page-node-id="9KcOevF6dYoshRUOKzBkDT">İmtina Edilmiş <span class="cnt" data-page-node-id="4FxaYF6VnmYippqcmjoQSc">1</span></button>
+              </div>
+            </div>
+
+            <div class="gallery" data-page-node-id="8hF2y3BbRBMhwn5XCCoAt3">
+              <button class="gcard" onclick="openModal()" data-page-node-id="bU7wF7kqu6RgcIdrG2FESY">
+                <div class="shot" data-page-node-id="UJppnDdvSEAiwt7Ws5WwbV">
+                  <div class="ph" data-page-node-id="LUBBHxD5aoIvf9VYOTvTcL"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="cdbe5Xp5pfAZ2yL8Rzvrtu"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="sJmfkiiZZlADr40MfubXFl"/><circle cx="8.5" cy="8.5" r="1.5" data-page-node-id="aSosLvM9szaxfkVzoM2qQF"/><path d="m21 15-5-5L5 21" data-page-node-id="VWLTw2CJXRFkQtFDn8A2CR"/></svg></div>
+                  <div class="ovl" data-page-node-id="ANKSWiwyBfayouFKD0700g">
+                    <span class="stamp" data-page-node-id="EPzrFJUVNUGS1oO5bTWTnV">BRAVO_28MAY_01</span>
+                    <span class="score sc-hi" style="background:rgba(255,255,255,.92)" data-page-node-id="TVjjIn50FGuWwWrrrFcIgN"><s class="num" data-page-node-id="SdIeL0VFeAkNZGuA8Ra77U">95</s></span>
+                  </div>
+                </div>
+                <div class="body" data-page-node-id="N9PCvJxgIQFGg4ots6ihxc">
+                  <b data-page-node-id="tbFAWczSfPwKEVhq3rpRgK">Coca-Cola 0.5L Cooler Placement Check</b>
+                  <div class="meta" data-page-node-id="Gae1zdB7D0WcTF5pnBmt8J"><span data-page-node-id="DF2T0lCFTf9ueyMdDjS74w">Bravo — 28 Mall</span><span class="num" data-page-node-id="CwJr18vIiWH2ayqH6J0CDc">09-12 19:32</span></div>
+                  <div class="foot" data-page-node-id="lshsK31SwXjz0ZDfvvECRL"><span class="st ok" data-page-node-id="bxc4dEyClqiLcJELVD7dAE"><i class="dot d-ok" data-page-node-id="xOuHDjD0PEEwADztxMT6Uo"></i>Təsdiqləndi</span><span class="chip a" data-page-node-id="RGMtg4TC5Sikf8s1BXlwR7">Ssenari A</span></div>
+                </div>
+              </button>
+
+              <button class="gcard" onclick="openModal()" data-page-node-id="qUEktKKEX7BbUyPDS8WH78">
+                <div class="shot" data-page-node-id="Er94JMejNH4Qo15C9xOuRq">
+                  <div class="ph" data-page-node-id="b840wNSvfSVJalPHW3F4c0"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="VxVbZ9sR6cMx9DcDrciAgl"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="7FKiuJOQgp7ZqxHfegrDRE"/><circle cx="8.5" cy="8.5" r="1.5" data-page-node-id="skgqjE92EClg7feg8AxgN8"/><path d="m21 15-5-5L5 21" data-page-node-id="VqxbIPk98uFxOWznQ0mpAY"/></svg></div>
+                  <div class="ovl" data-page-node-id="DzqiWRboIHIeZS6HcdNL7B">
+                    <span class="stamp" data-page-node-id="tSK6jB4ChhCwFuUMp8k2LO">ARAZ_GENJLIK_02</span>
+                    <span class="score sc-mid" style="background:rgba(255,255,255,.92)" data-page-node-id="DcUR1I23as869Gi3KwX3hc"><s class="num" data-page-node-id="DGX3CltSoAOd83BZI2GwJ9">70</s></span>
+                  </div>
+                </div>
+                <div class="body" data-page-node-id="0jdTiAlAZexVGZGMCHyfBU">
+                  <b data-page-node-id="ohoIkTGPUKvkDs6jool6Hx">Coca-Cola Zero Sugar Promo Stand Display</b>
+                  <div class="meta" data-page-node-id="GxtGYDS1pgplrCIYfoBvOf"><span data-page-node-id="mfHQpM6vNa5CdATfvUUiTE">Araz — Gənclik</span><span class="num" data-page-node-id="C1HixOq3uwNl9uvtGtvCX7">09-12 19:17</span></div>
+                  <div class="foot" data-page-node-id="fRCoy8WWQVnsk02fOsrMb9"><span class="st warn" data-page-node-id="XG5bwP7NLNZfthsOlcABYf"><i class="dot d-warn" data-page-node-id="WiziHguTgz5FAh3lL2LonG"></i>Gözləyir</span><span class="chip b" data-page-node-id="6pI6IQyhvqRqKXhgzb0hjm">Ssenari B</span></div>
+                </div>
+              </button>
+
+              <button class="gcard" onclick="openModal()" data-page-node-id="vZinLT6h3mppXOHHjQGgnj">
+                <div class="shot" data-page-node-id="BXnSc2gSXsSWc3RtBhpKRl">
+                  <div class="ph" data-page-node-id="p2WPanJiJqKWvhCAwqPsEc"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="6iqvdzPkhorYPCwDAciXuZ"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="XBdPbuTAtlKWxdSp4IJYqB"/><circle cx="8.5" cy="8.5" r="1.5" data-page-node-id="FrOCXAXaQBiPyOsn2Y9ICw"/><path d="m21 15-5-5L5 21" data-page-node-id="Qd6pl0TsVDzMDJ5WEoNlFB"/></svg></div>
+                  <div class="ovl" data-page-node-id="qCVJNIo3KVBqInWChulnos">
+                    <span class="stamp" data-page-node-id="OQHGstjYM8bDSOGQytx81I">BRAVO_TEZEBZR_04</span>
+                    <span class="score sc-lo" style="background:rgba(255,255,255,.92)" data-page-node-id="ZeMIqFYBwjOuM0uaQYW3E5"><s class="num" data-page-node-id="oogChVm0YitVUW1X4FFvFm">55</s></span>
+                  </div>
+                </div>
+                <div class="body" data-page-node-id="KashR3JXTbsaUJLj0PWB3Q">
+                  <b data-page-node-id="ju4QfyomuSDDZWZE1DYstc">Fanta Orange &amp; Sprite Göz Sığası Yoxlaması</b>
+                  <div class="meta" data-page-node-id="5gQHOn4l1P6nqCBP8Wc4u1"><span data-page-node-id="AYeUwjjeuLMZcuzbVF5PxD">Bravo — Təzəbazar</span><span class="num" data-page-node-id="jakA2hTjAZX7OncYmb93GW">09-12 19:02</span></div>
+                  <div class="foot" data-page-node-id="OJIQJiOHTGNuAhUAoTGA73"><span class="st warn" data-page-node-id="4G7KwEF8AAPemkiWQs4RM2"><i class="dot d-warn" data-page-node-id="HzGZJHvq6QLoQCe1EQsGvc"></i>Gözləyir</span><span class="chip c" data-page-node-id="IF7izluBWiIhmvt1mj1C4o">Ssenari C</span></div>
+                </div>
+              </button>
+
+              <button class="gcard" onclick="openModal()" data-page-node-id="bcCHm0QrXot5eJxkhtLDe5">
+                <div class="shot" data-page-node-id="wxTZDwICJOyOmMTApZB0ns">
+                  <div class="ph" data-page-node-id="rkTRQYKtqRKSsqDInp6Vsk"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="IdOcsCBk2yhV6wjlXpBnDR"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="SLhNp22VI7arhGAle9dArf"/><circle cx="8.5" cy="8.5" r="1.5" data-page-node-id="tsDfhBXpA9HhqeKCJloJZD"/><path d="m21 15-5-5L5 21" data-page-node-id="LJRfiF2m28kKjYS2Xv0JRL"/></svg></div>
+                  <div class="ovl" data-page-node-id="N2AMk6n2fbXTyw5wDnWy0Z">
+                    <span class="stamp" data-page-node-id="wnQc5ECwoFZabAQMrvhmls">BAZAR_PORTBAKU_03</span>
+                    <span class="score sc-mid" style="background:rgba(255,255,255,.92)" data-page-node-id="ArE0OI0CFGTnubKSPCmxCJ"><s class="num" data-page-node-id="gYJkHHmuc2cbvjyZ1j7CPu">62</s></span>
+                  </div>
+                </div>
+                <div class="body" data-page-node-id="pbAm0lzWLZxz12QJGgAAT7">
+                  <b data-page-node-id="tWHmMFPDLQH77KHrfV9Nxk">Fanta Orange &amp; Sprite Göz Sığası Yoxlaması</b>
+                  <div class="meta" data-page-node-id="tTQquNq7XrdE3n8JzQ7cjp"><span data-page-node-id="WfxzYX2cRvdDD8KP5mv9ja">Bazarstore — Port Baku</span><span class="num" data-page-node-id="JbDi9oFECus6MiZGq5Es60">09-11 15:05</span></div>
+                  <div class="foot" data-page-node-id="Rm2tuFsd23YF2Pg20LmRUO"><span class="st bad" data-page-node-id="urVXm9vAEVDqfTDzEgeHT4"><i class="dot d-bad" data-page-node-id="tvYoN6dtwGjWbIT3Jr7WkE"></i>İmtina edildi</span></div>
+                </div>
+              </button>
+            </div>
+
+            <!-- empty + loading patterns (v1 gap #11 / #12) -->
+            <div class="card" data-page-node-id="ssPmCOYE14cAZdBbYxhOBD">
+              <div class="card-h" data-page-node-id="0snj8MWi1Nl8nC01TikGrq"><div data-page-node-id="FGidvIedEeBdS5zZNoJo7E"><h3 data-page-node-id="KVr5MycQDpGNpUGbDJy1uo">Boş və Yüklənmə Vəziyyətləri</h3><p data-page-node-id="H2vkuCDVuhlAVi2MeECBxC">v1-də müəyyən edilməmişdi — indi standart komponentdir</p></div></div>
+              <div class="ba" style="padding:18px" data-page-node-id="YddQZQAm7jl2fPSHu7k6Bf">
+                <div class="card" style="box-shadow:none" data-page-node-id="VORn57NJr4UdDLHFN6H1MO">
+                  <div class="empty" data-page-node-id="tfWDFTTnRrLahxXIlmIO1L">
+                    <div class="eico" data-page-node-id="HWO9gjvEVhiN1oZj9AgQ2E"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="d0HrXuSewchfn2uHXk7n4Z"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="vftpuFlGtN0hTXURZD598Z"/><circle cx="8.5" cy="8.5" r="1.5" data-page-node-id="n2f23I7CzRVjK6Mok8X7B2"/><path d="m21 15-5-5L5 21" data-page-node-id="1qs9jfnS8eQI7zccs4TXFt"/></svg></div>
+                    <b data-page-node-id="BloSI9NtR0bhUKyRQMNJrk">Hələ heç bir rəf fotosu yoxdur</b>
+                    <p data-page-node-id="3kU55m85DHrh6ipKXzBlsz">Merchandiser-lər Telegram Bot vasitəsilə foto göndərdikdə burada görünəcək.</p>
+                    <button class="btn btn-dark" style="margin-top:3px" data-page-node-id="N6g3E63X1erJWLSGfYferD">Təlimat göndər</button>
+                  </div>
+                </div>
+                <div class="card" style="box-shadow:none;padding:18px" data-page-node-id="L6xyOcfbxw6wOSydYvvFXv">
+                  <div style="display:flex;gap:13px;margin-bottom:14px" data-page-node-id="HWfP9yNSA2JJtU01VxYfV6">
+                    <div class="skel" style="width:62px;height:62px;border-radius:12px" data-page-node-id="hIdn770WFY9ippDCBWYDWm"></div>
+                    <div style="flex:1;display:flex;flex-direction:column;gap:8px;justify-content:center" data-page-node-id="ohQnNp1BiWvINGU1BehrrK">
+                      <div class="skel" style="height:12px;width:72%" data-page-node-id="nUUWFsmw75m2m12WGBDyeH"></div>
+                      <div class="skel" style="height:10px;width:45%" data-page-node-id="D1QuavPrDzHkleOX7CqNbl"></div>
+                    </div>
+                  </div>
+                  <div class="skel" style="height:11px;width:100%;margin-bottom:8px" data-page-node-id="a4kY8yfwZZM0HXkfR6JmD9"></div>
+                  <div class="skel" style="height:11px;width:88%;margin-bottom:8px" data-page-node-id="K8FYhOKvEIgttyQE8zc4na"></div>
+                  <div class="skel" style="height:11px;width:60%" data-page-node-id="JjKHVOuMyBTqsxbI47R79R"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== TASKS ==================== -->
+        <section class="view" id="view-tasks" data-page-node-id="iPDN0SMPUOuWDDpHaDhFsa">
+          <div class="stack" data-page-node-id="jEpYPFQ1jdXNPlvz4Cwy0H">
+            <div class="toolbar" data-page-node-id="AGJFKskaBunv4rnORETE5T">
+              <div class="search" data-page-node-id="kze6T1bVFeAEO61GncODPo">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.2" stroke-linecap="round" data-page-node-id="ULyQuubuEO4mY2OF46DYhJ"><circle cx="11" cy="11" r="7" data-page-node-id="CQAHEskatWqfIySIDv4RvD"/><path d="m20 20-3.5-3.5" data-page-node-id="SOvo3iCrLTrpXnqT274mi4"/></svg>
+                <input placeholder="Təlimat adı ilə axtar..." data-page-node-id="fgrFUDYJ6GVgi7O8LaAfXY">
+              </div>
+              <div class="chips" data-page-node-id="CZEJmY2peTwAQuiewnSFoP">
+                <button class="fchip on" data-page-node-id="scfDATx5I0OJffEAH1hsqx">Hamısı <span class="cnt" data-page-node-id="k9CL8MxmTpWQ3NCyGEUA1I">3</span></button>
+                <button class="fchip" data-page-node-id="P9oiCcQEVODMdhJ5zGUQMd">Aktiv <span class="cnt" data-page-node-id="dlYACExcPQXVs5SotfcY6t">2</span></button>
+                <button class="fchip" data-page-node-id="vzyYBg6GBmhGa7TANHBrID">Qaralama <span class="cnt" data-page-node-id="Pj6UcHuRndfuK6gVHdGlbD">1</span></button>
+                <button class="fchip" data-page-node-id="wQv5FU3x8hSaPyu6MG2bSU">Tamamlandı <span class="cnt" data-page-node-id="cVlW76cRv0TMxMx80btjzV">0</span></button>
+              </div>
+              <button class="btn btn-primary" onclick="toast('📌 Yeni təlimat forması açıldı')" data-page-node-id="Qz4jLvvzlD3NJkhu7FLbeH">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" data-page-node-id="qgNXHbu3O8868lYmKFyf8u"><path d="M12 5v14M5 12h14" data-page-node-id="J3MzOHYFlGzRr0bKdmoHWQ"/></svg>
+                Yeni Təlimat
+              </button>
+            </div>
+
+            <div class="card" data-page-node-id="qsXwZhQPGWBDUvHQJgap7p">
+              <div class="card-h" data-page-node-id="euzTU31YNBHzEH3M2vRsHC"><div data-page-node-id="GJ6RaL3jYL3n950ElCzIxG"><h3 data-page-node-id="wfqa4YMsKwlbEC43vCnnDI">Planogram Təlimatları</h3><p data-page-node-id="ws4bSrUmtm1ZfGHGilxhsi">Mağazalara göndərilmiş rəf düzülüş standartları</p></div></div>
+
+              <div class="trow" data-page-node-id="qgykEjxa6Afa1B4Y3FON8K">
+                <div class="ti" data-page-node-id="gBhPAxMqjrFj3qmNkyyoLv"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="zEsSIS0TgTkYjqXgieBcWm"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="kuKTmIv485T0Kg3oIpHgp2"/><path d="M3 9h18M9 21V9" data-page-node-id="Me3X3yCcQJ6CVMEcYVcCIv"/></svg></div>
+                <div class="tb" data-page-node-id="QVHjjFJLP34DkKbmEcFCl9">
+                  <b data-page-node-id="vpEfe7EfAV1N3a4fA3fAAf">Coca-Cola 0.5L Cooler Placement Check</b>
+                  <div class="sub" data-page-node-id="r5fAcep01LHtCenE6TekqF">
+                    <span class="prio p-high" data-page-node-id="WCGWLPj6gyNbiDOKWnRO9t"><i data-page-node-id="PRmZdkgdEhSTGS8MI6CMzW"></i>Yüksək</span>
+                    <span data-page-node-id="MpYeHY3fAI0nMROJ11IAdA">·</span><span data-page-node-id="x11rkI2wY0P3PJcXs65IpA">2 mağaza</span>
+                    <span data-page-node-id="pfFQDHAW3J2lDbU6ckdv9P">·</span><span data-page-node-id="F1TqZ6wwjKTT3LmAZSRYUm">Son tarix: 2026-09-14</span>
+                    <span data-page-node-id="1MdMlFs59ogxFoFL1Xde7t">·</span><span class="st ok" style="font-size:10px" data-page-node-id="d2L4UswSxHJvcrSRApWCE8"><i class="dot d-ok" data-page-node-id="1gmhc5Wg1bahCOvgAh2yaX"></i>Aktiv</span>
+                  </div>
+                </div>
+                <div class="tp" data-page-node-id="AQ0prkgr5MQn9x9Tg2Vfo5">
+                  <div class="lbl" data-page-node-id="LejcM1kcL6J6VfqMiokIxD"><span data-page-node-id="JIMEorAZpmxM5Evd6eJR7o">Tamamlanma</span><span class="num" data-page-node-id="AwEMz0komE3Tj7H70TDK8k">75%</span></div>
+                  <div class="bar bar-ok" data-page-node-id="DWCjiMOyTy6Yv2k8IwP2YY"><i style="width:75%" data-page-node-id="RXiZSy39KMBxyHo9NF60xc"></i></div>
+                </div>
+                <button class="btn btn-ghost" style="padding:7px 12px;font-size:11px" data-page-node-id="c8jJgBcjlECHhmT0lRHZG9">İdarə et</button>
+              </div>
+
+              <div class="trow" data-page-node-id="sKotPupEBaYqd4plmExquc">
+                <div class="ti" data-page-node-id="69YbiTb52ZOLcBhkkBoKe7"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="WVeF2a2rSl3hCdW0NFOs4e"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="gUt4PMJyaOjBEFQm2cuSk1"/><path d="M3 9h18M9 21V9" data-page-node-id="qxCg7xBuxYe0nb8YnEfIhd"/></svg></div>
+                <div class="tb" data-page-node-id="zEy1OsFXz5LDdxw0EgkTWh">
+                  <b data-page-node-id="bVeTeajUF7tdFTkycXP5Ru">Coca-Cola Zero Sugar Promo Stand Display</b>
+                  <div class="sub" data-page-node-id="yf1IbHGEXPZz4dfqXhOHmo">
+                    <span class="prio p-urgent" data-page-node-id="ewTpHjmEdf8OoYg7XpyaPi"><i data-page-node-id="PD0NnnHaJXAfTLD7igbYR2"></i>Təcili</span>
+                    <span data-page-node-id="oQKwjUtmCXXBHuOId0W2yb">·</span><span data-page-node-id="9mABuyBHxjyXVtI8l17FBR">1 mağaza</span>
+                    <span data-page-node-id="GOV770wxbHkSWHiyHC6Uq6">·</span><span data-page-node-id="j8CSy0yiuoLRbnIM1G30f6">Son tarix: 2026-09-12</span>
+                    <span data-page-node-id="I9MBhkcHQ4r5HvPV6qYdVp">·</span><span class="st ok" style="font-size:10px" data-page-node-id="dKMZz7Gr6slEzU5YGlnbGm"><i class="dot d-ok" data-page-node-id="P92i5A1myhoQLq0M0JGtft"></i>Aktiv</span>
+                  </div>
+                </div>
+                <div class="tp" data-page-node-id="voKya4a3B9n4H6o4KLT3GI">
+                  <div class="lbl" data-page-node-id="3qecTgIpoDBrDVJ7OFt3Zk"><span data-page-node-id="N3XjgOIb2jf8crEoQxttoK">Tamamlanma</span><span class="num" data-page-node-id="DVIGfn3RqaCQRXuO3dXFFk">40%</span></div>
+                  <div class="bar bar-warn" data-page-node-id="L9HwLunm3iF4P6yV7Ut7Cn"><i style="width:40%" data-page-node-id="jMYZw6vCZ7u3HxTlYi5dsH"></i></div>
+                </div>
+                <button class="btn btn-ghost" style="padding:7px 12px;font-size:11px" data-page-node-id="Etj7nR1GmpxVadD4HchQkP">İdarə et</button>
+              </div>
+
+              <div class="trow" data-page-node-id="qxpv1D7hq6opjdwFrrkYo2">
+                <div class="ti" data-page-node-id="XTmv88V0VanPcXJwQ0P8tc"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="SrYUkN3hXAtUMzFtXOZw48"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="64qLskIA5YHRUPhwJRydlm"/><path d="M3 9h18M9 21V9" data-page-node-id="lutsMTx0KsVHEiuhSpy4Z6"/></svg></div>
+                <div class="tb" data-page-node-id="gTZPwLErBwTDwJZRo4GWmx">
+                  <b data-page-node-id="cVKhq5p3UBRNWX4AQEPsBI">Fanta Orange &amp; Sprite Göz Sığası Yoxlaması</b>
+                  <div class="sub" data-page-node-id="zAJ4JIHATbGA5BUpUPfnfz">
+                    <span class="prio p-medium" data-page-node-id="CD7VBysVl0YIDFgr64lWXR"><i data-page-node-id="Y9HLCoV6mborPhw51CJkYM"></i>Orta</span>
+                    <span data-page-node-id="MZCyQOYPnCLPX18ZnNlf84">·</span><span data-page-node-id="Puc7cuFqRwghlOgdYnFlIc">2 mağaza</span>
+                    <span data-page-node-id="TTluLQM4U7xLALf77SjPwj">·</span><span data-page-node-id="OKzRJnQSjjFAHzuOqBhuMj">Son tarix: 2026-09-18</span>
+                    <span data-page-node-id="MgfDtK4qEkyvNGQwB6SkD7">·</span><span class="st neutral" style="font-size:10px" data-page-node-id="txwfyLsMAtK34iBHLSkk6c"><i class="dot d-neutral" data-page-node-id="wwIUi0nG16BWN8FuCPk33Z"></i>Qaralama</span>
+                  </div>
+                </div>
+                <div class="tp" data-page-node-id="4LC1jPNdzvyF8Oe5LNJ6Fh">
+                  <div class="lbl" data-page-node-id="ttTyXkc9ERoOSWOZQJ110s"><span data-page-node-id="sPSXzAhyk7BXrEdiNZz5PX">Tamamlanma</span><span class="num" data-page-node-id="I6hXTxfLE0B5lFGGb00eyA">0%</span></div>
+                  <div class="bar" data-page-node-id="OA2OPo4uFliNHDYXdqKRMP"><i style="width:0%" data-page-node-id="uXnZjX3GEYV7cHM2i7QcgT"></i></div>
+                </div>
+                <button class="btn btn-primary" style="padding:7px 12px;font-size:11px" data-page-node-id="GUdpxUJrthIVgqwsXEzllT">Dərc et</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== STORES ==================== -->
+        <section class="view" id="view-stores" data-page-node-id="j2Wa8RRdZHil5qv6eo0a7Z">
+          <div class="stack" data-page-node-id="3FETa7AQ9IdKcCbxy0RmsC">
+            <div class="toolbar" data-page-node-id="GgNKPmewpf7Ixn8B6BgGzZ">
+              <div class="search" data-page-node-id="kAx30wWEjkVhTXbYNNcJX9">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.2" stroke-linecap="round" data-page-node-id="WsgZZqKPs0UlTOsahzXx7C"><circle cx="11" cy="11" r="7" data-page-node-id="CBwdfSr46E4DSwDGw0g2Kc"/><path d="m20 20-3.5-3.5" data-page-node-id="Bqq31gzl17ekpa9VPDPPVS"/></svg>
+                <input placeholder="Filial adı və ya kod ilə axtar..." data-page-node-id="BDcgKXuQuKHhGnkPMhElZ6">
+              </div>
+              <div class="chips" data-page-node-id="7PQ7txEvU0AcPNhwqYFeIZ">
+                <button class="fchip on" data-page-node-id="F2PpnkxX2wVTntyHpvFSwy">Bütün zəncirlər</button>
+                <button class="fchip" data-page-node-id="hoiE3ViXzT0GueMJ29DQfF">Bravo</button>
+                <button class="fchip" data-page-node-id="mGYBzkg5FjUck9sqzNKLN7">Araz</button>
+                <button class="fchip" data-page-node-id="7wPA3BEH6TVe0NtFlq2uaX">Bazarstore</button>
+              </div>
+            </div>
+
+            <div class="gallery" data-page-node-id="NSjkHpI5iVb6NLykMGBbgj">
+              <div class="card pad" data-page-node-id="ZFxcAsVc0AdDSRkYUtLiiE">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px" data-page-node-id="RrlKsVC0B2Q7nOU4PTdONO">
+                  <div data-page-node-id="CiDPaFgCQsGv6p4tkBZQ2Y">
+                    <b style="font-size:13px;font-weight:800;letter-spacing:-.01em" data-page-node-id="fVsBwiPBC3kLyAGmxH9WeJ">Bravo Supermarket — 28 Mall</b>
+                    <div style="font-size:10.5px;color:var(--faint);font-family:ui-monospace,Menlo,monospace;margin-top:3px" data-page-node-id="2b7fgE9Rmm1riAtH8hUB8a">BRAVO_28MAY_01</div>
+                  </div>
+                  <span class="st ok" style="font-size:10px" data-page-node-id="Wn111C1wj1nAErBXWqiwjk"><i class="dot d-ok" data-page-node-id="XlFgVDFJEi2eoSapE8GFIN"></i>Aktiv</span>
+                </div>
+                <p style="margin:10px 0 0;font-size:11px;color:var(--muted)" data-page-node-id="6N9WOng7nIcSzEIuR04llT">Nəsimi rayonu, Bakı · 28 May küç. 12</p>
+                <div style="display:flex;gap:18px;margin:14px 0 12px" data-page-node-id="I42GhZDDgeAIkYVfgwU2P5">
+                  <div data-page-node-id="LpKnT1DduAEnehG0bC7k04"><div style="font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)" data-page-node-id="3ClizDRVaWNBq8K5hqdVAk">Auditlər</div><div class="num" style="font-size:19px;font-weight:800;letter-spacing:-.03em" data-page-node-id="PKyE7AFBGtMUXTVg4gaKKm">12</div></div>
+                  <div data-page-node-id="0zQdm9Y98PxeuhG9Hb4SGf"><div style="font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)" data-page-node-id="bHojJwjJQ9tfMQxVx9qnw1">Uyğunluq</div><div class="num" style="font-size:19px;font-weight:800;letter-spacing:-.03em;color:#047857" data-page-node-id="0TZIIlPazXvPODI7fh7XM4">95%</div></div>
+                </div>
+                <div class="bar bar-ok" data-page-node-id="L1L2WlM7nTc83zJbkk7UFq"><i style="width:95%" data-page-node-id="1hYgSXvk6GVHZ53PTZMtD5"></i></div>
+              </div>
+
+              <div class="card pad" data-page-node-id="ekl3M1NkScfPYwJKMsSt7u">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px" data-page-node-id="149th0dH4hj5YQD7ja2Qqx">
+                  <div data-page-node-id="yv4Zdi5qNdZmAXf4CNxDFz">
+                    <b style="font-size:13px;font-weight:800;letter-spacing:-.01em" data-page-node-id="D9A4GdqNKnAQe4QHW8XSXu">Araz Superstore — Gənclik</b>
+                    <div style="font-size:10.5px;color:var(--faint);font-family:ui-monospace,Menlo,monospace;margin-top:3px" data-page-node-id="jVfqgWy8sKH24Ys0CUEM7V">ARAZ_GENJLIK_02</div>
+                  </div>
+                  <span class="st ok" style="font-size:10px" data-page-node-id="GU25K4OnrKNJ4SCNCJzVyq"><i class="dot d-ok" data-page-node-id="p6upZ1cHPH9wwvMpZOL59k"></i>Aktiv</span>
+                </div>
+                <p style="margin:10px 0 0;font-size:11px;color:var(--muted)" data-page-node-id="H6FUYvw5lAMaxP51oOlDXU">Nərimanov rayonu, Bakı · Fətəli Xan Xoyski 71</p>
+                <div style="display:flex;gap:18px;margin:14px 0 12px" data-page-node-id="t6BCZuKK52kNGq9IttkOcQ">
+                  <div data-page-node-id="7SRg5wk5D4ufv22tlqMsNc"><div style="font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)" data-page-node-id="LewpwCaavfAZHgx2xsSNNc">Auditlər</div><div class="num" style="font-size:19px;font-weight:800;letter-spacing:-.03em" data-page-node-id="tKzEu5udFnWJAkUVdSCA9i">8</div></div>
+                  <div data-page-node-id="LWwEFvZ6snUo9GgygADEro"><div style="font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)" data-page-node-id="iNO6BIrywriQ0e0QzlH4xQ">Uyğunluq</div><div class="num" style="font-size:19px;font-weight:800;letter-spacing:-.03em;color:#b45309" data-page-node-id="gj2EI6ljOoSaWYEQHNYCs4">70%</div></div>
+                </div>
+                <div class="bar bar-warn" data-page-node-id="IOoIcL4AV0hIgAs3aHPKoN"><i style="width:70%" data-page-node-id="1wbmzouKodCCm06usHEhkO"></i></div>
+              </div>
+
+              <div class="card pad" data-page-node-id="VG3g4chn8mp2LiAGjY0BJS">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px" data-page-node-id="Wxx3e5QQrijz9BsajGNeJI">
+                  <div data-page-node-id="NIW302GfvfUcmiUcAz52Z2">
+                    <b style="font-size:13px;font-weight:800;letter-spacing:-.01em" data-page-node-id="c2EMXaftTKDC3mo1OvV4RO">Bravo Hypermarket — Təzəbazar</b>
+                    <div style="font-size:10.5px;color:var(--faint);font-family:ui-monospace,Menlo,monospace;margin-top:3px" data-page-node-id="yjjnzZwp0rt80zyLI7xkBL">BRAVO_TEZEBZR_04</div>
+                  </div>
+                  <span class="st warn" style="font-size:10px" data-page-node-id="WdDk0xuxWUloLVV3Zpz4R9"><i class="dot d-warn" data-page-node-id="kEBa5Higxp8POGfUY1n5rX"></i>Yoxlama gözləyir</span>
+                </div>
+                <p style="margin:10px 0 0;font-size:11px;color:var(--muted)" data-page-node-id="Lr7Him7RkLDp7UEANxlilR">Xətai rayonu, Bakı · Təzə Bazar</p>
+                <div style="display:flex;gap:18px;margin:14px 0 12px" data-page-node-id="f1eKquiwIluutKZudi2d3A">
+                  <div data-page-node-id="M7qL8fpqMLLjaHQsGsJGDp"><div style="font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)" data-page-node-id="fkghqLkxmHMZr8AWu9aqr3">Auditlər</div><div class="num" style="font-size:19px;font-weight:800;letter-spacing:-.03em" data-page-node-id="QH9c0rVAbYFyLZnqNnnAM3">6</div></div>
+                  <div data-page-node-id="PYLXMhJqv0i4LYhbWmBHZD"><div style="font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)" data-page-node-id="ouZQtrV0LZXgUokpCcSMR0">Uyğunluq</div><div class="num" style="font-size:19px;font-weight:800;letter-spacing:-.03em;color:#be123c" data-page-node-id="1GNCOTBJujtFE1Og2ebFHU">55%</div></div>
+                </div>
+                <div class="bar bar-bad" data-page-node-id="brF0lKLdmMdAOPnyk9vrCZ"><i style="width:55%" data-page-node-id="N9JSwLLTe8pMOsBoiQyJmZ"></i></div>
+              </div>
+
+              <div class="card pad" data-page-node-id="J4AHRsH254gSU8upcAfhJ6">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px" data-page-node-id="oTL4uCrt59vP8401pDd75A">
+                  <div data-page-node-id="4F9khz3cYJlX08r7P5Kntz">
+                    <b style="font-size:13px;font-weight:800;letter-spacing:-.01em" data-page-node-id="9jo5BaODmLkKj6EWFvrH51">Bazarstore Gourmet — Port Baku</b>
+                    <div style="font-size:10.5px;color:var(--faint);font-family:ui-monospace,Menlo,monospace;margin-top:3px" data-page-node-id="ncXkGfujJ3LVxDxBA9dRSf">BAZAR_PORTBAKU_03</div>
+                  </div>
+                  <span class="st ok" style="font-size:10px" data-page-node-id="HayCmAVpVHYzgyFXtz6W3v"><i class="dot d-ok" data-page-node-id="GzKpGU3xj1oX6zga8A6E6F"></i>Aktiv</span>
+                </div>
+                <p style="margin:10px 0 0;font-size:11px;color:var(--muted)" data-page-node-id="ITndxha2cTHFkVVIhLHW0A">Səbail rayonu, Bakı · Port Baku Mall</p>
+                <div style="display:flex;gap:18px;margin:14px 0 12px" data-page-node-id="7TFp7COVmSXUiejBVNlAxH">
+                  <div data-page-node-id="LWJThJno7nFsN2NL4sVCKI"><div style="font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)" data-page-node-id="vf3z2KVQHRlKFLihazX8EP">Auditlər</div><div class="num" style="font-size:19px;font-weight:800;letter-spacing:-.03em" data-page-node-id="aE0SU37UD7dFTW0yrjGHK6">4</div></div>
+                  <div data-page-node-id="nzYm4Lbi21hB5cASlrEyXH"><div style="font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)" data-page-node-id="deBS9tUMfRGXEczreKBXFp">Uyğunluq</div><div class="num" style="font-size:19px;font-weight:800;letter-spacing:-.03em;color:#b45309" data-page-node-id="KkiLzzSraWnDYA85SUMtAq">62%</div></div>
+                </div>
+                <div class="bar bar-warn" data-page-node-id="5wBatJDJ2C2cnlvFhLFNAL"><i style="width:62%" data-page-node-id="brsDMsBbHWKrMq26lBYNOT"></i></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== MOBILE CLIENT ==================== -->
+        <section class="view" id="view-mobile" data-page-node-id="ahoMAbklFEW9pgHF5c8iv7">
+          <div class="stack" data-page-node-id="TeLOPFnb0E6Ce4ciMuDCBC">
+            <div class="card pad" style="background:linear-gradient(100deg,#0f172a,#16233f);border-color:transparent;color:#fff" data-page-node-id="Upr2oK0RG4EKuVjDo7uCf4">
+              <h3 style="margin:0 0 5px;font-size:14px;font-weight:800;letter-spacing:-.02em" data-page-node-id="SZ0Mg8hK7GHP9qwDhCyoer">iOS Sahə Klienti — Merchandiser Tətbiqi</h3>
+              <p style="margin:0;font-size:11.5px;color:#a9b6cc;max-width:640px" data-page-node-id="nkkgwqlHIEzHaPFLYNXW5v">
+                Eyni token sistemi, eyni status dili. Tətbiq bir əldə, günəşli mağaza mühitində istifadə olunur —
+                buna görə düymələr böyükdür (≥ 44px), status heç vaxt yalnız rənglə verilmir.
+              </p>
+            </div>
+
+            <div class="phones" data-page-node-id="D9QpJjMO0EnHclE6JPSBVi">
+
+              <!-- screen 1: tasks -->
+              <div class="phone" data-page-node-id="1rHhJFdpyIv8JuIGgA4AG7">
+                <div class="phone-frame" data-page-node-id="jLx5PGveNCsi0zbgnWIM0M">
+                  <div class="phone-screen" data-page-node-id="sWNm3WC3cDqXxZyuCaPDlM">
+                    <div class="notch" data-page-node-id="Lv61QFcFQeX7Z2A2cCop2q"></div>
+                    <div class="p-status" data-page-node-id="LTIHMejSkXVIB76lfKjGd5"><span class="num" data-page-node-id="XGoi8KE0Z12VAB16Gfcdhc">9:41</span><span data-page-node-id="tORb7rxQdnSE1thGkCgmcY">4G ▮</span></div>
+                    <div class="p-head" data-page-node-id="YUWN7BDZCVjX6TXJs4fJXC">
+                      <h4 data-page-node-id="9MzAOvjsgQEqSVx92nH3J1">Aktiv Tapşırıqlar</h4>
+                      <p data-page-node-id="D9KIcG6mdypMtNi9NzxuH8">Bravo Supermarket — 28 Mall</p>
+                    </div>
+                    <div class="p-body" data-page-node-id="1xW83aPOt6psYjzBMOTDNT">
+                      <div class="geo" data-page-node-id="qQFH4S4NIjTUG6OVeNv7qd">
+                        <div class="gi" data-page-node-id="AXPnL6UBdm8MsyVUa0eb65"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="Hgg6AX352EJ1IA73MEGgLg"><path d="M12 21s7-5.5 7-11a7 7 0 1 0-14 0c0 5.5 7 11 7 11Z" data-page-node-id="SerYgXr6GgEEbGGMjZzqTG"/><circle cx="12" cy="10" r="2.5" data-page-node-id="iFGduJTfeSPGa65UyTBsM3"/></svg></div>
+                        <div style="flex:1" data-page-node-id="Ci6tYbc6gr8JOcFgOFClal">
+                          <b data-page-node-id="jImMNZYouGD5C7bgvt4tiH">Geofence təsdiqləndi</b>
+                          <span data-page-node-id="mpw6GvFEPa0es5gNdFIDcL">Məsafə: 14m · radius 100m</span>
+                        </div>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#047857" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="ymLFMhSSUQ4PEMAni1hv3Q"><path d="m5 12.5 4.5 4.5L19 7" data-page-node-id="srD4Tl3c2Qy3XJxgZ875FN"/></svg>
+                      </div>
+
+                      <div class="mtask" data-page-node-id="Clhqr7DjAzo8RjkTxIqOzg">
+                        <div class="r1" data-page-node-id="EGJN1ipZFeWLZSb77AyZDK">
+                          <h5 data-page-node-id="9kr5CZqZ67anD9brEJtw8y">Coca-Cola 0.5L Cooler Placement Check</h5>
+                          <span class="prio p-high" style="font-size:10px" data-page-node-id="pQEKVnhuqhASCnUEPqMx3D"><i data-page-node-id="NsT2lMHXpltV9FKtTi3gac"></i></span>
+                        </div>
+                        <div class="specs" data-page-node-id="uRFidFsSuBc3On8X5WYwF0">
+                          <div class="spec" data-page-node-id="5wPsDWXORYGt09faeUmKD5"><b data-page-node-id="xPIPE0Er2sRIIZPV90dlCj">3</b> facing</div>
+                          <div class="spec" data-page-node-id="VwlFhEdWEidDwARWkKmb9l"><b data-page-node-id="uFNzvWCfekS63RaJbFjYG0">≤ 4°C</b> soyutma</div>
+                          <div class="spec" data-page-node-id="yVBeDEN9T0hKe1bqFKU6Nd"><b data-page-node-id="Y9jlJAe9nSU4tHT3vFoPyf">14:00</b> son</div>
+                        </div>
+                        <button class="cta" data-page-node-id="iMcsVfSg9LySZUXW9AJa7a">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="l3jdMOc5WKTH07DPiRIT5a"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z" data-page-node-id="LlY1l8HcaIeDrdjBENdNk7"/><circle cx="12" cy="13" r="3.5" data-page-node-id="8B50EvAj5KDZ57hNq2E1Ma"/></svg>
+                          Rəf Şəklini Çək
+                        </button>
+                      </div>
+
+                      <div class="mtask" data-page-node-id="oGTRReiGOyQjfHDRd12plv">
+                        <div class="r1" data-page-node-id="sP7FdMkAVwL9EMuXJsBF73">
+                          <h5 data-page-node-id="W3Be3J1vLlG6zfRBlXNaz8">Fanta Orange &amp; Sprite Göz Sığası Yoxlaması</h5>
+                          <span class="prio p-medium" style="font-size:10px" data-page-node-id="yLK4svLlsfovA2JfmaC0sh"><i data-page-node-id="zBVWt4wRBglBPSO8a02T7z"></i></span>
+                        </div>
+                        <div class="specs" data-page-node-id="TAfy6t6NavWlZeYrforVox">
+                          <div class="spec" data-page-node-id="bdsGJQax1JdTP9NbBcOGwO"><b data-page-node-id="X810cw8xsCCouh7eHbxLhD">2</b> facing</div>
+                          <div class="spec" data-page-node-id="E2cAwVKCzyfTpWF3LN1686"><b data-page-node-id="j9ukmZvQeecsAHPcki7vPi">2 sıra</b> düzülüş</div>
+                          <div class="spec" data-page-node-id="fqxUOjVr3ZmHDGuQpws2AE"><b data-page-node-id="ZoM6I3mYRctgDsdYREspK8">18:00</b> son</div>
+                        </div>
+                        <button class="cta" style="background:#0f172a" data-page-node-id="5rCB72FBXHVFeHEV60E2i6">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="05mBt5DU2Xlihw2n1dKwNZ"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z" data-page-node-id="yNYy5CaZPYkq38OUxXE1ay"/><circle cx="12" cy="13" r="3.5" data-page-node-id="3PARRd2XuR9AT26pjdF3qA"/></svg>
+                          Rəf Şəklini Çək
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="phone-cap" data-page-node-id="5uQrPF1DlAtIb29xhAQoqU">1 · Tapşırıq siyahısı<span data-page-node-id="lyPAHrR3UV7kRcqECT6xO0">Geofence statusu həmişə görünür</span></div>
+              </div>
+
+              <!-- screen 2: camera -->
+              <div class="phone" data-page-node-id="pOFmN34e2d9uw2rguQszpV">
+                <div class="phone-frame" data-page-node-id="XAUXxobXKod9KGhPqZG7AK">
+                  <div class="phone-screen" data-page-node-id="zcUql6JuqQHXBI9xuirlSL">
+                    <div class="notch" data-page-node-id="0dGCtc4RRQWoTEBFTh7seu"></div>
+                    <div class="cam" data-page-node-id="mC5KS4hvxCXuw03XMUi78W">
+                      <div class="cam-top" data-page-node-id="rdxzSLUhFIxDCa4CyNkYiI">
+                        <span class="rec" data-page-node-id="sl4lT4DgtTwtG2XskSFy5R"><i data-page-node-id="zMJF8cFZXaBaPkwq75SbEy"></i>GHOST OVERLAY AKTİV</span>
+                        <span class="rec" style="background:rgba(2,6,23,.72)" data-page-node-id="JxyybCnWprQAYPbw91aQDA">1/3</span>
+                      </div>
+                      <div class="shelf" data-page-node-id="t9yxCQeuVofBjgs6vc67zs">
+                        <div class="tier" data-page-node-id="EAU55lBBH0cnCuJHsgm2aF">
+                          <div class="bottle" style="height:44px" data-page-node-id="O4LPIvSuSiSjRQAkKdL3AX"></div>
+                          <div class="bottle" style="height:44px" data-page-node-id="yGPXoD4DLZBIDYE26JqRaH"></div>
+                          <div class="bottle" style="height:44px" data-page-node-id="WGr5xDrqUeKQ4vlmKvLMyT"></div>
+                          <div class="bottle dim" style="height:44px" data-page-node-id="8NvvIT7EMIj05pOFlG1jIH"></div>
+                        </div>
+                        <div class="tier" data-page-node-id="yaDL1WFTNHHBIR0QKvANg8">
+                          <div class="bottle g" style="height:38px" data-page-node-id="1fPcEMXeIDrRYMybzWTe1M"></div>
+                          <div class="bottle g" style="height:38px" data-page-node-id="CGqS2tpJwY7H7cUkcDUmAo"></div>
+                          <div class="bottle o" style="height:38px" data-page-node-id="RdHQNoEELCBripQBq4FTNC"></div>
+                          <div class="bottle o" style="height:38px" data-page-node-id="UbQmcJvvIuGA1fumH5HfyS"></div>
+                          <div class="bottle dim" style="height:38px" data-page-node-id="z5mFQVX2M8X6RotZbMoYA8"></div>
+                        </div>
+                        <div class="tier" data-page-node-id="TJslclk1us05oZsbysM8cQ">
+                          <div class="bottle" style="height:34px" data-page-node-id="B3wY41LAHHURV9Rw8rgktE"></div>
+                          <div class="bottle" style="height:34px" data-page-node-id="tUrnFH7zB9iIO47cP6VjgD"></div>
+                          <div class="bottle g" style="height:34px" data-page-node-id="kcNPFcwtEi76p4jnVQzgfV"></div>
+                          <div class="bottle dim" style="height:34px" data-page-node-id="A3HxvDUQWeKGLt5wDDBfpI"></div>
+                        </div>
+                      </div>
+                      <div class="ghostbox" style="left:8%;right:8%;top:38%;bottom:14%" data-page-node-id="Srx4HjJ5LufEXAAbGIpxDR"></div>
+                      <div class="tele" data-page-node-id="2EkGZMYiN5MHyLh9PYOt1o">
+                        <div class="row" data-page-node-id="RXytGTIxxteE291cw18IRN">📍 40.3771°N, 49.8459°E · ±4m</div>
+                        <div class="row" data-page-node-id="9Zx8g3kxBkt1wBBaxXbw5D">🏪 BRAVO_28MAY_01 · 14m</div>
+                        <div class="row" data-page-node-id="CcLUl1AcnXGsnuteG7T08d">🕒 12.09.2026 19:32 · iPhone 15</div>
+                      </div>
+                    </div>
+                    <div class="cam-bar" data-page-node-id="ZEFMfqlDPPI9zbm19ekZcX">
+                      <div class="cam-side" data-page-node-id="aiAaowVyevQII0WapDkund"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="tUYnSi7NVOF8skFd7sk7Yi"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="bKUQ5bpD7kUB2drFSv7Cy0"/><circle cx="8.5" cy="8.5" r="1.5" data-page-node-id="Qp5UMKWGIfKIjh4BiyJAL6"/><path d="m21 15-5-5L5 21" data-page-node-id="4k4yJWEZ0sNEQccdTSStDd"/></svg></div>
+                      <div class="shutter" data-page-node-id="k9LnIKqxe9GW7NCcOfOn2e"><i data-page-node-id="5w8AMgSYoBcrqpWwqJS1oB"></i></div>
+                      <div class="cam-side" data-page-node-id="UspByllQ46xei16CgzlSVI"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="Hu7Tu0ve8CvbtGKSvrRR38"><path d="M3 12a9 9 0 1 0 3-6.7" data-page-node-id="dmVMEokX427PfN9PjplHEV"/><path d="M3 4v5h5" data-page-node-id="cl9njptt64OBipCGsZihUN"/></svg></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="phone-cap" data-page-node-id="8ZsQSktNY0Q7YuPy0QeGNF">2 · Ağıllı kamera<span data-page-node-id="KPWGh0urqVP8W7eLbOdzKr">Ghost planogram + telemetriya möhürü</span></div>
+              </div>
+
+              <!-- screen 3: offline queue -->
+              <div class="phone" data-page-node-id="Tr9u1yGzd2zs099U5SBFqY">
+                <div class="phone-frame" data-page-node-id="gS5YI9h4tJiOOYecZcFAOq">
+                  <div class="phone-screen" data-page-node-id="fwaTY9v8sfQNCtVYSNoV0g">
+                    <div class="notch" data-page-node-id="ESgPqP5qEMZKgjSHNhEAQB"></div>
+                    <div class="p-status" data-page-node-id="XGC1xBR41HuzlkqzOXTGzN"><span class="num" data-page-node-id="ZGPn9VKwEn6K6AWaPZ8rbH">9:41</span><span style="color:#b45309" data-page-node-id="KSIHZn1J1yaPiMlm7hxKkC">Oflayn</span></div>
+                    <div class="p-head" data-page-node-id="Tnnq6nTdE6vMKazXf8D3jI">
+                      <h4 data-page-node-id="SA33YOXrfPrFbvjeZlDHiC">Göndərilmə Növbəsi</h4>
+                      <p data-page-node-id="75fVAA3gTxeTFsltedAoxD">3 foto yaddaşda saxlanılır</p>
+                    </div>
+                    <div class="p-body" data-page-node-id="31GLQvUacILH9RxIVXJwBv">
+                      <div class="sync-banner" data-page-node-id="tE8DWIHmdrsDy9vxta7Pn2">
+                        <div class="si" data-page-node-id="JK6E7z2rH5YI3MEDkFmqzF"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="biwy56CjF72Ak6EA4ziXVF"><path d="M3 12a9 9 0 1 0 3-6.7" data-page-node-id="NXYmefJJ6TGeLyFPhK3Fq0"/><path d="M3 4v5h5" data-page-node-id="J4ZBHO8VF7BRXCb1Ov54lx"/></svg></div>
+                        <div style="flex:1" data-page-node-id="HGh2Z279s30mpefFLICeMj">
+                          <b data-page-node-id="8tAKefD4BH1KI5YPFV3LZh">Şəbəkə bərpa olunanda avtomatik göndəriləcək</b>
+                          <span data-page-node-id="xqzFE2z8Ug5wTuopHQkSLK">Zirzəmi mağazalar üçün oflayn rejim</span>
+                        </div>
+                      </div>
+
+                      <div class="queue-item" data-page-node-id="oWhesLEu9W41XDFWFzBQMX">
+                        <div class="qi" data-page-node-id="vkM6OHdTU6t0NvCsT9JK9Z"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" data-page-node-id="rpQnOUmJPJ7F2kGGs5aVbP"><circle cx="12" cy="12" r="9" data-page-node-id="GJGvfKpJtkSKOuy3oZL9qq"/><path d="M12 7.5V12l3 2" data-page-node-id="O8rTTbuI9WE0vDoMwrXDAa"/></svg></div>
+                        <div class="qt" data-page-node-id="DMrALraThtp4FVj2xyp1G0"><b data-page-node-id="ddmNjn2hVFZt03zmyLPYWd">Coca-Cola 0.5L Cooler</b><span data-page-node-id="dL86RouypPrcN5YEXYnvXH">BRAVO_28MAY_01 · 19:32</span></div>
+                        <span class="st warn" style="font-size:10px" data-page-node-id="ZerI4IELGpf7Iw6TyRPyZ9">Gözləyir</span>
+                      </div>
+
+                      <div class="queue-item" data-page-node-id="El9N6CRgWUWE5hhFoiEsDm">
+                        <div class="qi" data-page-node-id="8crX147wtoNS7zqGrIfku4"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" data-page-node-id="WoD7QywT78vKlDJlK4s6Co"><circle cx="12" cy="12" r="9" data-page-node-id="h33P9zv6PU9ORdHgkmKXN7"/><path d="M12 7.5V12l3 2" data-page-node-id="okRcF7r7o2jBfBDyXpXcto"/></svg></div>
+                        <div class="qt" data-page-node-id="8uGOJbZwamkmDWiAqvrZ9N"><b data-page-node-id="IhTl3lDMwLIs5Jaj5iOMsw">Fanta &amp; Sprite Göz Sığası</b><span data-page-node-id="zP3bFPVXeR4McVllXmsCvI">BRAVO_28MAY_01 · 18:04</span></div>
+                        <span class="st warn" style="font-size:10px" data-page-node-id="soEcmTGuAhpnPoKNtUJZOA">Gözləyir</span>
+                      </div>
+
+                      <div class="queue-item" style="border-color:var(--ok-bd);background:var(--ok-bg)" data-page-node-id="BYBdwRtmj1P4QQ2cxfVJJg">
+                        <div class="qi" style="background:#d1fae5;border-color:var(--ok-bd);color:#047857" data-page-node-id="WO6pQNCf3WPAIjbsWqcq0k"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="soFaZZ47lpSKom4Jq2BRQj"><path d="m5 12.5 4.5 4.5L19 7" data-page-node-id="O0oXiePCqGuLbQTdaYt4bD"/></svg></div>
+                        <div class="qt" data-page-node-id="oNuaHnu6LP98SUArTsAS8j"><b data-page-node-id="HQqVY5S4SGKtuuHDU5itpG">Zero Sugar Promo Stand</b><span data-page-node-id="Q7laUznA7PLJCCA2YLA82C">Göndərildi · 17:41</span></div>
+                        <span class="st ok" style="font-size:10px" data-page-node-id="Hab2s3awAXxB9YVT1Am3jT">Təsdiqləndi</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="phone-cap" data-page-node-id="XUKONyC9qOnbtwOwTxAMo1">3 · Oflayn növbə<span data-page-node-id="q1BoI0SZizFgsdJv81QUqO">Şəbəkə bərpasında avtomatik sinxron</span></div>
+              </div>
+
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== DESIGN SYSTEM ==================== -->
+        <section class="view" id="view-system" data-page-node-id="Q2FEwhVhLI0Bu2iCOckBbV">
+          <div class="stack" data-page-node-id="MoovaBEM4Xg2JCxw2uQonM">
+
+            <div class="card pad" data-page-node-id="10RzbiiHa3GLlJrGGed2NZ">
+              <h3 style="margin:0 0 5px;font-size:14px;font-weight:800;letter-spacing:-.02em" data-page-node-id="e1CiGpQGigGCnrkAPUmTUk">Nə dəyişdi və niyə</h3>
+              <p style="margin:0;font-size:11.5px;color:var(--muted);max-width:760px" data-page-node-id="lL3BCRxEKcFWPwdwuyN9LS">
+                Bu təklif mövcud brendi və istifadəçi vərdişlərini saxlayır — Coca-Cola qırmızısı aksent olaraq qalır,
+                bütün mətn Azərbaycan dilindədir, status məntiqi eynidir. Dəyişikliklər struktur problemlərinə yönəlib.
+              </p>
+            </div>
+
+            <div class="ds-notes" data-page-node-id="o68T4WR5iLULyr1FWFr02K">
+              <div class="note" data-page-node-id="MJaa4iHHQAviLXH0yw3j4x">
+                <div class="nh" data-page-node-id="lsIqbHBJLl4NCXTY53ifXJ"><div class="n" data-page-node-id="qc5qyKpteIJOvTlE6ZDlWm">1</div><h4 data-page-node-id="yQofg1IvwGzBllocUZap5Z">Responsive qabıq — ən vacib düzəliş</h4></div>
+                <div class="was" data-page-node-id="O7NGCCyIXOtWe8H8OKf7lF"><b data-page-node-id="txW2tQ20bJNSrsmiOKFUg1">Əvvəl</b>390px ekranda yan panel 256px yer tuturdu (66%). Məzmun üçün 134px qalırdı, başlıq 45px-dən 165px-ə şişirdi.</div>
+                <div class="now" data-page-node-id="nDSGOJ9McScgcAvPAFoE23"><b data-page-node-id="N3o9U4thKxbjQmbayicfX2">İndi</b>Üç səviyyə: ≥1280px tam panel · 768–1279px 74px ikon relsi (hover tooltip) · &lt;768px off-canvas drawer + qaralma qatı.</div>
+              </div>
+
+              <div class="note" data-page-node-id="mhcrEEBXd0QCjpWoEa2kgj">
+                <div class="nh" data-page-node-id="ovUMUKgu7LMWQ06OrGCkng"><div class="n" data-page-node-id="gKBhREXVyHEcslRROTBbzF">2</div><h4 data-page-node-id="WWFW7aVX4oap57aFLXmnPn">Kölgə qatı bərpa edildi</h4></div>
+                <div class="was" data-page-node-id="5thh4ctXf6dZDOlUD7I1a9"><b data-page-node-id="h6KaxPYAEe9fo7RoSzKxHi">Əvvəl</b><code data-page-node-id="ZaFubqbua21RDRjaOC3VqJ">shadow-subtle</code> Tailwind konfiqurasiyasında heç vaxt təyin olunmamışdı — 8 kart düz, kölgəsiz görünürdü.</div>
+                <div class="now" data-page-node-id="qfvNvTT6H5iJHHPSbfb5cR"><b data-page-node-id="bTNmZWfzUvPUC2daFjdkkt">İndi</b>Üç real səviyyə: <code data-page-node-id="f03XBniy85DqfiqXIKlqpB">card</code> · <code data-page-node-id="RiSXapKLBlL94HdXFxsrYM">hover</code> · <code data-page-node-id="DQ5R3vxk6qnndSBjlQJEoT">pop</code>. Kartlar toxunula bilən olduğunu hover-də göstərir.</div>
+              </div>
+
+              <div class="note" data-page-node-id="5Ep2pmEnoCQdYV8wFeDB3C">
+                <div class="nh" data-page-node-id="B1hFZXxbzDpJfedih0ol9S"><div class="n" data-page-node-id="CkVvwZi7uqQ32u5G68pod3">3</div><h4 data-page-node-id="qL8BqJ4RLzRykjJKeSRWlu">Başlıq sabit 68px</h4></div>
+                <div class="was" data-page-node-id="Jn0sF5w2cBN7jFv12KTfGB"><b data-page-node-id="lLXUdw84QMCKyFa74aqQiz">Əvvəl</b><code data-page-node-id="YkySG852x3ENImHodFHO57">h-18</code> Tailwind v3-də mövcud deyil — başlığın hündürlüyü hər tabda dəyişirdi.</div>
+                <div class="now" data-page-node-id="Vod4ZFgpFm0ltrP5CW8wB3"><b data-page-node-id="dPqwoR9iGYWIEjqfIl1oCc">İndi</b>Sabit 68px, başlıq tək sətirdə kəsilir, alt yazı mobildə gizlənir. Şaquli sıçrayış yoxdur.</div>
+              </div>
+
+              <div class="note" data-page-node-id="l3cDqE6D7WcqAXDM7bSEos">
+                <div class="nh" data-page-node-id="9HJp1lryOSpHiPB2yQfVE2"><div class="n" data-page-node-id="1QcJwoz4DQYyidPaRhF28c">4</div><h4 data-page-node-id="I9n0Xy9SHjpETvIJDsunKH">Rəqəmlər hizalanır</h4></div>
+                <div class="was" data-page-node-id="rXzbY5GF2hBPbM1hRuGYWN"><b data-page-node-id="QRvPGAWhF5hPDA9mPbEItr">Əvvəl</b>KPI rəqəmləri və cədvəl qiymətləri mütənasib şriftlə — sütunlar titrəyirdi.</div>
+                <div class="now" data-page-node-id="nt4odFqiwYBSDp33UbBHOs"><b data-page-node-id="DT0696enRZbEbwzuftQogx">İndi</b><code data-page-node-id="WmInmr0BOgBwFucyWruUHu">tabular-nums</code> bütün metriklərdə. Rəqəmlər sütun-sütun düzülür, skan sürəti artır.</div>
+              </div>
+
+              <div class="note" data-page-node-id="43W9HXUxpHmKi8ANrG2rm7">
+                <div class="nh" data-page-node-id="0BeVgMvqgkjiXM0BNy77bM"><div class="n" data-page-node-id="rar4XSvGCGq5iw4Bn7abI3">5</div><h4 data-page-node-id="c0O2C3iUxQdiNKVxAFRWcl">Status: rəng + işarə + mətn</h4></div>
+                <div class="was" data-page-node-id="UcdHInyhnuIFdPoYXh11EZ"><b data-page-node-id="yw1QImixcKAMOsd1T7lFcl">Əvvəl</b>Status yalnız pastel fon rəngi ilə verilirdi — günəşli mağazada oxunmurdu.</div>
+                <div class="now" data-page-node-id="GpOfWi9el3cLAlOAEI2RPi"><b data-page-node-id="q5FKAHQmpUfuvPRQWE1vOn">İndi</b>Hər statusda rəngli nöqtə + mətn etiketi. Rəng korluğu və parlaq işıq üçün ehtiyat siqnal.</div>
+              </div>
+
+              <div class="note" data-page-node-id="jByxWTu0E83gTDg3WlkOKs">
+                <div class="nh" data-page-node-id="TkSOM5CYdDhBXBLnZNz6Zg"><div class="n" data-page-node-id="H0I9iz2zFnm0wIWyXwaCZX">6</div><h4 data-page-node-id="t6hRDO1YNj9Lt0iX0aXSKp">Boş və yüklənmə halları</h4></div>
+                <div class="was" data-page-node-id="ajVBjonMoTkEjd6F2dPDea"><b data-page-node-id="y50xG2sexVilLE6Ons2SES">Əvvəl</b>Boş cədvəl və uğursuz Supabase sorğusu tamamilə boş sahə göstərirdi.</div>
+                <div class="now" data-page-node-id="EiuGyslbJRPYnA9Sn4cJYl"><b data-page-node-id="Uh6n30IrC9oh2noE7Svzqh">İndi</b>Hər siyahının boş vəziyyəti (izah + hərəkət) və geometriyaya uyğun skeleton var.</div>
+              </div>
+
+              <div class="note" data-page-node-id="MiRKNTw2KfeiXFJ36r01Ty">
+                <div class="nh" data-page-node-id="PNZNNoW0IRfAtQXiMjPOna"><div class="n" data-page-node-id="gpvZAROEusdZOi2O5zHmiK">7</div><h4 data-page-node-id="PyNbVeA3lvy6caye1IBzyv">Şəkil fallback</h4></div>
+                <div class="was" data-page-node-id="EgvDID5eaJpVS46ew9pwBj"><b data-page-node-id="8SkAEQGEm066TsBFbWfJLC">Əvvəl</b>Şəkil yüklənməyəndə cədvəldə "Rəf Şəkl" alt mətni görünürdü.</div>
+                <div class="now" data-page-node-id="QDFGmCciJxlxo7qFGF97Me"><b data-page-node-id="XaUHfX3Ob1z8OrpajhE7gs">İndi</b>Brend tonunda qradiyent + kamera ikonu. Pozulmuş görünüş yerinə nəzərdə tutulmuş görünüş.</div>
+              </div>
+
+              <div class="note" data-page-node-id="lpDRMpKq8PNP0s6wT37JpG">
+                <div class="nh" data-page-node-id="As98t7VTr1nZfATnZNz5I5"><div class="n" data-page-node-id="y24ovHORdkKfvcD2fKvwHD">8</div><h4 data-page-node-id="Xt6atEKJ109yGL2OjsmgRJ">Klaviatura fokusu</h4></div>
+                <div class="was" data-page-node-id="7gmyiZHqqlmwiTsDkXer3r"><b data-page-node-id="G7RTcAlvE9FY1LLADkgGfG">Əvvəl</b>Bütün tətbiqdə focus halqası yox idi — klaviatura istifadəçisi fokusu görmürdü.</div>
+                <div class="now" data-page-node-id="wZ3yEK7migcB6ksuqURt2k"><b data-page-node-id="C7mAvN2VkTr6y8zbdn4sKa">İndi</b>Qlobal <code data-page-node-id="DD6kiSX4VYeZRKPNJeN4Gz">:focus-visible</code> halqası. Tab ilə gəzərkən hər element aydın görünür.</div>
+              </div>
+            </div>
+
+            <div class="card pad" data-page-node-id="16cHegy1bZ4PEhMhlKrQ7T">
+              <h3 style="margin:0 0 4px;font-size:13px;font-weight:800" data-page-node-id="OB4Xzt899heaiIib4rHPhA">Əvvəl / Sonra — Mobil 390px</h3>
+              <p style="margin:0 0 15px;font-size:11px;color:var(--muted)" data-page-node-id="rMO6FlVeXlfLHHUjLOBiMU">Soldakı real audit ekran görüntüsüdür; sağdakı bu prototipin mobil rejimidir.</p>
+              <div class="ba" data-page-node-id="sCCcVmhycZqOkK9vntnxWy">
+                <figure data-page-node-id="IsXEaSiB2mV6QWi4hicx9U">
+                  <img src="../ui-audit/shots/11-mobile-390-dashboard.png" alt="Əvvəlki mobil görünüş" data-page-node-id="oTGmYkgl19i2E9bHBnDmvp">
+                  <figcaption data-page-node-id="Nz0ITsBGEeM4LbG8qn4TIe"><span class="st bad" data-page-node-id="19MJt7WaXI64NHIMb08PBQ"><i class="dot d-bad" data-page-node-id="OCjNsapjBc3L9LCtgZdYuD"></i>Əvvəl</span> Panel 256px · məzmun 134px</figcaption>
+                </figure>
+                <figure data-page-node-id="fzS4cwNOlnybxQBGyDbhYY">
+                  <img src="../ui-audit/shots/01-dashboard.png" alt="Masaüstü referans" data-page-node-id="PkgGOGT1LHKotHEM5NLQre">
+                  <figcaption data-page-node-id="huz0ibhcemrzd7SS1GMol7"><span class="st ok" data-page-node-id="2CorAIDGkr1dGw2QmWlEeP"><i class="dot d-ok" data-page-node-id="bYk7EOIvwONQzzMK8EWFhF"></i>Sonra</span> Drawer + tam en məzmun</figcaption>
+                </figure>
+              </div>
+              <p style="margin:13px 0 0;font-size:11px;color:var(--muted)" data-page-node-id="Pqln0OPL368NWZ9bHvtxMr">
+                Canlı nəticəni görmək üçün yuxarıdaki <b data-page-node-id="GeHPpKqhSB3Mr54mZUamg4">Ölçü → Mobil</b> düyməsini basın və hamburger menyunu açın.
+              </p>
+            </div>
+
+            <div class="ds-grid" data-page-node-id="zTnYncbISmUdouZFPjvDYP">
+              <div class="sw" data-page-node-id="LlIM767UbQfyXCLx9Qrzgo"><div class="c" style="background:#F40009" data-page-node-id="gU8OmZAxfGPBGXwWKv4Thp"></div><div data-page-node-id="87u0f62TbWCD94SPCc90PA"><b data-page-node-id="JP2LAcVG8aaMYfgN8Ia8cM">coke-500</b><span data-page-node-id="M9tdevN94Wg8gEv6e4ssAY">#F40009</span></div></div>
+              <div class="sw" data-page-node-id="D4c1cBIhflPrGauvQuL1MR"><div class="c" style="background:#D80008" data-page-node-id="crS4pwy7X05bfRGUljtYnD"></div><div data-page-node-id="fGqnq7TU8O09UCSbQblg69"><b data-page-node-id="ulov4mBQVjtZXNF73QHUv1">coke-600</b><span data-page-node-id="rW1JlDrIKsjYY4uDZIVMSB">#D80008</span></div></div>
+              <div class="sw" data-page-node-id="Eqd7aEPWr4UiAfPfjQPkRP"><div class="c" style="background:#fff1f1" data-page-node-id="yoBSz5fIcR1LrQdP4GwlUr"></div><div data-page-node-id="tWtyEtV3UHEaoOrJifsnjK"><b data-page-node-id="v8V5tHtj1F2lEYgVaILl5k">coke-50</b><span data-page-node-id="05ECaxQUT5Waov7zqkjLBo">#fff1f1</span></div></div>
+              <div class="sw" data-page-node-id="6AVHsKEreo8uaWhieK70M1"><div class="c" style="background:#0f172a" data-page-node-id="E8WTxowUdLrGD1DnQQ8NB5"></div><div data-page-node-id="oCJ8cNZssOuUr1qLE2J1mj"><b data-page-node-id="1ZGJtz5rBkyFlDKjgvEeoW">ink / nav</b><span data-page-node-id="8zeCKHBmiRcbbLH6UkScxz">#0f172a</span></div></div>
+              <div class="sw" data-page-node-id="sUbPvcAmZElhJGPNMFNyD2"><div class="c" style="background:#f4f6f9" data-page-node-id="7NoQVl2StbtmRvTsZK3rtE"></div><div data-page-node-id="YMBTkHfVD4dk824fzbADkn"><b data-page-node-id="ChinMZvUnDHYGrtIEvrCBF">canvas</b><span data-page-node-id="SVSksM81PIUihJZFjQTWxM">#f4f6f9</span></div></div>
+              <div class="sw" data-page-node-id="xZecNYKUboLDczIN6O9WKu"><div class="c" style="background:#ffffff" data-page-node-id="e5fdZtHZmffnoKJdBTbEwi"></div><div data-page-node-id="gTlfM2LnkNrQtkaLyzpQ1x"><b data-page-node-id="THAPWzGGiXw5jTTy9YbNPn">surface</b><span data-page-node-id="mQjr15ZTbl7ATkLEt0VCL5">#ffffff</span></div></div>
+              <div class="sw" data-page-node-id="CfKDjKTl7E3Rtdo36uQMYd"><div class="c" style="background:#e5e9f0" data-page-node-id="8jqG5J4orFAsCBRMSxeiDV"></div><div data-page-node-id="05rsrQAW9AdQ2wAVkHoSih"><b data-page-node-id="Nri5k5b6hnF8HOrtYQcNBD">line</b><span data-page-node-id="EDGrdTFwBwGxgJpFVIlwvK">#e5e9f0</span></div></div>
+              <div class="sw" data-page-node-id="vlmp3xN0uAlXVM1UGxbiwF"><div class="c" style="background:#047857" data-page-node-id="GzsKED7CCgO8MydzBgq9NL"></div><div data-page-node-id="RQkeyrx4WCDY8Hhgl836HT"><b data-page-node-id="Lmk3SPGEqoWdkdUZmxA0U6">success</b><span data-page-node-id="3a6rwC5F7WQDw3j4syVTu2">#047857</span></div></div>
+              <div class="sw" data-page-node-id="GH1xjIcAl7wxnMxj9KX8HD"><div class="c" style="background:#b45309" data-page-node-id="IFbBCWyIsttGPKVScwjFTc"></div><div data-page-node-id="cMpGC67jeqfw5yfgy86FyS"><b data-page-node-id="oFElV4PJp4bmJd4eRhzJqG">warning</b><span data-page-node-id="JqZwt80bpYY4sUpiDdcJH0">#b45309</span></div></div>
+              <div class="sw" data-page-node-id="ODZZdAuOR2svbGXObNRz2B"><div class="c" style="background:#be123c" data-page-node-id="2F7SmV3HuhSpJf3t5m3bCr"></div><div data-page-node-id="zGvsSpHWarO4zHVgu50JWI"><b data-page-node-id="mvXFdu52jH2Vbf8rMtD1wx">danger</b><span data-page-node-id="ZtMmo7VnaupqE0yXDNh6HZ">#be123c</span></div></div>
+            </div>
+
+            <div class="card pad" data-page-node-id="4eC4YHEcch9ihv8qR2QKPu">
+              <h3 style="margin:0 0 4px;font-size:13px;font-weight:800" data-page-node-id="J350IkpTwHRV05B5JYe8Db">Şrift Şkalası — Plus Jakarta Sans</h3>
+              <p style="margin:0 0 6px;font-size:11px;color:var(--muted)" data-page-node-id="m9Ei7K3LzRKuB3rff2j7jR">Oxunaqlı mətn üçün minimum 11px qaydası qorunur.</p>
+              <div class="tscale" data-page-node-id="XDCjYaBdl1T75QisDPFOxj">
+                <div class="ts-row" data-page-node-id="6iQZUTmn2vloVvB8zxZB1m"><div class="spec" data-page-node-id="e02qKQg3tSXtxDIRPWr2Va">29px / 800</div><div class="demo" style="font-size:29px;font-weight:800;letter-spacing:-.035em" data-page-node-id="ChMNiH1DBe6ik8VGPYN0my">KPI dəyəri</div></div>
+                <div class="ts-row" data-page-node-id="gXzHT8px5CMI6GeDB7hpre"><div class="spec" data-page-node-id="z4KAXeAZkYYWvUQ5BSXBBX">16.5px / 800</div><div class="demo" style="font-size:16.5px;font-weight:800;letter-spacing:-.022em" data-page-node-id="oL9arlUPrAlVnUs1Vcs72G">Səhifə başlığı</div></div>
+                <div class="ts-row" data-page-node-id="QYWopHDI45mPjTRTw1LOqQ"><div class="spec" data-page-node-id="5BlnUBOK08rs8DMLAvq6Jy">13px / 800</div><div class="demo" style="font-size:13px;font-weight:800" data-page-node-id="EAMDLhCtLoGK41NDxtXpV9">Kart başlığı</div></div>
+                <div class="ts-row" data-page-node-id="Xt8nqOUAuY9SRDxXoYqQyD"><div class="spec" data-page-node-id="nmEB8Ugycjb1kNAL2CExgg">12px / 600</div><div class="demo" style="font-size:12px;font-weight:600" data-page-node-id="ULBa2eRxESdI12WpUaYpfI">Cədvəl mətni və gövdə</div></div>
+                <div class="ts-row" data-page-node-id="7xIKqbCkPUYPJPsBt89Z8F"><div class="spec" data-page-node-id="zTSWfkHyx9GFglxb7JHQNU">11.5px / 400</div><div class="demo" style="font-size:11.5px" data-page-node-id="4gr7ZLxBruJAvbVyVFs6ad">Köməkçi mətn və təsvir</div></div>
+                <div class="ts-row" data-page-node-id="kVCTkYUDFM5m74acMv3lPG"><div class="spec" data-page-node-id="eHquJECkvZ98J5Uls5D8gd">9.5px / 800 · uppercase</div><div class="demo" style="font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#64748b" data-page-node-id="RJGRjLjpQd05CEMjTSvqfS">Etiket / eyebrow</div></div>
+              </div>
+            </div>
+
+            <div class="card pad" data-page-node-id="QQWQL0hNn22333O8hlpsXH">
+              <h3 style="margin:0 0 10px;font-size:13px;font-weight:800" data-page-node-id="1kD9YHAHqtlSUr8fJm8B5n">Tailwind Konfiqurasiyasına Əlavə</h3>
+              <pre data-page-node-id="t5Lj1NqDade2DSgMJdOSkR"><span class="c" data-page-node-id="egpBFw4MyR9fjAb60pRvkR">// tailwind.config.js — v1.1 §15-ə əlavə</span>
+boxShadow: {
+  <span class="k" data-page-node-id="CrMX7r8BRF8HBQFIvo0Ezy">xs</span>:     <span class="s" data-page-node-id="Gg3fdHHwnljxyeWDypRzEB">'0 1px 2px 0 rgb(0 0 0 / 0.05)'</span>,
+  <span class="k" data-page-node-id="btzXxI0US36GgGrKHPmA2V">subtle</span>: <span class="s" data-page-node-id="XGy2yDJgx6tIDKuCOMBeUH">'0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06)'</span>,
+  <span class="k" data-page-node-id="yoWZztLNnDArAeI36uFGX4">card</span>:   <span class="s" data-page-node-id="Bp8g5YYZ1trpsR0P3pBmhG">'0 1px 2px rgba(15,23,42,.04), 0 1px 3px rgba(15,23,42,.06)'</span>,
+  <span class="k" data-page-node-id="Cx9iK2etCHGcDEDJNUbpsx">hover</span>:  <span class="s" data-page-node-id="mTAUScWVTzSKkRRKdEyzNJ">'0 4px 12px -2px rgba(15,23,42,.10), 0 2px 6px -2px rgba(15,23,42,.06)'</span>,
+  <span class="k" data-page-node-id="2eK6bPkHZAjZNTuDXDfpgf">pop</span>:    <span class="s" data-page-node-id="kghEALpWEciJ9Emj7q4fIX">'0 24px 60px -20px rgba(15,23,42,.30), 0 8px 20px -8px rgba(15,23,42,.12)'</span>,
+},
+spacing: { <span class="k" data-page-node-id="SkHNO39Kdm9bjJzS8p30Vy">18</span>: <span class="s" data-page-node-id="zIX5pZecXqpWLryrZ3gsyM">'4.5rem'</span> },  <span class="c" data-page-node-id="8plZ1wTkPnby4bqXHJMSKc">// 72px → 68px istifadə edin</span>
+screens: { <span class="k" data-page-node-id="EfvUh0aMQLGrkYN27sFRR8">rail</span>: <span class="s" data-page-node-id="2rBChqc9ncuUR31ibNYVkd">'768px'</span>, <span class="k" data-page-node-id="Mn3lBdlH64UJALUd1Xp1SF">full</span>: <span class="s" data-page-node-id="Na0gg1n48MCpEB2kY3vwRN">'1280px'</span> }</pre>
+            </div>
+
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- ==================== comparison modal ==================== -->
+  <div class="modal" id="modal" data-page-node-id="6dgN7qp8L8Dxm7bc0kdoIg">
+    <div class="modal-bg" onclick="closeModal()" data-page-node-id="fE2XcXVBCkuffmEtbazyDg"></div>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-label="Planogram müqayisəsi" data-page-node-id="xGolMQvpysyKcceFPKYA9e">
+      <div class="modal-h" data-page-node-id="B90WuI2eLwMQBeh7v9BA3y">
+        <div style="flex:1;min-width:0" data-page-node-id="C9jMPSbvZuMssDj4lmLRVm">
+          <h3 data-page-node-id="JafncBOn1LM0ZY8fYjTwEZ">Coca-Cola 0.5L Cooler Placement Check</h3>
+          <p data-page-node-id="QuO1Dh1bkIq5MuqrlnbJHL">Bravo Supermarket — 28 Mall · BRAVO_28MAY_01 · Göndərilib 12.09.2026 19:32</p>
+        </div>
+        <span class="score sc-mid" data-page-node-id="xgH1Cz1j4A0h8nV57neyfU"><s class="num" data-page-node-id="hHaeZ4QQYvpVyjs2qGsHYO">70</s></span>
+        <span class="st warn" data-page-node-id="GSSzdMJkcUBGoByFwx4Cbe"><i class="dot d-warn" data-page-node-id="mDps5sV1nRSUM3yMnom9OD"></i>Gözləyir</span>
+        <button class="iconbtn" onclick="closeModal()" aria-label="Bağla" data-page-node-id="RoiWZpwpZAPTrEzFJS12mE">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" data-page-node-id="CfXa8dfkP8JKMeR9cbIFBr"><path d="M6 6l12 12M18 6 6 18" data-page-node-id="7rWxvMQex4SF31SyIiG2MG"/></svg>
+        </button>
+      </div>
+
+      <div class="modal-b" data-page-node-id="SOUDc7X6wJh8KSLcosIfJO">
+        <div class="cmp" data-page-node-id="mdRns2uFvDBrNK5o1KnuB5">
+          <div class="pane" data-page-node-id="yAbFQtHM4muBRBbmepQPf1">
+            <div class="pane-h" data-page-node-id="lSDgw2FscvgMov32u1wAs0"><b data-page-node-id="n60crAb7Pw7SCI18yvVZZN">Referans Planogram</b><span data-page-node-id="lDxCK5DLnyN2D3oKhYMNtt">İdeal düzülüş</span></div>
+            <div class="pane-img" data-page-node-id="IolNqvfpO6az7ufjfY2gdG">
+              <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="5h8cWYMKgCGBD47mXqBBqS"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="aqpTLVpHUQc6B6xQyUdIOX"/><path d="M3 9h18M3 15h18" data-page-node-id="srZ6NdPzjjkr5TzG8QlGNS"/></svg>
+              <div class="grid-lines" data-page-node-id="dCPFLwcNGxHgxpFEJgmLFb"></div>
+            </div>
+            <div class="check" data-page-node-id="Or7BrvjxLoznLG0fSrSdIs">
+              <div class="ci" data-page-node-id="GvQZIHDSGGnVDEAbrXf9Ns"><span class="cb y" data-page-node-id="qnP3pK8Az57pQuIyaDiOCt"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="2k7RokBtXFBEyheMT2ptKA"><path d="m5 12.5 4.5 4.5L19 7" data-page-node-id="ggoacAPasoug3ftgLGHmbF"/></svg></span><span data-page-node-id="RyIzWujgthtA9WUi25Cl4L">Coca-Cola 0.5L — yuxarı sıra, 3 facing</span></div>
+              <div class="ci" data-page-node-id="d1DjoCP9z9JdbLEYgS3VkH"><span class="cb y" data-page-node-id="4fggY3sDjmACldKc41IR18"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="pyqn49HQqPUiI3kDCNG1MT"><path d="m5 12.5 4.5 4.5L19 7" data-page-node-id="BzjHETlzLWf6GPRFcYlefO"/></svg></span><span data-page-node-id="MsUt0d8BeF6quhSUMxmtHa">Soyutma temperaturu ≤ 4°C</span></div>
+              <div class="ci" data-page-node-id="2iekocG8CAQ0pKDmU9ZYKV"><span class="cb n" data-page-node-id="UULoeiUxZizNGeAMsmAlP4"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" data-page-node-id="RD7OPlJgShVWjD8gFGMiQO"><path d="M6 6l12 12M18 6 6 18" data-page-node-id="gjrh1xVBoOYAHBtBnIvDBP"/></svg></span><span data-page-node-id="9Wjg3bAa2zulwdyG5X0CTI">Zero Sugar ayrıca blokda — gözlənilir</span></div>
+            </div>
+          </div>
+
+          <div class="pane" data-page-node-id="lHXJLh6ukWpUw9RLUZyFNi">
+            <div class="pane-h" data-page-node-id="aZBG6PxL8aIlA6hWElJh7t"><b data-page-node-id="dIR8JO0Vd7eQwqAofCyfNR">Sahə Fotosu</b><span data-page-node-id="B90VwU9An8bqpaw2N34Bfa">Eldar Mammadov · Merchandiser</span></div>
+            <div class="pane-img" data-page-node-id="yqnTeG5BIA4Ye2Un6l3lOc">
+              <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="uDtX1h4d0krx7bH53tK1RY"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="77DznSFV10IDbs5CagWvVM"/><circle cx="8.5" cy="8.5" r="1.5" data-page-node-id="wrfGyLr62so4tnTxEFqF0M"/><path d="m21 15-5-5L5 21" data-page-node-id="faeAqWMKm49EHLQ2DSh7EA"/></svg>
+              <div class="ghost" data-page-node-id="hGfzrdCsyPhAhF8MuO1idK"></div>
+              <div class="stamps" data-page-node-id="dgeEfYit6L1qmjacW5Co8D">
+                <span class="stamp" data-page-node-id="Fq1hL8G9KYhzEZ2AF5CRez">📍 40.3771°N, 49.8459°E · ±4m</span>
+                <span class="stamp" data-page-node-id="bUi2l6TdYm2ubIeVHD8j3V">🏪 BRAVO_28MAY_01 · 14m</span>
+                <span class="stamp" data-page-node-id="1BaTygtjx8Hvx8pMnl58FC">🕒 12.09.2026 19:32</span>
+              </div>
+            </div>
+            <div class="check" data-page-node-id="dt9qCDY9rfUhSRg7HOlGFl">
+              <div class="ci" data-page-node-id="LGQDfgtKKLD7Zfst7xbIK7"><span class="cb y" data-page-node-id="MPEAPJSR9SgYhQdB7teUS2"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="TRvRrJlc9DAy0ROOT4Rz6o"><path d="m5 12.5 4.5 4.5L19 7" data-page-node-id="Lv4TuB0PEl5fGk4AHCYTFP"/></svg></span><span data-page-node-id="DO1hChQHBPjdf02irWiU6u">Geofence təsdiqləndi — mağaza daxilində</span></div>
+              <div class="ci" style="background:#fff5f6;border-color:#fecdd3" data-page-node-id="2BGUwhpTxZ1JTfBx0ZTHGu"><span class="cb n" data-page-node-id="qPY5uGWnVwXm9oWRIyHIHu"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" data-page-node-id="KkJS9SspGJ8kbjkjcyGJds"><path d="M6 6l12 12M18 6 6 18" data-page-node-id="rgEFu0Aangi28d6Ibrlcnk"/></svg></span><span data-page-node-id="6foZAfX6CP7wuYfrFGALCJ">Aşağı sırada 1 facing çatışmır</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-f" data-page-node-id="6HE4TZUTA5eexCExHaLF9Y">
+        <span style="flex:1;font-size:11px;color:var(--muted)" data-page-node-id="F2VZDZc5GKdDd5Ghx8oPfM">AI təhlili: Ssenari B — kiçik uyğunsuzluq aşkarlandı</span>
+        <button class="btn btn-ghost" onclick="toast('📝 İmtina səbəbi qeydə alındı')" data-page-node-id="AO3qcf3BTC3kjHNHcQbA9E">İmtina Et</button>
+        <button class="btn btn-primary" onclick="toast('⚡ AI təhlili əsasında təsdiqləndi');closeModal()" data-page-node-id="8zRtk0ZWvs3rf3QEWKG4Gm">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="aQfmNPZXkyC0SM9qflwBVh"><path d="M13 2 4.5 13H11l-1 9 8.5-11H12l1-9Z" data-page-node-id="nWn53D1Zg0iw61f4z5Fcz5"/></svg>
+          AI ilə Təsdiq
+        </button>
+        <button class="btn btn-ok" onclick="toast('✅ Rəf auditi uğurla təsdiqləndi!');closeModal()" data-page-node-id="4LgeRg1oO8DZvt9NB5AOVe">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="EBrSttnHdRkC1SEPs7N2NQ"><path d="m5 12.5 4.5 4.5L19 7" data-page-node-id="JBD6CFdnz0GRQDZbSrK9Dk"/></svg>
+          Təsdiq Et
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" data-page-node-id="3e26rkW7Tx2t0BBkrRQGhH"></div>
+</div>
+</div>
+
+<script>
+const app = document.getElementById('app');
+const TITLES = {
+  dashboard:['İcmal & Əsas Göstəricilər','Real-vaxt rəf monitorinqi və mağaza uyğunluq statistikası'],
+  review:['Rəf Auditi & Yoxlama Mərkəzi','Sahədən göndərilən rəf fotolarının planogramla müqayisəsi və təsdiqi'],
+  tasks:['Planogram & Təlimat İdarəetməsi','Mağazalara göndərilən rəf düzülüş standartları və tapşırıqlar'],
+  stores:['Tərəfdaş Mağazalar Şəbəkəsi','Bravo, Araz, Bazarstore filialları və uyğunluq göstəriciləri'],
+  mobile:['Mobil Sahə Klienti','Merchandiser iOS tətbiqi — geofence, ağıllı kamera, oflayn növbə'],
+  system:['Dizayn Sistemi v2','Token-lər, şrift şkalası və qərar əsaslandırmaları']
+};
+
+function go(v){
+  document.querySelectorAll('.view').forEach(s => s.classList.toggle('on', s.id === 'view-' + v));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.view === v));
+  document.querySelectorAll('#seg-view button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  const t = TITLES[v]; if(t){ document.getElementById('hd-title').textContent = t[0]; document.getElementById('hd-sub').textContent = t[1]; }
+  app.classList.remove('drawer');
+  document.querySelector('.main').scrollTop = 0;
+}
+
+document.querySelectorAll('.nav-item').forEach(n => n.addEventListener('click', () => go(n.dataset.view)));
+document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => go(b.dataset.goto)));
+document.querySelectorAll('#seg-view button').forEach(b => b.addEventListener('click', () => go(b.dataset.v)));
+document.querySelectorAll('#seg-mode button').forEach(b => b.addEventListener('click', () => {
+  app.dataset.mode = b.dataset.m;
+  document.querySelectorAll('#seg-mode button').forEach(x => x.classList.toggle('on', x === b));
+  app.classList.remove('drawer');
+}));
+
+document.getElementById('hamb').addEventListener('click', () => app.classList.toggle('drawer'));
+document.getElementById('scrim').addEventListener('click', () => app.classList.remove('drawer'));
+
+function openModal(){ document.getElementById('modal').classList.add('on'); }
+function closeModal(){ document.getElementById('modal').classList.remove('on'); }
+document.addEventListener('keydown', e => { if(e.key === 'Escape'){ closeModal(); app.classList.remove('drawer'); } });
+
+let tt;
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('on');
+  clearTimeout(tt); tt = setTimeout(() => el.classList.remove('on'), 3500);
+}
+
+function tick(){
+  try{
+    document.getElementById('clock').textContent = new Date().toLocaleTimeString('az-AZ',{timeZone:'Asia/Baku',hour12:false});
+  }catch(e){ document.getElementById('clock').textContent = new Date().toTimeString().slice(0,8); }
+}
+tick(); setInterval(tick, 1000);
+</script>
+</body>
+</html>

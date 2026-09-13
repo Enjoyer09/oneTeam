@@ -1,0 +1,22 @@
+{
+  "name": "@oneteam/database",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "db:generate": "node ../../node_modules/prisma/dist/prisma.js generate",
+    "db:seed": "node ../../node_modules/tsx/dist/cli.mjs src/seed.ts"
+  },
+  "dependencies": {
+    "@oneteam/types": "*",
+    "@prisma/client": "^7.10.0"
+  },
+  "devDependencies": {
+    "prisma": "^7.10.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

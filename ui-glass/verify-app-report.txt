@@ -1,0 +1,56 @@
+
+══════════════════════════════════════════════════════════════════════════════
+  oneTeam şüşə dizayn yoxlaması — 45/45 keçdi
+══════════════════════════════════════════════════════════════════════════════
+  ✓  Şüşə qat iyerarxiyası düzgün sıradadır (chrome < panel < card < pop) chrome 0.34 < panel 0.46 < card 0.62 < pop 0.8
+  ✓  Ən nazik qat (chrome) ≤45% şəffaflıqdadır        chrome alpha = 0.34
+  ✓  Mətn daşıyan qat (card) ≥62% — kontrast zəmanəti card alpha = 0.62
+  ✓  Yan panel 252px (masaüstü)                       252.0px
+  ✓  Yan panel şüşədir (blur + şəffaf fon)            bg=rgba(251, 252, 254, 0.56) blur=saturate(1.8) blur(26px)
+  ✓  Toolbar hündürlüyü 60px                          60px
+  ✓  Toolbar şüşədir (blur işləyir)                   bg=rgba(255, 255, 255, 0.34) blur=saturate(1.8) blur(26px)
+  ✓  Fon səhnəsində 4 ləkə var                        4
+  ✓  Tema atributu qurulub                            data-theme=light
+  ✓  Şüşə kartlar mövcuddur                           6 kart
+  ✓  Kart qatı ≥62% (mətn oxunaqlığı)                 rgba(255, 255, 255, 0.62)
+  ✓  Kart radiusu 18px                                18px — <DIV> "glass-card glass-lift relative overflow-hidden rounded-card p-3.5 lg:p-4"
+  ✓  Masaüstü: üfüqi sürüşmə yoxdur                   0px
+  ✓  Naviqasiya: Rəf Auditi                           keçid işləyir
+  ✓  Naviqasiya: Planogram Tapşırıqları               keçid işləyir
+  ✓  Naviqasiya: Mağazalar Şəbəkəsi                   keçid işləyir
+  ✓  Masaüstü: cədvəl cədvəl kimi qalır               {"tableWidth":1106,"trDisplay":"table-row","theadDisplay":"table-header-group"}
+  ✓  Modal açılır                                     {"opened":true,"open":true}
+  ✓  Modal şüşədir (pop qatı + blur)                  bg=rgba(255, 255, 255, 0.8) blur=saturate(1.9) blur(44px)
+  ✓  Modal radiusu 18px                               18px
+  ✓  Modal pərdəsi bulanıqdır                         veil=blur(6px) saturate(1.2) / rgba(10, 16, 32, 0.45)
+  ✓  Modal pərdəsi bütün ekranı örtür                 pərdə 0 × 0 × 1440 × 900 / ekran 1440 × 900
+  ✓  Pərdədən kənarda kliklənən sahə yoxdur           0 sızma
+  ✓  Modal fokusu içəridə saxlayır (14 Tab)           {"inside":true,"tag":"BUTTON"}
+  ✓  Escape modalı bağlayır                           true
+  ✓  Planşet: yan panel 74px relsə düşür              74.0px
+  ✓  Planşet: mətn etiketləri gizlədilib              0 görünən
+  ✓  Planşet: üfüqi sürüşmə yoxdur                    0px
+  ✓  Telefon: çekmece gizlidir                        left=-252px
+  ✓  Telefon: hamburger düyməsi görünür               true
+  ✓  Telefon: cədvəl karta çevrilir (grid)            grid
+  ✓  Telefon: cədvəl başlığı gizlədilib               none
+  ✓  Telefon: üfüqi sürüşmə yoxdur                    0px
+  ✓  Telefon: çekmece açılır                          {"left":0,"width":252}
+  ✓  Escape çekməni bağlayır                          left=-252px
+  ✓  Tünd tema işə düşür                              data-theme=dark
+  ✓  Tünd temada mətn işıqdır                         --ink=#f2f5fa
+  ✓  Kontrast (İcmal): 103 nümunə                     ən aşağı 4.77:1 ("Real-vaxt rəf monitorinqi və mağaz")
+  ✓  Kontrast (Rəf Auditi): 56 nümunə                 ən aşağı 4.77:1 ("Sahədən göndərilən rəf fotolarının")
+  ✓  Kontrast (Planogram Tapşırıqları): 43 nümunə     ən aşağı 4.77:1 ("Mağazalara göndərilən rəf düzülüş ")
+  ✓  Kontrast (Mağazalar Şəbəkəsi): 78 nümunə         ən aşağı 4.52:1 ("4 mağaza")
+  ✓  Kontrast (tünd tema): 103 nümunə                 ən aşağı 6.27:1 ("Yeni Təlimat YaratYeni Təlimat Yar")
+  ✓  Klaviatura fokus halqası görünür                 {"ok":true,"tag":"BUTTON","outline":"rgb(244, 0, 9) solid 2px"}
+  ✓  Xarici CDN asılılığı yoxdur                      0 xarici resurs
+  ✓  Sınıq şəkil yoxdur                               5 şəkil, 0 sınıq
+══════════════════════════════════════════════════════════════════════════════
+
+  Konsol səhvləri: 0
+
+  Ekran görüntüləri: /Users/macbookair/GitHub/oneTeam/ui-glass/shots-app
+══════════════════════════════════════════════════════════════════════════════
+

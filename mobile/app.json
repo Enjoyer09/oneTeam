@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "oneTeam Field Audit",
+    "slug": "oneteam-field-audit",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "../logo.jpg",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "../logo.jpg",
+      "resizeMode": "contain",
+      "backgroundColor": "#F40009"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "az.oneteam.cocacola.fieldaudit",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Coca-Cola rəf və soyuducu planogram auditini həyata keçirmək üçün kameradan istifadə tələb olunur.",
+        "NSLocationWhenInUseUsageDescription": "Mağazada olduğunuzu təsdiqləmək və saxta auditlərin qarşısını almaq üçün GPS məkân icazəsi tələb olunur."
+      }
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Coca-Cola rəf auditləri üçün kamera icazəsi verin."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Mağaza geofencing yoxlanışı üçün GPS icazəsi verin."
+        }
+      ]
+    ]
+  }
+}

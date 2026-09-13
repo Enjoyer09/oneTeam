@@ -1,0 +1,166 @@
+# =============================================================================
+#  oneTeam — Continuous Integration
+# =============================================================================
+#
+#  WHY THIS EXISTS
+#  ---------------
+#  Before this file, nothing checked the code automatically. A developer could
+#  push a commit that did not compile, and the first person to notice would be
+#  a user. Every check below exists because a real defect of that class was
+#  found in this repository during the engineering review.
+#
+#  PRINCIPLE: the pipeline must be the *authority* on whether code is
+#  mergeable — not a reviewer's opinion, and not a developer's laptop.
+#
+#  IMPORTANT — repository layout
+#  -----------------------------
+#  This workflow only runs if the project is its own git repository with
+#  `.github/` at its root. At the time of writing, the git root sat at the
+#  user's home directory, so these files would not be picked up. See
+#  docs/ENGINEERING-STANDARDS.md §1 for the fix.
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref. Without this, a rapid series of
+# pushes queues up redundant work and the feedback loop gets slower exactly
+# when it matters most.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Keep CI deterministic and quiet.
+  CI: true
+  NODE_OPTIONS: --max-old-space-size=4096
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1 — fast failure. Runs in seconds and catches the two classes of
+  # mistake that are cheapest to fix and most embarrassing to ship: a leaked
+  # credential, and code that does not compile.
+  # ---------------------------------------------------------------------------
+  verify:
+    name: Verify (secrets, types, lint, format)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history so the secret scanner can inspect every commit, not
+          # just the tip. A credential added three commits ago is still live.
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      # --- SECURITY -----------------------------------------------------------
+      - name: Scan entire history for committed credentials
+        run: node scripts/quality/secret-scan.mjs --all
+
+      # --- CORRECTNESS --------------------------------------------------------
+      - name: Type check
+        run: npm run type-check
+
+      - name: Lint
+        run: npm run lint
+
+      # -----------------------------------------------------------------------
+      # Formatting — ADVISORY FOR NOW, ON PURPOSE.
+      #
+      # 59 of the 69 first-party files predate any formatter, so a blocking
+      # check here would be red on the very first run and would be disabled
+      # within a day. Worse, the one-time reformat touches almost every file,
+      # and the project is not yet under version control — so that change could
+      # neither be reviewed nor reverted.
+      #
+      # TO MAKE THIS BLOCKING (do it as a standalone commit, immediately after
+      # `git init`, before any other work):
+      #
+      #     npm run format
+      #     git commit -m "chore: apply Prettier across the codebase"
+      #
+      # then delete `continue-on-error: true` below.
+      # -----------------------------------------------------------------------
+      - name: Check formatting
+        continue-on-error: true
+        run: npm run format:check
+
+  # ---------------------------------------------------------------------------
+  # Job 2 — the test suite. Runs after `verify` so that a broken build does not
+  # waste minutes running tests.
+  # ---------------------------------------------------------------------------
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: verify
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run test suite
+        run: npm run test:all
+
+  # ---------------------------------------------------------------------------
+  # Job 3 — prove the artefact actually builds. A green type check does not
+  # guarantee a working bundle; bundler and CSS pipeline failures only appear
+  # here.
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: verify
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build web portal
+        run: npm run web:build
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+          retention-days: 7
+          if-no-files-found: error

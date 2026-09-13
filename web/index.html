@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="az">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/jpeg" href="/logo.jpg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#e9edf4" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0a0c11" media="(prefers-color-scheme: dark)" />
+    <title>oneTeam — Coca-Cola Rəf Monitorinq Portalı</title>
+
+    <!-- Tema seçimi səhifə çəkilməzdən ƏVVƏL tətbiq olunur ki, ağ "flaş" olmasın.
+         Şrift artıq sistem şriftidir (SF Pro / Segoe UI) — xarici CDN asılılığı yoxdur. -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('oneteam-theme');
+          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var theme = saved || (prefersDark ? 'dark' : 'light');
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

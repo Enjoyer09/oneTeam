@@ -1,0 +1,109 @@
+import 'reflect-metadata';
+import { NestFactory } from '@nestjs/core';
+import { Logger } from '@nestjs/common';
+import { AppModule } from './app.module';
+
+/**
+ * Origins allowed to call this API from a browser.
+ *
+ * WHY THIS IS NOT `origin: '*'`
+ * -----------------------------
+ * The API previously allowed every origin. Combined with a bearer-token
+ * authorisation scheme, that means any web page a signed-in user visits can
+ * make authenticated calls to this API on their behalf and read the responses.
+ * The token does not have to leak for that to happen.
+ *
+ * FAIL-CLOSED IN PRODUCTION
+ * -------------------------
+ * If `CORS_ALLOWED_ORIGINS` is unset in production, no cross-origin request is
+ * allowed and the reason is logged loudly. An allow-list that silently degrades
+ * to "allow everything" when misconfigured is not an allow-list.
+ *
+ * Configure it as a comma-separated list, for example:
+ *
+ *     CORS_ALLOWED_ORIGINS=https://portal.oneteam.az,https://admin.oneteam.az
+ */
+function resolveAllowedOrigins(logger: Logger): string[] {
+  const raw = process.env.CORS_ALLOWED_ORIGINS;
+
+  if (raw && raw.trim()) {
+    const origins = raw
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean);
+
+    if (origins.includes('*')) {
+      logger.error(
+        '⛔ CORS_ALLOWED_ORIGINS contains "*". Refusing to run with a wildcard — ' +
+          'list the exact origins instead.',
+      );
+      return [];
+    }
+    return origins;
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    logger.error(
+      '⛔ CORS_ALLOWED_ORIGINS is not set. No cross-origin request will be allowed. ' +
+        'Set it to a comma-separated list of the exact origins that may call this API.',
+    );
+    return [];
+  }
+
+  // Development convenience only. Never reachable when NODE_ENV=production.
+  logger.warn(
+    '⚠️  CORS_ALLOWED_ORIGINS is not set — falling back to local development origins. ' +
+      'This fallback does not apply in production.',
+  );
+  return ['http://localhost:5173', 'http://127.0.0.1:5173'];
+}
+
+async function bootstrap() {
+  const logger = new Logger('oneTeam-API');
+  const app = await NestFactory.create(AppModule);
+
+  const allowedOrigins = resolveAllowedOrigins(logger);
+
+  app.enableCors({
+    // A function rather than an array: NestJS treats a returned `false` as
+    // "no CORS headers", which is what a rejected origin should get.
+    //
+    // Parameters are annotated explicitly rather than inferred. NestJS's CORS
+    // callback types come from `@types/express`, and relying on that inference
+    // makes this file fail to compile whenever those types are unavailable —
+    // an avoidable coupling between an unrelated dependency and the API's
+    // security configuration.
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      // No Origin header: a same-origin request, curl, or a server-to-server
+      // call. CORS does not apply, so it is not our concern to block.
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      logger.warn(`⛔ CORS: rejected request from disallowed origin ${origin}`);
+      return callback(null, false);
+    },
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    allowedHeaders: 'Content-Type,Authorization,X-Telegram-Bot-Api-Secret-Token',
+    maxAge: 600,
+  });
+
+  // `PORT` first, deliberately.
+  //
+  // Hosting platforms assign the port the container must listen on through
+  // `PORT` and route traffic only to that port. Docker Compose, by contrast,
+  // uses `API_PORT` in this project. Reading PORT first means the same image
+  // runs unmodified on a platform, while the compose file keeps working.
+  const port = process.env.PORT || process.env.API_PORT || 3001;
+  await app.listen(port);
+  logger.log(`🚀 oneTeam Retail Execution Core API is running on http://localhost:${port}`);
+  logger.log(
+    allowedOrigins.length
+      ? `🌐 CORS allow-list: ${allowedOrigins.join(', ')}`
+      : '🌐 CORS allow-list is empty — no browser origin may call this API.',
+  );
+}
+
+if (require.main === module) {
+  bootstrap();
+}
+
+export { bootstrap };

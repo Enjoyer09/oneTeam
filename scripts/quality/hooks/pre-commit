@@ -1,0 +1,88 @@
+#!/bin/sh
+# =============================================================================
+#  oneTeam — pre-commit hook
+# =============================================================================
+#
+#  WHAT IT BLOCKS
+#  --------------
+#  1. Committing a credential (the defect class that put an SSH private key
+#     into this repository's history).
+#  2. Committing to a broken build — a type error or a failing test.
+#
+#  WHY A HOOK AND NOT JUST CI
+#  --------------------------
+#  CI catches problems after they are pushed. A secret pushed to a remote is
+#  already compromised even if CI then goes red. The hook is the only gate that
+#  runs *before* the value leaves the machine.
+#
+#  INSTALL
+#  -------
+#     mkdir -p .git/hooks
+#     cp scripts/quality/hooks/pre-commit .git/hooks/pre-commit
+#     chmod +x .git/hooks/pre-commit
+#
+#  Or, to apply it to every repository on this machine at once:
+#     git config --global core.hooksPath ~/.git-hooks
+#
+#  BYPASS (use sparingly, and say why in the commit message)
+#  --------------------------------------------------------
+#     git commit --no-verify
+# =============================================================================
+
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# ---------------------------------------------------------------------------
+# 1. Credentials — the highest-severity check, so it runs first and fast.
+# ---------------------------------------------------------------------------
+echo "▶ scanning staged files for credentials…"
+if ! node scripts/quality/secret-scan.mjs; then
+  cat <<'EOF'
+
+  ────────────────────────────────────────────────────────────────────────
+  COMMIT BLOCKED — a credential was detected in the staged changes.
+
+  Do not use --no-verify to get past this. Do not "just this once" it.
+  A credential that reaches the remote is compromised permanently, even if
+  you delete it in the next commit.
+
+  Remove the value, read it from an environment variable instead, and if it
+  was ever committed, rotate it at the provider.
+  ────────────────────────────────────────────────────────────────────────
+EOF
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# 2. Type safety — only when TypeScript files are staged.
+# ---------------------------------------------------------------------------
+if git diff --cached --name-only --diff-filter=ACMR | grep -qE '\.(ts|tsx)$'; then
+  echo "▶ type-checking…"
+  if ! npx tsc --noEmit; then
+    echo ""
+    echo "  ──────────────────────────────────────────────────────────────"
+    echo "  COMMIT BLOCKED — TypeScript reports errors."
+    echo ""
+    echo "  Fix the types. Do not reach for 'any' or '@ts-ignore' to get"
+    echo "  past this: that converts a compile-time error into a runtime"
+    echo "  incident."
+    echo "  ──────────────────────────────────────────────────────────────"
+    exit 1
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# 3. Tests — skipped by default because the full suite takes a while.
+#    Set ONETEAM_HOOK_TESTS=1 to enable, or leave it to CI.
+# ---------------------------------------------------------------------------
+if [ "$ONETEAM_HOOK_TESTS" = "1" ]; then
+  echo "▶ running tests…"
+  if ! npm run test:all; then
+    echo "  COMMIT BLOCKED — tests are failing."
+    exit 1
+  fi
+fi
+
+echo "✓ pre-commit checks passed"

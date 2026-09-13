@@ -1,0 +1,68 @@
+# ==============================================================================
+# Docker build context exclusions (root context: apps/api and the bot worker)
+# ==============================================================================
+#
+# WHY THIS FILE EXISTS
+#
+# Without it, `docker build .` uploaded a 2.6 GB build context on every single
+# build: node_modules (1.2 GB), .venv (1.2 GB) and web/node_modules (145 MB).
+# A hosted builder spends minutes receiving files before it compiles anything,
+# and Railway's build step times out long before that finishes.
+#
+# The second, quieter problem was worse. `COPY . ./` in Dockerfile.bot and in
+# web/Dockerfile copied the host's macOS node_modules *over* the Linux ones
+# already installed inside the image. Native binaries compiled for darwin do
+# not run on alpine, so the container died in ways that looked like application
+# bugs rather than packaging mistakes.
+#
+# Dependencies are installed inside the image. They are never copied from here.
+
+node_modules
+**/node_modules
+.pnpm-store
+.venv
+venv
+
+# Secrets must never reach an image layer, even a private one. The platform
+# injects these at runtime; the example files are kept so the list of required
+# variables stays discoverable.
+.env
+.env.*
+!.env.example
+!.env.production.example
+*.pem
+*.key
+
+# Build output is produced inside the image, never shipped into it.
+dist
+**/dist
+*.tsbuildinfo
+
+# Not referenced by either image built from this context.
+web
+mobile
+apps/web
+ui-audit
+ui-design
+docs
+.github
+
+# Model weights and media.
+*.pt
+*.onnx
+*.jpg
+*.jpeg
+*.png
+*.mp4
+
+# Local tooling, editor state and OS noise.
+.git
+.gitignore
+.DS_Store
+.workbuddy-ai
+.claude
+.gemini
+.codex
+.yolo_config
+*.bak
+*.log

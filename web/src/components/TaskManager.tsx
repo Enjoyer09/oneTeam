@@ -1,0 +1,747 @@
+import React, { useState } from 'react';
+import { ModalPortal } from './ui/ModalPortal';
+import {
+  PlusCircle,
+  Calendar,
+  CheckSquare,
+  Square,
+  X,
+  Store as StoreIcon,
+  Send,
+  Filter,
+  Check,
+  Layers,
+  Sparkles,
+  Camera,
+} from 'lucide-react';
+import { Task, Store, TaskPriority } from '../types';
+import { useModalA11y } from '../lib/useModalA11y';
+
+interface TaskManagerProps {
+  tasks: Task[];
+  stores: Store[];
+  isCreateModalOpen: boolean;
+  setIsCreateModalOpen: (open: boolean) => void;
+  onCreateTask: (taskData: {
+    title: string;
+    description: string;
+    reference_image_url: string;
+    priority: TaskPriority;
+    deadline: string;
+    assigned_stores: string[];
+    requires_before_after_photo?: boolean;
+    checklist_schema?: any[];
+  }) => Promise<void>;
+  onBulkDispatch?: (data: {
+    title: string;
+    description: string;
+    reference_image_url: string;
+    priority: TaskPriority;
+    deadline: string;
+    chainName: string;
+    storeFormat: string;
+    regionId: string;
+    requires_before_after_photo?: boolean;
+    checklist_schema?: any[];
+  }) => Promise<void>;
+}
+
+export const TaskManager: React.FC<TaskManagerProps> = ({
+  tasks,
+  stores,
+  isCreateModalOpen,
+  setIsCreateModalOpen,
+  onCreateTask,
+  onBulkDispatch,
+}) => {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [referenceImageUrl, setReferenceImageUrl] = useState(
+    'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=800&q=80'
+  );
+  const [priority, setPriority] = useState<TaskPriority>('medium');
+  const [deadline, setDeadline] = useState(
+    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  );
+  const [selectedStores, setSelectedStores] = useState<string[]>(['all']);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+
+  /* İki modal da eyni əlçatanlıq davranışını paylaşır */
+  const bulkModalRef = useModalA11y<HTMLDivElement>(isBulkModalOpen, () =>
+    setIsBulkModalOpen(false)
+  );
+  const createModalRef = useModalA11y<HTMLDivElement>(isCreateModalOpen, () =>
+    setIsCreateModalOpen(false)
+  );
+  const [bulkChain, setBulkChain] = useState<string>('all');
+  const [bulkFormat, setBulkFormat] = useState<string>('all');
+  const [bulkRegion, setBulkRegion] = useState<string>('all');
+  const [bulkTemplate, setBulkTemplate] = useState<string>('tmpl-cooler-check');
+  const [bulkPriority, setBulkPriority] = useState<TaskPriority>('high');
+  const [bulkDeadline, setBulkDeadline] = useState(
+    new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  );
+  const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
+
+  // Compute matched stores in real time based on active filters
+  const matchedStores = stores.filter((s) => {
+    if (!s.is_active) return false;
+    if (bulkChain !== 'all' && s.chain_name?.toLowerCase() !== bulkChain.toLowerCase()) {
+      return false;
+    }
+    if (bulkFormat !== 'all' && s.store_format?.toLowerCase() !== bulkFormat.toLowerCase()) {
+      return false;
+    }
+    if (bulkRegion !== 'all' && s.region_id && s.region_id !== bulkRegion) {
+      return false;
+    }
+    return true;
+  });
+
+  const handleBulkSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (matchedStores.length === 0) {
+      alert('Seçilmiş filtrlərə uyğun aktiv mağaza yoxdur.');
+      return;
+    }
+
+    try {
+      setIsBulkSubmitting(true);
+      const isCooler = bulkTemplate === 'tmpl-cooler-check';
+      const taskData = {
+        title: isCooler
+          ? 'Cooler Check (0.5L Ön Vitrin Soyuducusu Auditi)'
+          : 'Eye-Level Placement (Göz Səviyyəsi Rəf Düzülüşü)',
+        description: isCooler
+          ? 'Təlimat: 1. Coca-Cola Classic, Zero Sugar, Sprite və Fanta 0.5L məhsulları mütləq ön vitrin soyuducusunda yerləşdirilməlidir.\n2. Minimum 3 facing təmin edilməlidir.\n3. Soyuducu temperaturu <= 4°C olmalıdır.\n4. Before və After foto çəkilməlidir.'
+          : 'Təlimat: 1L və 1.5L PET şüşələrin alıcının göz səviyyəsində fasiləsiz düzülüşü. Boşluqlar dərhal depodan doldurulmalıdır.',
+        reference_image_url: isCooler
+          ? 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=800&q=80'
+          : 'https://images.unsplash.com/photo-1554866585-cd94860890b7?auto=format&fit=crop&w=800&q=80',
+        priority: bulkPriority,
+        deadline: new Date(bulkDeadline).toISOString(),
+        chainName: bulkChain,
+        storeFormat: bulkFormat,
+        regionId: bulkRegion,
+        requires_before_after_photo: isCooler,
+        assigned_stores: matchedStores.map((s) => s.id),
+      };
+
+      if (onBulkDispatch) {
+        await onBulkDispatch(taskData);
+      } else {
+        await onCreateTask(taskData);
+      }
+
+      setIsBulkModalOpen(false);
+    } finally {
+      setIsBulkSubmitting(false);
+    }
+  };
+
+  const toggleStore = (storeId: string) => {
+    if (storeId === 'all') {
+      setSelectedStores(['all']);
+      return;
+    }
+
+    let updated = selectedStores.filter((id) => id !== 'all');
+    if (updated.includes(storeId)) {
+      updated = updated.filter((id) => id !== storeId);
+      if (updated.length === 0) updated = ['all'];
+    } else {
+      updated.push(storeId);
+    }
+    setSelectedStores(updated);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !description.trim()) {
+      alert('Zəhmət olmasa başlıq və təlimat mətnini doldurun.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const storeIds =
+        selectedStores.includes('all')
+          ? stores.map((s) => s.id)
+          : selectedStores;
+
+      await onCreateTask({
+        title: title.trim(),
+        description: description.trim(),
+        reference_image_url: referenceImageUrl,
+        priority,
+        deadline: new Date(deadline).toISOString(),
+        assigned_stores: storeIds,
+      });
+
+      // Reset form
+      setTitle('');
+      setDescription('');
+      setIsCreateModalOpen(false);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const getPriorityBadge = (p: TaskPriority) => {
+    switch (p) {
+      case 'urgent':
+        return <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800">🔴 Təcili</span>;
+      case 'high':
+        return <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-orange-100 text-orange-800">🟠 Yüksək</span>;
+      case 'medium':
+        return <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">🟡 Orta</span>;
+      case 'low':
+        return <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">🟢 Aşağı</span>;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Top Bar */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[var(--g-card)] p-4 sm:p-5 rounded-xl border border-hair shadow-subtle">
+        <div>
+          <div className="flex items-center gap-2">
+            <h3 className="font-bold text-sm sm:text-base text-ink">Mövcud Planogram Tapşırıqları</h3>
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-red-100 text-coke-700 border border-red-200">
+              FMCG Retail Engine
+            </span>
+          </div>
+          <p className="text-xs text-muted mt-0.5">
+            Supervayzerlər tərəfindən mağaza vitrinləri üçün tərtib edilmiş rəf qaydaları və kütləvi paylama
+          </p>
+        </div>
+        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+          <button
+            onClick={() => setIsBulkModalOpen(true)}
+            className="flex-1 sm:flex-initial flex items-center justify-center space-x-1.5 btn-strong text-white px-3.5 py-2.5 rounded-xl text-xs font-extrabold shadow-sm transition-all cursor-pointer whitespace-nowrap"
+          >
+            <Send className="w-3.5 h-3.5 text-coke-400" />
+            <span>Kütləvi Təlimat Göndər</span>
+          </button>
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="flex-1 sm:flex-initial flex items-center justify-center space-x-1.5 btn-coke text-white px-3.5 py-2.5 rounded-xl text-xs font-extrabold shadow-sm shadow-coke-500/20 transition-all cursor-pointer whitespace-nowrap"
+          >
+            <PlusCircle className="w-3.5 h-3.5" />
+            <span>Yeni Təlimat Yarat</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Task Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {tasks.map((task) => {
+          const deadlineStr = new Date(task.deadline).toLocaleDateString('az-AZ', {
+            timeZone: 'Asia/Baku',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+          });
+
+          return (
+            <div
+              key={task.id}
+              className="glass-card rounded-card overflow-hidden flex flex-col justify-between hover:shadow-md transition-all"
+            >
+              <div>
+                {/* Planogram Image Preview */}
+                <div className="relative aspect-[16/9] bg-[var(--g-panel)] overflow-hidden border-b border-hair-2">
+                  <img
+                    src={task.reference_image_url || '/logo.jpg'}
+                    alt={task.title}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute top-2.5 right-2.5">{getPriorityBadge(task.priority)}</div>
+                  <div className="absolute bottom-2.5 left-2.5 bg-slate-950/75 backdrop-blur-sm text-white px-2.5 py-1 rounded-md text-[10px] font-semibold flex items-center gap-1">
+                    <Calendar className="w-3 h-3 text-muted" />
+                    Son tarix: {deadlineStr}
+                  </div>
+                </div>
+
+                <div className="p-4 space-y-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {task.requires_before_after_photo && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        <Camera className="w-3 h-3 text-indigo-500" />
+                        Before & After Tələbi
+                      </span>
+                    )}
+                    {task.checklist_schema && task.checklist_schema.length > 0 && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
+                        <CheckSquare className="w-3 h-3 text-blue-500" />
+                        {task.checklist_schema.length} Çeklist Sualı
+                      </span>
+                    )}
+                  </div>
+                  <h4 className="font-bold text-xs sm:text-sm text-ink leading-snug">{task.title}</h4>
+                  <p className="text-xs text-ink-2 line-clamp-3 leading-relaxed">
+                    {task.description}
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 pt-0 border-t border-hair-2 mt-2 flex items-center justify-between text-xs text-muted">
+                <span className="flex items-center gap-1 font-medium text-[11px]">
+                  <StoreIcon className="w-3.5 h-3.5 text-muted" />
+                  {task.assigned_stores?.length || 'Bütün'} Mağaza Təhkim edilib
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-emerald-50 text-emerald-700">
+                  Aktiv
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ====================================================================== */}
+      {/* BULK TASK DISPATCH MODAL (STORE SEGMENTATION ENGINE) */}
+      {/* ====================================================================== */}
+      {isBulkModalOpen && (
+        <ModalPortal>
+        <div className="fixed inset-0 z-50 modal-veil flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div
+            ref={bulkModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Kütləvi planogram təlimatı göndər"
+            className="glass-pop w-full max-w-2xl rounded-card overflow-hidden my-auto"
+          >
+            {/* Modal Header */}
+            <div className="p-5 border-b border-hair flex items-center justify-between bg-[var(--g-panel)]">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-coke-500 flex items-center justify-center text-white shadow-md shadow-[0_3px_10px_-3px_var(--coke-ring)]">
+                  <Send className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-ink flex items-center gap-2">
+                    Kütləvi Planogram Təlimatı Göndər
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-coke-600 text-white font-bold">
+                      Bulk Dispatcher
+                    </span>
+                  </h3>
+                  <p className="text-xs text-muted">
+                    Mağaza şəbəkəsi və formatı üzrə seqmentasiya ilə avtomatlaşdırılmış paylama
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsBulkModalOpen(false)}
+                aria-label="Pəncərəni bağla"
+                className="w-8 h-8 rounded-full bg-[var(--g-panel)] hover:bg-[var(--g-card)] text-ink-2 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleBulkSubmit} className="p-6 space-y-5">
+              {/* SECTION 1: Store Segmentation Filters */}
+              <div className="p-4 bg-[var(--g-panel)] rounded-xl border border-hair space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold text-ink flex items-center gap-1.5 uppercase tracking-wider">
+                    <Filter className="w-3.5 h-3.5 text-coke-500" />
+                    1. Hədəf Mağaza Seqmentasiyası
+                  </span>
+                  <span className="text-[11px] font-bold text-muted">
+                    FMCG Şəbəkə Qaydaları
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Chain Filter */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-ink-2 mb-1">
+                      Şəbəkə (Chain):
+                    </label>
+                    <select
+                      value={bulkChain}
+                      onChange={(e) => setBulkChain(e.target.value)}
+                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs bg-[var(--g-card)] text-ink font-semibold focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
+                    >
+                      <option value="all">Bütün Şəbəkələr (All)</option>
+                      <option value="Bravo">Bravo</option>
+                      <option value="Araz">Araz Superstore</option>
+                      <option value="Bazarstore">Bazarstore Gourmet</option>
+                    </select>
+                  </div>
+
+                  {/* Format Filter */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-ink-2 mb-1">
+                      Format (Store Format):
+                    </label>
+                    <select
+                      value={bulkFormat}
+                      onChange={(e) => setBulkFormat(e.target.value)}
+                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs bg-[var(--g-card)] text-ink font-semibold focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
+                    >
+                      <option value="all">Bütün Formatlar</option>
+                      <option value="hypermarket">Hypermarket</option>
+                      <option value="supermarket">Supermarket</option>
+                    </select>
+                  </div>
+
+                  {/* Region Filter */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-ink-2 mb-1">
+                      Region / Şəhər:
+                    </label>
+                    <select
+                      value={bulkRegion}
+                      onChange={(e) => setBulkRegion(e.target.value)}
+                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs bg-[var(--g-card)] text-ink font-semibold focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
+                    >
+                      <option value="all">Bütün Regionlar</option>
+                      <option value="reg-baku-central">Bakı Şəhəri və Ətraf</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Live Real-time Target Store Counter Badge */}
+                <div className="pt-2 border-t border-hair flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                      🎯 Hədəf: {matchedStores.length} mağaza seçildi
+                    </span>
+                    <span className="text-[11px] text-muted font-medium">
+                      (Aktiv filtrlərə uyğun)
+                    </span>
+                  </div>
+
+                  {/* Matched Stores Chips */}
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {matchedStores.map((s) => (
+                      <span
+                        key={s.id}
+                        className="px-2 py-0.5 rounded text-[10px] font-bold bg-[var(--g-card)] text-ink-2 border border-hair"
+                      >
+                        {s.name.split(' - ')[0]} ({s.store_code})
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: Template Selection */}
+              <div>
+                <label className="block text-xs font-bold text-ink mb-1.5 uppercase tracking-wider">
+                  2. Təlimat Şablonu Seçin:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Preset 1: Cooler Check */}
+                  <div
+                    onClick={() => setBulkTemplate('tmpl-cooler-check')}
+                    className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+                      bulkTemplate === 'tmpl-cooler-check'
+                        ? 'border-coke-500 bg-coke-50/40'
+                        : 'border-hair hover:border-hair bg-[var(--g-card)]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-bold text-ink">
+                        Cooler Check (0.5L Ön Vitrin)
+                      </span>
+                      {bulkTemplate === 'tmpl-cooler-check' && (
+                        <span className="w-4 h-4 rounded-full bg-coke-600 text-white flex items-center justify-center text-[10px] font-bold">
+                          ✓
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-ink-2 line-clamp-2">
+                      0.5L PET şüşələrin soyuducuda front-facing düzülüşü, temperatur yoxlanışı və Before/After fotoları.
+                    </p>
+                    <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-indigo-100 text-indigo-800">
+                        📸 Before & After Tələbi
+                      </span>
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-100 text-blue-800">
+                        📋 3 Çeklist Sualı (&lt;=4°C, POSM)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Preset 2: Eye Level */}
+                  <div
+                    onClick={() => setBulkTemplate('tmpl-eye-level')}
+                    className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+                      bulkTemplate === 'tmpl-eye-level'
+                        ? 'border-coke-500 bg-coke-50/40'
+                        : 'border-hair hover:border-hair bg-[var(--g-card)]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-bold text-ink">
+                        Eye-Level Placement (Rəf Auditi)
+                      </span>
+                      {bulkTemplate === 'tmpl-eye-level' && (
+                        <span className="w-4 h-4 rounded-full bg-coke-600 text-white flex items-center justify-center text-[10px] font-bold">
+                          ✓
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-ink-2 line-clamp-2">
+                      1L və 1.5L PET şüşələrin göz səviyyəsində fasiləsiz düzülüşü və sarı promo qiymət kağızlarının yoxlanması.
+                    </p>
+                    <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-800">
+                        ⚡ Standart Rəf Auditi
+                      </span>
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-100 text-blue-800">
+                        📋 1 Çeklist Sualı
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 3: Priority & Deadline */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-ink-2 mb-1">
+                    Prioritet (Priority):
+                  </label>
+                  <select
+                    value={bulkPriority}
+                    onChange={(e) => setBulkPriority(e.target.value as TaskPriority)}
+                    className="w-full px-3 py-2 border border-hair rounded-lg text-xs bg-[var(--g-card)] text-ink focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45 font-semibold"
+                  >
+                    <option value="urgent">🔴 Təcili (Urgent)</option>
+                    <option value="high">🟠 Yüksək (High)</option>
+                    <option value="medium">🟡 Orta (Medium)</option>
+                    <option value="low">🟢 Aşağı (Low)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-ink-2 mb-1">
+                    Yekunlaşma üçün Son Tarix (Deadline):
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={bulkDeadline}
+                    onChange={(e) => setBulkDeadline(e.target.value)}
+                    className="w-full px-3 py-2 border border-hair rounded-lg text-xs bg-[var(--g-card)] text-ink focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45 font-semibold"
+                  />
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="pt-4 border-t border-hair flex items-center justify-between">
+                <div className="text-[11px] text-muted">
+                  Təlimat avtomatik olaraq <span className="font-bold text-ink">Telegram Bot</span> və <span className="font-bold text-ink">Mobil Tətbiqə</span> bildiriş göndərəcək.
+                </div>
+
+                <div className="flex items-center space-x-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsBulkModalOpen(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-ink-2 hover:bg-[var(--g-panel)] cursor-pointer"
+                  >
+                    Ləğv Et
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isBulkSubmitting || matchedStores.length === 0}
+                    className="px-5 py-2.5 rounded-xl btn-strong text-white text-xs font-extrabold shadow-md flex items-center space-x-2 cursor-pointer transition-all disabled:opacity-50"
+                  >
+                    <Send className="w-3.5 h-3.5 text-coke-400" />
+                    <span>
+                      {isBulkSubmitting
+                        ? 'Göndərilir...'
+                        : `Kütləvi Göndər (${matchedStores.length} Mağaza)`}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+        </ModalPortal>
+      )}
+
+      {/* ====================================================================== */}
+      {/* CREATE NEW TASK MODAL */}
+      {/* ====================================================================== */}
+      {isCreateModalOpen && (
+        <ModalPortal>
+        <div className="fixed inset-0 z-50 modal-veil flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div
+            ref={createModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Yeni planogram təlimatı yarat"
+            className="glass-pop w-full max-w-xl rounded-card overflow-hidden my-auto"
+          >
+            {/* Modal Header */}
+            <div className="p-5 border-b border-hair flex items-center justify-between bg-[var(--g-panel)]">
+              <div>
+                <h3 className="font-extrabold text-sm sm:text-base text-ink">
+                  Yeni Planogram Təlimatı Yarat
+                </h3>
+                <p className="text-xs text-muted">
+                  Mağazalara və sahə merchandiser-lərinə göndəriləcək yeni rəf auditi
+                </p>
+              </div>
+              <button
+                onClick={() => setIsCreateModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-[var(--g-panel)] hover:bg-[var(--g-card)] text-ink-2 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="p-5 space-y-3.5">
+              {/* Title */}
+              <div>
+                <label className="block text-xs font-bold text-ink-2 mb-1">
+                  Tapşırığın Başlığı *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Məs: Coca-Cola Zero Sugar Promo Stand Check"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45 bg-[var(--g-card)]"
+                />
+              </div>
+
+              {/* Instructions */}
+              <div>
+                <label className="block text-xs font-bold text-ink-2 mb-1">
+                  Düzülüş Təlimatı və Facing Qaydaları *
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="Məs: Bütün Coca-Cola 0.5L şüşələri soyuducunun 1-ci rəfində tələb olunan sayda..."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45 bg-[var(--g-card)]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-ink-2 mb-1">
+                    Prioritet
+                  </label>
+                  <select
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value as TaskPriority)}
+                    className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
+                  >
+                    <option value="low">🟢 Aşağı (Low)</option>
+                    <option value="medium">🟡 Orta (Medium)</option>
+                    <option value="high">🟠 Yüksək (High)</option>
+                    <option value="urgent">🔴 Təcili (Urgent)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-ink-2 mb-1">
+                    Yoxlama üçün Son Tarix *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={deadline}
+                    onChange={(e) => setDeadline(e.target.value)}
+                    className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
+                  />
+                </div>
+              </div>
+
+              {/* Planogram Reference Photo URL */}
+              <div>
+                <label className="block text-xs font-bold text-ink-2 mb-1">
+                  Planogram Nümunə Fotosunun URL-i
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://.../planogram.jpg"
+                  value={referenceImageUrl}
+                  onChange={(e) => setReferenceImageUrl(e.target.value)}
+                  className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
+                />
+                <p className="text-[10px] text-muted mt-1">
+                  Supabase Storage və ya birbaşa CDN linki daxil edə bilərsiniz.
+                </p>
+              </div>
+
+              {/* Store Assignment (Multi-select) */}
+              <div>
+                <label className="block text-xs font-bold text-ink-2 mb-1.5">
+                  Təhkim Olunacaq Mağazalar:
+                </label>
+                <div className="grid grid-cols-2 gap-1.5 max-h-32 overflow-y-auto p-2.5 border border-hair rounded-lg bg-[var(--g-panel)]">
+                  <div
+                    onClick={() => toggleStore('all')}
+                    className="flex items-center space-x-1.5 cursor-pointer p-1 rounded hover:bg-[var(--g-card)] text-xs font-bold text-ink"
+                  >
+                    {selectedStores.includes('all') ? (
+                      <CheckSquare className="w-3.5 h-3.5 text-coke-500" />
+                    ) : (
+                      <Square className="w-3.5 h-3.5 text-muted" />
+                    )}
+                    <span>Bütün Mağazalar (Şəbəkə Üzrə)</span>
+                  </div>
+
+                  {stores.map((store) => {
+                    const isChecked =
+                      selectedStores.includes('all') ||
+                      selectedStores.includes(store.id);
+                    return (
+                      <div
+                        key={store.id}
+                        onClick={() => toggleStore(store.id)}
+                        className="flex items-center space-x-1.5 cursor-pointer p-1 rounded hover:bg-[var(--g-card)] text-xs text-ink-2"
+                      >
+                        {isChecked ? (
+                          <CheckSquare className="w-3.5 h-3.5 text-coke-500" />
+                        ) : (
+                          <Square className="w-3.5 h-3.5 text-muted" />
+                        )}
+                        <span className="truncate">{store.name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Modal Submit Actions */}
+              <div className="pt-3 border-t border-hair flex items-center justify-end space-x-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-ink-2 hover:bg-[var(--g-panel)] cursor-pointer"
+                >
+                  Ləğv Et
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-5 py-1.5 rounded-lg btn-coke text-white text-xs font-bold transition-all cursor-pointer"
+                >
+                  {isSubmitting ? 'Saxlanılır...' : 'Təlimatı Dərc Et'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+        </ModalPortal>
+      )}
+    </div>
+  );
+};
