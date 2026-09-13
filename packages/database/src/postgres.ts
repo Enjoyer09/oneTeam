@@ -353,6 +353,85 @@ export async function updateStoreTaskRow(pool: Pool, task: InMemoryStoreTask): P
   );
 }
 
+/**
+ * Inserts a task template created from the web panel.
+ *
+ * The panel authors a briefing (title, description, reference image, priority)
+ * and expects it to be dispatched immediately, but the API's bulk dispatch takes
+ * an existing `templateId`. Creating the template first and dispatching from it
+ * keeps the domain model intact — a store task always points at a template —
+ * instead of letting the panel write store_tasks directly.
+ *
+ * `campaign_id` is nullable in the schema, so a template authored outside a
+ * campaign is valid rather than an error.
+ */
+export async function insertTemplate(
+  pool: Pool,
+  template: {
+    id: string;
+    campaignId?: string | null;
+    title: string;
+    description: string;
+    referenceImageUrl: string;
+    priority: string;
+    planogramRules?: unknown[];
+    requiresBeforeAfterPhoto?: boolean;
+    checklistSchema?: unknown[];
+    createdAt?: Date;
+    updatedAt?: Date;
+  }
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO task_templates
+       (id, campaign_id, title, description, reference_image_url, priority,
+        planogram_rules, requires_before_after_photo, checklist_schema,
+        created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+     ON CONFLICT (id) DO NOTHING`,
+    [
+      template.id,
+      template.campaignId ?? null,
+      template.title,
+      template.description,
+      template.referenceImageUrl,
+      template.priority,
+      JSON.stringify(template.planogramRules ?? []),
+      template.requiresBeforeAfterPhoto ?? false,
+      JSON.stringify(template.checklistSchema ?? []),
+      template.createdAt ?? new Date(),
+      template.updatedAt ?? new Date(),
+    ]
+  );
+}
+
+/**
+ * Persists a reviewer's decision on an evidence record.
+ *
+ * Only the review columns are touched. The GPS coordinates, photo URL and
+ * checklist answers are the field worker's original submission and must not be
+ * rewritten by a reviewer — an audit trail that can be edited by the person
+ * auditing it is not an audit trail.
+ */
+export async function updateEvidenceRow(pool: Pool, evidence: InMemoryEvidence): Promise<void> {
+  await pool.query(
+    `UPDATE task_evidences
+        SET ai_score = $2,
+            ai_summary = $3,
+            ai_detections = $4,
+            reviewer_feedback = $5,
+            updated_at = $6
+      WHERE id = $1`,
+    [
+      evidence.id,
+      evidence.aiScore ?? null,
+      evidence.aiSummary ?? null,
+      JSON.stringify(evidence.aiDetections ?? []),
+      evidence.reviewerFeedback ?? null,
+      evidence.updatedAt,
+    ]
+  );
+}
+
 /** Cheap liveness probe used by `init()` and reported through /api/health. */
 export async function ping(pool: Pool): Promise<boolean> {
   const res = await pool.query('SELECT 1 AS ok');

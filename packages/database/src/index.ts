@@ -259,6 +259,69 @@ export class EnterpriseDatabase {
     return evidence;
   }
 
+  /**
+   * Adds a task template authored from the web panel and persists it.
+   *
+   * The panel's "create task" form produces a briefing, not a store task: it
+   * has no store in it. The domain model requires every store task to point at
+   * a template, so the panel's payload becomes a template here and the existing
+   * bulk dispatch then fans it out to the matching stores. That keeps one
+   * code path for dispatch instead of giving the panel its own.
+   */
+  public createTemplate(template: {
+    id: string;
+    campaignId?: string | null;
+    title: string;
+    description: string;
+    referenceImageUrl: string;
+    priority: string;
+    planogramRules?: unknown[];
+    requiresBeforeAfterPhoto?: boolean;
+    checklistSchema?: unknown[];
+  }) {
+    const record = {
+      ...template,
+      planogramRules: template.planogramRules ?? [],
+      checklistSchema: template.checklistSchema ?? [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.templates.push(record as (typeof this.templates)[number]);
+    if (this.pool) this.persist(pg.insertTemplate(this.pool, record), `template ${record.id}`);
+    return record;
+  }
+
+  /**
+   * Records a reviewer's decision on an evidence record and persists it.
+   *
+   * Only review fields are writable. The photo, coordinates and checklist
+   * answers belong to the field worker who submitted them; letting a reviewer
+   * overwrite those would make the audit trail editable by the auditor.
+   */
+  public updateEvidence(
+    evidenceId: string,
+    patch: {
+      reviewerFeedback?: string;
+      aiScore?: number | null;
+      aiSummary?: string | null;
+      aiDetections?: any[];
+    }
+  ): InMemoryEvidence | null {
+    const evidence = this.evidences.find((e) => e.id === evidenceId);
+    if (!evidence) return null;
+
+    if (patch.reviewerFeedback !== undefined) evidence.reviewerFeedback = patch.reviewerFeedback;
+    if (patch.aiScore !== undefined) evidence.aiScore = patch.aiScore;
+    if (patch.aiSummary !== undefined) evidence.aiSummary = patch.aiSummary;
+    if (patch.aiDetections !== undefined) evidence.aiDetections = patch.aiDetections;
+    evidence.updatedAt = new Date();
+
+    if (this.pool) {
+      this.persist(pg.updateEvidenceRow(this.pool, evidence), `evidence ${evidence.id} review`);
+    }
+    return evidence;
+  }
+
   public getUser(userId: string) {
     return this.users.find((user) => user.id === userId) || null;
   }

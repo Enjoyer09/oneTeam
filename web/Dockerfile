@@ -62,8 +62,14 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # defined variable it can see — including nginx's own runtime ones. `$host`,
 # `$remote_addr` and `$request_uri` would each be replaced by the empty string,
 # silently breaking the proxy headers with no error anywhere.
+#
+# PORTAL_TOKEN is the credential the proxy attaches to /api/portal/ requests so
+# that the token never reaches the browser. Its default is the seeded admin user
+# from db/api-seed.sql; override it with a PORTAL_TOKEN variable on the web
+# service to change who the panel acts as.
 ENV API_UPSTREAM=http://api:3001
-ENV NGINX_ENVSUBST_FILTER=^API_UPSTREAM$
+ENV PORTAL_TOKEN=oneteam-user:usr-admin-001
+ENV NGINX_ENVSUBST_FILTER=^(API_UPSTREAM|PORTAL_TOKEN)$
 
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 

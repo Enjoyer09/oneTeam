@@ -2,7 +2,7 @@
  * oneTeam Supervisor & Admin Portal — Automated Smoke & Service Test
  */
 
-import { portalService } from './lib/supabase';
+import { portalService } from './lib/portalApi';
 
 async function runWebSmokeTest() {
   console.log('============================================================');

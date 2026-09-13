@@ -1,0 +1,294 @@
+/**
+ * oneTeam Supervisor Portal — API data layer
+ * ============================================================================
+ *
+ * This file used to be called supabase.ts and talked to Supabase. It no longer
+ * touches Supabase at all, which is why it was renamed: a module named after a
+ * service it does not use is a trap for whoever reads it next.
+ *
+ * WHAT WAS WRONG BEFORE
+ * ---------------------
+ * The client fell back to `https://mock-oneteam.supabase.co` whenever
+ * `VITE_SUPABASE_URL` was unset — which it always was. So the portal rendered a
+ * hardcoded list of two stores and one task while the real database held three
+ * stores and four tasks, and the two never met. Nothing in the UI said the data
+ * was fake.
+ *
+ * HOW IT WORKS NOW
+ * ----------------
+ * Every call goes to `/api/portal/...` on the SAME ORIGIN, and nginx proxies it
+ * to the API. Two consequences worth stating:
+ *
+ *   - No build-time configuration. The base is a relative path, so the bundle
+ *     works unchanged on localhost, in Docker Compose and on Railway. Vite
+ *     inlines VITE_* variables at build time, so anything that had to be
+ *     configured that way would need an image rebuild to change — which is
+ *     exactly the kind of deploy surprise this rewrite is meant to remove.
+ *
+ *   - No credential in the browser. The API requires a bearer token, and nginx
+ *     attaches it at the edge (see the map in nginx.conf). The token is
+ *     therefore not in this bundle, not in the DOM, and can be rotated without
+ *     rebuilding the frontend.
+ *
+ * The service keeps the exact method signatures the components already call, so
+ * no component had to change.
+ */
+
+import { Store, Task, Submission, DashboardMetrics, SubmissionStatus } from '../types';
+
+const env: Record<string, any> =
+  (typeof import.meta !== 'undefined' && (import.meta as any).env) ||
+  (typeof process !== 'undefined' && process.env) ||
+  {};
+
+/**
+ * Empty by default so requests are same-origin and go through the nginx proxy.
+ * Set VITE_API_BASE_URL only to point the panel at an API on another host, which
+ * would then need CORS and its own credential.
+ */
+const API_BASE = env.VITE_API_BASE_URL || '';
+
+/** A hard failure the UI can show, rather than an empty dashboard. */
+export class PortalApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status?: number
+  ) {
+    super(message);
+    this.name = 'PortalApiError';
+  }
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const url = `${API_BASE}${path}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init?.headers ?? {}),
+      },
+    });
+  } catch (cause) {
+    // A network-level failure (DNS, offline, CORS preflight). Distinguished
+    // from an HTTP error because the remedies are completely different.
+    throw new PortalApiError(
+      `API-yə qoşulmaq mümkün olmadı (${url}). Şəbəkəni yoxlayın.`,
+      undefined
+    );
+  }
+
+  const text = await response.text();
+  let payload: any = null;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    throw new PortalApiError(
+      `API gözlənilməz cavab qaytardı (HTTP ${response.status})`,
+      response.status
+    );
+  }
+
+  if (!response.ok) {
+    const detail =
+      payload?.message ?? payload?.error ?? payload?.data?.message ?? response.statusText;
+    throw new PortalApiError(
+      Array.isArray(detail) ? detail.join('; ') : String(detail),
+      response.status
+    );
+  }
+
+  return payload as T;
+}
+
+interface Envelope<T> {
+  success: boolean;
+  data: T;
+  total?: number;
+}
+
+class PortalDataService {
+  /**
+   * Set when the API is unreachable, so the shell can tell "no data yet" apart
+   * from "the API is down". Cleared on the next successful call.
+   */
+  public lastError: string | null = null;
+
+  private async get<T>(path: string): Promise<T> {
+    try {
+      const body = await request<Envelope<T>>(path);
+      this.lastError = null;
+      return body.data;
+    } catch (error) {
+      this.lastError = error instanceof Error ? error.message : String(error);
+      throw error;
+    }
+  }
+
+  async getMetrics(): Promise<DashboardMetrics> {
+    return this.get<DashboardMetrics>('/api/portal/metrics');
+  }
+
+  async getStores(): Promise<Store[]> {
+    return this.get<Store[]>('/api/portal/stores');
+  }
+
+  async getTasks(): Promise<Task[]> {
+    return this.get<Task[]>('/api/portal/tasks');
+  }
+
+  async getSubmissions(statusFilter?: SubmissionStatus | 'all'): Promise<Submission[]> {
+    const list = await this.get<Submission[]>('/api/portal/submissions');
+    if (!statusFilter || statusFilter === 'all') return list;
+    return list.filter((submission) => submission.status === statusFilter);
+  }
+
+  /**
+   * Creates a briefing and dispatches it.
+   *
+   * The API turns this into a template and then store tasks, so the returned
+   * ids are store-task ids. A briefing sent to three stores produces three
+   * tasks, which is why the panel will show more rows than before.
+   */
+  async createTask(data: {
+    title: string;
+    description: string;
+    reference_image_url: string;
+    priority: Task['priority'];
+    deadline: string;
+    assigned_stores: string[];
+    requires_before_after_photo?: boolean;
+    checklist_schema?: any[];
+  }): Promise<Task> {
+    await request('/api/portal/tasks', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: data.title,
+        description: data.description,
+        reference_image_url: data.reference_image_url,
+        priority: String(data.priority).toUpperCase(),
+        deadline: data.deadline,
+        assigned_stores: data.assigned_stores,
+        requires_before_after_photo: data.requires_before_after_photo ?? false,
+        checklist_schema: data.checklist_schema ?? [],
+      }),
+    });
+
+    // The API does not return a panel-shaped task, and inventing one here would
+    // duplicate the mapping that already lives in PortalService on the server.
+    // The caller reloads immediately, so a placeholder with the real inputs is
+    // both accurate and enough.
+    return {
+      id: `pending-${Date.now()}`,
+      title: data.title,
+      description: data.description,
+      reference_image_url: data.reference_image_url,
+      priority: data.priority,
+      status: 'published',
+      deadline: data.deadline,
+      created_at: new Date().toISOString(),
+      assigned_stores: data.assigned_stores,
+      requires_before_after_photo: data.requires_before_after_photo,
+      checklist_schema: data.checklist_schema,
+    } as Task;
+  }
+
+  async bulkDispatchTasks(data: {
+    templateId?: string;
+    title: string;
+    description: string;
+    reference_image_url: string;
+    priority: Task['priority'];
+    deadline: string;
+    chainName?: string;
+    storeFormat?: string;
+    regionId?: string;
+    requires_before_after_photo?: boolean;
+  }): Promise<{ success: boolean; count: number; matchedStores: Store[]; tasks: Task[] }> {
+    const result = await request<Envelope<any>>('/api/portal/tasks', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: data.title,
+        description: data.description,
+        reference_image_url: data.reference_image_url,
+        priority: String(data.priority).toUpperCase(),
+        deadline: data.deadline,
+        chainName: data.chainName,
+        storeFormat: data.storeFormat,
+        regionId: data.regionId,
+        requires_before_after_photo: data.requires_before_after_photo ?? false,
+      }),
+    });
+
+    const count = result?.data?.tasksCreated ?? result?.data?.totalStoresMatched ?? 0;
+
+    // Re-read the stores so the caller can show which ones were matched, using
+    // the same segmentation the server applied rather than a second guess.
+    const stores = await this.getStores();
+    const matched = stores.filter((store) => {
+      if (!store.is_active) return false;
+      if (data.chainName && data.chainName !== 'all' && store.chain_name?.toLowerCase() !== data.chainName.toLowerCase()) {
+        return false;
+      }
+      if (data.storeFormat && data.storeFormat !== 'all' && store.store_format?.toLowerCase() !== data.storeFormat.toLowerCase()) {
+        return false;
+      }
+      if (data.regionId && data.regionId !== 'all' && store.region_id !== data.regionId) {
+        return false;
+      }
+      return true;
+    });
+
+    return { success: true, count, matchedStores: matched, tasks: [] };
+  }
+
+  async updateSubmissionStatus(
+    id: string,
+    status: SubmissionStatus,
+    reviewer_feedback?: string
+  ): Promise<Submission | null> {
+    await request(`/api/portal/submissions/${encodeURIComponent(id)}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ status, feedback: reviewer_feedback }),
+    });
+    return null;
+  }
+
+  /**
+   * Rule-based auto review.
+   *
+   * The endpoint scores the signals that actually exist on the record (GPS
+   * distance from the store, whether checklist answers came back) and approves
+   * or rejects with the reasoning attached. It is deliberately not called a
+   * vision model — the shelf-photo analyser lives in the bot process and is not
+   * reachable from the API.
+   */
+  async oneClickAIApprove(id: string): Promise<Submission | null> {
+    await request(`/api/portal/submissions/${encodeURIComponent(id)}/auto-approve`, {
+      method: 'POST',
+    });
+    return null;
+  }
+
+  /**
+   * Reads a chosen image into a data URL.
+   *
+   * Unchanged in behaviour, and still not an upload: the API has no storage
+   * endpoint yet, so the data URL is what gets stored as the reference image.
+   * That is fine for a briefing image (kilobytes) and would not be for field
+   * photos — the bot submits those as URLs.
+   */
+  async uploadPlanogramImage(file: File): Promise<string> {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        resolve(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+}
+
+export const portalService = new PortalDataService();

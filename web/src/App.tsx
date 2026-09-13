@@ -5,7 +5,7 @@ import { DashboardOverview } from './components/DashboardOverview';
 import { AuditReviewCenter } from './components/AuditReviewCenter';
 import { TaskManager } from './components/TaskManager';
 import { StoreDirectory } from './components/StoreDirectory';
-import { portalService } from './lib/supabase';
+import { portalService } from './lib/portalApi';
 import { Store, Task, Submission, DashboardMetrics, TaskPriority } from './types';
 
 export function App() {
@@ -35,21 +35,49 @@ export function App() {
   };
 
   const loadData = async () => {
-    const [m, s, t, subs] = await Promise.all([
-      portalService.getMetrics(),
-      portalService.getStores(),
-      portalService.getTasks(),
-      portalService.getSubmissions('all'),
-    ]);
-    setMetrics(m);
-    setStores(s);
-    setTasks(t);
-    setSubmissions(subs);
+    try {
+      const [m, s, t, subs] = await Promise.all([
+        portalService.getMetrics(),
+        portalService.getStores(),
+        portalService.getTasks(),
+        portalService.getSubmissions('all'),
+      ]);
+      setMetrics(m);
+      setStores(s);
+      setTasks(t);
+      setSubmissions(subs);
+    } catch (error) {
+      // Sükutla boş ekran göstərmək ən pis nəticədir. Əvvəl bu panel saxta
+      // Supabase-dən oxuyurdu və heç vaxt uğursuz olmurdu — yəni həmişə
+      // "işləyirdi", sadəcə yanlış məlumatla.
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('⛔ [oneTeam Portal] Məlumat yüklənə bilmədi:', message);
+      showToast(`Məlumat yüklənə bilmədi — ${message}`);
+    }
   };
 
   useEffect(() => {
     loadData();
   }, []);
+
+  /**
+   * Yazma əməliyyatlarını vahid şəkildə sarır: xəta olsa istifadəçi görür,
+   * olsa da ekran yenilənir. Hər handler-də təkrar try/catch yazmaq əvəzinə
+   * bir yerdə saxlanılır.
+   */
+  const runAction = async (action: () => Promise<unknown>, successMessage: string) => {
+    try {
+      await action();
+      await loadData();
+      // Boş mesaj "artıq öz bildirişini göstərən" əməliyyatlar üçündür —
+      // məsələn kütləvi göndərmə, hansı ki sayı özü bildirir.
+      if (successMessage) showToast(successMessage);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('⛔ [oneTeam Portal] Əməliyyat alınmadı:', message);
+      showToast(`Əməliyyat alınmadı — ${message}`);
+    }
+  };
 
   /* Escape çekmeceni bağlayır — istifadəçi həmişə çıxış yolu görür */
   useEffect(() => {
@@ -69,25 +97,25 @@ export function App() {
     mainRef.current?.scrollTo({ top: 0, behavior: 'auto' });
   };
 
-  const handleApproveSubmission = async (id: string) => {
-    await portalService.updateSubmissionStatus(id, 'approved');
-    await loadData();
-    showToast('Rəf auditi uğurla təsdiqləndi!');
-  };
+  const handleApproveSubmission = (id: string) =>
+    runAction(
+      () => portalService.updateSubmissionStatus(id, 'approved'),
+      'Rəf auditi uğurla təsdiqləndi!'
+    );
 
-  const handleAIApproveSubmission = async (id: string) => {
-    await portalService.oneClickAIApprove(id);
-    await loadData();
-    showToast('Rəf auditi AI təhlili əsasında avtomatik təsdiqləndi!');
-  };
+  const handleAIApproveSubmission = (id: string) =>
+    runAction(
+      () => portalService.oneClickAIApprove(id),
+      'Rəf auditi avtomatik yoxlama əsasında qərarlandı!'
+    );
 
-  const handleRejectSubmission = async (id: string, feedback: string) => {
-    await portalService.updateSubmissionStatus(id, 'rejected', feedback);
-    await loadData();
-    showToast('İmtina qərarı və təlimat supervayzer tərəfindən qeydə alındı.');
-  };
+  const handleRejectSubmission = (id: string, feedback: string) =>
+    runAction(
+      () => portalService.updateSubmissionStatus(id, 'rejected', feedback),
+      'İmtina qərarı və təlimat supervayzer tərəfindən qeydə alındı.'
+    );
 
-  const handleCreateTask = async (taskData: {
+  const handleCreateTask = (taskData: {
     title: string;
     description: string;
     reference_image_url: string;
@@ -96,13 +124,13 @@ export function App() {
     assigned_stores: string[];
     requires_before_after_photo?: boolean;
     checklist_schema?: any[];
-  }) => {
-    await portalService.createTask(taskData);
-    await loadData();
-    showToast('Yeni planogram təlimatı mağazalara uğurla göndərildi!');
-  };
+  }) =>
+    runAction(
+      () => portalService.createTask(taskData),
+      'Yeni planogram təlimatı mağazalara uğurla göndərildi!'
+    );
 
-  const handleBulkDispatch = async (bulkData: {
+  const handleBulkDispatch = (bulkData: {
     title: string;
     description: string;
     reference_image_url: string;
@@ -112,13 +140,15 @@ export function App() {
     storeFormat: string;
     regionId: string;
     requires_before_after_photo?: boolean;
-  }) => {
-    const result = await portalService.bulkDispatchTasks(bulkData);
-    await loadData();
-    showToast(
-      `Kütləvi Təlimat: ${result.count} hədəf mağazaya və sahə merchandiser-lərinə uğurla göndərildi!`
-    );
-  };
+  }) =>
+    runAction(async () => {
+      const result = await portalService.bulkDispatchTasks(bulkData);
+      // Sayı serverdən gəlir, ona görə mesaj "nə qədər mağazaya getdi" sualına
+      // uydurma rəqəm yox, real cavab verir.
+      showToast(
+        `Kütləvi Təlimat: ${result.count} hədəf mağazaya və sahə merchandiser-lərinə uğurla göndərildi!`
+      );
+    }, '');
 
   const openSubmissionFromDashboard = (sub: Submission) => {
     setSelectedSubmission(sub);
