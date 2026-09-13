@@ -48,6 +48,23 @@ const env: Record<string, any> =
  */
 const API_BASE = env.VITE_API_BASE_URL || '';
 
+/**
+ * A credential for direct API access, used only by the standalone smoke test.
+ *
+ * WHY THIS CANNOT LEAK INTO THE BROWSER
+ * -------------------------------------
+ * `env` is `import.meta.env` in a Vite build, and Vite only ever populates that
+ * with `VITE_`-prefixed variables. `ONETEAM_API_TOKEN` has no such prefix, so a
+ * production bundle can never contain it — and there is no code path that reads
+ * it from a browser in the first place. In the deployed panel the bearer is
+ * attached by nginx at the edge (see nginx.conf), which is why it can be rotated
+ * without rebuilding the frontend.
+ *
+ * It exists because `npm run web:test` runs this module under Node against the
+ * API directly, with no proxy in front of it to attach anything.
+ */
+const DIRECT_TOKEN = env.ONETEAM_API_TOKEN || '';
+
 /** A hard failure the UI can show, rather than an empty dashboard. */
 export class PortalApiError extends Error {
   constructor(
@@ -68,6 +85,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ...init,
       headers: {
         'Content-Type': 'application/json',
+        ...(DIRECT_TOKEN ? { Authorization: `Bearer ${DIRECT_TOKEN}` } : {}),
         ...(init?.headers ?? {}),
       },
     });
@@ -162,26 +180,36 @@ class PortalDataService {
     requires_before_after_photo?: boolean;
     checklist_schema?: any[];
   }): Promise<Task> {
-    await request('/api/portal/tasks', {
-      method: 'POST',
-      body: JSON.stringify({
-        title: data.title,
-        description: data.description,
-        reference_image_url: data.reference_image_url,
-        priority: String(data.priority).toUpperCase(),
-        deadline: data.deadline,
-        assigned_stores: data.assigned_stores,
-        requires_before_after_photo: data.requires_before_after_photo ?? false,
-        checklist_schema: data.checklist_schema ?? [],
-      }),
-    });
+    const result = await request<Envelope<{ templateId?: string; tasksCreated?: number; taskIds?: string[] }>>(
+      '/api/portal/tasks',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          title: data.title,
+          description: data.description,
+          reference_image_url: data.reference_image_url,
+          priority: String(data.priority).toUpperCase(),
+          deadline: data.deadline,
+          assigned_stores: data.assigned_stores,
+          requires_before_after_photo: data.requires_before_after_photo ?? false,
+          checklist_schema: data.checklist_schema ?? [],
+        }),
+      }
+    );
 
-    // The API does not return a panel-shaped task, and inventing one here would
-    // duplicate the mapping that already lives in PortalService on the server.
-    // The caller reloads immediately, so a placeholder with the real inputs is
-    // both accurate and enough.
+    // The API turns one briefing into one store task per store, so the id here is
+    // the first store task's. It used to be a fabricated `pending-<timestamp>`,
+    // which was harmless only because the caller reloads — and would have become
+    // a real bug the moment anything used the id.
+    const id = result?.data?.taskIds?.[0];
+    if (!id) {
+      throw new PortalApiError(
+        'Tapşırıq yaradıldı, amma heç bir mağazaya göndərilmədi. Mağaza seçimini yoxlayın.'
+      );
+    }
+
     return {
-      id: `pending-${Date.now()}`,
+      id,
       title: data.title,
       description: data.description,
       reference_image_url: data.reference_image_url,

@@ -84,6 +84,19 @@ export interface SubmitEvidenceRequestDto {
   checklistAnswers?: import('./domain').ChecklistAnswer[];
   latitude: number;
   longitude: number;
+  /**
+   * The caller states that this channel could not collect the checklist.
+   *
+   * Only the Telegram bot sets this: it submits a photo without ever asking the
+   * template's questions, and without this flag every task carrying a required
+   * question is refused with a 400 — which is every real task in the catalogue.
+   *
+   * It is an explicit assertion rather than a silent bypass, and the service
+   * writes a `CHECKLIST_NOT_COLLECTED` audit event naming the unanswered
+   * questions, so a supervisor can see the gap instead of assuming the answers
+   * were fine. The mobile client does not set it and keeps the full check.
+   */
+  checklistNotCollected?: boolean;
   aiScore?: number;
   aiDetections?: any[];
   aiSummary?: string;

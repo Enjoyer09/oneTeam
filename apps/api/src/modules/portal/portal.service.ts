@@ -499,20 +499,6 @@ export class PortalService {
       throw new HttpException('Son tarix (deadline) tələb olunur', HttpStatus.BAD_REQUEST);
     }
 
-    // The dispatch service requires an assignee, and it must be a merchandiser.
-    // Falling back to the first one keeps the panel's simpler form working
-    // without making the caller know about the rule.
-    const assigneeId =
-      payload.assignedUserId ??
-      db.users.find((user) => user.role === UserRole.MERCHANDISER)?.id;
-
-    if (!assigneeId) {
-      throw new HttpException(
-        'Təyin edilə biləcək merchandiser tapılmadı',
-        HttpStatus.BAD_REQUEST
-      );
-    }
-
     const templateId = `tmpl-panel-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     db.createTemplate({
       id: templateId,
@@ -528,12 +514,18 @@ export class PortalService {
 
     // Explicit store selection wins over segmentation. The panel's "create task"
     // form sends store ids; the bulk-dispatch form sends chain/format/region.
+    //
+    // No assignee is invented here. The panel's form asks which stores, not
+    // which person, and defaulting to the first merchandiser silently gave one
+    // person every task — which is what stopped anyone else from submitting for
+    // that store through the bot. An unassigned task is claimed by whoever is at
+    // the store. See dispatchToExplicitStores.
     if (payload.assigned_stores?.length) {
       const created = await this.dispatchToExplicitStores(
         templateId,
         payload.deadline,
         payload.assigned_stores,
-        assigneeId,
+        payload.assignedUserId ?? null,
         principal
       );
       return {
@@ -545,6 +537,19 @@ export class PortalService {
           taskIds: created.map((t) => t.id),
         },
       };
+    }
+
+    // Segmentation still needs an assignee: `bulkDispatchTasks` refuses to
+    // create a task nobody owns, and there is no store list to claim from.
+    const assigneeId =
+      payload.assignedUserId ??
+      db.users.find((user) => user.role === UserRole.MERCHANDISER)?.id;
+
+    if (!assigneeId) {
+      throw new HttpException(
+        'Təyin edilə biləcək merchandiser tapılmadı',
+        HttpStatus.BAD_REQUEST
+      );
     }
 
     const result = await this.taskStateService.bulkDispatchTasks(
@@ -571,11 +576,35 @@ export class PortalService {
    * domain service. The state, audit entry and notification behaviour mirror
    * `bulkDispatchTasks` exactly.
    */
+  /**
+   * Dispatches a template to an explicit list of stores.
+   *
+   * `assigneeId` may be null, and that is the default the panel produces.
+   *
+   * WHY AN UNASSIGNED TASK IS THE RIGHT DEFAULT HERE
+   * -----------------------------------------------
+   * The panel's form asks "which stores", not "which merchandiser". Filling the
+   * blank in with the first merchandiser in the table looked helpful and was
+   * not: the work then belonged to whoever happened to sort first, and nobody
+   * else could submit for that store. The chat channel proved it — a
+   * merchandiser who bound to the store was refused, because the task was
+   * already someone else's.
+   *
+   * Leaving it open means whoever is actually at the store can claim it by
+   * sending the store code, which is what the field flow already relies on. A
+   * named assignee is still honoured when the caller sends one.
+   *
+   * Kept here rather than added to TaskStateService because segmentation-based
+   * dispatch is the service's concern and a fixed id list is a panel concern;
+   * mixing them would put a second, subtly different dispatch path in the
+   * domain service. The state, audit entry and notification behaviour mirror
+   * `bulkDispatchTasks` exactly.
+   */
   private async dispatchToExplicitStores(
     templateId: string,
     deadline: string,
     storeIds: string[],
-    assigneeId: string,
+    assigneeId: string | null,
     principal: AuthenticatedPrincipal
   ): Promise<InMemoryStoreTask[]> {
     const created: InMemoryStoreTask[] = [];
@@ -592,7 +621,7 @@ export class PortalService {
         id: `task-panel-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         templateId,
         storeId,
-        assignedUserId: assigneeId,
+        assignedUserId: assigneeId ?? undefined,
         status: TaskState.PUBLISHED,
         deadline: new Date(deadline),
         publishedAt: new Date(),
@@ -616,6 +645,7 @@ export class PortalService {
           storeId,
           storeName: store.name,
           source: 'web-portal',
+          assignedUserId: assigneeId,
         },
       });
     }

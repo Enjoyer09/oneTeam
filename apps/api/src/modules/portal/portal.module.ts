@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { PortalService } from './portal.service';
 import { PortalController } from './portal.controller';
+import { FieldService } from './field.service';
+import { FieldController } from './field.controller';
 import { TasksModule } from '../tasks/tasks.module';
+import { EvidencesModule } from '../evidences/evidences.module';
 import { AuthGuard } from '../../common/auth/auth.guard';
 
 /**
@@ -9,11 +12,15 @@ import { AuthGuard } from '../../common/auth/auth.guard';
  * reimplementing the state machine. Reviewing an audit is a task transition, and
  * duplicating the transition rules here is exactly how the panel and the mobile
  * flow would drift apart.
+ *
+ * EvidencesModule is imported for the same reason: the bot's submissions go
+ * through the same EvidenceService the mobile client uses, so the geofence and
+ * checklist rules have one implementation.
  */
 @Module({
-  imports: [TasksModule],
-  controllers: [PortalController],
-  providers: [PortalService, AuthGuard],
-  exports: [PortalService],
+  imports: [TasksModule, EvidencesModule],
+  controllers: [PortalController, FieldController],
+  providers: [PortalService, FieldService, AuthGuard],
+  exports: [PortalService, FieldService],
 })
 export class PortalModule {}

@@ -1,3 +1,25 @@
+/**
+ * ⚠️ THIS IS A SIMULATION. IT DOES NOT LOOK AT ANY PHOTO.
+ * ============================================================================
+ *
+ * `detectShelfProducts` never reads the image. It picks one of four hardcoded
+ * sets of bounding boxes by searching the *photo URL string* for words like
+ * "gap", "missing" or "reject" (`inferScenario`), and generates a compliance
+ * score from those fixed boxes.
+ *
+ * It was wired into the bot's submission path until recently, which meant every
+ * merchandiser saw a confident-looking "AI Uyğunluq Balı" that had been produced
+ * from a file name. Because the bot generated its own names
+ * (`audits/<store>/<task>_<timestamp>.jpg`), none of the keywords ever matched,
+ * so every photo scored the same flattering result.
+ *
+ * It is kept because `aiVision.test.ts` exercises it and because a real detector
+ * is a plausible future feature. It is NOT used anywhere in production, and it
+ * must not be re-wired into the submission path as if it were an analyser. The
+ * score a supervisor acts on comes from `PortalService.autoApproveSubmission`,
+ * which scores signals that genuinely exist on the record.
+ */
+
 import { spawnSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';

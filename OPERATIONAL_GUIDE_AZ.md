@@ -31,9 +31,11 @@ npm start
 👉 **[http://localhost:5173](http://localhost:5173)**
 
 Arxa fonda avtomatik işə düşən modullar:
-- 🌐 **Veb İdarəetmə Paneli (Next.js/React & Tailwind):** Menecerlər və supervayzerlər üçün analitik idarəetmə masası (`http://localhost:5173`).
+- ⚡ **Core API (NestJS):** Bütün məlumatın yeganə mənbəyi. Həm veb panel, həm də Telegram botu yalnız bu API ilə danışır (`http://localhost:3001/api/health`). Panel və bot heç vaxt birbaşa bazaya qoşulmur.
+- 🌐 **Veb İdarəetmə Paneli (React & Tailwind):** Menecerlər və supervayzerlər üçün analitik idarəetmə masası (`http://localhost:5173`).
 - 🤖 **Telegram Bot Xidməti:** Merçendayzerlərin smartfondan tapşırıq qəbul etməsi və foto yükləməsi üçün canlı qovşaq.
-- ⚡ **Süni İntellekt (YOLOv8) Rəf Tanıma:** Şəkilləri dərhal analiz edən kompüter görməsi mühərriki.
+
+> ⚠️ **Qeyd:** Sistemdə şəkli avtomatik tanıyan kompüter görməsi (YOLOv8 və s.) **yoxdur**. Əvvəlki versiyada bot hər foto üçün "uyğunluq balı" göstərirdi, lakin həmin bal fotoşəkilə ümumiyyətlə baxmırdı — fayl adındaki sözlərə əsasən uydurulurdu. Bu, tamamilə silinib. Bal indi yalnız supervayzerin rəyindən və ya qayda əsaslı avtomatik yoxlamadan gəlir (aşağıda bax: Bölmə 4).
 
 ---
 
@@ -100,35 +102,41 @@ Sahədə çalışan işçilər heç bir mürəkkəb təlim keçmədən birbaşa 
 
 ---
 
-## 4. Supervayzer Yoxlama Mərkəzi: AI Planogram Təhlili, Əvvəl/Sonra Müqayisəsi və Təsdiq
+## 4. Supervayzer Yoxlama Mərkəzi: Foto, Çeklist və Təsdiq
 
 Bütün daxil olan auditlər Veb Portaldakı **"Rəf Yoxlamaları" (Audit Review Center)** bölməsində toplanır.
 
 ```
-                    ┌──► Bal >= 90% ──► [⚡ 1-Klik AI Avtomatik Təsdiq]
+                    ┌──► Bal >= 70 ──► [⚡ Avtomatik Təsdiq]
 [Daxil Olan Audit] ─┤
-                    └──► Bal < 90%  ──► [Supervayzer Əvvəl/Sonra Müqayisəsi və Rəy]
+                    └──► Bal < 70  ──► [Supervayzer Qərarı]
 ```
 
-### 1. Süni İntellekt (YOLOv8) Rəf Tanıma Nəticələri:
-Sistem şəkildəki hər bir məhsulu fərdi rəngli çərçivələrlə aşkar edir:
-- 🔴 **Coca-Cola Classic:** Qırmızı çərçivə
-- ⚫ **Coca-Cola Zero Sugar:** Qara/Boz çərçivə
-- 🟠 **Fanta Orange:** Narıncı çərçivə
-- 🟢 **Sprite:** Yaşıl çərçivə
-- ⚠️ **Rəf Boşluğu (Out of Stock Gap):** Qırmızı qırıq xəttli çərçivə
+### 1. Avtomatik yoxlama nəyə əsaslanır — və nəyə əsaslanmır:
+**Vacib:** bu, süni intellekt deyil və şəkli analiz etmir. Sistem yalnız qeyddə həqiqətən mövcud olan siqnalları ballayır:
 
-### 2. Canlı Rəf Ssenariləri:
-- **Ssenari A (95% Bal — İdeal Rəf):** Bütün SKU-lar planograma tam uyğundur, boşluq yoxdur. Supervayzer sadəcə **`⚡ AI Avtomatik Təsdiqi`** düyməsinə klikləyərək 1 saniyədə təsdiqləyir.
-- **Ssenari B (70% Bal — Boşluq Var):** Rəfdə 2 ədəd boşluq aşkarlanıb. AI cərimə tətbiq edib. Supervayzer səbəbi ekranda dərhal görür.
-- **Ssenari C (55% Bal — Çatışmayan Məhsul):** Sprite məhsulları ümumiyyətlə düzülməyib. Sistem imtina qutusunu hazır izahatla açır: *"Tələb olunan Sprite 0.5L məhsulları rəfdə yoxdur (0/2 facing)"*. Supervayzer bir toxunuşla tapşırığı merçendayzerə geri qaytarır.
+| Siqnal | Bal |
+|---|---|
+| Çəkiliş mağaza ərazisindədir (<= 50 m) | 0 |
+| Çəkiliş mağazadan uzaqdadır (> 50 m) | −25 |
+| Çeklist cavabları yoxdur | −20 |
+| "Əvvəl/Sonra" tapşırığında yalnız "before" fotosu var | −10 |
 
-### 3. "Əvvəl və Sonra" Müqayisə Rejimi (Dual Mode):
-- Supervayzer **`🔄 Əvvəl və Sonra Fotosunu Müqayisə Et`** düyməsini sıxaraq işçinin gördüyü real işi əyani görür.
-- Sol tərəfdə dağınıq ilkin rəf, sağ tərəfdə isə səliqəyə salınmış son rəf nümayiş etdirilir.
+Nəticə 70 və yuxarıdırsa audit avtomatik təsdiqlənir; aşağıdırsa səbəbi ilə birlikdə imtina olunur ki, supervayzer niyə belə olduğunu görsün.
 
-### 4. Təqdim Edilmiş Çeklist Məlumatları:
-- Ekranda temperatur göstəricisi (`3.4°C`), təmizlik statusu və promo POSM-lərin mövcudluğu cədvəl şəklində əks olunur.
+Şəkildəki məhsulları avtomatik tanıyan funksiya **hələ yoxdur**. Belə bir funksiyanın olması təəssüratı yaradan əvvəlki təsvirlər (rəngli çərçivələr, 95%/70%/55% ssenarilər) reallığa uyğun deyildi və silinib.
+
+### 2. Supervayzer nə görür:
+- **Fotoşəkil:** merçendayzerin göndərdiyi rəf fotosu.
+- **"Əvvəl və Sonra" rejimi:** tapşırıq hər iki foto tələb edirsə, hər iki şəkil yan-yana göstərilir.
+- **Geolokasiya məsafəsi:** çəkilişin mağazadan neçə metr aralıda aparıldığı.
+- **Çeklist cavabları:** varsa, cədvəl şəklində.
+
+### 3. Telegram kanalının iki məlum zəifliyi (açıq şəkildə qeyd olunur):
+- **Geolokasiya təsdiqlənmir.** Telegram foto ilə birlikdə koordinat göndərmir. Ona görə bot `GEOFENCE_NOT_VERIFIED` qeydi yazır və supervayzer bunun mobil tətbiqdən gələn auditdən daha zəif sübut olduğunu görür.
+- **Çeklist soruşulmur.** Bot hələ çeklist suallarını vermir, ona görə `CHECKLIST_NOT_COLLECTED` qeydi yazılır. Sualların Telegram-da soruşulması növbəti təkmilləşdirmədir.
+
+Hər iki halda sistem vəziyyəti **gizlətmir** — yalandan "hər şey qaydasındadır" demək əvəzinə, boşluğu audit jurnalına yazır.
 
 ---
 
@@ -164,23 +172,30 @@ docker-compose -f docker-compose.prod.yml logs -f api
 
 ---
 
-## 6. Avtomatlaşdırılmış Bütün Testlərin Yoxlanması
+## 6. Avtomatlaşdırılmış Testlərin Yoxlanması
 
-Sistemin tam bütövlüyünü və dayanıqlığını yoxlamaq üçün tək bir əmr kifayətdir:
-
+### A) API-siz işləyən testlər (hər zaman işlədilə bilər):
 ```bash
 npm run test:all
 ```
+Bu əmr 4 dəst icra edir:
+1. ✅ **Core API & Status Maşını:** 25/25 test keçir.
+2. ✅ **Kütləvi Paylanma & Əvvəl/Sonra Fotolar:** 14/14 test keçir.
+3. ⚠️ **Rəf Şəkli Analizi (simulyasiya):** 15/16. Bir test Ultralytics/Python tələb edir; kompüterdə quraşdırılmayıbsa uğursuz olur. Bu, məlum məhdudiyyətdir — ətraflı: `.env.production.example` Bölmə 6.
+4. ✅ **iOS Mobil Klient:** 4/4 test keçir.
 
-Bu əmr 6 müstəqil test dəstini icra edir:
-1. ✅ **Core NestJS API & State Machine:** 19/19 test keçir.
-2. ✅ **Bulk Segmentation & Dual Photo Evidences:** 14/14 test keçir.
-3. ✅ **AI YOLOv8 Shelf Vision & Compliance:** 16/16 test keçir.
-4. ✅ **Telegram Bot End-to-End Execution:** 7/7 test keçir.
-5. ✅ **Web Portal Service Smoke Test:** 9/9 test keçir.
-6. ✅ **iOS Mobile Client (GPS Geofence & Offline Queue):** 4/4 test keçir.
+### B) Canlı API tələb edən testlər:
+```bash
+npm run api:dev          # ayrı terminalda, əvvəlcə bunu işə salın
+npm run test:live
+```
+Bu testlər **real API-yə qoşulur** və **real qeydlər yaradır**, ona görə:
+- `NODE_ENV=production` olduqda bot testi **qəsdən dayanır** və xəta verir.
+- Panel testi susmaya görə yalnız **oxuyur**; yazma yollarını yoxlamaq üçün `ONETEAM_SMOKE_WRITES=1` lazımdır.
 
-**Ümumi:** Bütün 69 test 100% uğurla tamamlanır!
+**Vacib:** bu testlər əvvəllər saxta (mock) məlumatla işləyirdi və nəticədən asılı olmayaraq "100% PASSED" yazırdı. İndi nəyi yoxladığını açıq deyir, API yoxdursa uğursuz olur.
+
+> 📱 **Məlum boşluq:** mobil tətbiq (`mobile/`) hələ də köhnə saxta Supabase müştərisindən oxuyur. Veb panel və bot artıq real API-dədir, mobil isə yox.
 
 ---
 

@@ -1,5 +1,5 @@
 import { BotContext } from '../types';
-import { supabaseService } from '../../services/supabase';
+import { portalApi, PortalApiError } from '../../services/portalApi';
 
 export async function handlePhotoUpload(ctx: BotContext) {
   if (!ctx.session.storeId) {
@@ -31,10 +31,7 @@ export async function handlePhotoUpload(ctx: BotContext) {
   // Telegram returns photos ordered from smallest to largest; pick highest resolution
   const highestResPhoto = photos[photos.length - 1];
 
-  const processingMsg = await ctx.reply(
-    `⏳ *Foto emal edilir...*\nSupabase serverinə yüklənir və audit bazasına qeyd olunur.`,
-    { parse_mode: 'Markdown' }
-  );
+  const processingMsg = await ctx.reply(`⏳ *Foto qeydə alınır...*`, { parse_mode: 'Markdown' });
 
   try {
     let fileBuffer: Buffer;
@@ -59,39 +56,53 @@ export async function handlePhotoUpload(ctx: BotContext) {
       fileBuffer = Buffer.from(`mock-binary-photo-data-${highestResPhoto.file_id}`);
     }
 
-    // 2. Upload to Supabase Storage bucket ('shelf-images')
+    // 2. Prepare the photo for transport.
+    //
+    // There is no object store yet, so this returns an inline `data:` URL rather
+    // than a hosted link. See portalApi.uploadShelfPhoto for what that costs and
+    // why it is temporary.
     const fileName = `audits/${storeId}/${taskId}_${Date.now()}.jpg`;
-    const photoUrl = await supabaseService.uploadShelfPhoto({
+    const photoUrl = await portalApi.uploadShelfPhoto({
       fileBuffer,
       fileName,
       contentType: 'image/jpeg',
     });
 
-    // 3. Insert record into `submissions`
-    const metadata = {
-      telegram_user_id: ctx.from?.id,
-      telegram_chat_id: ctx.chat?.id,
-      telegram_username: ctx.from?.username,
-      message_id: ctx.message?.message_id,
-      file_id: highestResPhoto.file_id,
-      file_size: highestResPhoto.file_size,
-      width: highestResPhoto.width,
-      height: highestResPhoto.height,
-      captured_at: new Date().toISOString(),
-    };
-
-    const submission = await supabaseService.createSubmission({
-      taskId,
-      storeId,
-      submittedBy: ctx.session.profileId,
+    // 3. File the audit against the store task.
+    //
+    // `submittedBy` is gone from this call on purpose: the API resolves the
+    // acting person from `chatId`, which the bot reads off the update it is
+    // handling. A caller-supplied user id would be a way to file an audit in
+    // someone else's name.
+    const submission = await portalApi.createSubmission({
+      storeTaskId: taskId,
+      chatId: ctx.chat!.id,
       photoUrl,
-      metadata,
+      metadata: {
+        telegram_user_id: ctx.from?.id,
+        telegram_chat_id: ctx.chat?.id,
+        telegram_username: ctx.from?.username,
+        message_id: ctx.message?.message_id,
+        file_id: highestResPhoto.file_id,
+        file_size: highestResPhoto.file_size,
+        width: highestResPhoto.width,
+        height: highestResPhoto.height,
+        captured_at: new Date().toISOString(),
+        // Where the photo would live once object storage exists. Recorded now so
+        // the images can be lifted out of the database without guessing.
+        storage_path: fileName,
+        storage: 'inline-data-url',
+      },
     });
 
     // Reset step
     ctx.session.step = 'idle';
     ctx.session.activeTaskId = undefined;
     ctx.session.activeTaskTitle = undefined;
+
+    console.log(
+      `[oneTeam Bot] Audit ${submission.id} filed for task ${taskId} by chat ${ctx.chat?.id}`
+    );
 
     // Delete processing message if possible
     try {
@@ -100,25 +111,39 @@ export async function handlePhotoUpload(ctx: BotContext) {
       // Ignored if cannot delete
     }
 
-    const aiScoreBadge =
-      submission.ai_score !== undefined && submission.ai_score !== null
-        ? `\n\n🤖 *Süni İntellekt (AI) İlkin Təhlili:*\n` +
-          `📊 *Uyğunluq Balı:* ${submission.ai_score}%\n` +
-          `📝 *Rəy:* ${submission.ai_summary || 'Təhlil tamamlandı.'}`
-        : '';
+    // WHAT HAPPENED TO THE "AI SCORE" THIS MESSAGE USED TO SHOW
+    // -------------------------------------------------------
+    // It is gone, and it is not coming back as it was.
+    //
+    // The badge was fed by `src/services/aiVision.ts`, which never looked at the
+    // photo. It picked one of four hardcoded detection layouts by searching the
+    // *file name* for words like "gap" or "missing", and every generated name
+    // matched none of them, so every merchandiser saw the same flattering score
+    // for every photo ever submitted.
+    //
+    // Showing a number that no one computed is worse than showing none: it is a
+    // claim about the shelf that a supervisor might act on. The real score now
+    // comes from the supervisor's review, or from the panel's rule-based
+    // auto-approval, which scores signals that genuinely exist in the record.
+    //
+    // The honest thing this message *can* say is that the location was not
+    // verified, so the supervisor knows this evidence is weaker than a
+    // submission from the mobile app.
 
-    // 4. Confirmation reply in Azerbaijani
     const confirmationText =
       `✅ *Təşəkkür edirik! Rəf şəkli supervayzer yoxlaması üçün qeydə alındı.*\n\n` +
       `🏪 *Mağaza:* ${ctx.session.storeName}\n` +
-      `📦 *Status:* ⏳ Yoxlama gözləyir (pending_review)` +
-      aiScoreBadge +
-      `\n\nStatusunuzu yoxlamaq üçün istənilən vaxt /mystatus əmrindən istifadə edin.`;
+      `📦 *Status:* ⏳ Yoxlama gözləyir\n` +
+      `📍 *Geolokasiya:* ⚠️ Təsdiqlənməyib — Telegram foto ilə birlikdə koordinat göndərmir.\n` +
+      `\nStatusunuzu yoxlamaq üçün istənilən vaxt /mystatus əmrindən istifadə edin.`;
 
     await ctx.reply(confirmationText, { parse_mode: 'Markdown' });
   } catch (error: any) {
+    const detail = error instanceof PortalApiError ? error.message : error?.message || error;
+    console.error(`[oneTeam Bot] Photo submission failed for task ${taskId}:`, detail);
+
     await ctx.reply(
-      `❌ *Xəta baş verdi:* Şəkil yüklənərkən problem yarandı.\n\`${error?.message || error}\``,
+      `❌ *Xəta baş verdi:* Şəkil qeydə alına bilmədi.\n\`${detail}\``,
       { parse_mode: 'Markdown' }
     );
   }

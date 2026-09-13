@@ -1,6 +1,6 @@
 import { InlineKeyboard } from 'grammy';
-import { BotContext } from '../types';
-import { supabaseService } from '../../services/supabase';
+import { BotContext, TaskRecord } from '../types';
+import { portalApi, PortalApiError } from '../../services/portalApi';
 
 export async function handleTasks(ctx: BotContext) {
   if (!ctx.session.storeId) {
@@ -11,7 +11,18 @@ export async function handleTasks(ctx: BotContext) {
     return;
   }
 
-  const tasks = await supabaseService.getTasksForStore(ctx.session.storeId);
+  let tasks;
+  try {
+    tasks = await portalApi.getTasksForStore(ctx.session.storeId);
+  } catch (error) {
+    const detail = error instanceof PortalApiError ? error.message : String(error);
+    console.error(`[oneTeam Bot] Task lookup failed for ${ctx.session.storeId}:`, detail);
+    await ctx.reply(
+      `❌ *Tapşırıqları yükləmək mümkün olmadı.*\n\nZəhmət olmasa bir az sonra yenidən cəhd edin.`,
+      { parse_mode: 'Markdown' }
+    );
+    return;
+  }
 
   if (tasks.length === 0) {
     await ctx.reply(
@@ -31,7 +42,7 @@ export async function handleTasks(ctx: BotContext) {
   }
 }
 
-export async function sendTaskDetails(ctx: BotContext, task: any) {
+export async function sendTaskDetails(ctx: BotContext, task: TaskRecord) {
   const priorityIcons: Record<string, string> = {
     urgent: '🔴 Təcili',
     high: '🟠 Yüksək',
@@ -85,7 +96,16 @@ export async function handleTaskSelectCallback(ctx: BotContext) {
   if (!data || !data.startsWith('submit_')) return;
 
   const taskId = data.replace('submit_', '');
-  const task = await supabaseService.getTaskById(taskId);
+
+  let task;
+  try {
+    task = await portalApi.getTaskById(taskId);
+  } catch (error) {
+    const detail = error instanceof PortalApiError ? error.message : String(error);
+    console.error(`[oneTeam Bot] Task fetch failed for ${taskId}:`, detail);
+    await ctx.answerCallbackQuery({ text: 'Tapşırıq yüklənmədi, yenidən cəhd edin.' });
+    return;
+  }
 
   if (!task) {
     await ctx.answerCallbackQuery({ text: 'Tapşırıq tapılmadı!' });

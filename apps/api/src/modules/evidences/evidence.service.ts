@@ -93,6 +93,14 @@ export class EvidenceService {
     const template = db.getTemplate(task.templateId);
 
     // 2. Dynamic Checklist Schema Validation
+    //
+    // `checklistNotCollected` is set only by the Telegram channel, which submits
+    // a photo without asking the template's questions. Refusing the submission
+    // would make the bot unusable on every real task, and pretending the answers
+    // arrived would hide a control that is not being applied — so the gap is
+    // recorded and reported instead of either. See the DTO for the full note.
+    const unansweredRequired: string[] = [];
+
     if (template?.checklistSchema && template.checklistSchema.length > 0) {
       for (const q of template.checklistSchema) {
         const answer = dto.checklistAnswers?.find((a) => a.questionId === q.id);
@@ -104,6 +112,11 @@ export class EvidenceService {
             answer.value === null ||
             answer.value === ''
           ) {
+            if (dto.checklistNotCollected) {
+              unansweredRequired.push(q.id);
+              continue;
+            }
+
             const errorMsg = `Məcburi çeklist sualı cavablandırılmayıb: '${q.question}' (ID: ${q.id})`;
             this.logger.warn(`❌ [CHECKLIST VALIDATION FAILED] ${errorMsg}`);
             throw new HttpException(
@@ -191,6 +204,26 @@ export class EvidenceService {
           }
         }
       }
+    }
+
+    // Record what the channel could not collect, before the evidence exists, so
+    // the gap is visible even if a later step fails.
+    if (unansweredRequired.length > 0) {
+      this.logger.warn(
+        `⚠️ [CHECKLIST NOT COLLECTED] Task ${dto.storeTaskId}: ` +
+          `${unansweredRequired.length} required question(s) unanswered`
+      );
+      db.logAuditEvent({
+        entityType: 'task_evidence',
+        entityId: dto.storeTaskId,
+        action: 'CHECKLIST_NOT_COLLECTED',
+        actorId: principal.userId,
+        payload: {
+          unansweredQuestionIds: unansweredRequired,
+          reason:
+            'Kanaldan çeklist cavabları toplanmır; cavablar yoxlanılmamış hesab olunur.',
+        },
+      });
     }
 
     // 3. Before & After Photo Pipeline Flow

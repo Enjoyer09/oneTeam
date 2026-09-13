@@ -338,7 +338,8 @@ export async function updateStoreTaskRow(pool: Pool, task: InMemoryStoreTask): P
             acknowledged_at = $5,
             submitted_at = $6,
             reviewed_at = $7,
-            updated_at = $8
+            updated_at = $8,
+            assigned_user_id = $9
       WHERE id = $1`,
     [
       task.id,
@@ -349,6 +350,7 @@ export async function updateStoreTaskRow(pool: Pool, task: InMemoryStoreTask): P
       task.submittedAt ?? null,
       task.reviewedAt ?? null,
       task.updatedAt,
+      task.assignedUserId ?? null,
     ]
   );
 }
@@ -428,6 +430,44 @@ export async function updateEvidenceRow(pool: Pool, evidence: InMemoryEvidence):
       JSON.stringify(evidence.aiDetections ?? []),
       evidence.reviewerFeedback ?? null,
       evidence.updatedAt,
+    ]
+  );
+}
+
+/**
+ * Inserts a user, or attaches a Telegram chat id to the existing row.
+ *
+ * The bot binds a chat to a user on first contact. Two cases, and they must not
+ * be confused: a user the seed already knows (matched by chat id) just gets
+ * their name refreshed, while an unknown chat produces a new merchandiser row.
+ * Doing this as one `INSERT ... ON CONFLICT` on `id` would miss the second
+ * unique constraint — `telegram_chat_id` is also unique — and a chat that
+ * already belonged to someone would fail the insert instead of updating them.
+ */
+export async function upsertTelegramUser(
+  pool: Pool,
+  user: {
+    id: string;
+    email: string;
+    fullName: string;
+    role: string;
+    telegramChatId: string;
+    phone?: string | null;
+  }
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO users (id, email, full_name, role, telegram_chat_id, phone, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6, now(), now())
+     ON CONFLICT (telegram_chat_id) DO UPDATE
+        SET full_name = EXCLUDED.full_name,
+            updated_at = now()`,
+    [
+      user.id,
+      user.email,
+      user.fullName,
+      user.role,
+      user.telegramChatId,
+      user.phone ?? null,
     ]
   );
 }

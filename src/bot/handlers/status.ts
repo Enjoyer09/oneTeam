@@ -1,11 +1,22 @@
 import { BotContext } from '../types';
-import { supabaseService } from '../../services/supabase';
+import { portalApi, PortalApiError } from '../../services/portalApi';
 
 export async function handleMyStatus(ctx: BotContext) {
   const chatId = ctx.chat?.id;
   if (!chatId) return;
 
-  const submissions = await supabaseService.getSubmissionsByChatId(chatId, 5);
+  let submissions;
+  try {
+    submissions = await portalApi.getSubmissionsByChatId(chatId, 5);
+  } catch (error) {
+    const detail = error instanceof PortalApiError ? error.message : String(error);
+    console.error(`[oneTeam Bot] Status lookup failed for chat ${chatId}:`, detail);
+    await ctx.reply(
+      `❌ *Status məlumatını yükləmək mümkün olmadı.*\n\nZəhmət olmasa bir az sonra yenidən cəhd edin.`,
+      { parse_mode: 'Markdown' }
+    );
+    return;
+  }
 
   if (submissions.length === 0) {
     await ctx.reply(
@@ -47,7 +58,14 @@ export async function handleMyStatus(ctx: BotContext) {
       statusText += `   💬 *Supervayzer rəyi:* _"${sub.reviewer_feedback}"_\n`;
     }
 
-    if (sub.photo_url) {
+    // Only http(s) photos can be linked.
+    //
+    // There is no object store yet, so a chat submission's photo is stored as an
+    // inline `data:` URL — tens of kilobytes of base64. Rendering that as a
+    // Markdown link would push the whole image into the message body and produce
+    // a link Telegram cannot open. The photo is visible to the supervisor in the
+    // panel, which is where a review happens anyway.
+    if (sub.photo_url && /^https?:\/\//i.test(sub.photo_url)) {
       statusText += `   🖼 [Fotoşəkilə bax](${sub.photo_url})\n`;
     }
 

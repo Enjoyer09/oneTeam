@@ -260,6 +260,42 @@ export class EnterpriseDatabase {
   }
 
   /**
+   * Binds a Telegram chat to a user, creating the user on first contact.
+   *
+   * Returns the existing row when the chat is already known, so the bot does not
+   * mint a new identity every time someone presses /start.
+   */
+  public bindTelegramUser(params: {
+    telegramChatId: string | number;
+    fullName: string;
+    username?: string;
+  }): { id: string; role: string } {
+    const chatId = String(params.telegramChatId);
+    const existing = this.getUserByTelegramChatId(chatId);
+
+    if (existing) {
+      existing.fullName = params.fullName;
+      return { id: existing.id, role: existing.role };
+    }
+
+    const record = {
+      id: `usr-tg-${chatId}`,
+      email: `tg-${chatId}@oneteam.local`,
+      fullName: params.fullName,
+      role: UserRole.MERCHANDISER as string,
+      telegramChatId: chatId,
+      phone: undefined as string | undefined,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    this.users.push(record as (typeof this.users)[number]);
+    if (this.pool) this.persist(pg.upsertTelegramUser(this.pool, record), `user ${record.id}`);
+
+    return { id: record.id, role: record.role };
+  }
+
+  /**
    * Adds a task template authored from the web panel and persists it.
    *
    * The panel's "create task" form produces a briefing, not a store task: it
@@ -406,6 +442,36 @@ export class EnterpriseDatabase {
       return this.evidences.filter((evidence) => taskIds.has(evidence.storeTaskId));
     }
     return [];
+  }
+
+  /**
+   * Points a store task at the person who will do it.
+   *
+   * WHY THE TELEGRAM CHANNEL NEEDS THIS
+   * -----------------------------------
+   * `canUserAccessTask` lets a MERCHANDISER submit only for a task assigned to
+   * them, which is what stops one field worker filing an audit for another's
+   * store. The panel and mobile flows satisfy that because a supervisor picks
+   * the assignee when dispatching.
+   *
+   * The chat flow has no supervisor in it: a merchandiser proves which store
+   * they are at by sending its code. So the claim *is* the assignment, and
+   * without recording it here every submission from a chat would be refused
+   * with a 403 — the bot would look broken for exactly the people it exists for.
+   *
+   * An existing assignee is never overwritten: a task already given to someone
+   * else stays theirs, and the caller decides what to do about that.
+   */
+  public assignStoreTask(taskId: string, userId: string): InMemoryStoreTask | null {
+    const task = this.getTask(taskId);
+    if (!task) return null;
+    if (task.assignedUserId === userId) return task;
+
+    task.assignedUserId = userId;
+    task.updatedAt = new Date();
+
+    if (this.pool) this.persist(pg.updateStoreTaskRow(this.pool, task), `task ${task.id} assignment`);
+    return task;
   }
 
   public updateTaskState(taskId: string, newState: TaskState): InMemoryStoreTask | null {
