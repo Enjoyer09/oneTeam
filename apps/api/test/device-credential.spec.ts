@@ -530,6 +530,18 @@ async function main(): Promise<void> {
   const accepted = burst.filter((entry) => entry.status === 200);
   const serverErrors = burst.filter((entry) => entry.status >= 500);
 
+  /**
+   * Every installation this run created, so it can be removed again at the end.
+   *
+   * Exercising the cap means creating `cap` installations, and the burst adds
+   * six more. Without this the suite left them behind — one session's runs put
+   * 184 rows in the development database. The window that counts them is
+   * per-process, so deleting them does not restore the budget and the next run
+   * skips the same assertions it would have skipped anyway; the only thing
+   * cleanup changes is that the mess is not left for someone else.
+   */
+  const createdDeviceIds: string[] = accepted.map((entry) => entry.deviceId);
+
   if (accepted.length === 0) {
     skip(
       'a burst of first-time enrolments produces no server error',
@@ -604,18 +616,21 @@ async function main(): Promise<void> {
       enrollmentSecret: ENROLLMENT_SECRET || undefined,
     },
   });
+  if (knownFirst.status === 200) createdDeviceIds.push(knownDeviceId);
 
   const attempts: number[] = [];
   for (let i = 0; i < NEW_DEVICE_CAP + 3; i += 1) {
+    const deviceId = `dev-cap-${capStamp}-${i}`;
     const result = await call('POST', '/api/portal/field/enroll', {
       body: {
         storeCode: CAP_STORE_CODE,
         fullName: `Cap Probe ${i}`,
-        deviceId: `dev-cap-${capStamp}-${i}`,
+        deviceId,
         enrollmentSecret: ENROLLMENT_SECRET || undefined,
       },
     });
     attempts.push(result.status);
+    if (result.status === 200) createdDeviceIds.push(deviceId);
   }
 
   const refused = attempts.filter((status) => status === 429).length;
@@ -697,6 +712,38 @@ async function main(): Promise<void> {
       skip('a missing enrolment secret is refused with 401', 'enrolment failure window exhausted');
     } else {
       check('a missing enrolment secret is refused with 401', noSecret.status === 401, noSecret);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Clean up what this run created
+  // -------------------------------------------------------------------------
+  if (!db) {
+    skip('the installations this suite created are removed again', 'DATABASE_URL not set');
+  } else if (createdDeviceIds.length === 0) {
+    skip('the installations this suite created are removed again', 'this run created none');
+  } else {
+    // Defensive, because the schema is not uniformly forgiving: `device_tokens`,
+    // `store_tasks.assigned_user_id` and `audit_logs.actor_id` are all ON DELETE
+    // SET NULL, but `task_evidences.submitted_by_id` is ON DELETE RESTRICT — so
+    // an installation that submitted evidence cannot be removed at all, and the
+    // delete would throw. Failing the whole suite over housekeeping would be the
+    // wrong trade, so this reports instead.
+    try {
+      const removed = await query(
+        `DELETE FROM users WHERE mobile_device_id = ANY($1) RETURNING id`,
+        [createdDeviceIds],
+      );
+      check(
+        'the installations this suite created are removed again',
+        removed.length === createdDeviceIds.length,
+        { created: createdDeviceIds.length, removed: removed.length },
+      );
+    } catch (error) {
+      skip(
+        'the installations this suite created are removed again',
+        error instanceof Error ? error.message : String(error),
+      );
     }
   }
 
