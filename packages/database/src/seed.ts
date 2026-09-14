@@ -13,7 +13,15 @@ export interface SeedData {
     email: string;
     fullName: string;
     role: 'ADMIN' | 'SUPERVISOR' | 'MERCHANDISER' | 'STORE_STAFF';
+    /**
+     * The Telegram chat this person bound on, when they use the chat channel.
+     *
+     * One external key per channel: the bot identifies a person by chat id, the
+     * mobile client by device id. Both resolve to the same row, which is what
+     * lets one set of anti-fraud rules serve both channels.
+     */
     telegramChatId?: string;
+    mobileDeviceId?: string;
     phone?: string;
   }>;
   region: {

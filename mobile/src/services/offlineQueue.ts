@@ -42,6 +42,7 @@ export class OfflineQueueManager {
     taskId: string;
     storeId: string;
     photoUri: string;
+    photoBase64?: string;
     metadata: AuditMetadata;
   }): Promise<QueueItem> {
     const queueItem: QueueItem = {
@@ -49,6 +50,7 @@ export class OfflineQueueManager {
       task_id: params.taskId,
       store_id: params.storeId,
       photo_uri: params.photoUri,
+      photo_base64: params.photoBase64,
       metadata: params.metadata,
       created_at: new Date().toISOString(),
       retry_count: 0,

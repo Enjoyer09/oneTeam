@@ -69,6 +69,16 @@ export interface PanelTask {
   assigned_stores: string[];
   requires_before_after_photo: boolean;
   checklist_schema: unknown[];
+
+  /**
+   * The template's planogram rules.
+   *
+   * Added for the mobile field client, which used to display a hardcoded
+   * "≤ 4°C, 3 facings per SKU" for every task because the rules never left the
+   * server. A field worker reading a made-up planogram is worse served than one
+   * reading nothing.
+   */
+  planogram_rules: unknown[];
 }
 
 export interface PanelSubmission {
@@ -192,6 +202,7 @@ export class PortalService {
       assigned_stores: [task.storeId],
       requires_before_after_photo: template?.requiresBeforeAfterPhoto ?? false,
       checklist_schema: template?.checklistSchema ?? [],
+      planogram_rules: template?.planogramRules ?? [],
     };
   }
 

@@ -472,6 +472,47 @@ export async function upsertTelegramUser(
   );
 }
 
+/**
+ * Persists a device-bound user, creating the row on first contact.
+ *
+ * The mirror of `upsertTelegramUser`. Both keys live on the same row because
+ * they are two names for the same person, and the anti-fraud rules are written
+ * against the person.
+ *
+ * The conflict target is the unique index added by
+ * `supabase/migrations/20260914000003_add_mobile_device_id.sql`. Until that
+ * migration has been applied to a database, this statement fails and `persist()`
+ * logs it — the in-memory store still works, so the failure is visible without
+ * being fatal.
+ */
+export async function upsertDeviceUser(
+  pool: Pool,
+  user: {
+    id: string;
+    email: string;
+    fullName: string;
+    role: string;
+    mobileDeviceId: string;
+    phone?: string | null;
+  }
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO users (id, email, full_name, role, mobile_device_id, phone, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6, now(), now())
+     ON CONFLICT (mobile_device_id) DO UPDATE
+        SET full_name = EXCLUDED.full_name,
+            updated_at = now()`,
+    [
+      user.id,
+      user.email,
+      user.fullName,
+      user.role,
+      user.mobileDeviceId,
+      user.phone ?? null,
+    ]
+  );
+}
+
 /** Cheap liveness probe used by `init()` and reported through /api/health. */
 export async function ping(pool: Pool): Promise<boolean> {
   const res = await pool.query('SELECT 1 AS ok');

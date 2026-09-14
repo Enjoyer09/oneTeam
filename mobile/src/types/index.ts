@@ -1,18 +1,36 @@
+import { ChecklistQuestion, PlanogramRule } from '@oneteam/types';
+
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type TaskStatus = 'draft' | 'published' | 'completed' | 'archived';
 export type SubmissionStatus = 'pending_review' | 'approved' | 'rejected';
 
+/**
+ * A store as the mobile client sees it.
+ *
+ * `latitude`/`longitude` are nullable because the API says so: a store can exist
+ * in the catalogue before anyone has recorded where it is. That is not a detail
+ * to smooth over — the anti-fraud geofence cannot run without them, so the login
+ * screen refuses such a store explicitly rather than comparing against a
+ * default of 0,0 and reporting a distance from the Gulf of Guinea.
+ */
 export interface MobileStore {
   id: string;
   store_code: string;
   name: string;
   address: string | null;
   city: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   is_active: boolean;
 }
 
+/**
+ * A task as the mobile client sees it.
+ *
+ * These are store tasks, not templates: one row per (template, store), which is
+ * what the submission endpoint takes an id of. `planogram_rules` and
+ * `checklist_schema` come from the template behind it.
+ */
 export interface MobileTask {
   id: string;
   title: string;
@@ -21,8 +39,8 @@ export interface MobileTask {
   priority: TaskPriority;
   status: TaskStatus;
   deadline: string;
-  cooling_requirement?: string; // e.g. "≤ 4°C"
-  facings_per_sku?: number; // e.g. 3
+  planogram_rules: PlanogramRule[];
+  checklist_schema: ChecklistQuestion[];
 }
 
 export interface GPSCoordinates {
@@ -38,6 +56,15 @@ export interface GeofenceResult {
   message: string;
 }
 
+/**
+ * What the device stamps onto a capture.
+ *
+ * This is the metadata the *client* produces. It is sent to the API as channel
+ * metadata and written to the audit log; it is deliberately not what comes back
+ * on a submission, which carries only the coordinates and timestamp the server
+ * recorded. The two used to be conflated, which is why `MobileSubmission` no
+ * longer claims to hold this shape.
+ */
 export interface AuditMetadata {
   gps: GPSCoordinates;
   distance_from_store_meters: number;
@@ -54,6 +81,16 @@ export interface QueueItem {
   task_id: string;
   store_id: string;
   photo_uri: string;
+  /**
+   * The image itself, when the platform could read it.
+   *
+   * Queued alongside the path rather than instead of it, because the file at
+   * `photo_uri` may be gone by the time the queue drains — a phone reclaims
+   * temporary files, and a queued audit that cannot be uploaded is worse than one
+   * that was never queued. When this is absent the sync fails with a message
+   * saying so rather than filing a placeholder image as evidence.
+   */
+  photo_base64?: string;
   metadata: AuditMetadata;
   created_at: string;
   retry_count: number;
@@ -61,6 +98,14 @@ export interface QueueItem {
   error_message?: string;
 }
 
+/**
+ * A filed audit as the API returns it.
+ *
+ * `metadata` is the server's own record — captured timestamp, the coordinates it
+ * stored, the distance it computed — not the device metadata that was sent. The
+ * verdict lives on the *task*, not on the evidence, so `status` is derived
+ * server-side and is the only thing worth trusting here.
+ */
 export interface MobileSubmission {
   id: string;
   task_id: string;
@@ -69,9 +114,9 @@ export interface MobileSubmission {
   status: SubmissionStatus;
   reviewer_feedback: string | null;
   ai_score?: number | null;
-  ai_detections?: any;
+  ai_detections?: unknown;
   ai_summary?: string | null;
   submitted_at: string;
-  metadata: AuditMetadata;
+  metadata: Record<string, unknown>;
   is_offline_synced?: boolean;
 }

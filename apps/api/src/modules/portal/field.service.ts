@@ -42,6 +42,26 @@ import { AuthenticatedPrincipal } from '../../common/auth/authenticated-principa
 /** Largest photo accepted as a data URL. See the note in submitSubmission. */
 const MAX_PHOTO_BYTES = 1_500_000;
 
+/**
+ * How a channel names the person who is acting.
+ *
+ * The bot is one server serving every chat, so it identifies the acting person
+ * by the Telegram chat the update arrived from. The mobile client is a device,
+ * so it identifies them by the installation it was bound on.
+ *
+ * Both resolve to the same user row, and that is the point: the anti-fraud rules
+ * (`canUserAccessTask`, the geofence, the checklist) are written against the
+ * *user*, so neither channel needs its own copy of them and the two cannot drift.
+ *
+ * The key is not a credential. The caller still has to hold the service
+ * credential to reach these endpoints at all, which is why a device id can be
+ * trusted to name a person but never to authenticate one.
+ */
+export interface FieldActorKey {
+  chatId?: string | number;
+  deviceId?: string;
+}
+
 @Injectable()
 export class FieldService {
   private readonly logger = new Logger(FieldService.name);
@@ -52,10 +72,11 @@ export class FieldService {
     private readonly taskStateService: TaskStateService
   ) {}
 
-  /** Resolves a chat to a user row, or null when the chat has never bound. */
-  private resolveActor(chatId: string | number): AuthenticatedPrincipal | null {
-    const user = db.getUserByTelegramChatId(chatId);
-    if (!user) return null;
+  private toPrincipal(user: {
+    id: string;
+    role: string;
+    telegramChatId?: string | null;
+  }): AuthenticatedPrincipal {
     return {
       userId: user.id,
       role: user.role as UserRole,
@@ -63,19 +84,44 @@ export class FieldService {
     };
   }
 
-  private requireActor(chatId: string | number): AuthenticatedPrincipal {
-    const actor = this.resolveActor(chatId);
-    if (!actor) {
-      throw new HttpException(
-        {
-          error: 'UNBOUND_CHAT',
-          message:
-            'Bu Telegram hesabı heç bir istifadəçiyə bağlanmayıb. /start əmri ilə mağaza kodunu göndərin.',
-        },
-        HttpStatus.NOT_FOUND
-      );
+  /**
+   * Resolves a channel key to a user row, or null when it has never bound.
+   *
+   * `chatId` is checked first so a caller that sends both gets the chat identity
+   * — the more specific of the two, and the one a bug is less likely to have
+   * invented.
+   */
+  private resolveActor(key: FieldActorKey): AuthenticatedPrincipal | null {
+    if (key.chatId !== undefined && key.chatId !== null && key.chatId !== '') {
+      const user = db.getUserByTelegramChatId(key.chatId);
+      return user ? this.toPrincipal(user) : null;
     }
-    return actor;
+
+    if (key.deviceId) {
+      const user = db.getUserByMobileDeviceId(key.deviceId);
+      return user ? this.toPrincipal(user) : null;
+    }
+
+    return null;
+  }
+
+  private requireActor(key: FieldActorKey): AuthenticatedPrincipal {
+    const actor = this.resolveActor(key);
+    if (actor) return actor;
+
+    // Named per channel: "your chat is not registered" and "your device is not
+    // registered" send the person to different remedies, so collapsing them into
+    // one message would leave half of them with the wrong instructions.
+    const isChat = key.chatId !== undefined && key.chatId !== null && key.chatId !== '';
+    throw new HttpException(
+      {
+        error: isChat ? 'UNBOUND_CHAT' : 'UNBOUND_DEVICE',
+        message: isChat
+          ? 'Bu Telegram hesabı heç bir istifadəçiyə bağlanmayıb. /start əmri ilə mağaza kodunu göndərin.'
+          : 'Bu cihaz heç bir istifadəçiyə bağlanmayıb. Tətbiqdən yenidən daxil olun.',
+      },
+      HttpStatus.NOT_FOUND
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -107,57 +153,109 @@ export class FieldService {
    * The claim is written to the audit log (`TASK_SELF_ASSIGNED`) rather than
    * happening invisibly, because "who claimed this store" is exactly the kind of
    * thing that should be answerable later.
+   *
+   * BOTH CHANNELS BIND THE SAME WAY, WHICH IS THE POINT.
+   *
+   * The mobile client has no supervisor either — it is a device in a shop, and
+   * the store code is the only thing the person using it has. Giving the two
+   * channels different claiming rules would mean an audit could be legitimate on
+   * one and impossible on the other, and the rule would have to be maintained
+   * twice.
    */
-  bind(chatId: string | number, fullName: string, storeId?: string) {
-    const result = db.bindTelegramUser({ telegramChatId: chatId, fullName });
-    this.logger.log(`🔗 [FIELD BIND] chat ${chatId} -> ${result.id} (${result.role})`);
+  bind(key: FieldActorKey, fullName: string, storeId?: string) {
+    const hasChatId = key.chatId !== undefined && key.chatId !== null && key.chatId !== '';
 
-    const claimed: string[] = [];
-    if (storeId) {
-      const open = new Set([
-        'PUBLISHED',
-        'DELIVERED',
-        'ACKNOWLEDGED',
-        'IN_PROGRESS',
-        'SUBMITTED',
-      ]);
-      const claimable = db.storeTasks.filter(
-        (task) =>
-          task.storeId === storeId &&
-          open.has(task.status) &&
-          (!task.assignedUserId || task.assignedUserId === result.id)
+    const result = hasChatId
+      ? db.bindTelegramUser({ telegramChatId: key.chatId as string | number, fullName })
+      : key.deviceId
+        ? db.bindDeviceUser({ deviceId: key.deviceId, fullName })
+        : null;
+
+    if (!result) {
+      throw new HttpException(
+        {
+          error: 'MISSING_ACTOR_KEY',
+          message: 'chatId və ya deviceId tələb olunur',
+        },
+        HttpStatus.BAD_REQUEST
       );
-
-      for (const task of claimable) {
-        db.assignStoreTask(task.id, result.id);
-        claimed.push(task.id);
-      }
-
-      if (claimed.length > 0) {
-        db.logAuditEvent({
-          entityType: 'store_task',
-          entityId: storeId,
-          action: 'TASK_SELF_ASSIGNED',
-          actorId: result.id,
-          payload: {
-            channel: 'telegram',
-            storeId,
-            taskIds: claimed,
-            reason:
-              'Mağaza kodu ilə qeydiyyat: işçi bu mağazanın açıq tapşırıqlarını öz üzərinə götürdü.',
-          },
-        });
-        this.logger.log(
-          `📌 [FIELD CLAIM] ${result.id} claimed ${claimed.length} task(s) at store ${storeId}`
-        );
-      }
     }
+
+    const channel: 'telegram' | 'mobile' = hasChatId ? 'telegram' : 'mobile';
+    const externalId = hasChatId ? String(key.chatId) : String(key.deviceId);
+
+    this.logger.log(`🔗 [FIELD BIND] ${channel} ${externalId} -> ${result.id} (${result.role})`);
+
+    const claimed = this.claimStoreTasks(result.id, storeId, channel);
 
     return { success: true, data: { ...result, claimedTaskIds: claimed } };
   }
 
-  session(chatId: string | number) {
-    const user = db.getUserByTelegramChatId(chatId);
+  /**
+   * Claims a store's unassigned open work for a user.
+   *
+   * Shared by both channels so the rule — claim what is free, never take over
+   * what belongs to someone else — exists once. Extracted from `bind` for that
+   * reason and not for brevity.
+   */
+  private claimStoreTasks(
+    userId: string,
+    storeId: string | undefined,
+    channel: 'telegram' | 'mobile'
+  ): string[] {
+    if (!storeId) return [];
+
+    const open = new Set([
+      'PUBLISHED',
+      'DELIVERED',
+      'ACKNOWLEDGED',
+      'IN_PROGRESS',
+      'SUBMITTED',
+    ]);
+
+    const claimable = db.storeTasks.filter(
+      (task) =>
+        task.storeId === storeId &&
+        open.has(task.status) &&
+        (!task.assignedUserId || task.assignedUserId === userId)
+    );
+
+    const claimed: string[] = [];
+    for (const task of claimable) {
+      db.assignStoreTask(task.id, userId);
+      claimed.push(task.id);
+    }
+
+    if (claimed.length > 0) {
+      db.logAuditEvent({
+        entityType: 'store_task',
+        entityId: storeId,
+        action: 'TASK_SELF_ASSIGNED',
+        actorId: userId,
+        payload: {
+          channel,
+          storeId,
+          taskIds: claimed,
+          reason:
+            'Mağaza kodu ilə qeydiyyat: işçi bu mağazanın açıq tapşırıqlarını öz üzərinə götürdü.',
+        },
+      });
+      this.logger.log(
+        `📌 [FIELD CLAIM] ${userId} claimed ${claimed.length} task(s) at store ${storeId} (${channel})`
+      );
+    }
+
+    return claimed;
+  }
+
+  session(key: FieldActorKey) {
+    const user =
+      key.chatId !== undefined && key.chatId !== null && key.chatId !== ''
+        ? db.getUserByTelegramChatId(key.chatId)
+        : key.deviceId
+          ? db.getUserByMobileDeviceId(key.deviceId)
+          : null;
+
     if (!user) return { success: true, data: null };
     return {
       success: true,
@@ -195,8 +293,8 @@ export class FieldService {
    * ACKNOWLEDGED or beyond is returned untouched, and a DRAFT is refused by the
    * state machine.
    */
-  async acknowledgeTask(chatId: string | number, taskId: string) {
-    const actor = this.requireActor(chatId);
+  async acknowledgeTask(key: FieldActorKey, taskId: string) {
+    const actor = this.requireActor(key);
 
     const task = db.getTask(taskId);
     if (!task) {
@@ -277,11 +375,17 @@ export class FieldService {
     return task ? this.portal.toPanelTask(task) : null;
   }
 
-  getSubmissionsForChat(chatId: string | number, limit = 5): PanelSubmission[] {
-    const user = db.getUserByTelegramChatId(chatId);
-    if (!user) return [];
+  /**
+   * The audits filed by whoever the key names.
+   *
+   * Keyed by actor rather than by store, because a field worker's own history is
+   * what both clients show. A caller that wants one store filters the result.
+   */
+  getSubmissions(key: FieldActorKey, limit = 5): PanelSubmission[] {
+    const actor = this.resolveActor(key);
+    if (!actor) return [];
     return db.evidences
-      .filter((evidence) => evidence.submittedById === user.id)
+      .filter((evidence) => evidence.submittedById === actor.userId)
       .sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime())
       .slice(0, Math.max(1, Math.min(50, limit)))
       .map((evidence) => this.portal.toPanelSubmission(evidence));
@@ -330,7 +434,9 @@ export class FieldService {
    * below exists so the wrong answer cannot grow without bound in the meantime.
    */
   async submitSubmission(payload: {
-    chatId: string | number;
+    /** Exactly one of these identifies the acting person. See FieldActorKey. */
+    chatId?: string | number;
+    deviceId?: string;
     storeTaskId: string;
     photoUrl: string;
     photoType?: 'before' | 'after' | 'standard';
@@ -340,7 +446,7 @@ export class FieldService {
     checklistAnswers?: Array<{ questionId: string; value: boolean | number | string }>;
     metadata?: Record<string, unknown>;
   }) {
-    const actor = this.requireActor(payload.chatId);
+    const actor = this.requireActor({ chatId: payload.chatId, deviceId: payload.deviceId });
 
     if (typeof payload.photoUrl === 'string' && payload.photoUrl.startsWith('data:')) {
       if (payload.photoUrl.length > MAX_PHOTO_BYTES) {
@@ -405,20 +511,28 @@ export class FieldService {
     // Delegated: geofence, checklist validation and the before/after pipeline
     // all live in EvidenceService and must not be duplicated here.
     //
-    // `checklistNotCollected` is not a shortcut. The chat flow submits a photo
-    // and never asks the template's questions, and every real template carries
-    // required ones — so without it every submission from a chat is refused with
-    // a 400 and the bot is unusable. The service records which questions went
-    // unanswered in a `CHECKLIST_NOT_COLLECTED` audit event, so the gap is on the
-    // record rather than assumed away. Asking the questions in the chat is the
-    // real fix and belongs in the bot's conversation flow.
+    // `checklistNotCollected` is DERIVED from what actually arrived. It used to
+    // be hardcoded `true`, because the chat flow sent a photo without ever asking
+    // the template's questions and every real template carries required ones — so
+    // without the flag every submission from a chat was refused with a 400.
+    //
+    // The bot now walks the merchandiser through the questions (see
+    // `handlers/taskFlow.ts`), so the flag is set only when no answers came back
+    // at all, and EvidenceService records which required questions went
+    // unanswered in a `CHECKLIST_NOT_COLLECTED` audit event.
+    //
+    // Note what this does NOT do: it does not let a *partial* answer set through.
+    // Whatever arrived is validated in full, and a missing required answer is
+    // still a 400 — which is exactly why the chat flow offers no skip button.
+    const answers = payload.checklistAnswers ?? [];
+
     const result = await this.evidenceService.submitEvidence(
       {
         storeTaskId: payload.storeTaskId,
         photoUrl: payload.photoUrl,
         photoType: payload.photoType ?? 'standard',
-        checklistAnswers: payload.checklistAnswers as any,
-        checklistNotCollected: true,
+        checklistAnswers: answers as any,
+        checklistNotCollected: answers.length === 0,
         latitude: hasRealFix ? (payload.latitude as number) : store.latitude,
         longitude: hasRealFix ? (payload.longitude as number) : store.longitude,
       },

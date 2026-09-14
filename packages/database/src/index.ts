@@ -296,6 +296,49 @@ export class EnterpriseDatabase {
   }
 
   /**
+   * Binds a mobile device to a user, creating the user on first contact.
+   *
+   * The mirror image of `bindTelegramUser`, and deliberately so: a channel's
+   * external identifier is how that channel names the acting person, and both
+   * resolve to one user row. That is what keeps the anti-fraud rules — which are
+   * written against the user, not against the channel — from needing a copy per
+   * client.
+   *
+   * A device id is NOT an authentication factor. Anyone who can read it can
+   * claim it, so it must only ever be accepted from a client the operator
+   * controls, exactly as the bot only accepts a chat id it derived from the
+   * update it is handling.
+   */
+  public bindDeviceUser(params: {
+    deviceId: string;
+    fullName: string;
+  }): { id: string; role: string } {
+    const deviceId = String(params.deviceId).trim();
+    const existing = this.getUserByMobileDeviceId(deviceId);
+
+    if (existing) {
+      existing.fullName = params.fullName;
+      return { id: existing.id, role: existing.role };
+    }
+
+    const record = {
+      id: `usr-dev-${deviceId}`,
+      email: `device-${deviceId}@oneteam.local`,
+      fullName: params.fullName,
+      role: UserRole.MERCHANDISER as string,
+      mobileDeviceId: deviceId,
+      phone: undefined as string | undefined,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    this.users.push(record as (typeof this.users)[number]);
+    if (this.pool) this.persist(pg.upsertDeviceUser(this.pool, record), `user ${record.id}`);
+
+    return { id: record.id, role: record.role };
+  }
+
+  /**
    * Adds a task template authored from the web panel and persists it.
    *
    * The panel's "create task" form produces a briefing, not a store task: it
@@ -365,6 +408,13 @@ export class EnterpriseDatabase {
   public getUserByTelegramChatId(telegramChatId: string | number) {
     const chatId = String(telegramChatId);
     return this.users.find((user) => user.telegramChatId === chatId) || null;
+  }
+
+  /** The mobile client's equivalent of `getUserByTelegramChatId`. */
+  public getUserByMobileDeviceId(deviceId: string) {
+    const id = String(deviceId).trim();
+    if (!id) return null;
+    return this.users.find((user) => user.mobileDeviceId === id) || null;
   }
 
   public getStore(storeId: string) {
