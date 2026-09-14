@@ -479,6 +479,7 @@ Yekun gözlənti: **aylıq təxminən $5–15**. Dəqiq rəqəmi Railway panelin
 | Giriş qoruması   | ✅ kənar kredensial `/api/portal/...`-da **401** alır    |
 | Enrolment açarı  | ✅ `ONETEAM_ENROLLMENT_SECRET` qoyulub və yoxlanılıb    |
 | Panel açarı      | ✅ yaradılıb, giriş ekranı qoşulub (`liveKeys: 1`)    |
+| Foto saxlancı     | ✅ Cloudflare R2 bucket `oneteam-photos` aktivdir    |
 | Ehtiyat nüsxə    | ✅ PITR aktiv + gündəlik cədvəl qurulub                  |
 | Bot              | ✅ işləyir — **@oneTeamCCIbot**                          |
 
@@ -525,14 +526,32 @@ Mobil tətbiq real telefonlara çıxanda `ONETEAM_ENROLLMENT_SECRET` açarını 
 environment dəyişəni kimi qoymaq lazımdır. Açarı özünüzə saxlayın — kodu
 repozitoriyaya yazmayın.
 
-### 4. Foto saxlancı — mağaza sayı artanda
+### ✅ 4. Foto saxlancı — Cloudflare R2 — EDİLDİ
 
-**Niyə:** fotolar hazırda **bazanın içində** saxlanılır (yoxlanıldı:
-`photoStorage.driver: "inline"`). 1.5 MB limit var və baza sürətlə böyüyür —
-1000+ mağaza üçün uyğun deyil.
+**Hazırda aktivdir.** 14 sentyabr 2026 tarixində Cloudflare R2 bucket-i yaradıldı
+və canlı sistemdə yoxlanıldı:
 
-**Nə lazım:** Railway-də bucket yaradıb `STORAGE_DRIVER=s3` və `S3_*` dəyişənlərini
-`api` servisinə yazmaq.
+- **Bucket:** `oneteam-photos`
+- **Provayder:** Cloudflare R2
+- **Yaddaş xərci:** ~$0.015/GB/ay (10 GB şəkil üçün ~$0.15)
+- **Oxumaq (çıxış):** pulsuz
+- **Driver:** `s3` — yoxlama: `/api/health` göstərir
+  `s3 — bucket "oneteam-photos" at https://e14dc79d7e0ff8248c498a9607dfe6fb.r2.cloudflarestorage.com`
+
+**Niyə R2:** fotolar artıq **bazada yox, ayrı anbarda** saxlanılır. Baza yalnız
+şəklin **ünvanını (URL)** saxlayır. Bu, bazanın böyüməsini dayandırır və 1000+
+mağaza üçün uyğundur.
+
+**Digər layihələrdən şəkillər qarışmaz.** Hər bucket Cloudflare-də ayrı adla
+yaradılır (`oneteam-photos`). Hər şəkilin açarı da öz scope-i ilə başlayır
+(məsələn: `test-r2/...`, `tasks/...`), yəni heç vaxt başqa layihənin faylı ilə
+üst-üstə düşməz.
+
+**Yoxlama:** test şəkli uğurla yükləndi və brauzerdə açıldı:
+`https://pub-cbde14e7e03a447083138b431b8697a7.r2.dev/test-r2/...` → `HTTP 200 OK`.
+
+**Açarlar:** `S3_ACCESS_KEY_ID` və `S3_SECRET_ACCESS_KEY` yalnız Railway-də
+`api` servisinin dəyişənlərindədir; kod repozitoriyaya yazılmayıb.
 
 ### 5. Öz domeniniz
 
