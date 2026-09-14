@@ -19,7 +19,7 @@ tətbiq olunub), kənar giriş isə rədd olunur.
 | ---------------------------------- | ---------------------------------------------------------------- | -------------- |
 | **Veb panel** (istifadəçilər üçün) | https://web-production-1392e.up.railway.app                      | ✅ işləyir     |
 | **API** (proqramlar üçün)          | https://api-production-c17b.up.railway.app                       | ✅ işləyir     |
-| API sağlamlıq yoxlaması            | https://web-production-1392e.up.railway.app/api/health           | ✅ cavab verir |
+| API sağlamlıq yoxlaması            | https://api-production-c17b.up.railway.app/api/health            | ✅ cavab verir |
 | Railway idarəetmə paneli           | https://railway.com/project/f400d4fb-57dc-4346-9512-294f616ec363 | —              |
 | Kod (private)                      | https://github.com/Enjoyer09/oneTeam                             | —              |
 
@@ -477,6 +477,7 @@ Yekun gözlənti: **aylıq təxminən $5–15**. Dəqiq rəqəmi Railway panelin
 | API → real baza  | ✅ `/api/health` → `persistence: postgres`               |
 | Baza sxemi       | ✅ API işə düşəndə özü yaradır və tamamlayır (101 sütun) |
 | Giriş qoruması   | ✅ kənar kredensial `/api/portal/...`-da **401** alır    |
+| Enrolment açarı  | ✅ `ONETEAM_ENROLLMENT_SECRET` qoyulub və yoxlanılıb    |
 | Ehtiyat nüsxə    | ✅ PITR aktiv + gündəlik cədvəl qurulub                  |
 | Bot              | ✅ işləyir — **@oneTeamCCIbot**                          |
 
@@ -509,15 +510,19 @@ Açar yaratdığınız **anda** giriş ekranı avtomatik qoşulacaq və kənar g
 Açarı itirsəniz: Railway → `api` → `ONETEAM_PANEL_BOOTSTRAP_KEY` (ən azı 24 simvol)
 qoyun, sonra yeni açar yaradın.
 
-### 3. Mağaza kodunu gücləndirin — `ONETEAM_ENROLLMENT_SECRET`
+### ✅ 3. Mağaza kodunu gücləndirin — `ONETEAM_ENROLLMENT_SECRET` — EDİLDİ
 
-**Niyə:** hazırda cihaz qeydiyyatı üçün **yalnız mağaza kodu** kifayətdir. Mağaza
-kodu yarı-açıq məlumatdır (brifinqdə çap olunur, həmkarlar arasında paylaşılır).
-Mağaza üzrə limit artıq var, amma əsl həll bu gizli açardır.
+**Hazırda aktivdir.** 14 sentyabr 2026 tarixində qoyuldu və canlı sistemdə
+yoxlanıldı:
 
-**Vacib:** bu, **iki tərəfli** dəyişiklikdir — eyni açar mobil tətbiqin içinə də
-yazılmalıdır. Mobil tətbiq hələ real telefonlara çıxmadığı üçün **indi qoymaq
-təhlükəsizdir**.
+- Açarsız qeydiyyat → **401** `ENROLLMENT_SECRET_REQUIRED` (bloklanır)
+- Açarlı qeydiyyat, saxta mağaza kodu → **404** `STORE_NOT_FOUND` (açar qəbul
+  olunur, amma mağaza yoxdur — heç bir sətir yaradılmır)
+
+**Vacib — mobil tətbiq tərəfi:** eyni açar mobil tətbiqin içinə də yazılmalıdır.
+Mobil tətbiq real telefonlara çıxanda `ONETEAM_ENROLLMENT_SECRET` açarını tətbiqin
+environment dəyişəni kimi qoymaq lazımdır. Açarı özünüzə saxlayın — kodu
+repozitoriyaya yazmayın.
 
 ### 4. Foto saxlancı — mağaza sayı artanda
 
