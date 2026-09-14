@@ -63,9 +63,11 @@ COPY apps/api ./apps/api
 #
 # `packages/database/src/migrations.ts` walks up from its own compiled location
 # looking for `db/api-schema.sql`, so this directory has to sit at the same
-# relative depth in the image as it does in the repository. Copying it here and
-# not just into the builder is the difference between "migrations run on deploy"
-# and "migrations are skipped, and the health endpoint says so".
+# relative depth in the image as it does in the repository.
+#
+# Kept in the builder as well as the runtime stage, because the builder is where
+# `tsc --build` runs and a missing file here would be confusing to diagnose.
+# **The runtime copy is the load-bearing one** — see the runner stage.
 COPY db ./db
 
 # Build the API together with its workspace dependencies.
@@ -98,6 +100,32 @@ COPY apps/api/package*.json ./apps/api/
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
+
+# ------------------------------------------------------------------------------
+# The schema, migrations and seed data — and this line is not optional
+# ------------------------------------------------------------------------------
+# Without it the image contains no `db/` directory, so `findRepoRoot()` walks up
+# from `/app/packages/database/dist`, finds no `db/api-schema.sql` within its
+# eight levels, returns null, and `runMigrations()` gives up before reading a
+# single file. The API still boots, serves, and reports:
+#
+#     "schema": { "ok": false, "detail": "Could not locate the repository root
+#                 (no db/api-schema.sql found above /app/packages/database/dist).
+#                 Migrations were NOT applied." }
+#
+# Which is exactly what the health endpoint is for — but nobody reads a health
+# endpoint that says "ok" at the top level, and the deployment this matters for
+# is the one where it is the *only* thing creating the schema. The compose file
+# mounts `db/api-schema.sql` into Postgres's initdb directory, but that only
+# applies to a self-hosted Postgres on a fresh volume. On a managed database —
+# Railway, RDS, Neon — the API's start-up migration is the only mechanism there
+# is, and `ONETEAM_AUTO_MIGRATE` defaults to on precisely so it works.
+#
+# Found by building the image and running it rather than by reading this file:
+# `/app/db` was absent, and four migrations — including the ones that add
+# `mobile_device_id`, `device_tokens`, `data_version` and `panel_tokens` — had
+# never been applied by any container.
+COPY --from=builder /app/db ./db
 
 # Expose API port
 EXPOSE 3001
