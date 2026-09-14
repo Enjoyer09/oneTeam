@@ -185,8 +185,13 @@ async function main(): Promise<void> {
 
   // Does this deployment require the second factor? Asked rather than assumed,
   // so the suite works against a pilot deployment and a hardened one.
+  //
+  // Named rather than inline because this probe enrols for real when the second
+  // factor is not required, and the installation it creates has to be cleaned up
+  // with the rest — see `createdDeviceIds`.
+  const PROBE_DEVICE_ID = 'dev-probe-' + Date.now();
   const probe = await call('POST', '/api/portal/field/enroll', {
-    body: { storeCode: STORE_CODE, fullName: 'Probe', deviceId: 'dev-probe-' + Date.now() },
+    body: { storeCode: STORE_CODE, fullName: 'Probe', deviceId: PROBE_DEVICE_ID },
   });
   const secretRequired = probe.status === 401 && probe.body?.error === 'ENROLLMENT_SECRET_REQUIRED';
   console.log(
@@ -541,6 +546,13 @@ async function main(): Promise<void> {
    * cleanup changes is that the mess is not left for someone else.
    */
   const createdDeviceIds: string[] = accepted.map((entry) => entry.deviceId);
+
+  // The precondition probe enrols for real whenever the second factor is not
+  // required, so it leaves an installation of its own. It used to be untracked,
+  // which is why every run of this suite left one `dev-probe-*` row behind —
+  // four runs, four rows, found by counting `users` before and after. Restoring
+  // the leak and re-running leaves exactly one, which is how this was checked.
+  if (probe.status === 200) createdDeviceIds.push(PROBE_DEVICE_ID);
 
   if (accepted.length === 0) {
     skip(

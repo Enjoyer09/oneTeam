@@ -326,6 +326,40 @@ placeholder, and it is currently the only thing between the API and the internet
 > a decision about the identity provider, so it is not something to change
 > unilaterally.
 
+### 4.9 A fallback that cannot be seen is a lie
+
+`src/services/aiVision.ts` is a simulation, and its own header says so. Three
+things about how it was tested made that simulation look like a working detector:
+
+1. **The worker's failures were collapsed into one value.** The Python worker
+   could fail seven different ways — no virtualenv, no worker script, a spawn
+   error, a timeout, a non-zero exit, unparseable output, or a successful run that
+   found nothing — and all seven returned `null`. A caller could not tell "this
+   machine has not built the Python environment" from "the model looked and found
+   no bottles".
+2. **The worker drew its own detections.** When the model detected nothing, the
+   Python script generated nine plausible boxes instead of returning an empty
+   list, so a demo was never blank. `logo.jpg` in this repository is a company
+   logo; the model finds **zero** objects in it, and the test asserting "detection
+   boxes were returned" was satisfied entirely by drawing.
+3. **The test that claimed the real engine could not fail.** `analyzeShelfPhoto`
+   falls back to the simulation when the worker returns nothing, and nothing
+   recorded which engine had run. So _"End-to-end planogram compliance analysis
+   succeeds using real Ultralytics engine"_ passed whether or not that engine ran.
+
+> **Fixed.** The worker returns an outcome that names its reason
+> (`worker-unavailable` / `timeout` / `worker-failed` / `no-detections`); the
+> drawn boxes carry `"synthetic": true` with a top-level `"synthetic_fallback"`;
+> and the evaluation carries an `engine` field. The test warms the worker before
+> asserting (a cold start measured **47s** against **3.3s** warm, and the old 60s
+> cap had no margin on a loaded machine), asserts that a killed worker is reported
+> as a timeout, and cross-checks the engine the evaluation names against the
+> worker it called directly.
+
+The general rule: **if a system substitutes a fallback for a failure, the caller
+must be able to tell.** A fallback that reports itself as success is worse than no
+fallback, because it is believed.
+
 ---
 
 ## 5. Code review checklist
@@ -407,7 +441,10 @@ These need a team decision rather than a unilateral change:
 - **`package-lock.json` vs `pnpm-lock.yaml`** — the npm lockfile is stale and
   should be deleted once pnpm is confirmed as the standard.
 - **`yolov8n.pt`** sits in the project root; model weights belong in object
-  storage or Git LFS.
+  storage or Git LFS. Related: `.venv/` is gitignored and the weights are
+  untracked, so `npm run test:ai` cannot pass on a clean checkout. Test 7 now
+  says so plainly and prints the command to build the environment, but the real
+  fix is a documented setup step or a container for the worker.
 
 ---
 

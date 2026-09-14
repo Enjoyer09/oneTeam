@@ -3,6 +3,12 @@
 oneTeam — Ultralytics YOLO Retail Shelf Detection Worker
 Analyzes shelf images, detects retail items (bottles/cans/gaps),
 and maps them to Coca-Cola SKUs with normalized bounding boxes.
+
+When the model detects nothing, this script draws a plausible shelf layout
+rather than returning an empty result, so a demo is never blank. Those boxes
+are flagged `"synthetic": true` and the response carries
+`"synthetic_fallback": true`. They are drawn, not seen — check the flag before
+treating a result as a detection.
 """
 
 import argparse
@@ -148,15 +154,12 @@ def run_inference(image_path, model_path="yolov8n.pt", conf_thresh=0.25):
     result = results[0]
 
     raw_boxes = []
-    # Relevant classes in COCO: 39: bottle, 41: cup, or any detected object
-    target_classes = {39, 41}
 
     for box in result.boxes:
         cls_id = int(box.cls[0].item())
         confidence = float(box.conf[0].item())
         x1, y1, x2, y2 = box.xyxy[0].tolist()
 
-        # If bottle/cup detected, or if no bottles detected, consider all objects
         raw_boxes.append({
             "cls_id": cls_id,
             "conf": confidence,
@@ -165,11 +168,17 @@ def run_inference(image_path, model_path="yolov8n.pt", conf_thresh=0.25):
             "height": int(y2 - y1),
             "center_x": (x1 + x2) / 2.0,
             "center_y": (y1 + y2) / 2.0,
+            "synthetic": False,
         })
 
-    # If YOLO didn't detect any bottles in a synthetic/stock photo,
-    # generate realistic retail shelf layout detections matching the image dimensions
-    if len(raw_boxes) == 0:
+    # When the model finds nothing, draw a plausible shelf so a demo is never
+    # blank. Every box below is invented, not detected — the flags exist so that
+    # a caller can tell the difference. `logo.jpg` in this repository is a
+    # company logo, not a shelf, and yields zero real boxes, which is how a test
+    # asserting "detections were returned" came to be satisfied by drawing.
+    synthetic_fallback = len(raw_boxes) == 0
+
+    if synthetic_fallback:
         row1_y = int(img_h * 0.18)
         row1_h = int(img_h * 0.30)
         row2_y = int(img_h * 0.54)
@@ -187,6 +196,7 @@ def run_inference(image_path, model_path="yolov8n.pt", conf_thresh=0.25):
                 "height": row1_h,
                 "center_x": bx + bottle_w / 2,
                 "center_y": row1_y + row1_h / 2,
+                "synthetic": True,
             })
 
         # Row 2: 4 positions + 1 gap
@@ -200,6 +210,7 @@ def run_inference(image_path, model_path="yolov8n.pt", conf_thresh=0.25):
                 "height": row2_h,
                 "center_x": bx + bottle_w / 2,
                 "center_y": row2_y + row2_h / 2,
+                "synthetic": True,
             })
 
     # Sort boxes: first by shelf row (Y), then by X
@@ -250,6 +261,9 @@ def run_inference(image_path, model_path="yolov8n.pt", conf_thresh=0.25):
                         "color": SKU_CONFIG["out_of_stock_gap"]["color"],
                         "shelfRow": row_idx,
                         "facingIndex": facing_idx,
+                        # A gap is inferred from the spacing between two boxes,
+                        # so it is only as real as the boxes it sits between.
+                        "synthetic": synthetic_fallback,
                     })
                     det_id += 1
 
@@ -279,6 +293,7 @@ def run_inference(image_path, model_path="yolov8n.pt", conf_thresh=0.25):
                 "color": SKU_CONFIG[sku]["color"],
                 "shelfRow": row_idx,
                 "facingIndex": facing_idx,
+                "synthetic": item.get("synthetic", False),
             })
             det_id += 1
 
@@ -288,6 +303,10 @@ def run_inference(image_path, model_path="yolov8n.pt", conf_thresh=0.25):
         "model": os.path.basename(model_path),
         "image_dimensions": {"width": img_w, "height": img_h},
         "detected_count": len(detections),
+        # True when the model detected nothing and the layout above was drawn
+        # instead. A caller that reports a shelf score must check this: the
+        # boxes are plausible, but they were not seen.
+        "synthetic_fallback": synthetic_fallback,
         "detections": detections,
     }
 
