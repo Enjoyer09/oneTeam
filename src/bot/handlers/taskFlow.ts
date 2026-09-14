@@ -101,7 +101,7 @@ function numberHint(question: ChecklistQuestion): string {
  */
 export async function beginTaskFlow(
   ctx: BotContext,
-  questions: ChecklistQuestion[] = []
+  questions: ChecklistQuestion[] = [],
 ): Promise<void> {
   ctx.session.step = 'awaiting_location';
   ctx.session.location = undefined;
@@ -114,7 +114,7 @@ export async function beginTaskFlow(
       `Zəhmət olmasa aşağıdaki *"📍 Lokasiyamı göndər"* düyməsinə basıb olduğunuz yeri paylaşın.\n\n` +
       `Bu, auditin həqiqətən mağazada çəkildiyini təsdiqləyir. Paylaşmasanız şəkil yenə qəbul ediləcək, ` +
       `amma audit *lokasiya təsdiqlənməmiş* kimi qeyd olunacaq və nəzarətçi bunu görəcək.`,
-    { parse_mode: 'Markdown', reply_markup: locationRequestKeyboard() }
+    { parse_mode: 'Markdown', reply_markup: locationRequestKeyboard() },
   );
 }
 
@@ -133,7 +133,7 @@ export async function handleLocationMessage(ctx: BotContext): Promise<boolean> {
     await ctx.reply(
       `ℹ️ Lokasiya qeydə alındı, amma hazırda seçilmiş tapşırıq yoxdur.\n\n` +
         `Zəhmət olmasa əvvəlcə /tasks əmri ilə tapşırığı seçin.`,
-      { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard() }
+      { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard() },
     );
     return true;
   }
@@ -146,7 +146,7 @@ export async function handleLocationMessage(ctx: BotContext): Promise<boolean> {
   await ctx.reply(
     `✅ *Lokasiya qeydə alındı.*\n` +
       `📌 ${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}`,
-    { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard() }
+    { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard() },
   );
 
   await continueAfterLocation(ctx);
@@ -164,7 +164,7 @@ export async function handleLocationSkip(ctx: BotContext): Promise<boolean> {
     `⚠️ *Lokasiya paylaşılmadı.*\n\n` +
       `Şəkil qəbul ediləcək, amma audit *lokasiya təsdiqlənməmiş* kimi qeyd olunacaq. ` +
       `Nəzarətçi bunu görəcək.`,
-    { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard() }
+    { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard() },
   );
 
   await continueAfterLocation(ctx);
@@ -324,7 +324,7 @@ export async function handleChecklistText(ctx: BotContext): Promise<boolean> {
     await ctx.reply(
       `⚠️ Daxil etdiyiniz qiymət (*${value}${unit}*) minimum həddən (*${question.minValue}${unit}*) kiçikdir.\n\n` +
         `Zəhmət olmasa yoxlayıb yenidən yazın.`,
-      { parse_mode: 'Markdown' }
+      { parse_mode: 'Markdown' },
     );
     return true;
   }
@@ -333,7 +333,7 @@ export async function handleChecklistText(ctx: BotContext): Promise<boolean> {
     await ctx.reply(
       `⚠️ Daxil etdiyiniz qiymət (*${value}${unit}*) maksimum həddən (*${question.maxValue}${unit}*) böyükdür.\n\n` +
         `Zəhmət olmasa yoxlayıb yenidən yazın.`,
-      { parse_mode: 'Markdown' }
+      { parse_mode: 'Markdown' },
     );
     return true;
   }
@@ -346,13 +346,13 @@ export async function handleChecklistText(ctx: BotContext): Promise<boolean> {
 async function recordChecklistAnswer(
   ctx: BotContext,
   question: ChecklistQuestion,
-  value: boolean | number | string
+  value: boolean | number | string,
 ): Promise<void> {
   // Filtered rather than pushed, so a corrected answer replaces the old one
   // instead of leaving two entries for the same question for the API to pick
   // between.
   const answers: ChecklistAnswer[] = (ctx.session.checklistAnswers ?? []).filter(
-    (answer) => answer.questionId !== question.id
+    (answer) => answer.questionId !== question.id,
   );
   answers.push({ questionId: question.id, value });
 
@@ -382,6 +382,6 @@ export async function requestShelfPhoto(ctx: BotContext): Promise<void> {
       locationLine +
       `\nİndi yoxlanılan rəfin / soyuducunun aydın fotosunu çəkib bu çatda göndərin.\n\n` +
       `💡 *Məsləhət:* Bütün brend etiketlərinin və qiymət kağızlarının kadra düşdüyündən əmin olun.`,
-    { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard() }
+    { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard() },
   );
 }

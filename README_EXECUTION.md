@@ -9,21 +9,24 @@ Xoş gəlmisiniz! Bu təlimat layihə rəhbəri (Product Owner) üçün hazırla
 Sistemi kompüterinizdə dərhal canlı görmək üçün aşağıdakı addımı edin:
 
 ### Addım 1: Terminalda Başlatma Əmrini Verin
+
 Layihə qovluğunda terminalı açıb sadəcə bu əmri yazın:
 
 ```bash
 npm start
 ```
-*(və ya `npm run start:all`)*
+
+_(və ya `npm run start:all`)_
 
 Bu əmr eyni anda həm **Veb Paneli**, həm də **Telegram Botunu** işə salacaq.
 
 ### Addım 2: Brauzerdə Açın
+
 Əmri verdikdən sonra Google Chrome, Safari və ya istənilən brauzerdə bu ünvana keçin:
 
 👉 **[http://localhost:5173](http://localhost:5173)**
 
-*Qeyd: Əgər 5173 portu məşğul olarsa, terminalda göstərilən alternativ linkə (məsələn: `http://localhost:5174`) daxil olun.*
+_Qeyd: Əgər 5173 portu məşğul olarsa, terminalda göstərilən alternativ linkə (məsələn: `http://localhost:5174`) daxil olun._
 
 ---
 
@@ -61,7 +64,7 @@ Veb İdarəetmə Panelində (**http://localhost:5173**) **"Rəf Yoxlamaları" (R
 3. **❌ Ssenari C: Çatışmayan SKU (55% AI Balı — İmtina Qutusu Hazır Doldurulub)**:
    - **Mağaza:** Rahat Gourmet - Park Bulvar
    - **Vəziyyət:** Planogramda tələb olunan Sprite 0.5L məhsulları rəfdə ümumiyyətlə yoxdur (0/2 facing).
-   - **Supervayzer Təcrübəsi:** Müqayisə etdikdə avtomatik olaraq imtina qutusu açılır və səbəb artıq hazır yazılmış olur: *"Tələb olunan Sprite 0.5L məhsulları rəfdə tamamilə yoxdur (0/2 facing)..."*. Supervayzer bir kliklə imtina qərarını təsdiqləyə bilər.
+   - **Supervayzer Təcrübəsi:** Müqayisə etdikdə avtomatik olaraq imtina qutusu açılır və səbəb artıq hazır yazılmış olur: _"Tələb olunan Sprite 0.5L məhsulları rəfdə tamamilə yoxdur (0/2 facing)..."_. Supervayzer bir kliklə imtina qərarını təsdiqləyə bilər.
 
 ---
 

@@ -33,11 +33,7 @@ export type SubmissionStatus = 'pending_review' | 'approved' | 'rejected';
  * `awaiting_photo` state could not tell them apart.
  */
 export type BotStep =
-  | 'idle'
-  | 'awaiting_store_code'
-  | 'awaiting_location'
-  | 'awaiting_checklist'
-  | 'awaiting_photo';
+  'idle' | 'awaiting_store_code' | 'awaiting_location' | 'awaiting_checklist' | 'awaiting_photo';
 
 export interface SessionData {
   step?: BotStep;

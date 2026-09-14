@@ -86,7 +86,10 @@ async function bootstrap() {
     // makes this file fail to compile whenever those types are unavailable —
     // an avoidable coupling between an unrelated dependency and the API's
     // security configuration.
-    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
       // No Origin header: a same-origin request, curl, or a server-to-server
       // call. CORS does not apply, so it is not our concern to block.
       if (!origin) return callback(null, true);

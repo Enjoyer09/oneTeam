@@ -153,7 +153,7 @@ async function ensureCredential(): Promise<void> {
 
   logInfo(
     'No ONETEAM_DEVICE_TOKEN set — enrolling this device. This WRITES: it claims ' +
-      `${STORE_CODE}'s open work and issues a token.`
+      `${STORE_CODE}'s open work and issues a token.`,
   );
   const result = await enroll({
     storeCode: STORE_CODE,
@@ -164,16 +164,18 @@ async function ensureCredential(): Promise<void> {
 
 async function runMobileTests() {
   console.log(
-    `${colors.bright}========================================================================${colors.reset}`
+    `${colors.bright}========================================================================${colors.reset}`,
   );
   console.log(
-    `${colors.bright}  oneTeam FIELD CLIENT — VERIFICATION AGAINST THE REAL API              ${colors.reset}`
+    `${colors.bright}  oneTeam FIELD CLIENT — VERIFICATION AGAINST THE REAL API              ${colors.reset}`,
   );
   console.log(
-    `${colors.bright}========================================================================${colors.reset}`
+    `${colors.bright}========================================================================${colors.reset}`,
   );
   console.log(`  Target: ${mobileApi.describeTarget()}`);
-  console.log(`  Write tier: ${WRITE_TIER ? 'ENABLED (ONETEAM_MOBILE_WRITES=1)' : 'disabled (read-only)'}`);
+  console.log(
+    `  Write tier: ${WRITE_TIER ? 'ENABLED (ONETEAM_MOBILE_WRITES=1)' : 'disabled (read-only)'}`,
+  );
 
   // --------------------------------------------------------------------------
   // Preconditions
@@ -187,7 +189,7 @@ async function runMobileTests() {
   if (!ping.ok) {
     throw new Error(
       `The API at ${API_URL} is not answering: ${ping.error}\n` +
-        '       Start it with: npm run api:dev'
+        '       Start it with: npm run api:dev',
     );
   }
   logPass(`API reachable at ${API_URL}`);
@@ -206,7 +208,7 @@ async function runMobileTests() {
   logInfo(`User location (inside): ${insideResult.distanceMeters} meters away.`);
   if (!insideResult.isWithinGeofence) {
     throw new Error(
-      `Expected insideResult to be within geofence (< 100m), got ${insideResult.distanceMeters}m`
+      `Expected insideResult to be within geofence (< 100m), got ${insideResult.distanceMeters}m`,
     );
   }
   logPass(`Store geofence confirmed within threshold: ${insideResult.message}`);
@@ -291,14 +293,14 @@ async function runMobileTests() {
   if (capture.metadata.device_model !== UNKNOWN_DEVICE_FIELD) {
     throw new Error(
       `Expected an unknown device model, got "${capture.metadata.device_model}" — ` +
-        'the harness cannot read the device and must not invent one'
+        'the harness cannot read the device and must not invent one',
     );
   }
 
   logPass(`Live camera photo captured (simulated): ${capture.photoUri}`);
   logPass(
     `Telemetry stamped: GPS(${capture.metadata.gps.latitude}, ${capture.metadata.gps.longitude}), ` +
-      `Distance=${capture.metadata.distance_from_store_meters}m, Device=${capture.metadata.device_model}`
+      `Distance=${capture.metadata.distance_from_store_meters}m, Device=${capture.metadata.device_model}`,
   );
 
   // --------------------------------------------------------------------------
@@ -340,7 +342,7 @@ async function runMobileTests() {
   if (syncResult.syncedCount !== 0 || syncResult.failedCount !== 1) {
     throw new Error(
       `Expected the queueless sync to fail (0 synced / 1 failed), got ` +
-        `${syncResult.syncedCount}/${syncResult.failedCount}`
+        `${syncResult.syncedCount}/${syncResult.failedCount}`,
     );
   }
 
@@ -350,7 +352,7 @@ async function runMobileTests() {
   }
   if (!String(failedItem.error_message ?? '').includes('kamera modulu yoxdur')) {
     throw new Error(
-      `Expected an explanation about the missing camera, got: "${failedItem.error_message}"`
+      `Expected an explanation about the missing camera, got: "${failedItem.error_message}"`,
     );
   }
   logPass(`Sync refused to invent an image: "${failedItem.error_message}"`);
@@ -368,12 +370,15 @@ async function runMobileTests() {
   }
   if (store.latitude === null || store.longitude === null) {
     throw new Error(
-      `Expected ${STORE_CODE} to carry coordinates — without them the geofence cannot run`
+      `Expected ${STORE_CODE} to carry coordinates — without them the geofence cannot run`,
     );
   }
-  if (Math.abs(store.latitude - STORE_LAT) > 0.000001 || Math.abs(store.longitude - STORE_LON) > 0.000001) {
+  if (
+    Math.abs(store.latitude - STORE_LAT) > 0.000001 ||
+    Math.abs(store.longitude - STORE_LON) > 0.000001
+  ) {
     throw new Error(
-      `Expected the real coordinates ${STORE_LAT}/${STORE_LON}, got ${store.latitude}/${store.longitude}`
+      `Expected the real coordinates ${STORE_LAT}/${STORE_LON}, got ${store.latitude}/${store.longitude}`,
     );
   }
   logPass(`Store resolved from the API: ${store.name} (${store.store_code})`);
@@ -394,7 +399,7 @@ async function runMobileTests() {
   } else {
     logPass(
       `Planogram rules come from the template: ${withRules.planogram_rules.length} rule(s), ` +
-        `first = ${(withRules.planogram_rules[0] as any).label}`
+        `first = ${(withRules.planogram_rules[0] as any).label}`,
     );
   }
 
@@ -404,7 +409,7 @@ async function runMobileTests() {
   if (!WRITE_TIER) {
     console.log(
       `\n${colors.yellow}  ℹ Write tier skipped. Re-run with ONETEAM_MOBILE_WRITES=1 to exercise ` +
-        `the full submission flow.${colors.reset}`
+        `the full submission flow.${colors.reset}`,
     );
   } else {
     logStep(5, 'Full submission flow: claim, acknowledge, submit, review');
@@ -450,15 +455,15 @@ async function runMobileTests() {
     if (!profile.claimedTaskIds.includes(provisionedTaskId)) {
       throw new Error(
         `Expected the enrolment to claim ${provisionedTaskId}, claimed: ` +
-          JSON.stringify(profile.claimedTaskIds)
+          JSON.stringify(profile.claimedTaskIds),
       );
     }
     logPass(
-      `Device enrolled as ${profile.userId} and claimed ${profile.claimedTaskIds.length} task(s)`
+      `Device enrolled as ${profile.userId} and claimed ${profile.claimedTaskIds.length} task(s)`,
     );
 
     const claimed = (await mobileApi.getTasksForStore(store.id)).find(
-      (t) => t.id === provisionedTaskId
+      (t) => t.id === provisionedTaskId,
     );
     if (!claimed) {
       throw new Error('The claimed task did not appear in the task list');
@@ -490,12 +495,12 @@ async function runMobileTests() {
           gps: { latitude: FAR_LAT, longitude: FAR_LON, accuracy: 10 },
           metadata: capture.metadata,
         }),
-      'A submission from outside the geofence'
+      'A submission from outside the geofence',
     );
 
     if (!(geofenceError instanceof MobileApiError) || geofenceError.status !== 400) {
       throw new Error(
-        `Expected a 400 from the geofence, got ${geofenceError?.status}: ${geofenceError?.message}`
+        `Expected a 400 from the geofence, got ${geofenceError?.status}: ${geofenceError?.message}`,
       );
     }
     if (!String(geofenceError.message).includes('mağaza ərazisində')) {
@@ -529,16 +534,18 @@ async function runMobileTests() {
       }
       logPass(
         `Photo offloaded to object storage (${String(submission.metadata?.storage_bytes)} bytes): ` +
-          `${String(submission.photo_url).slice(0, 48)}…`
+          `${String(submission.photo_url).slice(0, 48)}…`,
       );
     } else if (driver === 'inline') {
       if (!String(submission.photo_url).startsWith('data:')) {
         throw new Error('The API reported inline storage but returned a non-data URL');
       }
-      logInfo(`Photo stored inline (${String(submission.photo_url).slice(0, 32)}…, no bucket configured)`);
+      logInfo(
+        `Photo stored inline (${String(submission.photo_url).slice(0, 32)}…, no bucket configured)`,
+      );
     } else {
       throw new Error(
-        `The API did not report where the photo went (metadata.storage = ${String(driver)})`
+        `The API did not report where the photo went (metadata.storage = ${String(driver)})`,
       );
     }
 
@@ -547,7 +554,7 @@ async function runMobileTests() {
     }
 
     const submittedTask = await supervisorApi<{ status?: string }>(
-      `/api/tasks/${encodeURIComponent(claimed.id)}`
+      `/api/tasks/${encodeURIComponent(claimed.id)}`,
     );
     if (submittedTask?.status !== 'SUBMITTED') {
       throw new Error(`Expected SUBMITTED after the photo, got ${submittedTask?.status}`);
@@ -571,27 +578,27 @@ async function runMobileTests() {
     }
     if (reviewed.reviewer_feedback !== feedback) {
       throw new Error(
-        `Expected the supervisor's feedback to survive, got "${reviewed.reviewer_feedback}"`
+        `Expected the supervisor's feedback to survive, got "${reviewed.reviewer_feedback}"`,
       );
     }
     logPass(`Verdict reached the device: ${reviewed.status} — "${reviewed.reviewer_feedback}"`);
   }
 
   console.log(
-    `\n${colors.bright}${colors.green}========================================================================${colors.reset}`
+    `\n${colors.bright}${colors.green}========================================================================${colors.reset}`,
   );
   console.log(
-    `${colors.bright}${colors.green}  ALL FIELD CLIENT TESTS PASSED                                          ${colors.reset}`
+    `${colors.bright}${colors.green}  ALL FIELD CLIENT TESTS PASSED                                          ${colors.reset}`,
   );
   console.log(
-    `${colors.bright}${colors.green}========================================================================${colors.reset}\n`
+    `${colors.bright}${colors.green}========================================================================${colors.reset}\n`,
   );
 }
 
 runMobileTests().catch((err) => {
   console.error(`\n${colors.red}❌ Mobile test runner failed:${colors.reset}`, err?.message || err);
   console.error(
-    `\n   The read tier needs the Core API running. Start it with:\n     npm run api:dev\n`
+    `\n   The read tier needs the Core API running. Start it with:\n     npm run api:dev\n`,
   );
   process.exit(1);
 });

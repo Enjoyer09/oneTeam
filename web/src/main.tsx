@@ -18,7 +18,7 @@ const PLACEHOLDER =
       <circle cx="24" cy="27" r="3.5" fill="#8d9ab0" opacity=".55"/>
       <path d="M14 43l11-11 8 8 6-6 11 11" fill="none" stroke="#8d9ab0" stroke-width="2.5"
             stroke-linecap="round" stroke-linejoin="round" opacity=".55"/>
-    </svg>`
+    </svg>`,
   );
 
 document.addEventListener(
@@ -31,11 +31,11 @@ document.addEventListener(
     img.dataset.imgFallback = '1';
     img.src = PLACEHOLDER;
   },
-  true // capture — şəkil xətaları qabarcıq kimi yuxarı çıxmır
+  true, // capture — şəkil xətaları qabarcıq kimi yuxarı çıxmır
 );
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />
-  </React.StrictMode>
+  </React.StrictMode>,
 );

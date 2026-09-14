@@ -25,15 +25,13 @@ export class TasksController {
   @HttpCode(HttpStatus.CREATED)
   async bulkDispatch(
     @Body() dto: BulkDispatchDto,
-    @Request() request: ExpressRequest & { principal?: AuthenticatedPrincipal }
+    @Request() request: ExpressRequest & { principal?: AuthenticatedPrincipal },
   ) {
     return this.taskStateService.bulkDispatchTasks(dto, getPrincipal(request));
   }
 
   @Get()
-  getAllTasks(
-    @Request() request: ExpressRequest & { principal?: AuthenticatedPrincipal }
-  ) {
+  getAllTasks(@Request() request: ExpressRequest & { principal?: AuthenticatedPrincipal }) {
     const principal = getPrincipal(request);
     const tasks = db.getTasksForUser(principal.userId, principal.role);
     return {
@@ -46,7 +44,7 @@ export class TasksController {
   @Get(':id')
   getTaskById(
     @Param('id') id: string,
-    @Request() request: ExpressRequest & { principal?: AuthenticatedPrincipal }
+    @Request() request: ExpressRequest & { principal?: AuthenticatedPrincipal },
   ) {
     const principal = getPrincipal(request);
     const task = db.getTask(id);
@@ -67,13 +65,13 @@ export class TasksController {
   async transitionTask(
     @Param('id') id: string,
     @Body() dto: StateTransitionRequestDto,
-    @Request() request: ExpressRequest & { principal?: AuthenticatedPrincipal }
+    @Request() request: ExpressRequest & { principal?: AuthenticatedPrincipal },
   ) {
     return this.taskStateService.transitionTask(
       id,
       dto.targetState,
       getPrincipal(request),
-      dto.notes
+      dto.notes,
     );
   }
 }

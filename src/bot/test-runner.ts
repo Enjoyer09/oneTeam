@@ -154,14 +154,24 @@ function createMockContext(overrides: Partial<BotContext> = {}): BotContext {
     reply: async (text: string, options?: any) => {
       replies.push(text);
       replyOptions.push(options ?? {});
-      console.log(`  🤖 [Bot Reply]:\n${text.split('\n').map((l) => '     ' + l).join('\n')}`);
+      console.log(
+        `  🤖 [Bot Reply]:\n${text
+          .split('\n')
+          .map((l) => '     ' + l)
+          .join('\n')}`,
+      );
       return { message_id: Math.floor(Math.random() * 10000) };
     },
     replyWithPhoto: async (photo: string, options?: any) => {
       const text = `[PHOTO: ${photo}]\n${options?.caption || ''}`;
       replies.push(text);
       replyOptions.push(options ?? {});
-      console.log(`  🤖 [Bot Reply with Photo]:\n${text.split('\n').map((l) => '     ' + l).join('\n')}`);
+      console.log(
+        `  🤖 [Bot Reply with Photo]:\n${text
+          .split('\n')
+          .map((l) => '     ' + l)
+          .join('\n')}`,
+      );
       return { message_id: Math.floor(Math.random() * 10000) };
     },
     answerCallbackQuery: async (options?: any) => {
@@ -202,15 +212,21 @@ function assertLastReplyContains(fragment: string, context: string) {
   if (!lastReply().includes(fragment)) {
     throw new Error(
       `${context}\n       Expected the bot to say something containing "${fragment}"\n` +
-        `       Last reply was: "${lastReply().split('\n')[0]}"`
+        `       Last reply was: "${lastReply().split('\n')[0]}"`,
     );
   }
 }
 
 async function runTestSuite() {
-  console.log(`${colors.bright}========================================================================${colors.reset}`);
-  console.log(`${colors.bright}  oneTeam TELEGRAM BOT — END-TO-END TEST AGAINST THE REAL API          ${colors.reset}`);
-  console.log(`${colors.bright}========================================================================${colors.reset}`);
+  console.log(
+    `${colors.bright}========================================================================${colors.reset}`,
+  );
+  console.log(
+    `${colors.bright}  oneTeam TELEGRAM BOT — END-TO-END TEST AGAINST THE REAL API          ${colors.reset}`,
+  );
+  console.log(
+    `${colors.bright}========================================================================${colors.reset}`,
+  );
 
   // --------------------------------------------------------------------------
   // Preconditions
@@ -218,7 +234,7 @@ async function runTestSuite() {
   if (process.env.NODE_ENV === 'production') {
     throw new Error(
       'This test writes real audits and must not run against production. ' +
-        'Point it at a development API (npm run api:dev) and unset NODE_ENV.'
+        'Point it at a development API (npm run api:dev) and unset NODE_ENV.',
     );
   }
 
@@ -226,7 +242,7 @@ async function runTestSuite() {
   if (!ping.ok) {
     throw new Error(
       `The API at ${API_URL} is not answering: ${ping.error}\n` +
-        '       Start it with: npm run api:dev'
+        '       Start it with: npm run api:dev',
     );
   }
   logSuccess(`API reachable at ${API_URL}`);
@@ -322,7 +338,7 @@ async function runTestSuite() {
     fullName: 'Eldar Məmmədov',
     storeId,
   });
-  logSuccess('Chat claimed the store\'s open tasks.');
+  logSuccess("Chat claimed the store's open tasks.");
 
   // --------------------------------------------------------------------------
   // STEP 4: Task Retrieval (/tasks)
@@ -363,7 +379,7 @@ async function runTestSuite() {
   assertLastReplyContains('Addım 1/3', 'The flow must open with the location step');
   if (!lastKeyboardLabels().includes('📍 Lokasiyamı göndər')) {
     throw new Error(
-      `The location step needs a request_location button, got: ${JSON.stringify(lastKeyboardLabels())}`
+      `The location step needs a request_location button, got: ${JSON.stringify(lastKeyboardLabels())}`,
     );
   }
   logSuccess(`Task "${sampleTask.title}" active; guided flow started at the location step.`);
@@ -408,7 +424,7 @@ async function runTestSuite() {
   // photo below would land on a task no supervisor could ever approve.
   logStep(7, 'Opening the task in the chat acknowledged it');
   const rawTask = await supervisorApi<{ status?: string }>(
-    `/api/tasks/${encodeURIComponent(sampleTask.id)}`
+    `/api/tasks/${encodeURIComponent(sampleTask.id)}`,
   );
   if (rawTask?.status !== 'ACKNOWLEDGED') {
     throw new Error(`Expected ACKNOWLEDGED, got ${rawTask?.status}`);
@@ -433,7 +449,7 @@ async function runTestSuite() {
   }
   if (ctx.session.location?.latitude !== USER_LAT || ctx.session.location?.longitude !== USER_LON) {
     throw new Error(
-      `Expected the shared coordinates in the session, got ${JSON.stringify(ctx.session.location)}`
+      `Expected the shared coordinates in the session, got ${JSON.stringify(ctx.session.location)}`,
     );
   }
   assertLastReplyContains('Addım 2/3', 'The checklist must start once the location arrives');
@@ -450,7 +466,12 @@ async function runTestSuite() {
   // An out-of-range value must not be accepted silently: the API would refuse it
   // at the end of the flow, after the photo, which is the worst moment to find
   // out.
-  (ctx as any).message = { message_id: 302, date: Math.floor(Date.now() / 1000), chat: ctx.chat, text: '99' };
+  (ctx as any).message = {
+    message_id: 302,
+    date: Math.floor(Date.now() / 1000),
+    chat: ctx.chat,
+    text: '99',
+  };
   await handleChecklistText(ctx);
 
   if (ctx.session.checklistIndex !== 0) {
@@ -458,7 +479,12 @@ async function runTestSuite() {
   }
   assertLastReplyContains('maksimum həddən', 'An out-of-range number must be refused');
 
-  (ctx as any).message = { message_id: 303, date: Math.floor(Date.now() / 1000), chat: ctx.chat, text: '3' };
+  (ctx as any).message = {
+    message_id: 303,
+    date: Math.floor(Date.now() / 1000),
+    chat: ctx.chat,
+    text: '3',
+  };
   await handleChecklistText(ctx);
 
   // Read through a local: TypeScript narrows the property itself after the check
@@ -466,7 +492,7 @@ async function runTestSuite() {
   const indexAfterNumber: number | undefined = ctx.session.checklistIndex;
   if (indexAfterNumber !== 1) {
     throw new Error(
-      `Expected the checklist to advance to question 2, got index ${indexAfterNumber}`
+      `Expected the checklist to advance to question 2, got index ${indexAfterNumber}`,
     );
   }
   const tempAnswer = ctx.session.checklistAnswers?.find((a) => a.questionId === 'q-temp');
@@ -550,7 +576,7 @@ async function runTestSuite() {
   if (filedAnswers.length !== 2) {
     throw new Error(
       `Expected 2 checklist answers on the submission, got ${filedAnswers.length}: ` +
-        JSON.stringify(filedAnswers)
+        JSON.stringify(filedAnswers),
     );
   }
   logSuccess(`Checklist answers filed with the audit: ${JSON.stringify(filedAnswers)}`);
@@ -560,18 +586,18 @@ async function runTestSuite() {
     throw new Error(
       `Expected the merchandiser's own coordinates to be stored (${USER_LAT}, ${USER_LON}), ` +
         `got ${JSON.stringify(filedGps)}. The store's coordinates are 40.385012, 49.810541 — ` +
-        `if that is what came back, the location was faked rather than verified.`
+        `if that is what came back, the location was faked rather than verified.`,
     );
   }
   logSuccess(
     `Location verified, not substituted: stored ${filedGps.latitude}, ${filedGps.longitude} ` +
-      `(the merchandiser's fix, not the store's own coordinates).`
+      `(the merchandiser's fix, not the store's own coordinates).`,
   );
 
   // The whole point of the acknowledgement above: the photo must carry the task
   // to SUBMITTED, which is the only state a supervisor can approve from.
   const submittedTask = await supervisorApi<{ status?: string }>(
-    `/api/tasks/${encodeURIComponent(sampleTask.id)}`
+    `/api/tasks/${encodeURIComponent(sampleTask.id)}`,
   );
   if (submittedTask?.status !== 'SUBMITTED') {
     throw new Error(`Expected SUBMITTED after the photo, got ${submittedTask?.status}`);
@@ -601,7 +627,9 @@ async function runTestSuite() {
     throw new Error(`Expected approved, got ${reviewed?.status}`);
   }
   if (reviewed.reviewer_feedback !== feedback) {
-    throw new Error(`Expected the supervisor's feedback to survive, got "${reviewed.reviewer_feedback}"`);
+    throw new Error(
+      `Expected the supervisor's feedback to survive, got "${reviewed.reviewer_feedback}"`,
+    );
   }
   logSuccess(`Verdict reached the bot: ${reviewed.status} — "${reviewed.reviewer_feedback}"`);
 
@@ -612,15 +640,21 @@ async function runTestSuite() {
   await handleMyStatus(ctx);
   logSuccess('Status report displayed the approval and the supervisor feedback.');
 
-  console.log(`\n${colors.bright}${colors.green}========================================================================${colors.reset}`);
-  console.log(`${colors.bright}${colors.green}  ALL END-TO-END BOT TESTS PASSED AGAINST THE REAL API                  ${colors.reset}`);
-  console.log(`${colors.bright}${colors.green}========================================================================${colors.reset}\n`);
+  console.log(
+    `\n${colors.bright}${colors.green}========================================================================${colors.reset}`,
+  );
+  console.log(
+    `${colors.bright}${colors.green}  ALL END-TO-END BOT TESTS PASSED AGAINST THE REAL API                  ${colors.reset}`,
+  );
+  console.log(
+    `${colors.bright}${colors.green}========================================================================${colors.reset}\n`,
+  );
 }
 
 runTestSuite().catch((err) => {
   console.error(`\n${colors.red}❌ TEST RUNNER FAILED:${colors.reset}`, err?.message || err);
   console.error(
-    `\n   This test needs the Core API running. Start it with:\n     npm run api:dev\n`
+    `\n   This test needs the Core API running. Start it with:\n     npm run api:dev\n`,
   );
   process.exit(1);
 });

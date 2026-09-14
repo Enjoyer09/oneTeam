@@ -36,7 +36,7 @@ export function useModalA11y<T extends HTMLElement>(open: boolean, onClose: () =
         'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), ' +
         'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
       return [...node.querySelectorAll<HTMLElement>(sel)].filter(
-        (el) => el.offsetParent !== null && el.getAttribute('aria-hidden') !== 'true'
+        (el) => el.offsetParent !== null && el.getAttribute('aria-hidden') !== 'true',
       );
     };
 

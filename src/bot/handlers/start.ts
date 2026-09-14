@@ -33,7 +33,7 @@ export async function handleStoreCodeInput(ctx: BotContext) {
       `❌ *Sistemə qoşulmaq mümkün olmadı.*\n\n` +
         `Mağaza kodunuzu yoxlamaq alınmadı. Zəhmət olmasa bir az sonra yenidən cəhd edin ` +
         `və ya problem davam edərsə nəzarətçinizə məlumat verin.`,
-      { parse_mode: 'Markdown' }
+      { parse_mode: 'Markdown' },
     );
     return;
   }
@@ -42,7 +42,7 @@ export async function handleStoreCodeInput(ctx: BotContext) {
     await ctx.reply(
       `❌ *Mağaza kodu tapılmadı:* \`${text}\`\n\n` +
         `Zəhmət olmasa, mağaza kodunun düzgünlüyünü yoxlayın və yenidən daxil edin (Məsələn: \`BRAVO_YASAMAL_01\`).`,
-      { parse_mode: 'Markdown' }
+      { parse_mode: 'Markdown' },
     );
     return;
   }
@@ -66,7 +66,7 @@ export async function handleStoreCodeInput(ctx: BotContext) {
     await ctx.reply(
       `❌ *Qeydiyyat tamamlanmadı.*\n\nMağaza tapıldı, amma hesabınız bağlana bilmədi. ` +
         `Zəhmət olmasa bir az sonra yenidən cəhd edin.`,
-      { parse_mode: 'Markdown' }
+      { parse_mode: 'Markdown' },
     );
     return;
   }

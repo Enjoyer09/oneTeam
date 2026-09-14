@@ -1,6 +1,8 @@
 import { QueueItem, AuditMetadata } from '../types';
 
-export type UploadHandler = (item: QueueItem) => Promise<{ photoUrl: string; submissionId: string }>;
+export type UploadHandler = (
+  item: QueueItem,
+) => Promise<{ photoUrl: string; submissionId: string }>;
 
 export class OfflineQueueManager {
   private queue: QueueItem[] = [];
@@ -71,14 +73,15 @@ export class OfflineQueueManager {
   }
 
   getPendingCount(): number {
-    return this.queue.filter((q) => q.sync_status === 'queued' || q.sync_status === 'failed').length;
+    return this.queue.filter((q) => q.sync_status === 'queued' || q.sync_status === 'failed')
+      .length;
   }
 
   /**
    * Processes all queued items and uploads them to Supabase
    */
   async processQueue(
-    uploadHandler: UploadHandler
+    uploadHandler: UploadHandler,
   ): Promise<{ syncedCount: number; failedCount: number }> {
     if (!this.isDeviceOnline || this.isSyncing) {
       return { syncedCount: 0, failedCount: 0 };
@@ -89,7 +92,7 @@ export class OfflineQueueManager {
     let failedCount = 0;
 
     const pendingItems = this.queue.filter(
-      (item) => item.sync_status === 'queued' || item.sync_status === 'failed'
+      (item) => item.sync_status === 'queued' || item.sync_status === 'failed',
     );
 
     for (const item of pendingItems) {

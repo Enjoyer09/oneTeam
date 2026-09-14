@@ -34,13 +34,13 @@ export class InvalidStateTransitionError extends Error {
   constructor(
     public readonly currentState: TaskState,
     public readonly targetState: TaskState,
-    details?: string
+    details?: string,
   ) {
     const allowed = ALLOWED_STATE_TRANSITIONS[currentState]?.join(', ') || 'NONE (Terminal State)';
     super(
       `Qadağan olunmuş status keçidi: '${currentState}' -> '${targetState}'. İcazə verilən növbəti statuslar: [${allowed}]. ${
         details ? `Əlavə məlumat: ${details}` : ''
-      }`
+      }`,
     );
     this.name = 'InvalidStateTransitionError';
   }
@@ -58,7 +58,11 @@ export function isValidTransition(current: TaskState, target: TaskState): boolea
 /**
  * Asserts transition is valid or throws InvalidStateTransitionError with 400 Bad Request semantics.
  */
-export function assertValidTransition(current: TaskState, target: TaskState, details?: string): void {
+export function assertValidTransition(
+  current: TaskState,
+  target: TaskState,
+  details?: string,
+): void {
   if (!isValidTransition(current, target)) {
     throw new InvalidStateTransitionError(current, target, details);
   }

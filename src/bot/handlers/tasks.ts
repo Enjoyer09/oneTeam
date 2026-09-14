@@ -7,7 +7,7 @@ export async function handleTasks(ctx: BotContext) {
   if (!ctx.session.storeId) {
     await ctx.reply(
       `⚠️ *Mağaza qeydiyyatı tapılmadı!*\n\nZəhmət olmasa əvvəlcə /start əmrini göndərib mağaza kodunuzu daxil edin.`,
-      { parse_mode: 'Markdown' }
+      { parse_mode: 'Markdown' },
     );
     return;
   }
@@ -20,7 +20,7 @@ export async function handleTasks(ctx: BotContext) {
     console.error(`[oneTeam Bot] Task lookup failed for ${ctx.session.storeId}:`, detail);
     await ctx.reply(
       `❌ *Tapşırıqları yükləmək mümkün olmadı.*\n\nZəhmət olmasa bir az sonra yenidən cəhd edin.`,
-      { parse_mode: 'Markdown' }
+      { parse_mode: 'Markdown' },
     );
     return;
   }
@@ -28,15 +28,14 @@ export async function handleTasks(ctx: BotContext) {
   if (tasks.length === 0) {
     await ctx.reply(
       `ℹ️ *${ctx.session.storeName}* mağazası üçün hazırda aktiv rəf tapşırığı yoxdur.`,
-      { parse_mode: 'Markdown' }
+      { parse_mode: 'Markdown' },
     );
     return;
   }
 
-  await ctx.reply(
-    `📋 *${ctx.session.storeName}* üçün aktiv tapşırıqlar (${tasks.length}):`,
-    { parse_mode: 'Markdown' }
-  );
+  await ctx.reply(`📋 *${ctx.session.storeName}* üçün aktiv tapşırıqlar (${tasks.length}):`, {
+    parse_mode: 'Markdown',
+  });
 
   for (const task of tasks) {
     await sendTaskDetails(ctx, task);
@@ -66,8 +65,7 @@ export async function sendTaskDetails(ctx: BotContext, task: TaskRecord) {
   // is the difference between "the bot is interrogating me" and "this is the
   // audit".
   const questionCount = task.checklist_schema?.length ?? 0;
-  const checklistLine =
-    questionCount > 0 ? `📋 *Çeklist:* ${questionCount} sual\n` : '';
+  const checklistLine = questionCount > 0 ? `📋 *Çeklist:* ${questionCount} sual\n` : '';
 
   const messageText =
     `📌 *${task.title}*\n\n` +
@@ -76,10 +74,7 @@ export async function sendTaskDetails(ctx: BotContext, task: TaskRecord) {
     checklistLine +
     `\n📝 *Təlimat:*\n${task.description}`;
 
-  const keyboard = new InlineKeyboard().text(
-    '📸 Rəf Şəklini Göndər',
-    `submit_${task.id}`
-  );
+  const keyboard = new InlineKeyboard().text('📸 Rəf Şəklini Göndər', `submit_${task.id}`);
 
   // If task has reference planogram image, send photo with caption
   if (task.reference_image_url) {

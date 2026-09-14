@@ -31,7 +31,7 @@ export function createBot(token?: string): Bot<BotContext> {
       initial: (): SessionData => ({
         step: 'idle',
       }),
-    })
+    }),
   );
 
   // Command handlers
@@ -68,7 +68,7 @@ export function createBot(token?: string): Bot<BotContext> {
         `• /start — Yenidən başlamaq və mağazanı dəyişmək\n` +
         `• /tasks — Aktiv rəf və planogram tapşırıqları\n` +
         `• /mystatus — Göndərilən şəkillərin audit statusu`,
-      { parse_mode: 'Markdown' }
+      { parse_mode: 'Markdown' },
     );
   });
 
@@ -115,10 +115,7 @@ function isPollingConflict(error: unknown): boolean {
  * Every other error is still fatal and still exits non-zero, so the platform
  * restarts the container.
  */
-async function startPollingWithRetry(
-  bot: Bot<BotContext>,
-  maxAttempts = 20
-): Promise<void> {
+async function startPollingWithRetry(bot: Bot<BotContext>, maxAttempts = 20): Promise<void> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       await bot.start({
@@ -133,7 +130,7 @@ async function startPollingWithRetry(
       const delayMs = Math.min(30_000, 2_000 * attempt);
       console.warn(
         `⏳ [oneTeam Bot] Another instance is still polling (409). ` +
-          `Waiting ${Math.round(delayMs / 1000)}s before retry ${attempt + 1}/${maxAttempts}.`
+          `Waiting ${Math.round(delayMs / 1000)}s before retry ${attempt + 1}/${maxAttempts}.`,
       );
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }

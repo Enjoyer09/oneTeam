@@ -13,7 +13,9 @@
         --muted: #5a636e;
         --accent: #c8102e;
       }
-      * { box-sizing: border-box; }
+      * {
+        box-sizing: border-box;
+      }
       body {
         margin: 0;
         min-height: 100vh;
@@ -22,7 +24,8 @@
         justify-content: center;
         background: var(--bg);
         color: var(--text);
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
         line-height: 1.6;
         padding: 24px;
       }
@@ -38,14 +41,24 @@
       .code {
         font-size: 13px;
         font-weight: 700;
-        letter-spacing: .09em;
+        letter-spacing: 0.09em;
         text-transform: uppercase;
         color: var(--accent);
         margin-bottom: 12px;
       }
-      h1 { margin: 0 0 14px; font-size: 24px; letter-spacing: -.01em; }
-      p { margin: 0 0 12px; color: var(--muted); font-size: 15px; }
-      p:last-of-type { margin-bottom: 0; }
+      h1 {
+        margin: 0 0 14px;
+        font-size: 24px;
+        letter-spacing: -0.01em;
+      }
+      p {
+        margin: 0 0 12px;
+        color: var(--muted);
+        font-size: 15px;
+      }
+      p:last-of-type {
+        margin-bottom: 0;
+      }
       .hint {
         margin-top: 22px;
         padding-top: 18px;
@@ -54,9 +67,16 @@
         color: var(--muted);
         text-align: left;
       }
-      .hint b { color: var(--text); }
-      ul { margin: 8px 0 0; padding-left: 20px; }
-      li { margin-bottom: 4px; }
+      .hint b {
+        color: var(--text);
+      }
+      ul {
+        margin: 8px 0 0;
+        padding-left: 20px;
+      }
+      li {
+        margin-bottom: 4px;
+      }
     </style>
   </head>
   <body>
@@ -64,19 +84,22 @@
       <div class="code">502 · Xidmət əlçatmazdır</div>
       <h1>Server cavab vermir</h1>
       <p>
-        İdarəetmə panelinin özü işləyir, lakin arxa planda işləyən xidmət
-        (API) hazırda cavab vermir.
+        İdarəetmə panelinin özü işləyir, lakin arxa planda işləyən xidmət (API) hazırda cavab
+        vermir.
       </p>
       <p>Bir neçə dəqiqə sonra səhifəni yeniləyin.</p>
 
       <div class="hint">
         <b>Texniki komanda üçün:</b>
         <ul>
-          <li>Bu səhifə <code>50x.html</code> faylıdır və nginx onu 502/503/504
-            cavablarında göstərir.</li>
+          <li>
+            Bu səhifə <code>50x.html</code> faylıdır və nginx onu 502/503/504 cavablarında göstərir.
+          </li>
           <li>Yəni nasazlıq <b>API servisindədir</b>, veb panelin özündə deyil.</li>
-          <li>Yoxlayın: API konteyneri işləyirmi, <code>GET /api/health</code>
-            cavab verirmi, konfiqurasiyadaki upstream adı düzdürmü.</li>
+          <li>
+            Yoxlayın: API konteyneri işləyirmi, <code>GET /api/health</code> cavab verirmi,
+            konfiqurasiyadaki upstream adı düzdürmü.
+          </li>
         </ul>
       </div>
     </div>

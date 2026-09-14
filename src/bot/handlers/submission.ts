@@ -5,7 +5,7 @@ export async function handlePhotoUpload(ctx: BotContext) {
   if (!ctx.session.storeId) {
     await ctx.reply(
       `⚠️ *Əvvəlcə mağaza qeydiyyatından keçin!*\n\nZəhmət olmasa /start əmri ilə mağaza kodunuzu daxil edin.`,
-      { parse_mode: 'Markdown' }
+      { parse_mode: 'Markdown' },
     );
     return;
   }
@@ -17,7 +17,7 @@ export async function handlePhotoUpload(ctx: BotContext) {
     await ctx.reply(
       `⚠️ *Hansı tapşırıq üçün şəkil göndərdiyiniz seçilməyib!*\n\n` +
         `Zəhmət olmasa əvvəlcə /tasks əmri ilə müvafiq tapşırığı seçin və *"📸 Rəf Şəklini Göndər"* düyməsinə klikləyin.`,
-      { parse_mode: 'Markdown' }
+      { parse_mode: 'Markdown' },
     );
     return;
   }
@@ -37,7 +37,7 @@ export async function handlePhotoUpload(ctx: BotContext) {
       `⚠️ *Şəkil hələ qəbul edilə bilməz.*\n\n` +
         `Əvvəlcə ${missing} lazımdır.\n\n` +
         `Zəhmət olmasa yuxarıdaki addımı tamamlayın — sonra şəkil göndərə bilərsiniz.`,
-      { parse_mode: 'Markdown' }
+      { parse_mode: 'Markdown' },
     );
     return;
   }
@@ -140,7 +140,7 @@ export async function handlePhotoUpload(ctx: BotContext) {
     ctx.session.checklistIndex = undefined;
 
     console.log(
-      `[oneTeam Bot] Audit ${submission.id} filed for task ${taskId} by chat ${ctx.chat?.id}`
+      `[oneTeam Bot] Audit ${submission.id} filed for task ${taskId} by chat ${ctx.chat?.id}`,
     );
 
     // Delete processing message if possible
@@ -191,9 +191,8 @@ export async function handlePhotoUpload(ctx: BotContext) {
     const detail = error instanceof PortalApiError ? error.message : error?.message || error;
     console.error(`[oneTeam Bot] Photo submission failed for task ${taskId}:`, detail);
 
-    await ctx.reply(
-      `❌ *Xəta baş verdi:* Şəkil qeydə alına bilmədi.\n\`${detail}\``,
-      { parse_mode: 'Markdown' }
-    );
+    await ctx.reply(`❌ *Xəta baş verdi:* Şəkil qeydə alına bilmədi.\n\`${detail}\``, {
+      parse_mode: 'Markdown',
+    });
   }
 }

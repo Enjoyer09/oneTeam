@@ -13,24 +13,24 @@ tamamlandı və hazırda işləyir.
 
 ### İşləyən ünvanlar
 
-| Nə | Ünvan | Vəziyyət |
-|---|---|---|
-| **Veb panel** (istifadəçilər üçün) | https://web-production-1392e.up.railway.app | ✅ işləyir |
-| **API** (proqramlar üçün) | https://api-production-c17b.up.railway.app | ✅ işləyir |
-| API sağlamlıq yoxlaması | https://web-production-1392e.up.railway.app/api/health | ✅ cavab verir |
-| Railway idarəetmə paneli | https://railway.com/project/f400d4fb-57dc-4346-9512-294f616ec363 | — |
-| Kod (private) | https://github.com/Enjoyer09/oneTeam | — |
+| Nə                                 | Ünvan                                                            | Vəziyyət       |
+| ---------------------------------- | ---------------------------------------------------------------- | -------------- |
+| **Veb panel** (istifadəçilər üçün) | https://web-production-1392e.up.railway.app                      | ✅ işləyir     |
+| **API** (proqramlar üçün)          | https://api-production-c17b.up.railway.app                       | ✅ işləyir     |
+| API sağlamlıq yoxlaması            | https://web-production-1392e.up.railway.app/api/health           | ✅ cavab verir |
+| Railway idarəetmə paneli           | https://railway.com/project/f400d4fb-57dc-4346-9512-294f616ec363 | —              |
+| Kod (private)                      | https://github.com/Enjoyer09/oneTeam                             | —              |
 
 ### Nə qurulub
 
 Dörd hissə də **bir layihə içindədir** (Railway → `oneTeam`):
 
-| Servis | Nədir | Vəziyyət |
-|---|---|---|
+| Servis     | Nədir                                    | Vəziyyət                           |
+| ---------- | ---------------------------------------- | ---------------------------------- |
 | `postgres` | Verilənlər bazası (PostgreSQL 16 + disk) | ✅ sxem və nümunə məlumat yüklənib |
-| `api` | Backend (NestJS) | ✅ **bazaya yazır və oxuyur** |
-| `web` | Veb panel (React + nginx) | ✅ |
-| `bot` | Telegram bot | ✅ işləyir — **@oneTeamCCIbot** |
+| `api`      | Backend (NestJS)                         | ✅ **bazaya yazır və oxuyur**      |
+| `web`      | Veb panel (React + nginx)                | ✅                                 |
+| `bot`      | Telegram bot                             | ✅ işləyir — **@oneTeamCCIbot**    |
 
 ### Verilənlər bazası artıq həqiqətən istifadə olunur
 
@@ -89,13 +89,13 @@ yerindədir) · giriş qoruması 401 · bot canlı.
 
 Səbəblər:
 
-| Səbəb | Nə deməkdir |
-|---|---|
-| Layihənin 4 hissəsi **bir proyektdə** yaşayır | PostgreSQL + API + Veb panel + Bot — bir panel, bir hesab, bir hesab-faktura |
-| Servislər bir-birini **daxili şəbəkədə** görür | Bazaya qoşulmaq üçün port açmaq, IP yazmaq lazım deyil |
-| **GitHub-a push edəndə avtomatik yenilənir** | Kodu dəyişdikdən sonra heç nə etmək lazım deyil |
-| **Server idarəçiliyi yoxdur** | Linux yeniləmələri, sertifikatlar, gecə saat 2-də disk dolması — bunlar sizin işiniz deyil |
-| Artıq **tanışsınız** | BahAI-Agent layihəsini də Railway-da saxlayırsınız |
+| Səbəb                                          | Nə deməkdir                                                                                |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Layihənin 4 hissəsi **bir proyektdə** yaşayır  | PostgreSQL + API + Veb panel + Bot — bir panel, bir hesab, bir hesab-faktura               |
+| Servislər bir-birini **daxili şəbəkədə** görür | Bazaya qoşulmaq üçün port açmaq, IP yazmaq lazım deyil                                     |
+| **GitHub-a push edəndə avtomatik yenilənir**   | Kodu dəyişdikdən sonra heç nə etmək lazım deyil                                            |
+| **Server idarəçiliyi yoxdur**                  | Linux yeniləmələri, sertifikatlar, gecə saat 2-də disk dolması — bunlar sizin işiniz deyil |
+| Artıq **tanışsınız**                           | BahAI-Agent layihəsini də Railway-da saxlayırsınız                                         |
 
 **Alternativlər və niyə seçmədik:**
 
@@ -125,12 +125,12 @@ Səbəblər:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-| Hissə | Nə edir | İstifadəçi nə görür |
-|---|---|---|
-| **PostgreSQL** | Bütün məlumatı saxlayır | görmür |
-| **API** | Biznes məntiqi, tapşırıqlar, yoxlamalar | görmür (bot ondan istifadə edir) |
-| **Veb panel** | Nəzarətçi üçün idarəetmə ekranı | **link açır, panel görür** |
-| **Telegram bot** | Sahə işçisi tapşırığı qəbul edir, foto göndərir | **Telegram-da botla danışır** |
+| Hissə            | Nə edir                                         | İstifadəçi nə görür              |
+| ---------------- | ----------------------------------------------- | -------------------------------- |
+| **PostgreSQL**   | Bütün məlumatı saxlayır                         | görmür                           |
+| **API**          | Biznes məntiqi, tapşırıqlar, yoxlamalar         | görmür (bot ondan istifadə edir) |
+| **Veb panel**    | Nəzarətçi üçün idarəetmə ekranı                 | **link açır, panel görür**       |
+| **Telegram bot** | Sahə işçisi tapşırığı qəbul edir, foto göndərir | **Telegram-da botla danışır**    |
 
 ---
 
@@ -377,6 +377,7 @@ Ekranda 64 simvollu təsadüfi bir mətn çıxacaq, məsələn:
 ```
 
 Bu mətni kopyalayın. **Bu, `TELEGRAM_WEBHOOK_SECRET` dəyəridir.** Onu:
+
 - Addım 4-də API servisinin dəyişənlərinə,
 - Addım 6-da botun webhook əmrində `secret_token=` hissəsinə
 
@@ -425,11 +426,11 @@ Telegram-da botunuza girib **/start** yazın. Cavab gəlməlidir.
 
 ## 4. Nə qədər pul gedəcək?
 
-| Xərc | Məbləğ |
-|---|---|
-| Railway **Hobby** planı | **$5/ay** (içində $5 istifadə daxildir) |
-| Yeni hesab üçün birdəfəlik sınaq krediti | **$5** (ilk günlər pulsuz) |
-| Bu layihənin real istehlakı | təxminən **$5–15/ay** |
+| Xərc                                     | Məbləğ                                  |
+| ---------------------------------------- | --------------------------------------- |
+| Railway **Hobby** planı                  | **$5/ay** (içində $5 istifadə daxildir) |
+| Yeni hesab üçün birdəfəlik sınaq krediti | **$5** (ilk günlər pulsuz)              |
+| Bu layihənin real istehlakı              | təxminən **$5–15/ay**                   |
 
 Yekun gözlənti: **aylıq təxminən $5–15**. Dəqiq rəqəmi Railway panelində
 **Usage** bölməsində görəcəksiniz — orada günlük xərc canlı göstərilir.
@@ -447,14 +448,14 @@ Yekun gözlənti: **aylıq təxminən $5–15**. Dəqiq rəqəmi Railway panelin
 
 ## 5. Nə isə səhv olsa
 
-| Əlamət | Səbəb və həll |
-|---|---|
-| Servis qırmızı, logda `EUNSUPPORTEDPROTOCOL` | `package.json` faylındaki `workspace:*` düzəldilməyib. Bu, artıq düzəldilib — köhnə commit deploy olunursa yaranır. Yenidən push edin. |
-| Servis qırmızı, logda `POSTGRES_PASSWORD is required` | Dəyişənlər yazılmayıb. Addım 4-b-yə qayıdın. |
-| Panel açılır, amma boşdur | Normal — demo məlumat. Bölmə 6-ya baxın. |
-| Brauzer konsolunda `CORS` xətası | `CORS_ALLOWED_ORIGINS` düzgün yazılmayıb. Protokol (`https://`) daxil olmaqla, panel ünvanını yazın. |
-| Bot `/start`-a cavab vermir | (1) `TELEGRAM_BOT_TOKEN` düzgündürmü? (2) Addım 6-6-daki webhook əmri icra olunubmu? (3) API logunda `503` varsa — `TELEGRAM_WEBHOOK_SECRET` boşdur. |
-| Log: `PORT` ilə bağlı xəta | API servisində `PORT=3001` dəyəri yoxdur. Əlavə edin. |
+| Əlamət                                                | Səbəb və həll                                                                                                                                        |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Servis qırmızı, logda `EUNSUPPORTEDPROTOCOL`          | `package.json` faylındaki `workspace:*` düzəldilməyib. Bu, artıq düzəldilib — köhnə commit deploy olunursa yaranır. Yenidən push edin.               |
+| Servis qırmızı, logda `POSTGRES_PASSWORD is required` | Dəyişənlər yazılmayıb. Addım 4-b-yə qayıdın.                                                                                                         |
+| Panel açılır, amma boşdur                             | Normal — demo məlumat. Bölmə 6-ya baxın.                                                                                                             |
+| Brauzer konsolunda `CORS` xətası                      | `CORS_ALLOWED_ORIGINS` düzgün yazılmayıb. Protokol (`https://`) daxil olmaqla, panel ünvanını yazın.                                                 |
+| Bot `/start`-a cavab vermir                           | (1) `TELEGRAM_BOT_TOKEN` düzgündürmü? (2) Addım 6-6-daki webhook əmri icra olunubmu? (3) API logunda `503` varsa — `TELEGRAM_WEBHOOK_SECRET` boşdur. |
+| Log: `PORT` ilə bağlı xəta                            | API servisində `PORT=3001` dəyəri yoxdur. Əlavə edin.                                                                                                |
 
 ---
 

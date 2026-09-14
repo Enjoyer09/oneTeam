@@ -33,8 +33,5 @@
   // `tsc --build` compiles dependencies first and refuses to use a stale
   // declaration. Use `npm run build:packages` before type-checking the API,
   // or `tsc --build` which handles the ordering itself.
-  "references": [
-    { "path": "../../packages/types" },
-    { "path": "../../packages/database" }
-  ]
+  "references": [{ "path": "../../packages/types" }, { "path": "../../packages/database" }]
 }

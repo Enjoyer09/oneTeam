@@ -186,7 +186,7 @@ export interface GeoCoordinates {
  */
 export function calculateHaversineDistanceMeters(
   coord1: GeoCoordinates,
-  coord2: GeoCoordinates
+  coord2: GeoCoordinates,
 ): number {
   const R = 6371000; // Earth's radius in meters
   const dLat = ((coord2.latitude - coord1.latitude) * Math.PI) / 180;
@@ -215,7 +215,7 @@ export interface GeofenceCheckResult {
 export function checkStoreGeofence(
   userCoord: GeoCoordinates,
   storeCoord: GeoCoordinates,
-  maxMeters = GEOFENCE_MAX_DISTANCE_METERS
+  maxMeters = GEOFENCE_MAX_DISTANCE_METERS,
 ): GeofenceCheckResult {
   const distance = calculateHaversineDistanceMeters(userCoord, storeCoord);
   const isWithin = distance <= maxMeters;

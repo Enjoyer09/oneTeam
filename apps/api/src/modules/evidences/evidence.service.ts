@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  HttpException,
-  HttpStatus,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import {
   SubmitEvidenceRequestDto,
   TaskState,
@@ -25,7 +20,7 @@ export class EvidenceService {
    */
   async submitEvidence(
     dto: SubmitEvidenceRequestDto,
-    principal: AuthenticatedPrincipal
+    principal: AuthenticatedPrincipal,
   ): Promise<{
     success: boolean;
     evidence: InMemoryEvidence;
@@ -34,10 +29,7 @@ export class EvidenceService {
   }> {
     const task = db.getTask(dto.storeTaskId);
     if (!task) {
-      throw new HttpException(
-        `Tapşırıq tapılmadı: ${dto.storeTaskId}`,
-        HttpStatus.NOT_FOUND
-      );
+      throw new HttpException(`Tapşırıq tapılmadı: ${dto.storeTaskId}`, HttpStatus.NOT_FOUND);
     }
 
     if (!db.canUserAccessTask(principal.userId, principal.role, dto.storeTaskId)) {
@@ -46,22 +38,19 @@ export class EvidenceService {
 
     const store = db.getStore(task.storeId);
     if (!store) {
-      throw new HttpException(
-        `Mağaza məlumatı tapılmadı: ${task.storeId}`,
-        HttpStatus.NOT_FOUND
-      );
+      throw new HttpException(`Mağaza məlumatı tapılmadı: ${task.storeId}`, HttpStatus.NOT_FOUND);
     }
 
     // 1. Anti-Fraud Geofencing Calculation (Haversine Distance Check)
     const geofence = checkStoreGeofence(
       { latitude: dto.latitude, longitude: dto.longitude },
       { latitude: store.latitude, longitude: store.longitude },
-      GEOFENCE_MAX_DISTANCE_METERS
+      GEOFENCE_MAX_DISTANCE_METERS,
     );
 
     if (!geofence.isWithinGeofence) {
       this.logger.warn(
-        `⚠️ [GEOFENCE REJECTION] Audit outside allowed perimeter: ${geofence.distanceMeters}m (Max: ${geofence.maxAllowedMeters}m)`
+        `⚠️ [GEOFENCE REJECTION] Audit outside allowed perimeter: ${geofence.distanceMeters}m (Max: ${geofence.maxAllowedMeters}m)`,
       );
 
       // Log anti-fraud security rejection in audit log
@@ -86,7 +75,7 @@ export class EvidenceService {
           distanceMeters: geofence.distanceMeters,
           maxAllowedMeters: geofence.maxAllowedMeters,
         },
-        HttpStatus.BAD_REQUEST
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -127,17 +116,12 @@ export class EvidenceService {
                 question: q.question,
                 message: errorMsg,
               },
-              HttpStatus.BAD_REQUEST
+              HttpStatus.BAD_REQUEST,
             );
           }
         }
 
-        if (
-          answer &&
-          answer.value !== undefined &&
-          answer.value !== null &&
-          answer.value !== ''
-        ) {
+        if (answer && answer.value !== undefined && answer.value !== null && answer.value !== '') {
           if (q.type === 'boolean' && typeof answer.value !== 'boolean') {
             throw new HttpException(
               {
@@ -146,7 +130,7 @@ export class EvidenceService {
                 questionId: q.id,
                 message: `'${q.question}' sualı üçün cavab Bəli/Xeyr (boolean) tipində olmalıdır.`,
               },
-              HttpStatus.BAD_REQUEST
+              HttpStatus.BAD_REQUEST,
             );
           }
 
@@ -159,7 +143,7 @@ export class EvidenceService {
                   questionId: q.id,
                   message: `'${q.question}' sualı üçün cavab rəqəm (number) tipində olmalıdır.`,
                 },
-                HttpStatus.BAD_REQUEST
+                HttpStatus.BAD_REQUEST,
               );
             }
             if (q.minValue !== undefined && answer.value < q.minValue) {
@@ -170,7 +154,7 @@ export class EvidenceService {
                   questionId: q.id,
                   message: `'${q.question}' üçün daxil edilmiş qiymət (${answer.value}) minimum həddən (${q.minValue}) kiçikdir.`,
                 },
-                HttpStatus.BAD_REQUEST
+                HttpStatus.BAD_REQUEST,
               );
             }
             if (q.maxValue !== undefined && answer.value > q.maxValue) {
@@ -181,7 +165,7 @@ export class EvidenceService {
                   questionId: q.id,
                   message: `'${q.question}' üçün daxil edilmiş qiymət (${answer.value}) maksimum həddən (${q.maxValue}) böyükdür.`,
                 },
-                HttpStatus.BAD_REQUEST
+                HttpStatus.BAD_REQUEST,
               );
             }
           }
@@ -198,7 +182,7 @@ export class EvidenceService {
                   questionId: q.id,
                   message: `'${q.question}' üçün seçilmiş variant ('${answer.value}') qəbul olunan seçimlər arasında yoxdur: [${q.options?.join(', ')}].`,
                 },
-                HttpStatus.BAD_REQUEST
+                HttpStatus.BAD_REQUEST,
               );
             }
           }
@@ -211,7 +195,7 @@ export class EvidenceService {
     if (unansweredRequired.length > 0) {
       this.logger.warn(
         `⚠️ [CHECKLIST NOT COLLECTED] Task ${dto.storeTaskId}: ` +
-          `${unansweredRequired.length} required question(s) unanswered`
+          `${unansweredRequired.length} required question(s) unanswered`,
       );
       db.logAuditEvent({
         entityType: 'task_evidence',
@@ -220,8 +204,7 @@ export class EvidenceService {
         actorId: principal.userId,
         payload: {
           unansweredQuestionIds: unansweredRequired,
-          reason:
-            'Kanaldan çeklist cavabları toplanmır; cavablar yoxlanılmamış hesab olunur.',
+          reason: 'Kanaldan çeklist cavabları toplanmır; cavablar yoxlanılmamış hesab olunur.',
         },
       });
     }
@@ -232,7 +215,7 @@ export class EvidenceService {
 
     if (requiresBeforeAfter && photoType === 'after') {
       const hasBeforePhoto = db.evidences.some(
-        (e) => e.storeTaskId === dto.storeTaskId && e.photoType === 'before'
+        (e) => e.storeTaskId === dto.storeTaskId && e.photoType === 'before',
       );
       if (!hasBeforePhoto) {
         throw new HttpException(
@@ -242,7 +225,7 @@ export class EvidenceService {
             message:
               "Bu təlimat həm 'Before', həm də 'After' fotosu tələb edir. Yekun təqdimatdan əvvəl ilkin 'Before' foto yüklənməlidir.",
           },
-          HttpStatus.BAD_REQUEST
+          HttpStatus.BAD_REQUEST,
         );
       }
     }
@@ -254,8 +237,8 @@ export class EvidenceService {
         TaskState.IN_PROGRESS,
         principal,
         photoType === 'before'
-          ? "Sahə işçisi ilkin (Before) rəf fotosunu çəkdi"
-          : 'Sahə işçisi foto çəkilişinə başladı'
+          ? 'Sahə işçisi ilkin (Before) rəf fotosunu çəkdi'
+          : 'Sahə işçisi foto çəkilişinə başladı',
       );
     }
 
@@ -270,7 +253,7 @@ export class EvidenceService {
         principal,
         requiresBeforeAfter
           ? `Before & After audit tamamlandı və təqdim edildi (Məsafə: ${geofence.distanceMeters}m)`
-          : `Rəf fotosu yükləndi (Məsafə: ${geofence.distanceMeters}m)`
+          : `Rəf fotosu yükləndi (Məsafə: ${geofence.distanceMeters}m)`,
       );
     }
 
@@ -311,7 +294,7 @@ export class EvidenceService {
     });
 
     this.logger.log(
-      `✅ [EVIDENCE ACCEPTED] Evidence ${evidenceRecord.id} (${photoType}) verified and stored (${geofence.distanceMeters}m from store)`
+      `✅ [EVIDENCE ACCEPTED] Evidence ${evidenceRecord.id} (${photoType}) verified and stored (${geofence.distanceMeters}m from store)`,
     );
 
     return {

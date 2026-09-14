@@ -100,7 +100,7 @@ export class WebhookController {
     if (data.startsWith('ack_task_')) {
       const taskId = data.replace('ack_task_', '').trim();
       this.logger.log(
-        `⚡ [TELEGRAM ACTION: ACKNOWLEDGE] User ${fromUser.first_name} (${fromUser.id}) acknowledges Task ${taskId}`
+        `⚡ [TELEGRAM ACTION: ACKNOWLEDGE] User ${fromUser.first_name} (${fromUser.id}) acknowledges Task ${taskId}`,
       );
 
       const task = db.getTask(taskId);
@@ -114,7 +114,7 @@ export class WebhookController {
           taskId,
           TaskState.DELIVERED,
           principal,
-          'Avtomatik çatdırılma qeydə alındı'
+          'Avtomatik çatdırılma qeydə alındı',
         );
       }
 
@@ -123,7 +123,7 @@ export class WebhookController {
         taskId,
         TaskState.ACKNOWLEDGED,
         principal,
-        `Telegram bot üzərindən ${fromUser.first_name} tərəfindən qəbul edildi`
+        `Telegram bot üzərindən ${fromUser.first_name} tərəfindən qəbul edildi`,
       );
 
       // Record acknowledgement audit log
@@ -188,10 +188,7 @@ export class WebhookController {
           '⛔ [TELEGRAM] TELEGRAM_WEBHOOK_SECRET is not set. Refusing the webhook ' +
             'rather than accepting unverified state changes in production.',
         );
-        throw new HttpException(
-          'Webhook is not configured',
-          HttpStatus.SERVICE_UNAVAILABLE,
-        );
+        throw new HttpException('Webhook is not configured', HttpStatus.SERVICE_UNAVAILABLE);
       }
       this.logger.warn(
         '⚠️  [TELEGRAM] TELEGRAM_WEBHOOK_SECRET is not set — sender verification is ' +
@@ -203,9 +200,7 @@ export class WebhookController {
     if (!provided || !safeEqual(provided, expected)) {
       // Deliberately vague to the caller: do not confirm whether the header was
       // absent, malformed, or simply wrong.
-      this.logger.warn(
-        '⛔ [TELEGRAM] Rejected webhook with a missing or invalid secret token.',
-      );
+      this.logger.warn('⛔ [TELEGRAM] Rejected webhook with a missing or invalid secret token.');
       throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
     }
   }

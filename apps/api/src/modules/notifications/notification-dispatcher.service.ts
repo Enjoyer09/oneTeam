@@ -1,9 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import {
-  StoreTask,
-  TelegramNotificationPayload,
-  PushNotificationPayload,
-} from '@oneteam/types';
+import { StoreTask, TelegramNotificationPayload, PushNotificationPayload } from '@oneteam/types';
 import { db } from '@oneteam/database';
 
 @Injectable()
@@ -26,7 +22,7 @@ export class NotificationDispatcherService {
     const storeCode = store ? store.storeCode : 'N/A';
 
     this.logger.log(
-      `📢 [MULTI-CHANNEL DISPATCH] Task ${task.id} PUBLISHED for store ${storeCode} (${storeName})`
+      `📢 [MULTI-CHANNEL DISPATCH] Task ${task.id} PUBLISHED for store ${storeCode} (${storeName})`,
     );
 
     // 1. Prepare Telegram Message with Interactive Inline Buttons
@@ -92,7 +88,7 @@ export class NotificationDispatcherService {
     });
 
     this.logger.log(
-      `✅ [DISPATCH COMPLETE] Telegram message and APNs push payload queued for Task ${task.id}`
+      `✅ [DISPATCH COMPLETE] Telegram message and APNs push payload queued for Task ${task.id}`,
     );
 
     return {

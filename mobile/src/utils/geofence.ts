@@ -13,10 +13,7 @@ function toRadians(degrees: number): number {
 /**
  * Calculates the great-circle distance between two GPS coordinates using the Haversine formula
  */
-export function calculateDistanceMeters(
-  coord1: GPSCoordinates,
-  coord2: GPSCoordinates
-): number {
+export function calculateDistanceMeters(coord1: GPSCoordinates, coord2: GPSCoordinates): number {
   const dLat = toRadians(coord2.latitude - coord1.latitude);
   const dLon = toRadians(coord2.longitude - coord1.longitude);
 
@@ -38,7 +35,7 @@ export function calculateDistanceMeters(
 export function verifyStoreGeofence(
   userGPS: GPSCoordinates,
   storeGPS: GPSCoordinates,
-  thresholdMeters: number = DEFAULT_GEOFENCE_RADIUS_METERS
+  thresholdMeters: number = DEFAULT_GEOFENCE_RADIUS_METERS,
 ): GeofenceResult {
   const distance = calculateDistanceMeters(userGPS, storeGPS);
   const roundedDist = Math.round(distance);

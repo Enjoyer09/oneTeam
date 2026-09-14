@@ -9,18 +9,18 @@ below is reproducible with a command. Nothing here is a matter of opinion.
 
 ## 1. Where the project actually stands
 
-| Metric | Value |
-| --- | --- |
-| First-party files | 69 |
-| Lines of code | 10,035 |
-| TypeScript errors before this review | **19** |
-| TypeScript errors after | **0** (3 remain only until `pnpm install`) |
-| Committed credentials found | **6 categories** |
-| CI pipelines | 0 → 3 jobs |
-| Linters / formatters | 0 → ESLint + Prettier + EditorConfig |
-| Product code under version control | **no** |
-| API tests passing | 2/19 → **25/25 + 14/14** |
-| API type strictness | `strict: false` → **`strict: true`** |
+| Metric                               | Value                                      |
+| ------------------------------------ | ------------------------------------------ |
+| First-party files                    | 69                                         |
+| Lines of code                        | 10,035                                     |
+| TypeScript errors before this review | **19**                                     |
+| TypeScript errors after              | **0** (3 remain only until `pnpm install`) |
+| Committed credentials found          | **6 categories**                           |
+| CI pipelines                         | 0 → 3 jobs                                 |
+| Linters / formatters                 | 0 → ESLint + Prettier + EditorConfig       |
+| Product code under version control   | **no**                                     |
+| API tests passing                    | 2/19 → **25/25 + 14/14**                   |
+| API type strictness                  | `strict: false` → **`strict: true`**       |
 
 The code itself is not the problem. The architecture is coherent, the domain
 model is real, and the tests — where they run — assert meaningful behaviour. The
@@ -71,14 +71,14 @@ The home-directory repository should be left alone until §2 P0-2 is handled.
 The repository at `/Users/macbookair` has the remote
 `https://github.com/Enjoyer09/AZERIGIS.git` and tracks:
 
-| Path | What it is |
-| --- | --- |
-| `.ssh/id_ed25519` | **An SSH private key** |
-| `.railway/config.json` | Railway credentials (this project deploys on Railway) |
-| `.aws/sso/cache/kiro-auth-token.json` | AWS SSO token |
-| `.docker/config.json` | Docker registry credentials |
-| `.config/gh/` | GitHub CLI configuration |
-| `.claude.json`, `.gemini/`, `.codex/` | AI agent configs — routinely hold API keys |
+| Path                                  | What it is                                            |
+| ------------------------------------- | ----------------------------------------------------- |
+| `.ssh/id_ed25519`                     | **An SSH private key**                                |
+| `.railway/config.json`                | Railway credentials (this project deploys on Railway) |
+| `.aws/sso/cache/kiro-auth-token.json` | AWS SSO token                                         |
+| `.docker/config.json`                 | Docker registry credentials                           |
+| `.config/gh/`                         | GitHub CLI configuration                              |
+| `.claude.json`, `.gemini/`, `.codex/` | AI agent configs — routinely hold API keys            |
 
 The repository is **private** (verified against the GitHub API), which is the
 only reason this is not already an incident. The exposure is currently limited to
@@ -91,8 +91,8 @@ repository is made public, forked, or a collaborator's account is compromised.
    Railway token, the AWS SSO session, the Docker and GitHub tokens. Assume they
    are compromised — they are in a git history you do not fully control.
 2. **Purge them from history.** `git filter-repo --path .ssh --path .railway
-   --path .aws --path .docker --invert-paths`, then force-push. Deleting the
-   files in a new commit is *not* enough; history is immutable.
+--path .aws --path .docker --invert-paths`, then force-push. Deleting the
+   files in a new commit is _not_ enough; history is immutable.
 3. **Prevent recurrence.** `.gitignore` now exists (§3). `pnpm run secrets:scan`
    runs in CI and in the pre-commit hook.
 
@@ -120,7 +120,7 @@ The TypeScript compiler reported this as `TS2345` on two lines. Nothing ran the
 compiler.
 
 **Worse, and less obvious:** because the actor identity came from the request
-body rather than a trusted mapping, *any* Telegram account that knew a task id
+body rather than a trusted mapping, _any_ Telegram account that knew a task id
 could have acted on it. The identity now comes from
 `db.getUserByTelegramChatId()`, which was already implemented and never called —
 and an unregistered Telegram account is refused with 403.
@@ -164,11 +164,11 @@ rebuild the packages before type-checking the API.**
 
 ### P0-5 — `npm run type-check` was failing with 19 errors
 
-| Error | Count | Cause |
-| --- | --- | --- |
-| `TS2554` Expected 2 arguments, got 1 | 14 | Service methods take a principal; call sites omitted it |
-| `TS2322` `null` not assignable to `number \| undefined` | 2 | Optional field typed too narrowly for a real three-state value |
-| `TS7016` No declaration file for `express` | 3 | `@types/express` declared but not installed |
+| Error                                                   | Count | Cause                                                          |
+| ------------------------------------------------------- | ----- | -------------------------------------------------------------- |
+| `TS2554` Expected 2 arguments, got 1                    | 14    | Service methods take a principal; call sites omitted it        |
+| `TS2322` `null` not assignable to `number \| undefined` | 2     | Optional field typed too narrowly for a real three-state value |
+| `TS7016` No declaration file for `express`              | 3     | `@types/express` declared but not installed                    |
 
 The 14 `TS2554` errors are the same defect class as P0-3: a service method
 requiring an authenticated principal, called without one. They were invisible
@@ -185,17 +185,17 @@ dependency.
 
 ### Quality gates
 
-| File | Purpose |
-| --- | --- |
-| `eslint.config.mjs` | ESLint 9 flat config. Errors block; warnings are visible debt. |
-| `.prettierrc.json`, `.prettierignore` | Formatting is a machine decision, not a review discussion. |
-| `.editorconfig` | Stops whitespace churn from burying real changes in diffs. |
-| `.gitignore` | Secrets, build output, model weights, screenshots. |
-| `.nvmrc` | Pins Node 22. |
-| `.github/workflows/ci.yml` | Three jobs: verify (secrets, types, lint, format), test, build. |
-| `.github/pull_request_template.md` | Forces intent, verification steps and risk to be written down. |
-| `scripts/quality/secret-scan.mjs` | Scans staged files and history for credentials. |
-| `CONTRIBUTING.md` | Onboarding and the daily loop. |
+| File                                  | Purpose                                                         |
+| ------------------------------------- | --------------------------------------------------------------- |
+| `eslint.config.mjs`                   | ESLint 9 flat config. Errors block; warnings are visible debt.  |
+| `.prettierrc.json`, `.prettierignore` | Formatting is a machine decision, not a review discussion.      |
+| `.editorconfig`                       | Stops whitespace churn from burying real changes in diffs.      |
+| `.gitignore`                          | Secrets, build output, model weights, screenshots.              |
+| `.nvmrc`                              | Pins Node 22.                                                   |
+| `.github/workflows/ci.yml`            | Three jobs: verify (secrets, types, lint, format), test, build. |
+| `.github/pull_request_template.md`    | Forces intent, verification steps and risk to be written down.  |
+| `scripts/quality/secret-scan.mjs`     | Scans staged files and history for credentials.                 |
+| `CONTRIBUTING.md`                     | Onboarding and the daily loop.                                  |
 
 ### New scripts
 
@@ -235,7 +235,7 @@ caller state who was submitting. `EvidenceService` correctly ignored it and used
 and any future code path that trusted it would have been identity spoofing.
 
 > **Done.** `submittedById` has been removed from the request DTO, along with the
-> ten call sites that populated it. The field remains on the *stored* record
+> ten call sites that populated it. The field remains on the _stored_ record
 > (`InMemoryEvidence`, the domain entity), because the service recording who
 > actually acted is correct and necessary for the audit trail. The rule is now
 > enforced by the type system: a request cannot express an actor.
@@ -245,7 +245,7 @@ and any future code path that trusted it would have been identity spoofing.
 `any`, `as any`, `@ts-ignore` and `!` move an error from compile time — where it
 costs seconds — to runtime, where it costs a production incident. `@ts-expect-error`
 with a written reason is acceptable because it fails loudly once the underlying
-problem is fixed. `@ts-ignore` is not: it also hides any *new* error on that line.
+problem is fixed. `@ts-ignore` is not: it also hides any _new_ error on that line.
 
 Current debt: **58** `any` usages, **3** non-null assertions.
 
@@ -397,37 +397,37 @@ this change.
 
 ### Now — this week
 
-| # | Action | Why |
-| --- | --- | --- |
-| 1 | Rotate the credentials listed in P0-2 | They are in a git history you do not control |
-| 2 | Purge them from history and force-push | Deleting files is not enough |
-| 3 | `git init` the project and push to its own repository | Nothing else in this list works without it |
-| 4 | Turn on branch protection: CI must pass to merge | Makes the gate real |
+| #   | Action                                                | Why                                          |
+| --- | ----------------------------------------------------- | -------------------------------------------- |
+| 1   | Rotate the credentials listed in P0-2                 | They are in a git history you do not control |
+| 2   | Purge them from history and force-push                | Deleting files is not enough                 |
+| 3   | `git init` the project and push to its own repository | Nothing else in this list works without it   |
+| 4   | Turn on branch protection: CI must pass to merge      | Makes the gate real                          |
 
 ### Next — this month
 
-| # | Action | Why | Status |
-| --- | --- | --- | --- |
-| 5 | Telegram webhook signature verification | §4.7 | **done** |
-| 6 | Restrict CORS to an allow-list | §4.8 | **done** |
-| 7 | TypeScript project references | Kills the P0-4 class of bug permanently | **done** |
-| 8 | `strict: true` on `apps/api` | §4.6 | **done** (zero cost) |
-| 9 | Remove `submittedById` from the request DTO | §4.1 | **done** |
-| 10 | Set `TELEGRAM_WEBHOOK_SECRET` and re-register the webhook | The code now requires it in production | **operational step** |
-| 11 | Replace the toy bearer token with verified JWTs | §4.8 — needs an identity-provider decision | open |
-| 12 | Wire `@oneteam/database` to real PostgreSQL | The product currently loses all data on restart | open |
-| 13 | A database-backed test tier | §4.4 | open |
+| #   | Action                                                    | Why                                             | Status               |
+| --- | --------------------------------------------------------- | ----------------------------------------------- | -------------------- |
+| 5   | Telegram webhook signature verification                   | §4.7                                            | **done**             |
+| 6   | Restrict CORS to an allow-list                            | §4.8                                            | **done**             |
+| 7   | TypeScript project references                             | Kills the P0-4 class of bug permanently         | **done**             |
+| 8   | `strict: true` on `apps/api`                              | §4.6                                            | **done** (zero cost) |
+| 9   | Remove `submittedById` from the request DTO               | §4.1                                            | **done**             |
+| 10  | Set `TELEGRAM_WEBHOOK_SECRET` and re-register the webhook | The code now requires it in production          | **operational step** |
+| 11  | Replace the toy bearer token with verified JWTs           | §4.8 — needs an identity-provider decision      | open                 |
+| 12  | Wire `@oneteam/database` to real PostgreSQL               | The product currently loses all data on restart | open                 |
+| 13  | A database-backed test tier                               | §4.4                                            | open                 |
 
 ### Later — this quarter
 
-| # | Action | Why |
-| --- | --- | --- |
-| 12 | Ratchet `no-explicit-any` from `warn` to `error` at zero | §4.2 |
-| 13 | Replace 98 `console.log` calls with structured logging | Unsearchable, unstructured, no severity |
-| 14 | Add a coverage threshold to CI | Coverage is a floor, not a target |
-| 15 | Split `TaskManager.tsx` (748 lines) and `AuditReviewCenter.tsx` (713) | Hard to test, hard to review |
-| 16 | Archive `ui-audit/`, `ui-design/`, `ui-glass/` into one place | Three overlapping prototype dirs |
-| 17 | Delete stale `packages/*/src/*.d.ts` and `*.js` build output | Compiled artefacts committed next to source |
+| #   | Action                                                                | Why                                         |
+| --- | --------------------------------------------------------------------- | ------------------------------------------- |
+| 12  | Ratchet `no-explicit-any` from `warn` to `error` at zero              | §4.2                                        |
+| 13  | Replace 98 `console.log` calls with structured logging                | Unsearchable, unstructured, no severity     |
+| 14  | Add a coverage threshold to CI                                        | Coverage is a floor, not a target           |
+| 15  | Split `TaskManager.tsx` (748 lines) and `AuditReviewCenter.tsx` (713) | Hard to test, hard to review                |
+| 16  | Archive `ui-audit/`, `ui-design/`, `ui-glass/` into one place         | Three overlapping prototype dirs            |
+| 17  | Delete stale `packages/*/src/*.d.ts` and `*.js` build output          | Compiled artefacts committed next to source |
 
 ### Deliberately not fixed here
 

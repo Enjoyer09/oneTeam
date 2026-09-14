@@ -67,7 +67,7 @@ export class PortalController {
   async reviewSubmission(
     @Param('id') id: string,
     @Body() body: { status: 'approved' | 'rejected'; feedback?: string },
-    @Request() request: AuthedRequest
+    @Request() request: AuthedRequest,
   ) {
     return this.portalService.reviewSubmission(id, body, getPrincipal(request));
   }

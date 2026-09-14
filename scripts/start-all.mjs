@@ -20,9 +20,15 @@ const colors = {
   red: '\x1b[31m',
 };
 
-console.log(`${colors.bright}${colors.cyan}========================================================================${colors.reset}`);
-console.log(`${colors.bright}${colors.cyan}         oneTeam (Coca-Cola FMCG) — BİRGƏ BAŞLATMA SKRİPTİ             ${colors.reset}`);
-console.log(`${colors.bright}${colors.cyan}========================================================================${colors.reset}\n`);
+console.log(
+  `${colors.bright}${colors.cyan}========================================================================${colors.reset}`,
+);
+console.log(
+  `${colors.bright}${colors.cyan}         oneTeam (Coca-Cola FMCG) — BİRGƏ BAŞLATMA SKRİPTİ             ${colors.reset}`,
+);
+console.log(
+  `${colors.bright}${colors.cyan}========================================================================${colors.reset}\n`,
+);
 
 // 1. Build and start the Core API
 //
@@ -41,12 +47,12 @@ console.log(`${colors.bright}⚡ 1. Core API (NestJS) yığılır və işə sal�
 const buildResult = spawnSync(
   process.execPath,
   ['./node_modules/typescript/bin/tsc', '--build', 'apps/api/tsconfig.json'],
-  { cwd: rootDir, stdio: 'inherit' }
+  { cwd: rootDir, stdio: 'inherit' },
 );
 
 if (buildResult.status !== 0) {
   console.error(
-    `\n${colors.red}❌ API yığıla bilmədi. Yuxarıdaki xətaları düzəldin və yenidən cəhd edin.${colors.reset}\n`
+    `\n${colors.red}❌ API yığıla bilmədi. Yuxarıdaki xətaları düzəldin və yenidən cəhd edin.${colors.reset}\n`,
   );
   process.exit(1);
 }
@@ -64,7 +70,7 @@ const webProcess = spawn(
   {
     cwd: rootDir,
     stdio: 'inherit',
-  }
+  },
 );
 
 // 3. Start Telegram Bot Service
@@ -75,13 +81,21 @@ const botProcess = spawn(
   {
     cwd: rootDir,
     stdio: 'inherit',
-  }
+  },
 );
 
-console.log(`\n${colors.bright}${colors.green}------------------------------------------------------------------------${colors.reset}`);
-console.log(`${colors.bright}${colors.green}  ✅ oneTeam PLATFORMASI UĞURLA İŞƏ SALINDI!                            ${colors.reset}`);
-console.log(`${colors.bright}${colors.green}------------------------------------------------------------------------${colors.reset}`);
-console.log(`  ⚡ Core API:            ${colors.bright}http://localhost:3001/api/health${colors.reset}`);
+console.log(
+  `\n${colors.bright}${colors.green}------------------------------------------------------------------------${colors.reset}`,
+);
+console.log(
+  `${colors.bright}${colors.green}  ✅ oneTeam PLATFORMASI UĞURLA İŞƏ SALINDI!                            ${colors.reset}`,
+);
+console.log(
+  `${colors.bright}${colors.green}------------------------------------------------------------------------${colors.reset}`,
+);
+console.log(
+  `  ⚡ Core API:            ${colors.bright}http://localhost:3001/api/health${colors.reset}`,
+);
 console.log(`  🌐 Veb Portala daxil olmaq üçün brauzerdə açın:`);
 console.log(`     ${colors.bright}${colors.yellow}👉 http://localhost:5173${colors.reset}\n`);
 console.log(`  ⏹ Dayandırmaq üçün terminalda [Ctrl + C] basın.\n`);

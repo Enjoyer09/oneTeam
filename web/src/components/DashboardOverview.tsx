@@ -102,8 +102,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     return null;
   };
 
-  const scoreTone = (score: number) =>
-    score >= 80 ? 'st-ok' : score >= 60 ? 'st-warn' : 'st-bad';
+  const scoreTone = (score: number) => (score >= 80 ? 'st-ok' : score >= 60 ? 'st-warn' : 'st-bad');
 
   return (
     <div className="stagger-g flex flex-col gap-4 sm:gap-5">
@@ -154,8 +153,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         <div
           className="glass-card flex flex-col gap-3 rounded-card p-3.5 sm:flex-row sm:items-center sm:justify-between sm:p-4"
           style={{
-            backgroundImage:
-              'linear-gradient(100deg, var(--warn-bg), rgba(255,255,255,.30))',
+            backgroundImage: 'linear-gradient(100deg, var(--warn-bg), rgba(255,255,255,.30))',
             borderColor: 'var(--warn-bd)',
           }}
         >
@@ -171,8 +169,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 Supervayzer diqqətinə: {metrics.pendingReviews} yeni rəf auditi təsdiq gözləyir
               </h3>
               <p className="mt-0.5 text-[11px] text-ink-2">
-                Sahə heyətinin göndərdiyi fotoları planogramla yanaşı müqayisə edərək təsdiqləyin
-                və ya rəy yazın.
+                Sahə heyətinin göndərdiyi fotoları planogramla yanaşı müqayisə edərək təsdiqləyin və
+                ya rəy yazın.
               </p>
             </div>
           </div>

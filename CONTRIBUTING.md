@@ -79,16 +79,16 @@ green. Do not push red and hope.
 
 ### Useful single commands
 
-| Command | What it does |
-| --- | --- |
-| `npm run lint` | ESLint. Warnings are allowed; errors are not. |
-| `npm run lint:fix` | ESLint with autofix. |
-| `npm run format` | Prettier, rewriting files. |
-| `npm run format:check` | Prettier in check-only mode (what CI runs). |
-| `npm run type-check` | TypeScript across the whole workspace. |
-| `npm run test:all` | Every test suite. |
-| `npm run secrets:scan` | Scan staged files for credentials. |
-| `npm run web:build` | Production build of the portal. |
+| Command                | What it does                                  |
+| ---------------------- | --------------------------------------------- |
+| `npm run lint`         | ESLint. Warnings are allowed; errors are not. |
+| `npm run lint:fix`     | ESLint with autofix.                          |
+| `npm run format`       | Prettier, rewriting files.                    |
+| `npm run format:check` | Prettier in check-only mode (what CI runs).   |
+| `npm run type-check`   | TypeScript across the whole workspace.        |
+| `npm run test:all`     | Every test suite.                             |
+| `npm run secrets:scan` | Scan staged files for credentials.            |
+| `npm run web:build`    | Production build of the portal.               |
 
 ---
 

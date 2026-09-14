@@ -215,7 +215,7 @@ export class PortalService {
     // with both photos, so the "before" row is looked up and attached to
     // whichever row is being rendered.
     const beforePhoto = db.evidences.find(
-      (e) => e.storeTaskId === evidence.storeTaskId && e.photoType === 'before'
+      (e) => e.storeTaskId === evidence.storeTaskId && e.photoType === 'before',
     );
 
     return {
@@ -226,7 +226,7 @@ export class PortalService {
       photo_url: evidence.photoUrl,
       photo_type: evidence.photoType ?? 'standard',
       before_photo_url:
-        evidence.photoType === 'before' ? evidence.photoUrl : beforePhoto?.photoUrl ?? null,
+        evidence.photoType === 'before' ? evidence.photoUrl : (beforePhoto?.photoUrl ?? null),
       checklist_answers: evidence.checklistAnswers ?? [],
       status: toPanelSubmissionStatus(task?.status),
       reviewer_feedback: evidence.reviewerFeedback ?? null,
@@ -331,12 +331,12 @@ export class PortalService {
   async reviewSubmission(
     evidenceId: string,
     decision: { status: 'approved' | 'rejected'; feedback?: string },
-    principal: AuthenticatedPrincipal
+    principal: AuthenticatedPrincipal,
   ) {
     if (decision.status !== 'approved' && decision.status !== 'rejected') {
       throw new HttpException(
         "Qərar yalnız 'approved' və ya 'rejected' ola bilər",
-        HttpStatus.BAD_REQUEST
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -349,12 +349,11 @@ export class PortalService {
     if (!task) {
       throw new HttpException(
         `Auditə bağlı tapşırıq tapılmadı: ${evidence.storeTaskId}`,
-        HttpStatus.NOT_FOUND
+        HttpStatus.NOT_FOUND,
       );
     }
 
-    const targetState =
-      decision.status === 'approved' ? TaskState.APPROVED : TaskState.REJECTED;
+    const targetState = decision.status === 'approved' ? TaskState.APPROVED : TaskState.REJECTED;
 
     // Throws a 400 with the allowed transitions when the task is not SUBMITTED.
     const transition = await this.taskStateService.transitionTask(
@@ -364,7 +363,7 @@ export class PortalService {
       decision.feedback ||
         (decision.status === 'approved'
           ? 'Rəf auditi supervayzer tərəfindən təsdiqləndi'
-          : 'Rəf auditi supervayzer tərəfindən imtina edildi')
+          : 'Rəf auditi supervayzer tərəfindən imtina edildi'),
     );
 
     db.updateEvidence(evidenceId, {
@@ -410,7 +409,7 @@ export class PortalService {
     if (!task) {
       throw new HttpException(
         `Auditə bağlı tapşırıq tapılmadı: ${evidence.storeTaskId}`,
-        HttpStatus.NOT_FOUND
+        HttpStatus.NOT_FOUND,
       );
     }
 
@@ -449,8 +448,7 @@ export class PortalService {
     }
 
     const passed = score >= 70;
-    const summary =
-      `Qayda əsaslı yoxlama — bal ${score}/100. ` + reasons.join('; ') + '.';
+    const summary = `Qayda əsaslı yoxlama — bal ${score}/100. ` + reasons.join('; ') + '.';
 
     const decision = await this.reviewSubmission(
       evidenceId,
@@ -458,7 +456,7 @@ export class PortalService {
         status: passed ? 'approved' : 'rejected',
         feedback: summary,
       },
-      principal
+      principal,
     );
 
     db.updateEvidence(evidenceId, {
@@ -468,7 +466,7 @@ export class PortalService {
     });
 
     this.logger.log(
-      `🤖 [AUTO REVIEW] Evidence ${evidenceId}: score ${score} -> ${decision.data.status}`
+      `🤖 [AUTO REVIEW] Evidence ${evidenceId}: score ${score} -> ${decision.data.status}`,
     );
 
     return {
@@ -501,7 +499,7 @@ export class PortalService {
       checklist_schema?: unknown[];
       assignedUserId?: string;
     },
-    principal: AuthenticatedPrincipal
+    principal: AuthenticatedPrincipal,
   ) {
     if (!payload.title || !payload.title.trim()) {
       throw new HttpException('Tapşırıq başlığı tələb olunur', HttpStatus.BAD_REQUEST);
@@ -537,7 +535,7 @@ export class PortalService {
         payload.deadline,
         payload.assigned_stores,
         payload.assignedUserId ?? null,
-        principal
+        principal,
       );
       return {
         success: true,
@@ -553,14 +551,10 @@ export class PortalService {
     // Segmentation still needs an assignee: `bulkDispatchTasks` refuses to
     // create a task nobody owns, and there is no store list to claim from.
     const assigneeId =
-      payload.assignedUserId ??
-      db.users.find((user) => user.role === UserRole.MERCHANDISER)?.id;
+      payload.assignedUserId ?? db.users.find((user) => user.role === UserRole.MERCHANDISER)?.id;
 
     if (!assigneeId) {
-      throw new HttpException(
-        'Təyin edilə biləcək merchandiser tapılmadı',
-        HttpStatus.BAD_REQUEST
-      );
+      throw new HttpException('Təyin edilə biləcək merchandiser tapılmadı', HttpStatus.BAD_REQUEST);
     }
 
     const result = await this.taskStateService.bulkDispatchTasks(
@@ -572,7 +566,7 @@ export class PortalService {
         chainName: payload.chainName,
         storeFormat: payload.storeFormat,
       },
-      principal
+      principal,
     );
 
     return { success: true, data: { templateId, ...result } };
@@ -616,7 +610,7 @@ export class PortalService {
     deadline: string,
     storeIds: string[],
     assigneeId: string | null,
-    principal: AuthenticatedPrincipal
+    principal: AuthenticatedPrincipal,
   ): Promise<InMemoryStoreTask[]> {
     const created: InMemoryStoreTask[] = [];
     const template: any = db.getTemplate(templateId);

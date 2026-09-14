@@ -45,7 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const activeIndex = Math.max(
     0,
-    NAV_ITEMS.findIndex((i) => i.id === activeTab)
+    NAV_ITEMS.findIndex((i) => i.id === activeTab),
   );
 
   const handleSelect = (id: TabType) => {

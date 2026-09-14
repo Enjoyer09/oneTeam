@@ -2,7 +2,7 @@
 
 ![oneTeam Logo](./logo.jpg)
 
-**oneTeam** is a modern retail shelf monitoring and planogram compliance platform designed for FMCG operations (specifically Coca-Cola distribution in retail chains such as Bravo, Araz, Bazarstore, and Rahat). 
+**oneTeam** is a modern retail shelf monitoring and planogram compliance platform designed for FMCG operations (specifically Coca-Cola distribution in retail chains such as Bravo, Araz, Bazarstore, and Rahat).
 
 The platform enables FMCG supervisors to dispatch visual merchandising tasks and planograms to stores, while merchandisers and store staff submit real-time shelf audit photos and telemetry via Telegram Bot or mobile apps.
 
@@ -59,15 +59,16 @@ The platform enables FMCG supervisors to dispatch visual merchandising tasks and
 
 ### Domain Models
 
-| Entity | Description |
-|---|---|
-| **`profiles`** | Extends `auth.users`. Contains user display names, platform roles (`admin`, `supervisor`, `store_staff`, `merchandiser`), phone numbers, and unique `telegram_chat_id` for instant Telegram Bot association. |
-| **`stores`** | Physical retail store locations (e.g. Bravo 28 Mall, Araz Ganjlik) with GPS coordinates (`latitude`, `longitude`), unique store codes, and active flags. |
-| **`tasks`** | Audit missions created by supervisors containing merchandising guidelines, sample planogram URLs, priority (`low`, `medium`, `high`, `urgent`), deadline, and status (`draft`, `published`, `completed`, `archived`). |
-| **`task_assignments`** | Many-to-many junction linking specific tasks to target retail stores with unique constraint `(task_id, store_id)`. |
-| **`submissions`** | Shelf photos uploaded by field staff. Includes audit status (`pending_review`, `approved`, `rejected`), supervisor feedback, and rich `metadata` (JSONB) storing GPS coordinates, capture timestamp, and Telegram message IDs. |
+| Entity                 | Description                                                                                                                                                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`profiles`**         | Extends `auth.users`. Contains user display names, platform roles (`admin`, `supervisor`, `store_staff`, `merchandiser`), phone numbers, and unique `telegram_chat_id` for instant Telegram Bot association.                   |
+| **`stores`**           | Physical retail store locations (e.g. Bravo 28 Mall, Araz Ganjlik) with GPS coordinates (`latitude`, `longitude`), unique store codes, and active flags.                                                                       |
+| **`tasks`**            | Audit missions created by supervisors containing merchandising guidelines, sample planogram URLs, priority (`low`, `medium`, `high`, `urgent`), deadline, and status (`draft`, `published`, `completed`, `archived`).          |
+| **`task_assignments`** | Many-to-many junction linking specific tasks to target retail stores with unique constraint `(task_id, store_id)`.                                                                                                             |
+| **`submissions`**      | Shelf photos uploaded by field staff. Includes audit status (`pending_review`, `approved`, `rejected`), supervisor feedback, and rich `metadata` (JSONB) storing GPS coordinates, capture timestamp, and Telegram message IDs. |
 
 ### Enums
+
 - **`user_role`**: `'admin'`, `'supervisor'`, `'store_staff'`, `'merchandiser'`
 - **`task_priority`**: `'low'`, `'medium'`, `'high'`, `'urgent'`
 - **`task_status`**: `'draft'`, `'published'`, `'completed'`, `'archived'`
@@ -78,12 +79,14 @@ The platform enables FMCG supervisors to dispatch visual merchandising tasks and
 ## Storage & Security (RLS)
 
 ### Storage Bucket: `shelf-images`
+
 - Stores high-resolution shelf audit photos submitted from the field.
 - Public read access enabled for fast image loading on dashboards and mobile clients.
 - Upload policy restricted to authenticated users.
 - Max file size: 10MB (supports JPEG, PNG, WEBP, HEIC).
 
 ### Row Level Security (RLS) Summary
+
 - **Profiles**: All authenticated users can view member profiles. Users can only update their own profile; admins have full management.
 - **Stores**: All authenticated users can view active retail stores. Supervisors/admins can create or edit stores.
 - **Tasks**: Merchandisers see published tasks. Supervisors and admins can see drafts and manage all tasks.
@@ -103,6 +106,7 @@ cp .env.example .env
 ```
 
 Required variables:
+
 - `SUPABASE_URL`: Your Supabase Project URL (`https://xyzcompany.supabase.co`)
 - `SUPABASE_ANON_KEY`: Supabase anon/public key (client-side calls)
 - `SUPABASE_SERVICE_ROLE_KEY`: Supabase service_role key (server-side/Telegram bot calls)
@@ -116,6 +120,7 @@ Required variables:
 You can run the schema migration using any of the following methods:
 
 #### Option A: Supabase Web Dashboard (Easiest)
+
 1. Open your project on [database.new](https://database.new) or [Supabase Dashboard](https://app.supabase.com).
 2. Go to the **SQL Editor** tab on the left navigation bar.
 3. Click **New Query**.
@@ -124,7 +129,9 @@ You can run the schema migration using any of the following methods:
 6. The tables, enums, triggers, storage bucket, and RLS policies will be created.
 
 #### Option B: Supabase CLI (Recommended for Development)
+
 If using Supabase CLI locally:
+
 ```bash
 # Initialize and start local Supabase instance
 npx supabase start
@@ -136,6 +143,7 @@ npx supabase migration up
 ```
 
 #### Option C: Direct PostgreSQL CLI (`psql`)
+
 ```bash
 psql "$DATABASE_URL" -f init_schema.sql
 ```
@@ -147,21 +155,24 @@ psql "$DATABASE_URL" -f init_schema.sql
 Once `init_schema.sql` has executed successfully, apply the sample data:
 
 #### Via Supabase SQL Editor:
+
 1. In the **SQL Editor**, open a new query.
 2. Paste the contents of [`seed.sql`](./seed.sql).
 3. Click **Run**.
 
 #### Via `psql`:
+
 ```bash
 psql "$DATABASE_URL" -f seed.sql
 ```
 
 #### What gets seeded:
+
 - **Supervisor Profile**: Default system supervisor account (`supervisor@oneteam.az`).
 - **2 Retail Stores**:
   - `BRAVO_28MAY_01`: Bravo Supermarket - 28 Mall (Nasimi, Baku)
   - `ARAZ_GENJLIK_02`: Araz Superstore - Ganjlik (Narimanov, Baku)
-- **1 Audit Task**: *"Coca-Cola 0.5L Cooler Placement Check"* with planogram criteria, temperature requirements, and facing rules.
+- **1 Audit Task**: _"Coca-Cola 0.5L Cooler Placement Check"_ with planogram criteria, temperature requirements, and facing rules.
 - **Task Assignments**: The audit task is assigned to both sample stores.
 
 ---
@@ -171,25 +182,21 @@ psql "$DATABASE_URL" -f seed.sql
 Strongly-typed database interfaces are available in [`types/database.types.ts`](./types/database.types.ts).
 
 To update types automatically from your live Supabase project:
+
 ```bash
 npx supabase gen types typescript --project-id <your-project-id> > types/database.types.ts
 ```
 
 Example usage in TypeScript:
+
 ```typescript
 import { createClient } from '@supabase/supabase-js';
 import { Database } from './types/database.types';
 
-const supabase = createClient<Database>(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_ANON_KEY!
-);
+const supabase = createClient<Database>(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
 
 // Fully type-safe query
-const { data: stores, error } = await supabase
-  .from('stores')
-  .select('*')
-  .eq('is_active', true);
+const { data: stores, error } = await supabase.from('stores').select('*').eq('is_active', true);
 ```
 
 ---
@@ -215,7 +222,7 @@ A TypeScript-first Telegram bot built with **grammY** for field merchandisers an
    - Downloads highest-resolution image from Telegram servers.
    - Uploads to Supabase Storage bucket `shelf-images` at `audits/<store_id>/<task_id>_<timestamp>.jpg`.
    - Records audit in `submissions` with status `pending_review` and telemetry metadata (GPS, Telegram ID, device).
-   - Confirms receipt in Azerbaijani: *"Təşəkkür edirik! Rəf şəkli supervayzer yoxlaması üçün qeydə alındı."*
+   - Confirms receipt in Azerbaijani: _"Təşəkkür edirik! Rəf şəkli supervayzer yoxlaması üçün qeydə alındı."_
 
 4. **`/mystatus` or `📊 Statusum` — Audit History & Feedback**:
    - Shows recent submissions, review statuses (`pending_review`, `approved`, `rejected`), and supervisor comments.
@@ -240,7 +247,7 @@ A modern, responsive React + TypeScript web application built with **Vite** and 
      - **Right**: Field staff's uploaded shelf photo with submitter identity and timestamp.
    - **Action Controls**:
      - `"✅ Təsdiq Et"` (Approve): Instantly updates status to `approved`.
-     - `"❌ İmtina Et"` (Reject): Opens feedback input drawer, records supervisor comment (e.g. *"Coca-Cola 1L facing missing on bottom shelf"*), and sets status to `rejected`.
+     - `"❌ İmtina Et"` (Reject): Opens feedback input drawer, records supervisor comment (e.g. _"Coca-Cola 1L facing missing on bottom shelf"_), and sets status to `rejected`.
 
 3. **Task & Planogram Management**:
    - List of all published, draft, or completed merchandising missions.
@@ -294,11 +301,13 @@ An iOS-ready mobile field application designed for Coca-Cola in-store merchandis
 ## Running Automated Tests Across All Platforms
 
 ### Run Complete Platform Test Suite (Bot + Web + Mobile):
+
 ```bash
 npm run test:all
 ```
 
 ### Run Individual Test Suites:
+
 ```bash
 # 1. Telegram Bot E2E User Journey (7 steps)
 npm run bot:test

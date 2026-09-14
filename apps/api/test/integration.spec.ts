@@ -18,7 +18,6 @@ import { WebhookController } from '../src/modules/notifications/webhook.controll
 import { EvidenceService } from '../src/modules/evidences/evidence.service';
 import { AuthenticatedPrincipal } from '../src/common/auth/authenticated-principal';
 
-
 /**
  * Test principals.
  *
@@ -90,11 +89,12 @@ async function runTestSuite() {
   try {
     await taskStateService.transitionTask(testTaskId, TaskState.SUBMITTED, PRINCIPALS.admin);
   } catch (err: any) {
-    rejectedIllegalJump = err?.status === 400 || err?.statusCode === 400 || err?.response?.success === false;
+    rejectedIllegalJump =
+      err?.status === 400 || err?.statusCode === 400 || err?.response?.success === false;
   }
   assert(
     rejectedIllegalJump,
-    'Test 1.1: Illegal transition DRAFT -> SUBMITTED is blocked with 400 Bad Request'
+    'Test 1.1: Illegal transition DRAFT -> SUBMITTED is blocked with 400 Bad Request',
   );
 
   // 1.2 Illegal jump: DRAFT -> APPROVED (Must be blocked)
@@ -102,49 +102,74 @@ async function runTestSuite() {
   try {
     await taskStateService.transitionTask(testTaskId, TaskState.APPROVED, PRINCIPALS.admin);
   } catch (err: any) {
-    rejectedJumpApproved = err?.status === 400 || err?.statusCode === 400 || err?.response?.success === false;
+    rejectedJumpApproved =
+      err?.status === 400 || err?.statusCode === 400 || err?.response?.success === false;
   }
   assert(
     rejectedJumpApproved,
-    'Test 1.2: Illegal transition DRAFT -> APPROVED is blocked with 400 Bad Request'
+    'Test 1.2: Illegal transition DRAFT -> APPROVED is blocked with 400 Bad Request',
   );
 
   // 1.3 Legal full lifecycle progression:
   // DRAFT -> PUBLISHED -> DELIVERED -> ACKNOWLEDGED -> IN_PROGRESS -> SUBMITTED -> APPROVED
-  const pubRes = await taskStateService.transitionTask(testTaskId, TaskState.PUBLISHED, PRINCIPALS.supervisor);
+  const pubRes = await taskStateService.transitionTask(
+    testTaskId,
+    TaskState.PUBLISHED,
+    PRINCIPALS.supervisor,
+  );
   assert(
     pubRes.currentState === TaskState.PUBLISHED,
-    'Test 1.3: Legal transition DRAFT -> PUBLISHED succeeds'
+    'Test 1.3: Legal transition DRAFT -> PUBLISHED succeeds',
   );
 
-  const delRes = await taskStateService.transitionTask(testTaskId, TaskState.DELIVERED, PRINCIPALS.system);
+  const delRes = await taskStateService.transitionTask(
+    testTaskId,
+    TaskState.DELIVERED,
+    PRINCIPALS.system,
+  );
   assert(
     delRes.currentState === TaskState.DELIVERED,
-    'Test 1.4: Legal transition PUBLISHED -> DELIVERED succeeds'
+    'Test 1.4: Legal transition PUBLISHED -> DELIVERED succeeds',
   );
 
-  const ackRes = await taskStateService.transitionTask(testTaskId, TaskState.ACKNOWLEDGED, PRINCIPALS.merchandiser);
+  const ackRes = await taskStateService.transitionTask(
+    testTaskId,
+    TaskState.ACKNOWLEDGED,
+    PRINCIPALS.merchandiser,
+  );
   assert(
     ackRes.currentState === TaskState.ACKNOWLEDGED,
-    'Test 1.5: Legal transition DELIVERED -> ACKNOWLEDGED succeeds'
+    'Test 1.5: Legal transition DELIVERED -> ACKNOWLEDGED succeeds',
   );
 
-  const progRes = await taskStateService.transitionTask(testTaskId, TaskState.IN_PROGRESS, PRINCIPALS.merchandiser);
+  const progRes = await taskStateService.transitionTask(
+    testTaskId,
+    TaskState.IN_PROGRESS,
+    PRINCIPALS.merchandiser,
+  );
   assert(
     progRes.currentState === TaskState.IN_PROGRESS,
-    'Test 1.6: Legal transition ACKNOWLEDGED -> IN_PROGRESS succeeds'
+    'Test 1.6: Legal transition ACKNOWLEDGED -> IN_PROGRESS succeeds',
   );
 
-  const subRes = await taskStateService.transitionTask(testTaskId, TaskState.SUBMITTED, PRINCIPALS.merchandiser);
+  const subRes = await taskStateService.transitionTask(
+    testTaskId,
+    TaskState.SUBMITTED,
+    PRINCIPALS.merchandiser,
+  );
   assert(
     subRes.currentState === TaskState.SUBMITTED,
-    'Test 1.7: Legal transition IN_PROGRESS -> SUBMITTED succeeds'
+    'Test 1.7: Legal transition IN_PROGRESS -> SUBMITTED succeeds',
   );
 
-  const appRes = await taskStateService.transitionTask(testTaskId, TaskState.APPROVED, PRINCIPALS.supervisor);
+  const appRes = await taskStateService.transitionTask(
+    testTaskId,
+    TaskState.APPROVED,
+    PRINCIPALS.supervisor,
+  );
   assert(
     appRes.currentState === TaskState.APPROVED,
-    'Test 1.8: Legal transition SUBMITTED -> APPROVED succeeds (Final approval)'
+    'Test 1.8: Legal transition SUBMITTED -> APPROVED succeeds (Final approval)',
   );
 
   // 1.9 Terminal state violation: APPROVED -> DRAFT
@@ -154,10 +179,7 @@ async function runTestSuite() {
   } catch (err: any) {
     rejectedTerminal = err?.status === 400 || err?.statusCode === 400;
   }
-  assert(
-    rejectedTerminal,
-    'Test 1.9: Terminal state APPROVED cannot transition to DRAFT'
-  );
+  assert(rejectedTerminal, 'Test 1.9: Terminal state APPROVED cannot transition to DRAFT');
 
   // --------------------------------------------------------------------------
   // SUITE 2: MULTI-CHANNEL NOTIFICATION DISPATCHER
@@ -180,13 +202,13 @@ async function runTestSuite() {
   const notifyTransitionRes = await taskStateService.transitionTask(
     notifyTaskId,
     TaskState.PUBLISHED,
-    PRINCIPALS.supervisor
+    PRINCIPALS.supervisor,
   );
 
   assert(
     notifyTransitionRes.notificationsDispatched?.telegram === true &&
       notifyTransitionRes.notificationsDispatched?.pushNotification === true,
-    'Test 2.1: Transition to PUBLISHED automatically triggers Telegram & APNs dispatch'
+    'Test 2.1: Transition to PUBLISHED automatically triggers Telegram & APNs dispatch',
   );
 
   const lastTg = notificationService.dispatchedTelegramMessages.slice(-1)[0];
@@ -195,7 +217,7 @@ async function runTestSuite() {
       lastTg.replyMarkup?.inline_keyboard[0][0].text === '✅ Qəbul Et (Acknowledge)' &&
       lastTg.replyMarkup?.inline_keyboard[0][0].callback_data === `ack_task_${notifyTaskId}` &&
       lastTg.replyMarkup?.inline_keyboard[1][0].url === `oneteam://tasks/${notifyTaskId}`,
-    'Test 2.2: Telegram notification contains interactive [✅ Qəbul Et] button and mobile deep-link'
+    'Test 2.2: Telegram notification contains interactive [✅ Qəbul Et] button and mobile deep-link',
   );
 
   const lastPush = notificationService.dispatchedPushNotifications.slice(-1)[0];
@@ -203,7 +225,7 @@ async function runTestSuite() {
     lastPush &&
       lastPush.title.includes('Yeni Rəf Tapşırığı') &&
       lastPush.data.deepLink === `oneteam://tasks/${notifyTaskId}`,
-    'Test 2.3: Mobile APNs push notification contains structured payload and deep-link'
+    'Test 2.3: Mobile APNs push notification contains structured payload and deep-link',
   );
 
   // --------------------------------------------------------------------------
@@ -231,21 +253,21 @@ async function runTestSuite() {
   const webhookResult = await webhookController.handleTelegramWebhook(webhookUpdate);
   assert(
     webhookResult.ok === true && webhookResult.status === TaskState.ACKNOWLEDGED,
-    'Test 3.1: Telegram Webhook [✅ Qəbul Et] callback returns success & ACKNOWLEDGED'
+    'Test 3.1: Telegram Webhook [✅ Qəbul Et] callback returns success & ACKNOWLEDGED',
   );
 
   const updatedNotifyTask = db.getTask(notifyTaskId);
   assert(
     updatedNotifyTask?.status === TaskState.ACKNOWLEDGED,
-    'Test 3.2: StoreTask status in database is updated to ACKNOWLEDGED'
+    'Test 3.2: StoreTask status in database is updated to ACKNOWLEDGED',
   );
 
   const auditAcknowledged = db.auditLogs.some(
-    (log) => log.entityId === notifyTaskId && log.action === 'TELEGRAM_ACKNOWLEDGED'
+    (log) => log.entityId === notifyTaskId && log.action === 'TELEGRAM_ACKNOWLEDGED',
   );
   assert(
     auditAcknowledged,
-    'Test 3.3: Telegram acknowledgment event is immutably logged in audit_logs'
+    'Test 3.3: Telegram acknowledgment event is immutably logged in audit_logs',
   );
 
   // --------------------------------------------------------------------------
@@ -299,12 +321,12 @@ async function runTestSuite() {
   }
   assert(
     wrongSecretStatus === 401,
-    `Test 3b.1: Forged callback with an invalid secret token is rejected with 401 (got ${wrongSecretStatus})`
+    `Test 3b.1: Forged callback with an invalid secret token is rejected with 401 (got ${wrongSecretStatus})`,
   );
 
   assert(
     db.getTask(forgeTargetId)?.status === TaskState.DELIVERED,
-    'Test 3b.2: Rejected forged callback did not move the task through its state machine'
+    'Test 3b.2: Rejected forged callback did not move the task through its state machine',
   );
 
   let missingHeaderStatus: number | undefined;
@@ -315,17 +337,17 @@ async function runTestSuite() {
   }
   assert(
     missingHeaderStatus === 401,
-    `Test 3b.3: Callback with no secret header at all is rejected with 401 (got ${missingHeaderStatus})`
+    `Test 3b.3: Callback with no secret header at all is rejected with 401 (got ${missingHeaderStatus})`,
   );
 
   // The genuine caller, presenting the right secret, still works.
   const verifiedResult = await webhookController.handleTelegramWebhook(
     forgedUpdate,
-    WEBHOOK_SECRET
+    WEBHOOK_SECRET,
   );
   assert(
     verifiedResult.ok === true && db.getTask(forgeTargetId)?.status === TaskState.ACKNOWLEDGED,
-    'Test 3b.4: Callback with the correct secret token is accepted and acknowledged'
+    'Test 3b.4: Callback with the correct secret token is accepted and acknowledged',
   );
 
   // A valid secret does not make an unknown Telegram account trustworthy.
@@ -339,14 +361,14 @@ async function runTestSuite() {
           from: { id: 111222333, first_name: 'Stranger', username: 'stranger' },
         },
       },
-      WEBHOOK_SECRET
+      WEBHOOK_SECRET,
     );
   } catch (err: any) {
     unknownAccountStatus = err?.status ?? err?.statusCode;
   }
   assert(
     unknownAccountStatus === 403,
-    `Test 3b.5: Callback from an unregistered Telegram account is refused with 403 (got ${unknownAccountStatus})`
+    `Test 3b.5: Callback from an unregistered Telegram account is refused with 403 (got ${unknownAccountStatus})`,
   );
 
   // Fail closed: production without a configured secret must refuse everything,
@@ -362,7 +384,7 @@ async function runTestSuite() {
   }
   assert(
     unconfiguredStatus === 503,
-    `Test 3b.6: Production with no configured webhook secret fails closed with 503 (got ${unconfiguredStatus})`
+    `Test 3b.6: Production with no configured webhook secret fails closed with 503 (got ${unconfiguredStatus})`,
   );
 
   // Restore the environment so later suites see what they expect.
@@ -390,27 +412,30 @@ async function runTestSuite() {
   });
 
   // 4.1 Valid inside store (12 meters away: 40.385050, 49.810600)
-  const validInsideRes = await evidenceService.submitEvidence({
-    storeTaskId: yasamalTask,
-    photoUrl: 'https://images.unsplash.com/photo-coke-shelf-perfect.jpg',
-    latitude: 40.38505,
-    longitude: 49.8106,
-    aiScore: 95,
-    aiSummary: '✅ Planogram Uyğunluğu: 95%',
-    checklistAnswers: [{ questionId: 'q-eye-clean', value: true }],
-  }, PRINCIPALS.merchandiser);
+  const validInsideRes = await evidenceService.submitEvidence(
+    {
+      storeTaskId: yasamalTask,
+      photoUrl: 'https://images.unsplash.com/photo-coke-shelf-perfect.jpg',
+      latitude: 40.38505,
+      longitude: 49.8106,
+      aiScore: 95,
+      aiSummary: '✅ Planogram Uyğunluğu: 95%',
+      checklistAnswers: [{ questionId: 'q-eye-clean', value: true }],
+    },
+    PRINCIPALS.merchandiser,
+  );
 
   assert(
     validInsideRes.success === true &&
       validInsideRes.distanceMeters <= 100 &&
       validInsideRes.evidence.gpsDistanceMeters <= 100,
-    `Test 4.1: Evidence submission inside store perimeter accepted (${validInsideRes.distanceMeters}m)`
+    `Test 4.1: Evidence submission inside store perimeter accepted (${validInsideRes.distanceMeters}m)`,
   );
 
   const yasamalTaskAfter = db.getTask(yasamalTask);
   assert(
     yasamalTaskAfter?.status === TaskState.SUBMITTED,
-    'Test 4.2: StoreTask advances to SUBMITTED upon evidence verification'
+    'Test 4.2: StoreTask advances to SUBMITTED upon evidence verification',
   );
 
   // 4.2 Fake audit / Out of geofence (1350 meters away: 40.375000, 49.825000)
@@ -429,13 +454,16 @@ async function runTestSuite() {
   let geofenceBlocked = false;
   let blockedDistance = 0;
   try {
-    await evidenceService.submitEvidence({
-      storeTaskId: outTask,
-      photoUrl: 'https://images.unsplash.com/photo-fake-audit.jpg',
-      latitude: 40.375,
-      longitude: 49.825, // ~1.6km away
-      checklistAnswers: [{ questionId: 'q-eye-clean', value: true }],
-    }, PRINCIPALS.merchandiser);
+    await evidenceService.submitEvidence(
+      {
+        storeTaskId: outTask,
+        photoUrl: 'https://images.unsplash.com/photo-fake-audit.jpg',
+        latitude: 40.375,
+        longitude: 49.825, // ~1.6km away
+        checklistAnswers: [{ questionId: 'q-eye-clean', value: true }],
+      },
+      PRINCIPALS.merchandiser,
+    );
   } catch (err: any) {
     geofenceBlocked = err?.status === 400 || err?.statusCode === 400;
     blockedDistance = err?.response?.distanceMeters || 0;
@@ -443,22 +471,24 @@ async function runTestSuite() {
 
   assert(
     geofenceBlocked && blockedDistance > 100,
-    `Test 4.3: Anti-fraud engine blocks evidence submission outside store perimeter (${blockedDistance}m > 100m)`
+    `Test 4.3: Anti-fraud engine blocks evidence submission outside store perimeter (${blockedDistance}m > 100m)`,
   );
 
   const auditGeofenceViolation = db.auditLogs.some(
-    (log) => log.entityId === outTask && log.action === 'GEOFENCE_REJECTION'
+    (log) => log.entityId === outTask && log.action === 'GEOFENCE_REJECTION',
   );
   assert(
     auditGeofenceViolation,
-    'Test 4.4: Geofence violation is logged in audit_logs as security incident'
+    'Test 4.4: Geofence violation is logged in audit_logs as security incident',
   );
 
   // --------------------------------------------------------------------------
   // SUMMARY
   // --------------------------------------------------------------------------
   console.log('\n------------------------------------------------------------------------');
-  console.log(`  📊 CORE ENGINE TEST RESULTS: ${passed}/${total} TESTS PASSED (${Math.round((passed / total) * 100)}%)`);
+  console.log(
+    `  📊 CORE ENGINE TEST RESULTS: ${passed}/${total} TESTS PASSED (${Math.round((passed / total) * 100)}%)`,
+  );
   console.log('------------------------------------------------------------------------\n');
 
   if (passed !== total) {

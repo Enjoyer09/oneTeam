@@ -1,522 +1,1059 @@
 <!doctype html>
 <html lang="az" data-page-node-id="EQszR8RiuRWtbhDmUAMw7K">
-<head data-page-node-id="ZYDOiiKDOjsuNj4yXDIuBC">
-<meta charset="utf-8" data-page-node-id="EU9Hwh5C2mV07swHbQ19ZA" />
-<meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="HGgTkSdX4krNuct4ChxdOJ" />
-<title>oneTeam — Test Deploy Təlimatı (Railway)</title>
-<style>
-  :root {
-    --bg: #f6f7f9;
-    --surface: #ffffff;
-    --surface-2: #fbfcfd;
-    --border: #e3e6ea;
-    --border-strong: #cfd5dc;
-    --text: #1b1f24;
-    --text-muted: #5a636e;
-    --text-faint: #858e99;
-    --accent: #c8102e;      /* Coca-Cola red — brand nod */
-    --accent-soft: #fdf1f3;
-    --ok: #1a7f4b;
-    --ok-soft: #eef8f2;
-    --warn: #9a6200;
-    --warn-soft: #fdf6e7;
-    --info: #1257a8;
-    --info-soft: #eff5fd;
-    --code-bg: #f3f5f7;
-    --radius: 10px;
-    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  }
+  <head data-page-node-id="ZYDOiiKDOjsuNj4yXDIuBC">
+    <meta charset="utf-8" data-page-node-id="EU9Hwh5C2mV07swHbQ19ZA" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+      data-page-node-id="HGgTkSdX4krNuct4ChxdOJ"
+    />
+    <title>oneTeam — Test Deploy Təlimatı (Railway)</title>
+    <style>
+      :root {
+        --bg: #f6f7f9;
+        --surface: #ffffff;
+        --surface-2: #fbfcfd;
+        --border: #e3e6ea;
+        --border-strong: #cfd5dc;
+        --text: #1b1f24;
+        --text-muted: #5a636e;
+        --text-faint: #858e99;
+        --accent: #c8102e; /* Coca-Cola red — brand nod */
+        --accent-soft: #fdf1f3;
+        --ok: #1a7f4b;
+        --ok-soft: #eef8f2;
+        --warn: #9a6200;
+        --warn-soft: #fdf6e7;
+        --info: #1257a8;
+        --info-soft: #eff5fd;
+        --code-bg: #f3f5f7;
+        --radius: 10px;
+        --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+        --sans:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      }
 
-  * { box-sizing: border-box; }
+      * {
+        box-sizing: border-box;
+      }
 
-  html { scroll-behavior: smooth; }
+      html {
+        scroll-behavior: smooth;
+      }
 
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    font-size: 16px;
-    line-height: 1.65;
-    -webkit-font-smoothing: antialiased;
-  }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--sans);
+        font-size: 16px;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+      }
 
-  .wrap { max-width: 860px; margin: 0 auto; padding: 40px 22px 90px; }
+      .wrap {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 40px 22px 90px;
+      }
 
-  /* ---------- header ---------- */
-  header.doc {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 30px 32px;
-    margin-bottom: 26px;
-  }
-  .kicker {
-    font-size: 12px; font-weight: 700; letter-spacing: .09em;
-    text-transform: uppercase; color: var(--accent); margin-bottom: 10px;
-  }
-  header.doc h1 { margin: 0 0 10px; font-size: 30px; line-height: 1.25; letter-spacing: -.02em; }
-  header.doc p { margin: 0; color: var(--text-muted); font-size: 15px; }
-  .meta {
-    margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border);
-    display: flex; flex-wrap: wrap; gap: 22px; font-size: 13px; color: var(--text-faint);
-  }
-  .meta b { color: var(--text-muted); font-weight: 600; }
+      /* ---------- header ---------- */
+      header.doc {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 30px 32px;
+        margin-bottom: 26px;
+      }
+      .kicker {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 10px;
+      }
+      header.doc h1 {
+        margin: 0 0 10px;
+        font-size: 30px;
+        line-height: 1.25;
+        letter-spacing: -0.02em;
+      }
+      header.doc p {
+        margin: 0;
+        color: var(--text-muted);
+        font-size: 15px;
+      }
+      .meta {
+        margin-top: 18px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 22px;
+        font-size: 13px;
+        color: var(--text-faint);
+      }
+      .meta b {
+        color: var(--text-muted);
+        font-weight: 600;
+      }
 
-  /* ---------- sections ---------- */
-  section {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 28px 32px;
-    margin-bottom: 22px;
-  }
-  section > h2 {
-    margin: 0 0 6px; font-size: 21px; letter-spacing: -.01em;
-    display: flex; align-items: baseline; gap: 12px;
-  }
-  section > h2 .num {
-    display: inline-flex; align-items: center; justify-content: center;
-    min-width: 30px; height: 30px; padding: 0 8px;
-    background: var(--accent); color: #fff;
-    border-radius: 8px; font-size: 14px; font-weight: 700;
-    flex: none; transform: translateY(-1px);
-  }
-  section > .lede { color: var(--text-muted); margin: 0 0 22px; font-size: 15px; }
-  h3 { font-size: 16px; margin: 26px 0 8px; letter-spacing: -.005em; }
-  h3:first-of-type { margin-top: 6px; }
-  p { margin: 0 0 12px; }
-  a { color: var(--info); }
+      /* ---------- sections ---------- */
+      section {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 28px 32px;
+        margin-bottom: 22px;
+      }
+      section > h2 {
+        margin: 0 0 6px;
+        font-size: 21px;
+        letter-spacing: -0.01em;
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+      }
+      section > h2 .num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 30px;
+        height: 30px;
+        padding: 0 8px;
+        background: var(--accent);
+        color: #fff;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 700;
+        flex: none;
+        transform: translateY(-1px);
+      }
+      section > .lede {
+        color: var(--text-muted);
+        margin: 0 0 22px;
+        font-size: 15px;
+      }
+      h3 {
+        font-size: 16px;
+        margin: 26px 0 8px;
+        letter-spacing: -0.005em;
+      }
+      h3:first-of-type {
+        margin-top: 6px;
+      }
+      p {
+        margin: 0 0 12px;
+      }
+      a {
+        color: var(--info);
+      }
 
-  /* ---------- callouts ---------- */
-  .callout {
-    border-left: 3px solid var(--border-strong);
-    background: var(--surface-2);
-    border-radius: 0 8px 8px 0;
-    padding: 14px 18px; margin: 18px 0; font-size: 14.5px;
-  }
-  .callout p:last-child { margin-bottom: 0; }
-  .callout .tag {
-    display: block; font-size: 11.5px; font-weight: 700; letter-spacing: .07em;
-    text-transform: uppercase; margin-bottom: 5px;
-  }
-  .callout.warn { border-left-color: var(--warn); background: var(--warn-soft); }
-  .callout.warn .tag { color: var(--warn); }
-  .callout.info { border-left-color: var(--info); background: var(--info-soft); }
-  .callout.info .tag { color: var(--info); }
-  .callout.ok { border-left-color: var(--ok); background: var(--ok-soft); }
-  .callout.ok .tag { color: var(--ok); }
-  .callout.danger { border-left-color: var(--accent); background: var(--accent-soft); }
-  .callout.danger .tag { color: var(--accent); }
+      /* ---------- callouts ---------- */
+      .callout {
+        border-left: 3px solid var(--border-strong);
+        background: var(--surface-2);
+        border-radius: 0 8px 8px 0;
+        padding: 14px 18px;
+        margin: 18px 0;
+        font-size: 14.5px;
+      }
+      .callout p:last-child {
+        margin-bottom: 0;
+      }
+      .callout .tag {
+        display: block;
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        margin-bottom: 5px;
+      }
+      .callout.warn {
+        border-left-color: var(--warn);
+        background: var(--warn-soft);
+      }
+      .callout.warn .tag {
+        color: var(--warn);
+      }
+      .callout.info {
+        border-left-color: var(--info);
+        background: var(--info-soft);
+      }
+      .callout.info .tag {
+        color: var(--info);
+      }
+      .callout.ok {
+        border-left-color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .callout.ok .tag {
+        color: var(--ok);
+      }
+      .callout.danger {
+        border-left-color: var(--accent);
+        background: var(--accent-soft);
+      }
+      .callout.danger .tag {
+        color: var(--accent);
+      }
 
-  /* ---------- code ---------- */
-  pre {
-    background: var(--code-bg); border: 1px solid var(--border);
-    border-radius: 8px; padding: 14px 16px; margin: 12px 0;
-    overflow-x: auto; font-family: var(--mono);
-    font-size: 13px; line-height: 1.6; color: #23282e;
-  }
-  code {
-    font-family: var(--mono); font-size: .89em;
-    background: var(--code-bg); border: 1px solid var(--border);
-    border-radius: 4px; padding: 1px 5px; color: #23282e;
-  }
-  pre code { background: none; border: none; padding: 0; font-size: inherit; }
-  .ph { color: var(--accent); font-weight: 600; }
+      /* ---------- code ---------- */
+      pre {
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 14px 16px;
+        margin: 12px 0;
+        overflow-x: auto;
+        font-family: var(--mono);
+        font-size: 13px;
+        line-height: 1.6;
+        color: #23282e;
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 0.89em;
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 1px 5px;
+        color: #23282e;
+      }
+      pre code {
+        background: none;
+        border: none;
+        padding: 0;
+        font-size: inherit;
+      }
+      .ph {
+        color: var(--accent);
+        font-weight: 600;
+      }
 
-  /* ---------- steps ---------- */
-  ol.steps { list-style: none; counter-reset: s; margin: 0; padding: 0; }
-  ol.steps > li {
-    counter-increment: s; position: relative;
-    padding: 0 0 4px 42px; margin-bottom: 16px;
-  }
-  ol.steps > li::before {
-    content: counter(s);
-    position: absolute; left: 0; top: 1px;
-    width: 27px; height: 27px; border-radius: 50%;
-    background: var(--accent-soft); color: var(--accent);
-    border: 1px solid #f0c9d0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 13px; font-weight: 700;
-  }
-  ol.steps > li > p:last-child { margin-bottom: 0; }
-  ul.plain { margin: 8px 0 12px; padding-left: 22px; }
-  ul.plain li { margin-bottom: 5px; }
+      /* ---------- steps ---------- */
+      ol.steps {
+        list-style: none;
+        counter-reset: s;
+        margin: 0;
+        padding: 0;
+      }
+      ol.steps > li {
+        counter-increment: s;
+        position: relative;
+        padding: 0 0 4px 42px;
+        margin-bottom: 16px;
+      }
+      ol.steps > li::before {
+        content: counter(s);
+        position: absolute;
+        left: 0;
+        top: 1px;
+        width: 27px;
+        height: 27px;
+        border-radius: 50%;
+        background: var(--accent-soft);
+        color: var(--accent);
+        border: 1px solid #f0c9d0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      ol.steps > li > p:last-child {
+        margin-bottom: 0;
+      }
+      ul.plain {
+        margin: 8px 0 12px;
+        padding-left: 22px;
+      }
+      ul.plain li {
+        margin-bottom: 5px;
+      }
 
-  /* ---------- diagram ---------- */
-  .diagram {
-    background: var(--surface-2); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 22px; margin: 20px 0;
-  }
-  .diagram .frame {
-    border: 2px dashed var(--border-strong); border-radius: 8px;
-    padding: 14px; background: var(--surface);
-  }
-  .diagram .frame-label {
-    font-size: 11px; font-weight: 700; letter-spacing: .08em;
-    text-transform: uppercase; color: var(--text-faint);
-    text-align: center; margin-bottom: 14px;
-  }
-  .diagram .row { display: flex; gap: 14px; flex-wrap: wrap; }
-  .node {
-    flex: 1 1 150px; background: var(--surface);
-    border: 1px solid var(--border-strong); border-radius: 8px;
-    padding: 12px 14px; text-align: center;
-  }
-  .node .n-name { font-weight: 700; font-size: 14px; display: block; }
-  .node .n-sub { font-size: 12px; color: var(--text-faint); display: block; margin-top: 3px; }
-  .node.db { border-color: #c9d6e8; background: #f6f9fd; }
-  .node.api { border-color: #e8d3c9; background: #fdf8f6; }
-  .node.ui { border-color: #c9e0d2; background: #f5fbf7; }
-  .node.bot { border-color: #ded3e8; background: #faf7fd; }
+      /* ---------- diagram ---------- */
+      .diagram {
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 22px;
+        margin: 20px 0;
+      }
+      .diagram .frame {
+        border: 2px dashed var(--border-strong);
+        border-radius: 8px;
+        padding: 14px;
+        background: var(--surface);
+      }
+      .diagram .frame-label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-faint);
+        text-align: center;
+        margin-bottom: 14px;
+      }
+      .diagram .row {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .node {
+        flex: 1 1 150px;
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 12px 14px;
+        text-align: center;
+      }
+      .node .n-name {
+        font-weight: 700;
+        font-size: 14px;
+        display: block;
+      }
+      .node .n-sub {
+        font-size: 12px;
+        color: var(--text-faint);
+        display: block;
+        margin-top: 3px;
+      }
+      .node.db {
+        border-color: #c9d6e8;
+        background: #f6f9fd;
+      }
+      .node.api {
+        border-color: #e8d3c9;
+        background: #fdf8f6;
+      }
+      .node.ui {
+        border-color: #c9e0d2;
+        background: #f5fbf7;
+      }
+      .node.bot {
+        border-color: #ded3e8;
+        background: #faf7fd;
+      }
 
-  /* ---------- tables ---------- */
-  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14.5px; }
-  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
-  th {
-    font-size: 11.5px; text-transform: uppercase; letter-spacing: .07em;
-    color: var(--text-faint); font-weight: 700; border-bottom: 1px solid var(--border-strong);
-  }
-  tbody tr:last-child td { border-bottom: none; }
-  td.mono { font-family: var(--mono); font-size: 12.5px; }
+      /* ---------- tables ---------- */
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 16px 0;
+        font-size: 14.5px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      th {
+        font-size: 11.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--text-faint);
+        font-weight: 700;
+        border-bottom: 1px solid var(--border-strong);
+      }
+      tbody tr:last-child td {
+        border-bottom: none;
+      }
+      td.mono {
+        font-family: var(--mono);
+        font-size: 12.5px;
+      }
 
-  .pill {
-    display: inline-block; font-size: 11px; font-weight: 700;
-    padding: 2px 8px; border-radius: 99px; letter-spacing: .03em;
-  }
-  .pill.must { background: var(--accent-soft); color: var(--accent); }
-  .pill.opt { background: #eef0f3; color: var(--text-muted); }
+      .pill {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 99px;
+        letter-spacing: 0.03em;
+      }
+      .pill.must {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+      .pill.opt {
+        background: #eef0f3;
+        color: var(--text-muted);
+      }
 
-  footer.doc {
-    text-align: center; color: var(--text-faint); font-size: 13px;
-    padding: 26px 0 0;
-  }
-  footer.doc a { color: var(--text-faint); }
+      footer.doc {
+        text-align: center;
+        color: var(--text-faint);
+        font-size: 13px;
+        padding: 26px 0 0;
+      }
+      footer.doc a {
+        color: var(--text-faint);
+      }
 
-  @media (max-width: 620px) {
-    .wrap { padding: 22px 14px 60px; }
-    header.doc, section { padding: 22px 18px; }
-    header.doc h1 { font-size: 24px; }
-  }
-  @media print {
-    body { background: #fff; }
-    section, header.doc { border: 1px solid #ddd; break-inside: avoid; }
-  }
-</style>
-</head>
-<body data-page-node-id="b4ahASQWHzRaSZCA6JWNPU">
-<div class="wrap" data-page-node-id="p5eBvmdTWHhkLqnCfTryAq">
+      @media (max-width: 620px) {
+        .wrap {
+          padding: 22px 14px 60px;
+        }
+        header.doc,
+        section {
+          padding: 22px 18px;
+        }
+        header.doc h1 {
+          font-size: 24px;
+        }
+      }
+      @media print {
+        body {
+          background: #fff;
+        }
+        section,
+        header.doc {
+          border: 1px solid #ddd;
+          break-inside: avoid;
+        }
+      }
+    </style>
+  </head>
+  <body data-page-node-id="b4ahASQWHzRaSZCA6JWNPU">
+    <div class="wrap" data-page-node-id="p5eBvmdTWHhkLqnCfTryAq">
+      <header class="doc" data-page-node-id="jEflNuXNNhmWnv8iwgw697">
+        <div class="kicker" data-page-node-id="OUqVGC7Ni0Ch8bZu0MbeVK">oneTeam · Test Deploy</div>
+        <h1 data-page-node-id="lIxJzGNJWL8nBHgwmGPkGE">
+          Proqramı onlayn yerləşdirmək üçün addım-addım təlimat
+        </h1>
+        <p data-page-node-id="sdutEL9ZzTlc4tb8yBJbPY">
+          Bu sənəd texniki bilik tələb etmir. Hər addımda
+          <b data-page-node-id="id0Cu13UUlLrNkQrVLx76h">nə edəcəyiniz</b> və
+          <b data-page-node-id="4mVR87IXvPZkw4bDzPESR6">nə yazacağınız</b> göstərilib. Şübhə
+          etdiyiniz yerdə dayanın — tələm-tələsik davam etməkdənsə bir addımı yavaş getmək yaxşıdır.
+        </p>
+        <div class="meta" data-page-node-id="53P3uzFR7iQAqFV83BwAyJ">
+          <span data-page-node-id="aCPoLjkSXFApMixODsqtOz"
+            ><b data-page-node-id="e4ttRN97yaHE4HJr9smaQP">Servis:</b> Railway</span
+          >
+          <span data-page-node-id="8wrbafjY0Jx830kYgx3mp8"
+            ><b data-page-node-id="HpwfdTgVOJ6gcfOeyDesmK">Təxmini xərc:</b> $5–15 / ay</span
+          >
+          <span data-page-node-id="hsIhiyCQL1Kbcbsud7jOZN"
+            ><b data-page-node-id="1kAed2YJ6tMPY4lnBChGuc">Vaxt:</b> ~1 saat</span
+          >
+          <span data-page-node-id="YbsFwlaBZw37FEQnulQ0XR"
+            ><b data-page-node-id="fGrcDxDlIQwDs4JQ9m8AHK">Tarix:</b> 13 sentyabr 2026</span
+          >
+        </div>
+      </header>
 
-  <header class="doc" data-page-node-id="jEflNuXNNhmWnv8iwgw697">
-    <div class="kicker" data-page-node-id="OUqVGC7Ni0Ch8bZu0MbeVK">oneTeam · Test Deploy</div>
-    <h1 data-page-node-id="lIxJzGNJWL8nBHgwmGPkGE">Proqramı onlayn yerləşdirmək üçün addım-addım təlimat</h1>
-    <p data-page-node-id="sdutEL9ZzTlc4tb8yBJbPY">
-      Bu sənəd texniki bilik tələb etmir. Hər addımda <b data-page-node-id="id0Cu13UUlLrNkQrVLx76h">nə edəcəyiniz</b> və
-      <b data-page-node-id="4mVR87IXvPZkw4bDzPESR6">nə yazacağınız</b> göstərilib. Şübhə etdiyiniz yerdə dayanın — tələm-tələsik
-      davam etməkdənsə bir addımı yavaş getmək yaxşıdır.
-    </p>
-    <div class="meta" data-page-node-id="53P3uzFR7iQAqFV83BwAyJ">
-      <span data-page-node-id="aCPoLjkSXFApMixODsqtOz"><b data-page-node-id="e4ttRN97yaHE4HJr9smaQP">Servis:</b> Railway</span>
-      <span data-page-node-id="8wrbafjY0Jx830kYgx3mp8"><b data-page-node-id="HpwfdTgVOJ6gcfOeyDesmK">Təxmini xərc:</b> $5–15 / ay</span>
-      <span data-page-node-id="hsIhiyCQL1Kbcbsud7jOZN"><b data-page-node-id="1kAed2YJ6tMPY4lnBChGuc">Vaxt:</b> ~1 saat</span>
-      <span data-page-node-id="YbsFwlaBZw37FEQnulQ0XR"><b data-page-node-id="fGrcDxDlIQwDs4JQ9m8AHK">Tarix:</b> 13 sentyabr 2026</span>
-    </div>
-  </header>
+      <!-- ================= CANLI VƏZİYYƏT ================= -->
+      <section>
+        <h2><span class="num">✓</span> Canlı vəziyyət — deploy artıq edilib</h2>
+        <p class="lede">
+          Bu təlimatı <b>əllə izləmək lazım deyil.</b> Deploy 13 sentyabr 2026 tarixində tamamlandı
+          və hazırda işləyir. Aşağıdakı bölmələr isə nə edildiyini izah edir — lazım olsa, köçürmə
+          və ya bərpa üçün istinad kimi saxlayın.
+        </p>
 
-  <!-- ================= CANLI VƏZİYYƏT ================= -->
-  <section>
-    <h2><span class="num">✓</span> Canlı vəziyyət — deploy artıq edilib</h2>
-    <p class="lede">
-      Bu təlimatı <b>əllə izləmək lazım deyil.</b> Deploy 13 sentyabr 2026 tarixində
-      tamamlandı və hazırda işləyir. Aşağıdakı bölmələr isə nə edildiyini izah edir —
-      lazım olsa, köçürmə və ya bərpa üçün istinad kimi saxlayın.
-    </p>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 38%">Nə</th>
+              <th>Ünvan / vəziyyət</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><b>Veb panel</b> — istifadəçilər üçün</td>
+              <td>
+                <a href="https://web-production-1392e.up.railway.app"
+                  >web-production-1392e.up.railway.app</a
+                >
+                ✅
+              </td>
+            </tr>
+            <tr>
+              <td><b>API</b> — proqramlar üçün</td>
+              <td>
+                <a href="https://api-production-c17b.up.railway.app/api/health"
+                  >api-production-c17b.up.railway.app</a
+                >
+                ✅
+              </td>
+            </tr>
+            <tr>
+              <td>Veb → API keçidi</td>
+              <td>
+                <a href="https://web-production-1392e.up.railway.app/api/health">…/api/health</a> ✅
+                cavab verir
+              </td>
+            </tr>
+            <tr>
+              <td>Railway idarəetmə paneli</td>
+              <td>
+                <a href="https://railway.com/project/f400d4fb-57dc-4346-9512-294f616ec363"
+                  >railway.com/project/f400d4fb…</a
+                >
+              </td>
+            </tr>
+            <tr>
+              <td>Kod (private)</td>
+              <td>
+                <a href="https://github.com/Enjoyer09/oneTeam">github.com/Enjoyer09/oneTeam</a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
 
-    <table>
-      <thead>
-        <tr><th style="width:38%">Nə</th><th>Ünvan / vəziyyət</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><b>Veb panel</b> — istifadəçilər üçün</td>
-          <td><a href="https://web-production-1392e.up.railway.app">web-production-1392e.up.railway.app</a> ✅</td>
-        </tr>
-        <tr>
-          <td><b>API</b> — proqramlar üçün</td>
-          <td><a href="https://api-production-c17b.up.railway.app/api/health">api-production-c17b.up.railway.app</a> ✅</td>
-        </tr>
-        <tr>
-          <td>Veb → API keçidi</td>
-          <td><a href="https://web-production-1392e.up.railway.app/api/health">…/api/health</a> ✅ cavab verir</td>
-        </tr>
-        <tr>
-          <td>Railway idarəetmə paneli</td>
-          <td><a href="https://railway.com/project/f400d4fb-57dc-4346-9512-294f616ec363">railway.com/project/f400d4fb…</a></td>
-        </tr>
-        <tr>
-          <td>Kod (private)</td>
-          <td><a href="https://github.com/Enjoyer09/oneTeam">github.com/Enjoyer09/oneTeam</a></td>
-        </tr>
-      </tbody>
-    </table>
+        <p>
+          Dörd hissənin hamısı <b>bir Railway layihəsi içindədir</b> (layihə adı:
+          <code>oneTeam</code>):
+        </p>
 
-    <p>Dörd hissənin hamısı <b>bir Railway layihəsi içindədir</b> (layihə adı: <code>oneTeam</code>):</p>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 26%">Servis</th>
+              <th style="width: 34%">Nədir</th>
+              <th>Vəziyyət</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>postgres</code></td>
+              <td>Verilənlər bazası (PostgreSQL 16 + disk)</td>
+              <td>✅ sxem və nümunə məlumat yüklənib</td>
+            </tr>
+            <tr>
+              <td><code>api</code></td>
+              <td>Backend (NestJS)</td>
+              <td>✅ <b>bazaya yazır və oxuyur</b></td>
+            </tr>
+            <tr>
+              <td><code>web</code></td>
+              <td>Veb panel (React + nginx)</td>
+              <td>✅ işləyir</td>
+            </tr>
+            <tr>
+              <td><code>bot</code></td>
+              <td>Telegram bot</td>
+              <td>✅ işləyir — <b>@oneTeamCCIbot</b></td>
+            </tr>
+          </tbody>
+        </table>
 
-    <table>
-      <thead>
-        <tr><th style="width:26%">Servis</th><th style="width:34%">Nədir</th><th>Vəziyyət</th></tr>
-      </thead>
-      <tbody>
-        <tr><td><code>postgres</code></td><td>Verilənlər bazası (PostgreSQL 16 + disk)</td><td>✅ sxem və nümunə məlumat yüklənib</td></tr>
-        <tr><td><code>api</code></td><td>Backend (NestJS)</td><td>✅ <b>bazaya yazır və oxuyur</b></td></tr>
-        <tr><td><code>web</code></td><td>Veb panel (React + nginx)</td><td>✅ işləyir</td></tr>
-        <tr><td><code>bot</code></td><td>Telegram bot</td><td>✅ işləyir — <b>@oneTeamCCIbot</b></td></tr>
-      </tbody>
-    </table>
+        <p>
+          <b>Yoxlanılıb:</b> veb panel açılır · səhifə başlığı düzgündür · dərin ünvanlar işləyir ·
+          statik fayllar verilir · API cavab verir · veb → API keçidi işləyir · API giriş qoruması
+          işləyir (401 qaytarır) · Telegram bot cavab verir · verilənlər bazası oxuyur və yazır.
+        </p>
 
-    <p>
-      <b>Yoxlanılıb:</b> veb panel açılır · səhifə başlığı düzgündür · dərin ünvanlar
-      işləyir · statik fayllar verilir · API cavab verir · veb → API keçidi işləyir ·
-      API giriş qoruması işləyir (401 qaytarır) · Telegram bot cavab verir ·
-      verilənlər bazası oxuyur və yazır.
-    </p>
+        <p>
+          <b>Verilənlər bazası artıq həqiqətən istifadə olunur.</b> Əvvəl API hər şeyi yaddaşda
+          saxlayırdı və hər yenidən başlatmada itirirdi. İndi işə düşəndə məlumatı bazadan oxuyur,
+          hər dəyişikliyi bazaya yazır. <code>/api/health</code> cavabındakı
+          <code>persistence</code> sahəsi hansı rejimdə işlədiyini göstərir. Yoxlanılıb: yeni
+          tapşırıq yaradıldı, status dəyişdirildi, API yenidən başladıldı — hər ikisi yerində qaldı.
+        </p>
 
-    <p>
-      <b>Verilənlər bazası artıq həqiqətən istifadə olunur.</b> Əvvəl API hər şeyi
-      yaddaşda saxlayırdı və hər yenidən başlatmada itirirdi. İndi işə düşəndə məlumatı
-      bazadan oxuyur, hər dəyişikliyi bazaya yazır. <code>/api/health</code> cavabındakı
-      <code>persistence</code> sahəsi hansı rejimdə işlədiyini göstərir.
-      Yoxlanılıb: yeni tapşırıq yaradıldı, status dəyişdirildi, API yenidən başladıldı —
-      hər ikisi yerində qaldı.
-    </p>
+        <p>
+          <b>Kodu yeniləmək üçün:</b> dəyişikliyi GitHub-a göndərin — <b>bu kifayətdir.</b>
+          Railway kodu GitHub-dan avtomatik oxuyur və dörd servisi də özü yeniləyir. Yoxlanılıb:
+          GitHub-a göndərdikdən ~4 saniyə sonra Railway deploy-a başlayır.
+        </p>
+      </section>
 
-    <p>
-      <b>Kodu yeniləmək üçün:</b> dəyişikliyi GitHub-a göndərin — <b>bu kifayətdir.</b>
-      Railway kodu GitHub-dan avtomatik oxuyur və dörd servisi də özü yeniləyir.
-      Yoxlanılıb: GitHub-a göndərdikdən ~4 saniyə sonra Railway deploy-a başlayır.
-    </p>
-  </section>
+      <!-- ================= 0 ================= -->
+      <section data-page-node-id="bYEy6cbOTIaY1PoEhweraG">
+        <h2 data-page-node-id="TPjMhPgKkshecYLRKv4ntZ">
+          <span class="num" data-page-node-id="KgJzdVrA7irCxjpRh3qMds">0</span> Qısa cavab: hansı
+          servis?
+        </h2>
+        <p class="lede" data-page-node-id="AdS9QBE6gBVmOXL54UHqmq">
+          Railway (<code data-page-node-id="H6J3sbzbiukfoHILaWL4vw">railway.com</code>). Səbəblər:
+        </p>
 
-  <!-- ================= 0 ================= -->
-  <section data-page-node-id="bYEy6cbOTIaY1PoEhweraG">
-    <h2 data-page-node-id="TPjMhPgKkshecYLRKv4ntZ"><span class="num" data-page-node-id="KgJzdVrA7irCxjpRh3qMds">0</span> Qısa cavab: hansı servis?</h2>
-    <p class="lede" data-page-node-id="AdS9QBE6gBVmOXL54UHqmq">Railway (<code data-page-node-id="H6J3sbzbiukfoHILaWL4vw">railway.com</code>). Səbəblər:</p>
+        <table data-page-node-id="4rzgdBHKLrOyewByTVKalP">
+          <thead data-page-node-id="Pq6bOXTLDAfo0qScVgGUGc">
+            <tr data-page-node-id="AGdm1BD4RDVKOgnwluEA46">
+              <th style="width: 38%" data-page-node-id="wkXgTYjNE0BlcbKAkVkT5N">Səbəb</th>
+              <th data-page-node-id="VK1FbAmEwU64ox5ktyr92z">Nə deməkdir</th>
+            </tr>
+          </thead>
+          <tbody data-page-node-id="7w5F84mkHyJm0Qv6EvRuz2">
+            <tr data-page-node-id="dvHswN9Ktna4OxpmJ0ABBe">
+              <td data-page-node-id="1tU7GovEF5iHr7TswClzLr">
+                Layihənin 4 hissəsi
+                <b data-page-node-id="cMtuPMGKrC55m8OVcC22GZ">bir proyektdə</b> yaşayır
+              </td>
+              <td data-page-node-id="LQEcJW6A1hq9vNMqHXxDFW">
+                PostgreSQL + API + Veb panel + Bot — bir panel, bir hesab, bir hesab-faktura
+              </td>
+            </tr>
+            <tr data-page-node-id="ytHHsmYb7hDpQQBrhqOOj7">
+              <td data-page-node-id="3c1dIBwGscgSS0y9kJrTGw">
+                Servislər bir-birini
+                <b data-page-node-id="IW9F3JSpYSbFvKLyoUi67a">daxili şəbəkədə</b> görür
+              </td>
+              <td data-page-node-id="zcFjjhn85C31WPJRWCr9Cr">
+                Bazaya qoşulmaq üçün port açmaq, IP yazmaq lazım deyil
+              </td>
+            </tr>
+            <tr data-page-node-id="BvU3KTlpY5DtFafsylqWUR">
+              <td data-page-node-id="JEbzMxinbPratPPGh7APGk">
+                GitHub-a push edəndə
+                <b data-page-node-id="sJapdU8UnDGQ09YM96vACm">avtomatik yenilənir</b>
+              </td>
+              <td data-page-node-id="JuPwetSjPaE7O2otbqa8sR">
+                Kodu dəyişdikdən sonra heç nə etmək lazım deyil
+              </td>
+            </tr>
+            <tr data-page-node-id="VQq2D6xCG0VvRwItiyZekB">
+              <td data-page-node-id="SzEwozYPIlk9zrq8knvFnr">
+                <b data-page-node-id="HIiyjFcB7gNZvtJf0yubTe">Server idarəçiliyi yoxdur</b>
+              </td>
+              <td data-page-node-id="kTS0sCmGWm7sCEKKqYvfx6">
+                Linux yeniləmələri, sertifikatlar, gecə saat 2-də disk dolması — bunlar sizin işiniz
+                deyil
+              </td>
+            </tr>
+            <tr data-page-node-id="8i26bnVhbXXZQDHOTAXAux">
+              <td data-page-node-id="0QCBvJJZ4cjV2qaPo9Tv4f">
+                Artıq <b data-page-node-id="E9exHxB3UFww12JkMU1bQ5">tanışsınız</b>
+              </td>
+              <td data-page-node-id="o942YFCvNjS8BOHQk4VxcS">
+                BahAI-Agent layihəsini də Railway-da saxlayırsınız
+              </td>
+            </tr>
+          </tbody>
+        </table>
 
-    <table data-page-node-id="4rzgdBHKLrOyewByTVKalP">
-      <thead data-page-node-id="Pq6bOXTLDAfo0qScVgGUGc">
-        <tr data-page-node-id="AGdm1BD4RDVKOgnwluEA46"><th style="width:38%" data-page-node-id="wkXgTYjNE0BlcbKAkVkT5N">Səbəb</th><th data-page-node-id="VK1FbAmEwU64ox5ktyr92z">Nə deməkdir</th></tr>
-      </thead>
-      <tbody data-page-node-id="7w5F84mkHyJm0Qv6EvRuz2">
-        <tr data-page-node-id="dvHswN9Ktna4OxpmJ0ABBe">
-          <td data-page-node-id="1tU7GovEF5iHr7TswClzLr">Layihənin 4 hissəsi <b data-page-node-id="cMtuPMGKrC55m8OVcC22GZ">bir proyektdə</b> yaşayır</td>
-          <td data-page-node-id="LQEcJW6A1hq9vNMqHXxDFW">PostgreSQL + API + Veb panel + Bot — bir panel, bir hesab, bir hesab-faktura</td>
-        </tr>
-        <tr data-page-node-id="ytHHsmYb7hDpQQBrhqOOj7">
-          <td data-page-node-id="3c1dIBwGscgSS0y9kJrTGw">Servislər bir-birini <b data-page-node-id="IW9F3JSpYSbFvKLyoUi67a">daxili şəbəkədə</b> görür</td>
-          <td data-page-node-id="zcFjjhn85C31WPJRWCr9Cr">Bazaya qoşulmaq üçün port açmaq, IP yazmaq lazım deyil</td>
-        </tr>
-        <tr data-page-node-id="BvU3KTlpY5DtFafsylqWUR">
-          <td data-page-node-id="JEbzMxinbPratPPGh7APGk">GitHub-a push edəndə <b data-page-node-id="sJapdU8UnDGQ09YM96vACm">avtomatik yenilənir</b></td>
-          <td data-page-node-id="JuPwetSjPaE7O2otbqa8sR">Kodu dəyişdikdən sonra heç nə etmək lazım deyil</td>
-        </tr>
-        <tr data-page-node-id="VQq2D6xCG0VvRwItiyZekB">
-          <td data-page-node-id="SzEwozYPIlk9zrq8knvFnr"><b data-page-node-id="HIiyjFcB7gNZvtJf0yubTe">Server idarəçiliyi yoxdur</b></td>
-          <td data-page-node-id="kTS0sCmGWm7sCEKKqYvfx6">Linux yeniləmələri, sertifikatlar, gecə saat 2-də disk dolması — bunlar sizin işiniz deyil</td>
-        </tr>
-        <tr data-page-node-id="8i26bnVhbXXZQDHOTAXAux">
-          <td data-page-node-id="0QCBvJJZ4cjV2qaPo9Tv4f">Artıq <b data-page-node-id="E9exHxB3UFww12JkMU1bQ5">tanışsınız</b></td>
-          <td data-page-node-id="o942YFCvNjS8BOHQk4VxcS">BahAI-Agent layihəsini də Railway-da saxlayırsınız</td>
-        </tr>
-      </tbody>
-    </table>
+        <h3 data-page-node-id="YWrth7NFZNFQmGiWKroys4">Alternativlər və niyə seçmədik</h3>
+        <table data-page-node-id="uNTxZPvGKukJi5qaAdyKzp">
+          <thead data-page-node-id="yAfZeUYKBz8MRmCslFUbXa">
+            <tr data-page-node-id="e9VCXkKpJlKWMsRf5FCUpS">
+              <th style="width: 24%" data-page-node-id="QJFp8xBAdmaf6ECQ5kFFN5">Servis</th>
+              <th data-page-node-id="Kz1CETFgKsX8CCzFC7q7x2">Problem</th>
+            </tr>
+          </thead>
+          <tbody data-page-node-id="Cg2VrzuulPkVRIB2j0awBT">
+            <tr data-page-node-id="5G6Jay4Gz0yYmWeerWpEwR">
+              <td data-page-node-id="mxXaYIZG7jWisagfXDxtSK">
+                <b data-page-node-id="bsNGPzLkPPTyPeyp8MFrMN">Render</b>
+              </td>
+              <td data-page-node-id="YqMQsAEZJXyROf2IHJFhVK">
+                Veb üçün həqiqətən pulsuzdur, lakin
+                <b data-page-node-id="xADkmzTSxCs9tP3Ybb2kjS"
+                  >pulsuz PostgreSQL bazası 30 gündən sonra silinir</b
+                >. Test deploy bir aydan çox yaşamalıdırsa, yaramaz.
+              </td>
+            </tr>
+            <tr data-page-node-id="Ns6KVxHBNyigKwJJIwQOhp">
+              <td data-page-node-id="hfbgTzkPEssUUK0yrR2UV6">
+                <b data-page-node-id="LdF6PlmOYaA6pMg8UG5P0F">Hetzner</b
+                ><br data-page-node-id="3XFSYzJS71mqHpVjrdH1Na" /><span
+                  style="color: var(--text-faint); font-size: 13px"
+                  data-page-node-id="g63hENQCqUzUIJEpNc3GuB"
+                  >€9.51/ay</span
+                >
+              </td>
+              <td data-page-node-id="MHrdLsDeHGCiJjBAFhp47t">
+                Ən ucuz variant, lakin bütün Linux serverini özünüz idarə etməli olursunuz: SSH,
+                yeniləmələr, ehtiyat nüsxələr. Texniki olmayan operator üçün deyil.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
 
-    <h3 data-page-node-id="YWrth7NFZNFQmGiWKroys4">Alternativlər və niyə seçmədik</h3>
-    <table data-page-node-id="uNTxZPvGKukJi5qaAdyKzp">
-      <thead data-page-node-id="yAfZeUYKBz8MRmCslFUbXa">
-        <tr data-page-node-id="e9VCXkKpJlKWMsRf5FCUpS"><th style="width:24%" data-page-node-id="QJFp8xBAdmaf6ECQ5kFFN5">Servis</th><th data-page-node-id="Kz1CETFgKsX8CCzFC7q7x2">Problem</th></tr>
-      </thead>
-      <tbody data-page-node-id="Cg2VrzuulPkVRIB2j0awBT">
-        <tr data-page-node-id="5G6Jay4Gz0yYmWeerWpEwR">
-          <td data-page-node-id="mxXaYIZG7jWisagfXDxtSK"><b data-page-node-id="bsNGPzLkPPTyPeyp8MFrMN">Render</b></td>
-          <td data-page-node-id="YqMQsAEZJXyROf2IHJFhVK">Veb üçün həqiqətən pulsuzdur, lakin <b data-page-node-id="xADkmzTSxCs9tP3Ybb2kjS">pulsuz PostgreSQL bazası 30 gündən sonra silinir</b>. Test deploy bir aydan çox yaşamalıdırsa, yaramaz.</td>
-        </tr>
-        <tr data-page-node-id="Ns6KVxHBNyigKwJJIwQOhp">
-          <td data-page-node-id="hfbgTzkPEssUUK0yrR2UV6"><b data-page-node-id="LdF6PlmOYaA6pMg8UG5P0F">Hetzner</b><br data-page-node-id="3XFSYzJS71mqHpVjrdH1Na"><span style="color:var(--text-faint);font-size:13px" data-page-node-id="g63hENQCqUzUIJEpNc3GuB">€9.51/ay</span></td>
-          <td data-page-node-id="MHrdLsDeHGCiJjBAFhp47t">Ən ucuz variant, lakin bütün Linux serverini özünüz idarə etməli olursunuz: SSH, yeniləmələr, ehtiyat nüsxələr. Texniki olmayan operator üçün deyil.</td>
-        </tr>
-      </tbody>
-    </table>
-  </section>
+      <!-- ================= 1 ================= -->
+      <section data-page-node-id="JujOEaQl3Qy6mHHAcxiANT">
+        <h2 data-page-node-id="Vpw6EebmbZStacaLsKu6Ru">
+          <span class="num" data-page-node-id="8olBDO7YyuiCJCYZt83YKn">1</span> Nə deploy edirik?
+        </h2>
+        <p class="lede" data-page-node-id="gtyuD2s9z0lRoODD3IB22s">Dörd hissə, hamısı bir yerdə.</p>
 
-  <!-- ================= 1 ================= -->
-  <section data-page-node-id="JujOEaQl3Qy6mHHAcxiANT">
-    <h2 data-page-node-id="Vpw6EebmbZStacaLsKu6Ru"><span class="num" data-page-node-id="8olBDO7YyuiCJCYZt83YKn">1</span> Nə deploy edirik?</h2>
-    <p class="lede" data-page-node-id="gtyuD2s9z0lRoODD3IB22s">Dörd hissə, hamısı bir yerdə.</p>
-
-    <div class="diagram" data-page-node-id="hcPwjbtLbeRCzpchg142nT">
-      <div class="frame" data-page-node-id="LbeNvbOxznTFDG46egh0JV">
-        <div class="frame-label" data-page-node-id="d2lZlqcsbDRb7tbpzXOoV2">Bir Railway proyekti</div>
-        <div class="row" data-page-node-id="aUrKY1AhhXH4orvGXqkqHB">
-          <div class="node db" data-page-node-id="8rMJd4supMd43TDtKM986p">
-            <span class="n-name" data-page-node-id="v8Jb8KkbPX9fJNnf6I6fib">PostgreSQL</span>
-            <span class="n-sub" data-page-node-id="o0xC1IQxWV7ogTw6x8XtJB">verilənlər bazası</span>
-          </div>
-          <div class="node api" data-page-node-id="U0vG02H2IHxDMSFAzHZB2X">
-            <span class="n-name" data-page-node-id="mWlKLpbMGSnMjBLo4Ojylc">API</span>
-            <span class="n-sub" data-page-node-id="dBGXr6kB1PHFHN9op3rAw8">backend (NestJS)</span>
+        <div class="diagram" data-page-node-id="hcPwjbtLbeRCzpchg142nT">
+          <div class="frame" data-page-node-id="LbeNvbOxznTFDG46egh0JV">
+            <div class="frame-label" data-page-node-id="d2lZlqcsbDRb7tbpzXOoV2">
+              Bir Railway proyekti
+            </div>
+            <div class="row" data-page-node-id="aUrKY1AhhXH4orvGXqkqHB">
+              <div class="node db" data-page-node-id="8rMJd4supMd43TDtKM986p">
+                <span class="n-name" data-page-node-id="v8Jb8KkbPX9fJNnf6I6fib">PostgreSQL</span>
+                <span class="n-sub" data-page-node-id="o0xC1IQxWV7ogTw6x8XtJB"
+                  >verilənlər bazası</span
+                >
+              </div>
+              <div class="node api" data-page-node-id="U0vG02H2IHxDMSFAzHZB2X">
+                <span class="n-name" data-page-node-id="mWlKLpbMGSnMjBLo4Ojylc">API</span>
+                <span class="n-sub" data-page-node-id="dBGXr6kB1PHFHN9op3rAw8"
+                  >backend (NestJS)</span
+                >
+              </div>
+            </div>
+            <div class="row" style="margin-top: 14px" data-page-node-id="xNKctjJOiSLt8QSKcNkkBN">
+              <div class="node ui" data-page-node-id="vpdNhd6TMZIbzkWcxIonNN">
+                <span class="n-name" data-page-node-id="3NXsJq5LnCEl8JIJWsDmnC">Veb panel</span>
+                <span class="n-sub" data-page-node-id="DHVacyVehKAW0bP693rTOG"
+                  >React · nəzarətçi ekranı</span
+                >
+              </div>
+              <div class="node bot" data-page-node-id="GzKZHakJa2RFE1YI4fr6ta">
+                <span class="n-name" data-page-node-id="UIc40nHKYj8NoRG2GcQ0At">Telegram bot</span>
+                <span class="n-sub" data-page-node-id="40XmRIZY32oHKRIU3F1eED">sahə işçisi</span>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="row" style="margin-top:14px" data-page-node-id="xNKctjJOiSLt8QSKcNkkBN">
-          <div class="node ui" data-page-node-id="vpdNhd6TMZIbzkWcxIonNN">
-            <span class="n-name" data-page-node-id="3NXsJq5LnCEl8JIJWsDmnC">Veb panel</span>
-            <span class="n-sub" data-page-node-id="DHVacyVehKAW0bP693rTOG">React · nəzarətçi ekranı</span>
-          </div>
-          <div class="node bot" data-page-node-id="GzKZHakJa2RFE1YI4fr6ta">
-            <span class="n-name" data-page-node-id="UIc40nHKYj8NoRG2GcQ0At">Telegram bot</span>
-            <span class="n-sub" data-page-node-id="40XmRIZY32oHKRIU3F1eED">sahə işçisi</span>
-          </div>
+
+        <table data-page-node-id="o2siG5xvB9pqTwKCBGdjH1">
+          <thead data-page-node-id="CmmLhuMdxXX8bTbsl8JHWm">
+            <tr data-page-node-id="cwng78WGTDDgHb6LJ1BHjl">
+              <th style="width: 20%" data-page-node-id="gIEuMFZ5XxjfTjSawlz9PZ">Hissə</th>
+              <th style="width: 42%" data-page-node-id="YEVWsClYRaOdTrFWhtV0wm">Nə edir</th>
+              <th data-page-node-id="Awou1jH86oIAxXpdXhnFfc">İstifadəçi nə görür</th>
+            </tr>
+          </thead>
+          <tbody data-page-node-id="pZsHS9ZtLTnm3bssv2kToP">
+            <tr data-page-node-id="6me6HF18EkjIH9niZUWqmZ">
+              <td data-page-node-id="p1doebgWBDLyPFBpvhI9DP">
+                <b data-page-node-id="DcttEkTNaOjYDZLkvEpuKi">PostgreSQL</b>
+              </td>
+              <td data-page-node-id="DtbjsocVDB3SBwHM9VuzcI">Bütün məlumatı saxlayır</td>
+              <td data-page-node-id="DGT07QstB9gF4p1bbSRARt">görmür</td>
+            </tr>
+            <tr data-page-node-id="9LUK8f18aQqOJafwpRYPNC">
+              <td data-page-node-id="TdoG9mPbbHdj5CVXsZ8uuf">
+                <b data-page-node-id="7MaQ6Siuzv11nHocWbqv31">API</b>
+              </td>
+              <td data-page-node-id="F54hnrRlYg3fVocQc8sFE1">
+                Biznes məntiqi, tapşırıqlar, yoxlamalar
+              </td>
+              <td data-page-node-id="SScExDk36PkpF4XuL2HRfy">görmür (bot ondan istifadə edir)</td>
+            </tr>
+            <tr data-page-node-id="0JuOXYWdTOO7aUxufqSkjO">
+              <td data-page-node-id="eEhIXNpa66b3FlCGn2RiJ3">
+                <b data-page-node-id="ucvcZKYGQGYDSyqgk7zBkd">Veb panel</b>
+              </td>
+              <td data-page-node-id="D11eTswt1vn9o8OKxBAHyq">Nəzarətçi üçün idarəetmə ekranı</td>
+              <td data-page-node-id="7HjvBUxFmTt5BFwfkNCGv7">
+                <b data-page-node-id="ap7zT0UJYJJRstlGwILGz5">link açır, panel görür</b>
+              </td>
+            </tr>
+            <tr data-page-node-id="mQSCTeCBwk485M9daes2uX">
+              <td data-page-node-id="30BcyuYrLY2Vy0hHPIAn7g">
+                <b data-page-node-id="QsZX5Vccm0ZkhrcxGLH2fD">Telegram bot</b>
+              </td>
+              <td data-page-node-id="Qbec7CsLM0FW4EMpfLApOG">
+                Sahə işçisi tapşırığı qəbul edir, foto göndərir
+              </td>
+              <td data-page-node-id="u0BPxsgaza4I2eBElbEvVm">
+                <b data-page-node-id="F2vrcr9sI6TRwiTWBa9qDw">Telegram-da botla danışır</b>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ================= 2 ================= -->
+      <section data-page-node-id="NCp4Q4yjquufqh1x8AwYpG">
+        <h2 data-page-node-id="0H9ekjpZn4JgdZEP4bmWjC">
+          <span class="num" data-page-node-id="Hk7pn5lFlCzCApnS6bDAKh">2</span> Başlamazdan əvvəl
+          bilməli olduğunuz 3 şey
+        </h2>
+
+        <h3 data-page-node-id="slSNTkPwbhdEfA3M2rd8J4">2.1 · Kod hələ GitHub-da deyil</h3>
+        <p data-page-node-id="TbiYltOp3i2adDT8UcUH3G">
+          Railway kodu GitHub-dan oxuyur. Layihə hələ GitHub-da olmadığı üçün
+          <b data-page-node-id="GpsfvShk5FFIrtSCNrUvGA">Addım 0 məcburidir</b>.
+        </p>
+
+        <h3 data-page-node-id="9HEpzEhsqjTPgDG2O4XcrK">
+          2.2 · Veb panel hazırda
+          <b data-page-node-id="TYMdCRDpVofBzaEQkH8oTI">demo məlumat</b> göstərir
+        </h3>
+        <p data-page-node-id="iABPnX9LXmf0p7qSUZntyo">
+          Veb panel məlumatı birbaşa <b data-page-node-id="ss7CMjaMDCzZJcf4V6qQCb">Supabase</b> adlı
+          xarici xidmətdən oxuyur — API-dən yox. Supabase qurulmayıbsa, panel açılır və işləyir,
+          lakin gördüyünüz bütün mağazalar, tapşırıqlar və yoxlamalar
+          <b data-page-node-id="dhrdHDQevi178gg1NRaqCz">uydurma nümunə məlumatdır</b>.
+        </p>
+        <div class="callout info" data-page-node-id="qL3Vem8KEefcH7BzXFFLqj">
+          <span class="tag" data-page-node-id="awoWnFu8T0QGpbsceYrTvM">Bu normaldır</span>
+          <p data-page-node-id="WKIuVgTccXRPVtuMYUfgOT">
+            Test deploy üçün məqsəd «proqram onlayn işləyir» olduğunu görməkdir — demo məlumat bunun
+            üçün kifayətdir. Real məlumat istəyirsinizsə, bu
+            <b data-page-node-id="QyQch4lm7fIuyJCCukAirN">Bölmə 6</b>-da əlavə addımdır.
+          </p>
         </div>
-      </div>
-    </div>
 
-    <table data-page-node-id="o2siG5xvB9pqTwKCBGdjH1">
-      <thead data-page-node-id="CmmLhuMdxXX8bTbsl8JHWm">
-        <tr data-page-node-id="cwng78WGTDDgHb6LJ1BHjl"><th style="width:20%" data-page-node-id="gIEuMFZ5XxjfTjSawlz9PZ">Hissə</th><th style="width:42%" data-page-node-id="YEVWsClYRaOdTrFWhtV0wm">Nə edir</th><th data-page-node-id="Awou1jH86oIAxXpdXhnFfc">İstifadəçi nə görür</th></tr>
-      </thead>
-      <tbody data-page-node-id="pZsHS9ZtLTnm3bssv2kToP">
-        <tr data-page-node-id="6me6HF18EkjIH9niZUWqmZ"><td data-page-node-id="p1doebgWBDLyPFBpvhI9DP"><b data-page-node-id="DcttEkTNaOjYDZLkvEpuKi">PostgreSQL</b></td><td data-page-node-id="DtbjsocVDB3SBwHM9VuzcI">Bütün məlumatı saxlayır</td><td data-page-node-id="DGT07QstB9gF4p1bbSRARt">görmür</td></tr>
-        <tr data-page-node-id="9LUK8f18aQqOJafwpRYPNC"><td data-page-node-id="TdoG9mPbbHdj5CVXsZ8uuf"><b data-page-node-id="7MaQ6Siuzv11nHocWbqv31">API</b></td><td data-page-node-id="F54hnrRlYg3fVocQc8sFE1">Biznes məntiqi, tapşırıqlar, yoxlamalar</td><td data-page-node-id="SScExDk36PkpF4XuL2HRfy">görmür (bot ondan istifadə edir)</td></tr>
-        <tr data-page-node-id="0JuOXYWdTOO7aUxufqSkjO"><td data-page-node-id="eEhIXNpa66b3FlCGn2RiJ3"><b data-page-node-id="ucvcZKYGQGYDSyqgk7zBkd">Veb panel</b></td><td data-page-node-id="D11eTswt1vn9o8OKxBAHyq">Nəzarətçi üçün idarəetmə ekranı</td><td data-page-node-id="7HjvBUxFmTt5BFwfkNCGv7"><b data-page-node-id="ap7zT0UJYJJRstlGwILGz5">link açır, panel görür</b></td></tr>
-        <tr data-page-node-id="mQSCTeCBwk485M9daes2uX"><td data-page-node-id="30BcyuYrLY2Vy0hHPIAn7g"><b data-page-node-id="QsZX5Vccm0ZkhrcxGLH2fD">Telegram bot</b></td><td data-page-node-id="Qbec7CsLM0FW4EMpfLApOG">Sahə işçisi tapşırığı qəbul edir, foto göndərir</td><td data-page-node-id="u0BPxsgaza4I2eBElbEvVm"><b data-page-node-id="F2vrcr9sI6TRwiTWBa9qDw">Telegram-da botla danışır</b></td></tr>
-      </tbody>
-    </table>
-  </section>
+        <h3 data-page-node-id="QkKvhpLlM4Ol1sMvFN9c1K">2.3 · Şifrələr dəyişdirilməlidir</h3>
+        <p data-page-node-id="VsBSYfqLCnEVtA3QkAKjjp">
+          Köhnə
+          <code data-page-node-id="1aoGbfgaU4dWFfgfASFPNA">docker-compose.prod.yml</code> faylında
+          <b data-page-node-id="WdoBfiwvdyk6Hrhu2GD3FA">sabit, hamıya məlum</b> bir baza şifrəsi var
+          idi (<code data-page-node-id="Thym46H2hlly2hhZcTCBgO">coca_cola_secret_2026</code>). Bu
+          artıq düzəldildi: indi şifrə verilməzsə sistem
+          <b data-page-node-id="RG8xoEddR2QH1LAbSFu3nl">ümumiyyətlə işə düşmür</b>. Aşağıdakı
+          addımlarda öz şifrənizi yaradacaqsınız.
+        </p>
 
-  <!-- ================= 2 ================= -->
-  <section data-page-node-id="NCp4Q4yjquufqh1x8AwYpG">
-    <h2 data-page-node-id="0H9ekjpZn4JgdZEP4bmWjC"><span class="num" data-page-node-id="Hk7pn5lFlCzCApnS6bDAKh">2</span> Başlamazdan əvvəl bilməli olduğunuz 3 şey</h2>
+        <h3 data-page-node-id="8XV7OjZDd27NOgiZ0l0x60">
+          2.4 · Hazırda məlumat bazada saxlanmır — yaddaşda saxlanır
+        </h3>
+        <p data-page-node-id="QzrdPyl00NBZD1bULt8dbH">
+          Bunu bilməyiniz vacibdir, çünki pul ödədiyiniz şeyə təsir edir.
+        </p>
+        <p data-page-node-id="wBVnGHc5usvzF39AIxtodE">
+          Hazırda API və bot bütün məlumatı
+          <b data-page-node-id="CxAudp0ehArRGZ6U6H5pH0">yaddaşda</b> saxlayır. Nəticələr:
+        </p>
+        <ul class="plain" data-page-node-id="ZED5IZ9dDGLILy84qDs2kg">
+          <li data-page-node-id="CPOu5RQZ7iHHQrOy2Mfpda">
+            Servis yenidən başladıqda (deploy, restart, nasazlıq)
+            <b data-page-node-id="VzCR1ilArqhiKFodptjHCu">bütün məlumat silinir</b>.
+          </li>
+          <li data-page-node-id="oU3M5Tsoqr9xSrpypiLCdw">
+            Postgres bazası qoşulub işləyir, lakin
+            <b data-page-node-id="IK5sAQJkdFoaTnklwHQd2S">heç bir proqram kodu ona qoşulmur</b>.
+          </li>
+          <li data-page-node-id="iYLCoEene58YbdTNXiwJ8L">
+            Yeganə real baza yolu <b data-page-node-id="DLIQBPDPkXHcye0s6djHVh">Supabase</b>-dir —
+            veb panel birbaşa oradan oxuyur.
+          </li>
+        </ul>
+        <div class="callout danger" data-page-node-id="QSHBy3PUfP6os519Rdvv4Z">
+          <span class="tag" data-page-node-id="8ZkvuJ78rXGFVbVzvJYJVu">Nəticə</span>
+          <p data-page-node-id="bhYF10jbmOxejStfFYGksK">
+            «Hər şey bir yerdə» API, bot və veb panel üçün doğrudur.
+            <b data-page-node-id="ofB3GeuHkDLOJrVk3VoufK">Məlumatın özü</b> isə hələlik yaddaşdadır
+            və ya Supabase-dədir. Test üçün normaldır; real istifadəyə keçməzdən əvvəl API-nin
+            bazaya qoşulması ayrı bir işdir (Bölmə 6).
+          </p>
+        </div>
+      </section>
 
-    <h3 data-page-node-id="slSNTkPwbhdEfA3M2rd8J4">2.1 · Kod hələ GitHub-da deyil</h3>
-    <p data-page-node-id="TbiYltOp3i2adDT8UcUH3G">
-      Railway kodu GitHub-dan oxuyur. Layihə hələ GitHub-da olmadığı üçün
-      <b data-page-node-id="GpsfvShk5FFIrtSCNrUvGA">Addım 0 məcburidir</b>.
-    </p>
+      <!-- ================= 3 ================= -->
+      <section data-page-node-id="TfJKLEIpXyLgnYtLiE8gDv">
+        <h2 data-page-node-id="9KHzCRzvO7cQW7ARxHSM72">
+          <span class="num" data-page-node-id="JYCjdVaGfOrvC08eKyLuCi">3</span> Addım-addım deploy
+        </h2>
+        <p class="lede" data-page-node-id="vwfwEE1apcKj1LWusP1eST">
+          Sıra ilə gedin. Hər addım əvvəlkinin üzərində qurulur.
+        </p>
 
-    <h3 data-page-node-id="9HEpzEhsqjTPgDG2O4XcrK">2.2 · Veb panel hazırda <b data-page-node-id="TYMdCRDpVofBzaEQkH8oTI">demo məlumat</b> göstərir</h3>
-    <p data-page-node-id="iABPnX9LXmf0p7qSUZntyo">
-      Veb panel məlumatı birbaşa <b data-page-node-id="ss7CMjaMDCzZJcf4V6qQCb">Supabase</b> adlı xarici xidmətdən oxuyur — API-dən yox.
-      Supabase qurulmayıbsa, panel açılır və işləyir, lakin gördüyünüz bütün mağazalar,
-      tapşırıqlar və yoxlamalar <b data-page-node-id="dhrdHDQevi178gg1NRaqCz">uydurma nümunə məlumatdır</b>.
-    </p>
-    <div class="callout info" data-page-node-id="qL3Vem8KEefcH7BzXFFLqj">
-      <span class="tag" data-page-node-id="awoWnFu8T0QGpbsceYrTvM">Bu normaldır</span>
-      <p data-page-node-id="WKIuVgTccXRPVtuMYUfgOT">
-        Test deploy üçün məqsəd «proqram onlayn işləyir» olduğunu görməkdir — demo məlumat
-        bunun üçün kifayətdir. Real məlumat istəyirsinizsə, bu <b data-page-node-id="QyQch4lm7fIuyJCCukAirN">Bölmə 6</b>-da əlavə addımdır.
-      </p>
-    </div>
+        <!-- Step 0 -->
+        <h3 data-page-node-id="GgeVACJZ1CtnAO7VBGyaF4">
+          Addım 0 — Kodu GitHub-a yerləşdirin
+          <span class="pill must" data-page-node-id="4YjgNbF9jQUk0jvJ8DUnlc">MƏCBURİ</span>
+        </h3>
+        <p data-page-node-id="Pz7eufbWS9Etk5iPANa40W">
+          Layihə qovluğu artıq git üçün hazırdır (ilk commit edilib). İndi onu GitHub-a göndərmək
+          lazımdır.
+        </p>
+        <p data-page-node-id="4qD2Mk7C6mR8fXjdrpmcnx">
+          <b data-page-node-id="iBTSst5U1hyAhOaSY532oX">Ən asan yol — GitHub Desktop:</b>
+        </p>
+        <ol class="steps" data-page-node-id="dMArfGz3bR91QAQ10oNsuw">
+          <li data-page-node-id="ts6jyhT21WXFEfXHqEhLnE">
+            <p data-page-node-id="rIFExtAmr0BIXBhpCmvFz5">
+              <code data-page-node-id="T9IQUxTsUCmppUWDvVBa8O">desktop.github.com</code> ünvanından
+              <b data-page-node-id="R5w7lqLaDx0RsmZgk5741y">GitHub Desktop</b> proqramını endirib
+              quraşdırın.
+            </p>
+          </li>
+          <li data-page-node-id="DHOFvaUQ1VGOGWjHeF2Jbk">
+            <p data-page-node-id="wSN18omEirGKmfTrOOMsDs">
+              Proqramı açın və GitHub hesabınızla daxil olun.
+            </p>
+          </li>
+          <li data-page-node-id="NhbFrKybb1Q6DECI4VgFJq">
+            <p data-page-node-id="XHCmptzvA6xVaPWvDJiGQg">
+              Yuxarı menyudan:
+              <b data-page-node-id="nscEERCr9CznqfAZd1T7Wl">File → Add local repository…</b>
+            </p>
+          </li>
+          <li data-page-node-id="kKDBgQKfOCo5v9Tkg1h3u5">
+            <p data-page-node-id="DIcFTcdXDj4ltG1w8siq3p">
+              Qovluq seçin:
+              <code data-page-node-id="94hg0h9tt7rsBnsh8CYeFn"
+                >/Users/macbookair/GitHub/oneTeam</code
+              >
+            </p>
+          </li>
+          <li data-page-node-id="jAIzhI2NOfEe9qCSrwYjHu">
+            <p data-page-node-id="WFAAiITSGAi89GK87N2mSx">
+              Proqram «This directory does not appear to be a Git repository» yazsa,
+              <b data-page-node-id="1RrxUbwMJuPnCwsruJNjxt">«create a repository»</b> linkinə basın
+              və <b data-page-node-id="JB6kGiB5zARa8rivbT5kBq">Create repository</b> düyməsini
+              basın.
+            </p>
+          </li>
+          <li data-page-node-id="ZnxbRb6Hm4TTLzwFKpM4CJ">
+            <p data-page-node-id="h3AyBulLm4zPgDgpRyVs3L">
+              Yuxarıda
+              <b data-page-node-id="r0ucv7MC8wCwZVpslEUIQw">Publish repository</b> düyməsini basın.
+            </p>
+          </li>
+          <li data-page-node-id="ysmAzdFYtRFOf2jLvTu9kN">
+            <p data-page-node-id="mYVBv7hbeqGBlsqGX7v07B">
+              Açılan pəncərədə: <b data-page-node-id="8DdqxwoG4qAzzE8Llyax1U">Name:</b>
+              <code data-page-node-id="xeeWDbQo7gRt9blw5REMB5">oneteam</code> ·
+              <b data-page-node-id="5eDWhcdcH1qtfZUqEUZe0h">☑ Keep this code private</b> — bu
+              işarəni <b data-page-node-id="r2yyPOpHdkDtJGBc4T1v1h">mütləq qoyun</b>.
+            </p>
+          </li>
+          <li data-page-node-id="dwGfJX4zJCHXCr2Og87LHN">
+            <p data-page-node-id="QaD81GsG6rEK2CfF6ZuHMh">
+              <b data-page-node-id="0aUun773HpQofCg4LpJVfe">Publish repository</b> düyməsini basın.
+            </p>
+          </li>
+        </ol>
+        <div class="callout danger" data-page-node-id="nniCQereribnsxRqAVqaf4">
+          <span class="tag" data-page-node-id="2TdO8pF1gDF8AxIAGgAPD8">Niyə «private»?</span>
+          <p data-page-node-id="7B1q4BMvHk77Y2Ajqx7p6Y">
+            Layihədə həssas məlumat ola bilər. Public repo = hamının gördüyü repo.
+          </p>
+        </div>
 
-    <h3 data-page-node-id="QkKvhpLlM4Ol1sMvFN9c1K">2.3 · Şifrələr dəyişdirilməlidir</h3>
-    <p data-page-node-id="VsBSYfqLCnEVtA3QkAKjjp">
-      Köhnə <code data-page-node-id="1aoGbfgaU4dWFfgfASFPNA">docker-compose.prod.yml</code> faylında <b data-page-node-id="WdoBfiwvdyk6Hrhu2GD3FA">sabit, hamıya məlum</b> bir baza
-      şifrəsi var idi (<code data-page-node-id="Thym46H2hlly2hhZcTCBgO">coca_cola_secret_2026</code>). Bu artıq düzəldildi: indi şifrə
-      verilməzsə sistem <b data-page-node-id="RG8xoEddR2QH1LAbSFu3nl">ümumiyyətlə işə düşmür</b>. Aşağıdakı addımlarda öz şifrənizi
-      yaradacaqsınız.
-    </p>
+        <!-- Step 1 -->
+        <h3 data-page-node-id="XpPSOE8zh7aCyvqJmK9rhQ">Addım 1 — Railway hesabı</h3>
+        <ol class="steps" data-page-node-id="ansOj4u0UIBt9MoiytJXwi">
+          <li data-page-node-id="mDidfLwjKQx56MXCVEYc5I">
+            <p data-page-node-id="n1apVqCjXY7Fnon6lM4fGw">
+              <code data-page-node-id="sHLWx4wNX9qX2jY9R752oW">railway.com</code> ünvanına gedin.
+            </p>
+          </li>
+          <li data-page-node-id="8sxtwwhCD8mWPbfWPtKWVY">
+            <p data-page-node-id="YyUF5ELv8QvxoV7fp6nXTB">
+              Sağ yuxarıda <b data-page-node-id="p8FYZnQZd8zy7wuCXQWWUr">Login</b> düyməsinə basın.
+            </p>
+          </li>
+          <li data-page-node-id="BpL3vYVg1HWDXAtQPrCFV9">
+            <p data-page-node-id="DkH9b7q1xGz19V0GkKfbYA">
+              <b data-page-node-id="7vMMQhA93CLhQIZgEEr51d">Login with GitHub</b> seçin və icazə
+              verin.
+            </p>
+          </li>
+          <li data-page-node-id="tNVqo7CPuHKceGzxQNy40f">
+            <p data-page-node-id="bzuKyRFWfZoEXiH7bhcHAd">
+              Hesabınıza <b data-page-node-id="WHyA6m3zKBVMv4OmC6EYPb">ödəniş kartı</b> əlavə etməli
+              olacaqsınız (Bölmə 4-ə baxın).
+            </p>
+          </li>
+        </ol>
 
-    <h3 data-page-node-id="8XV7OjZDd27NOgiZ0l0x60">2.4 · Hazırda məlumat bazada saxlanmır — yaddaşda saxlanır</h3>
-    <p data-page-node-id="QzrdPyl00NBZD1bULt8dbH">Bunu bilməyiniz vacibdir, çünki pul ödədiyiniz şeyə təsir edir.</p>
-    <p data-page-node-id="wBVnGHc5usvzF39AIxtodE">
-      Hazırda API və bot bütün məlumatı <b data-page-node-id="CxAudp0ehArRGZ6U6H5pH0">yaddaşda</b> saxlayır. Nəticələr:
-    </p>
-    <ul class="plain" data-page-node-id="ZED5IZ9dDGLILy84qDs2kg">
-      <li data-page-node-id="CPOu5RQZ7iHHQrOy2Mfpda">Servis yenidən başladıqda (deploy, restart, nasazlıq) <b data-page-node-id="VzCR1ilArqhiKFodptjHCu">bütün məlumat silinir</b>.</li>
-      <li data-page-node-id="oU3M5Tsoqr9xSrpypiLCdw">Postgres bazası qoşulub işləyir, lakin <b data-page-node-id="IK5sAQJkdFoaTnklwHQd2S">heç bir proqram kodu ona qoşulmur</b>.</li>
-      <li data-page-node-id="iYLCoEene58YbdTNXiwJ8L">Yeganə real baza yolu <b data-page-node-id="DLIQBPDPkXHcye0s6djHVh">Supabase</b>-dir — veb panel birbaşa oradan oxuyur.</li>
-    </ul>
-    <div class="callout danger" data-page-node-id="QSHBy3PUfP6os519Rdvv4Z">
-      <span class="tag" data-page-node-id="8ZkvuJ78rXGFVbVzvJYJVu">Nəticə</span>
-      <p data-page-node-id="bhYF10jbmOxejStfFYGksK">
-        «Hər şey bir yerdə» API, bot və veb panel üçün doğrudur. <b data-page-node-id="ofB3GeuHkDLOJrVk3VoufK">Məlumatın özü</b> isə
-        hələlik yaddaşdadır və ya Supabase-dədir. Test üçün normaldır; real istifadəyə
-        keçməzdən əvvəl API-nin bazaya qoşulması ayrı bir işdir (Bölmə 6).
-      </p>
-    </div>
-  </section>
+        <!-- Step 2 -->
+        <h3 data-page-node-id="xDWfsoimNz3M0GHLCXByH8">Addım 2 — Yeni proyekt yaradın</h3>
+        <ol class="steps" data-page-node-id="vNrCuPg5RHWUBAEmttQVsp">
+          <li data-page-node-id="cygsSClNnpbWEtA6GFlxXA">
+            <p data-page-node-id="FTdnsryUyGZtqCc7NlBRF8">
+              <code data-page-node-id="FjHkSR2QdkdmtstJAa1FK2">railway.com/dashboard</code>
+              səhifəsinə gedin.
+            </p>
+          </li>
+          <li data-page-node-id="c9OEMy7jNqwcTZjRv2aLCQ">
+            <p data-page-node-id="TinhTL5rDAIcE5BCFnKZtw">
+              Sağ yuxarıda <b data-page-node-id="vItxf7Lg3Jwqh5GtD0dPKt">+ New Project</b> düyməsinə
+              basın.
+            </p>
+          </li>
+          <li data-page-node-id="pHVBBbhQxeD1rCFcNkKRfn">
+            <p data-page-node-id="cmSZuDXOzzDJ7JWy8onYVE">
+              <b data-page-node-id="xG5NEZEcK018S1secgSHFK">Empty Project</b> seçin.
+            </p>
+          </li>
+          <li data-page-node-id="W1fi6X2LgEjS4Q0CQ8xfJl">
+            <p data-page-node-id="suDg6OFIkkXdf96wGvYSnv">
+              Proyektin adını dəyişin: yuxarıdaki ada basıb
+              <code data-page-node-id="JIjf7lbb5PzJo5dTnfwj1X">oneteam-test</code> yazın.
+            </p>
+          </li>
+        </ol>
+        <p data-page-node-id="2CX5TgoEAtV8aYL1lA43fm">
+          Boş bir «kanvas» görəcəksiniz. Servisləri bura əlavə edəcəyik.
+        </p>
 
-  <!-- ================= 3 ================= -->
-  <section data-page-node-id="TfJKLEIpXyLgnYtLiE8gDv">
-    <h2 data-page-node-id="9KHzCRzvO7cQW7ARxHSM72"><span class="num" data-page-node-id="JYCjdVaGfOrvC08eKyLuCi">3</span> Addım-addım deploy</h2>
-    <p class="lede" data-page-node-id="vwfwEE1apcKj1LWusP1eST">Sıra ilə gedin. Hər addım əvvəlkinin üzərində qurulur.</p>
+        <!-- Step 3 -->
+        <h3 data-page-node-id="2uUEfPAIApsK0MMxu5DolK">Addım 3 — Verilənlər bazası (PostgreSQL)</h3>
+        <ol class="steps" data-page-node-id="R3tujOmVhBCf6wT1XBHOxP">
+          <li data-page-node-id="JWXvXFraTqUB1EB2pezbsO">
+            <p data-page-node-id="oGvmUrVfG9TtHRmtG8cx4q">
+              Kanvasda <b data-page-node-id="N0x3GUxibAYqshHeTjshCW">+ New</b> düyməsinə basın.
+            </p>
+          </li>
+          <li data-page-node-id="qlvTlGD7Uh5BvwZmIZfFQj">
+            <p data-page-node-id="dr9vQ6COkEM4tqZSQpMtja">
+              <b data-page-node-id="IBfNbGkkHICDcfoCNGXR0A">Database</b> →
+              <b data-page-node-id="M8XRjbWyPBy6oqEW53vzTh">Add PostgreSQL</b> seçin.
+            </p>
+          </li>
+          <li data-page-node-id="Lu6mxnUWZBMNMJ1NhSf4U9">
+            <p data-page-node-id="6KMFbLtKAKilMqR3ziISCB">
+              Railway bazanı yaradır və adını
+              <b data-page-node-id="M8BDsB4uqE8icvfEBZ0wSz">Postgres</b> qoyur.
+            </p>
+          </li>
+        </ol>
+        <div class="callout warn" data-page-node-id="F6RPAxCHa7tDhwm7KHspO4">
+          <span class="tag" data-page-node-id="oO7HsoPakDjg5cTOaxPtx7">Adı dəyişməyin</span>
+          <p data-page-node-id="D4wqiKPV5VWIDMNZiiu6wT">
+            Servisin adı
+            <code data-page-node-id="9uCYuQEdcZBK8wWpt1wuqC">Postgres</code> qalmalıdır, çünki
+            növbəti addımlarda ona adı ilə istinad edəcəyik.
+          </p>
+        </div>
+        <div class="callout warn" data-page-node-id="EXO0O5oZgagdMU9nJUd2jE">
+          <span class="tag" data-page-node-id="jnHlkoG5wPcIz2sC7nNiyU">Ehtiyat nüsxə yoxdur</span>
+          <p data-page-node-id="hGi4Ow4IAQE9lLuWEuA9CW">
+            Railway-in bazaları «idarə olunmayan» (unmanaged) servislərdir — avtomatik backup
+            yoxdur. Test üçün problem deyil; real istifadəyə keçəndə ayrıca qurulmalıdır.
+          </p>
+        </div>
 
-    <!-- Step 0 -->
-    <h3 data-page-node-id="GgeVACJZ1CtnAO7VBGyaF4">Addım 0 — Kodu GitHub-a yerləşdirin <span class="pill must" data-page-node-id="4YjgNbF9jQUk0jvJ8DUnlc">MƏCBURİ</span></h3>
-    <p data-page-node-id="Pz7eufbWS9Etk5iPANa40W">Layihə qovluğu artıq git üçün hazırdır (ilk commit edilib). İndi onu GitHub-a göndərmək lazımdır.</p>
-    <p data-page-node-id="4qD2Mk7C6mR8fXjdrpmcnx"><b data-page-node-id="iBTSst5U1hyAhOaSY532oX">Ən asan yol — GitHub Desktop:</b></p>
-    <ol class="steps" data-page-node-id="dMArfGz3bR91QAQ10oNsuw">
-      <li data-page-node-id="ts6jyhT21WXFEfXHqEhLnE"><p data-page-node-id="rIFExtAmr0BIXBhpCmvFz5"><code data-page-node-id="T9IQUxTsUCmppUWDvVBa8O">desktop.github.com</code> ünvanından <b data-page-node-id="R5w7lqLaDx0RsmZgk5741y">GitHub Desktop</b> proqramını endirib quraşdırın.</p></li>
-      <li data-page-node-id="DHOFvaUQ1VGOGWjHeF2Jbk"><p data-page-node-id="wSN18omEirGKmfTrOOMsDs">Proqramı açın və GitHub hesabınızla daxil olun.</p></li>
-      <li data-page-node-id="NhbFrKybb1Q6DECI4VgFJq"><p data-page-node-id="XHCmptzvA6xVaPWvDJiGQg">Yuxarı menyudan: <b data-page-node-id="nscEERCr9CznqfAZd1T7Wl">File → Add local repository…</b></p></li>
-      <li data-page-node-id="kKDBgQKfOCo5v9Tkg1h3u5"><p data-page-node-id="DIcFTcdXDj4ltG1w8siq3p">Qovluq seçin: <code data-page-node-id="94hg0h9tt7rsBnsh8CYeFn">/Users/macbookair/GitHub/oneTeam</code></p></li>
-      <li data-page-node-id="jAIzhI2NOfEe9qCSrwYjHu"><p data-page-node-id="WFAAiITSGAi89GK87N2mSx">Proqram «This directory does not appear to be a Git repository» yazsa, <b data-page-node-id="1RrxUbwMJuPnCwsruJNjxt">«create a repository»</b> linkinə basın və <b data-page-node-id="JB6kGiB5zARa8rivbT5kBq">Create repository</b> düyməsini basın.</p></li>
-      <li data-page-node-id="ZnxbRb6Hm4TTLzwFKpM4CJ"><p data-page-node-id="h3AyBulLm4zPgDgpRyVs3L">Yuxarıda <b data-page-node-id="r0ucv7MC8wCwZVpslEUIQw">Publish repository</b> düyməsini basın.</p></li>
-      <li data-page-node-id="ysmAzdFYtRFOf2jLvTu9kN"><p data-page-node-id="mYVBv7hbeqGBlsqGX7v07B">Açılan pəncərədə: <b data-page-node-id="8DdqxwoG4qAzzE8Llyax1U">Name:</b> <code data-page-node-id="xeeWDbQo7gRt9blw5REMB5">oneteam</code> · <b data-page-node-id="5eDWhcdcH1qtfZUqEUZe0h">☑ Keep this code private</b> — bu işarəni <b data-page-node-id="r2yyPOpHdkDtJGBc4T1v1h">mütləq qoyun</b>.</p></li>
-      <li data-page-node-id="dwGfJX4zJCHXCr2Og87LHN"><p data-page-node-id="QaD81GsG6rEK2CfF6ZuHMh"><b data-page-node-id="0aUun773HpQofCg4LpJVfe">Publish repository</b> düyməsini basın.</p></li>
-    </ol>
-    <div class="callout danger" data-page-node-id="nniCQereribnsxRqAVqaf4">
-      <span class="tag" data-page-node-id="2TdO8pF1gDF8AxIAGgAPD8">Niyə «private»?</span>
-      <p data-page-node-id="7B1q4BMvHk77Y2Ajqx7p6Y">Layihədə həssas məlumat ola bilər. Public repo = hamının gördüyü repo.</p>
-    </div>
+        <!-- Step 4 -->
+        <h3 data-page-node-id="hivX0wezRsn0TiMEE4iYNV">Addım 4 — Backend (API) servisi</h3>
+        <ol class="steps" data-page-node-id="zSLyy4zmaikV9yWctQkwLw">
+          <li data-page-node-id="iP58zsAx9vOMAXXfvTZqTr">
+            <p data-page-node-id="xbJIN6hJu7YPIwrFKiycKu">
+              Kanvasda <b data-page-node-id="a0YiDfzzrlx2JEO01gcCFu">+ New</b> →
+              <b data-page-node-id="2ZqNtJHWreFf7q2alGXMRe">GitHub Repo</b> seçin.
+            </p>
+          </li>
+          <li data-page-node-id="6p2c5tNLNzU3D09pD45Wxd">
+            <p data-page-node-id="zMV4PghQMIvCgOE6mjguEa">
+              Siyahıdan <b data-page-node-id="tRj3NIoTc3BLCugoJFLOy1">oneteam</b> reposunu seçin.
+            </p>
+          </li>
+          <li data-page-node-id="mdDpnVYPM1GkyGA5lGZAOy">
+            <p data-page-node-id="qXBsMupCkRIDmtV4oqXJNg">
+              Servisin adını dəyişin: <code data-page-node-id="W2vZLfpAeNxrsSso0EGYPA">api</code>
+            </p>
+          </li>
+        </ol>
 
-    <!-- Step 1 -->
-    <h3 data-page-node-id="XpPSOE8zh7aCyvqJmK9rhQ">Addım 1 — Railway hesabı</h3>
-    <ol class="steps" data-page-node-id="ansOj4u0UIBt9MoiytJXwi">
-      <li data-page-node-id="mDidfLwjKQx56MXCVEYc5I"><p data-page-node-id="n1apVqCjXY7Fnon6lM4fGw"><code data-page-node-id="sHLWx4wNX9qX2jY9R752oW">railway.com</code> ünvanına gedin.</p></li>
-      <li data-page-node-id="8sxtwwhCD8mWPbfWPtKWVY"><p data-page-node-id="YyUF5ELv8QvxoV7fp6nXTB">Sağ yuxarıda <b data-page-node-id="p8FYZnQZd8zy7wuCXQWWUr">Login</b> düyməsinə basın.</p></li>
-      <li data-page-node-id="BpL3vYVg1HWDXAtQPrCFV9"><p data-page-node-id="DkH9b7q1xGz19V0GkKfbYA"><b data-page-node-id="7vMMQhA93CLhQIZgEEr51d">Login with GitHub</b> seçin və icazə verin.</p></li>
-      <li data-page-node-id="tNVqo7CPuHKceGzxQNy40f"><p data-page-node-id="bzuKyRFWfZoEXiH7bhcHAd">Hesabınıza <b data-page-node-id="WHyA6m3zKBVMv4OmC6EYPb">ödəniş kartı</b> əlavə etməli olacaqsınız (Bölmə 4-ə baxın).</p></li>
-    </ol>
+        <p data-page-node-id="NZv9KafF1R0N4yA1EqmUCj">
+          <b data-page-node-id="Zrvh1Ul8dhIaQowZkyuBUg">a) Dockerfile yolu</b> —
+          <b data-page-node-id="eJ5zVbSvCZhbc0TJTA8kjd">Settings → Build</b> bölməsini açın.
+          <b data-page-node-id="TgRXAm12TuPF44ifIi7DzO">Dockerfile Path</b> sahəsinə yazın:
+        </p>
+        <pre
+          data-page-node-id="TAwOAuZBeXWACwY4fCXfGl"
+        ><code data-page-node-id="m9a55PoyRaMXhBNCcpPqCk">apps/api/Dockerfile</code></pre>
 
-    <!-- Step 2 -->
-    <h3 data-page-node-id="xDWfsoimNz3M0GHLCXByH8">Addım 2 — Yeni proyekt yaradın</h3>
-    <ol class="steps" data-page-node-id="vNrCuPg5RHWUBAEmttQVsp">
-      <li data-page-node-id="cygsSClNnpbWEtA6GFlxXA"><p data-page-node-id="FTdnsryUyGZtqCc7NlBRF8"><code data-page-node-id="FjHkSR2QdkdmtstJAa1FK2">railway.com/dashboard</code> səhifəsinə gedin.</p></li>
-      <li data-page-node-id="c9OEMy7jNqwcTZjRv2aLCQ"><p data-page-node-id="TinhTL5rDAIcE5BCFnKZtw">Sağ yuxarıda <b data-page-node-id="vItxf7Lg3Jwqh5GtD0dPKt">+ New Project</b> düyməsinə basın.</p></li>
-      <li data-page-node-id="pHVBBbhQxeD1rCFcNkKRfn"><p data-page-node-id="cmSZuDXOzzDJ7JWy8onYVE"><b data-page-node-id="xG5NEZEcK018S1secgSHFK">Empty Project</b> seçin.</p></li>
-      <li data-page-node-id="W1fi6X2LgEjS4Q0CQ8xfJl"><p data-page-node-id="suDg6OFIkkXdf96wGvYSnv">Proyektin adını dəyişin: yuxarıdaki ada basıb <code data-page-node-id="JIjf7lbb5PzJo5dTnfwj1X">oneteam-test</code> yazın.</p></li>
-    </ol>
-    <p data-page-node-id="2CX5TgoEAtV8aYL1lA43fm">Boş bir «kanvas» görəcəksiniz. Servisləri bura əlavə edəcəyik.</p>
-
-    <!-- Step 3 -->
-    <h3 data-page-node-id="2uUEfPAIApsK0MMxu5DolK">Addım 3 — Verilənlər bazası (PostgreSQL)</h3>
-    <ol class="steps" data-page-node-id="R3tujOmVhBCf6wT1XBHOxP">
-      <li data-page-node-id="JWXvXFraTqUB1EB2pezbsO"><p data-page-node-id="oGvmUrVfG9TtHRmtG8cx4q">Kanvasda <b data-page-node-id="N0x3GUxibAYqshHeTjshCW">+ New</b> düyməsinə basın.</p></li>
-      <li data-page-node-id="qlvTlGD7Uh5BvwZmIZfFQj"><p data-page-node-id="dr9vQ6COkEM4tqZSQpMtja"><b data-page-node-id="IBfNbGkkHICDcfoCNGXR0A">Database</b> → <b data-page-node-id="M8XRjbWyPBy6oqEW53vzTh">Add PostgreSQL</b> seçin.</p></li>
-      <li data-page-node-id="Lu6mxnUWZBMNMJ1NhSf4U9"><p data-page-node-id="6KMFbLtKAKilMqR3ziISCB">Railway bazanı yaradır və adını <b data-page-node-id="M8BDsB4uqE8icvfEBZ0wSz">Postgres</b> qoyur.</p></li>
-    </ol>
-    <div class="callout warn" data-page-node-id="F6RPAxCHa7tDhwm7KHspO4">
-      <span class="tag" data-page-node-id="oO7HsoPakDjg5cTOaxPtx7">Adı dəyişməyin</span>
-      <p data-page-node-id="D4wqiKPV5VWIDMNZiiu6wT">Servisin adı <code data-page-node-id="9uCYuQEdcZBK8wWpt1wuqC">Postgres</code> qalmalıdır, çünki növbəti addımlarda ona adı ilə istinad edəcəyik.</p>
-    </div>
-    <div class="callout warn" data-page-node-id="EXO0O5oZgagdMU9nJUd2jE">
-      <span class="tag" data-page-node-id="jnHlkoG5wPcIz2sC7nNiyU">Ehtiyat nüsxə yoxdur</span>
-      <p data-page-node-id="hGi4Ow4IAQE9lLuWEuA9CW">Railway-in bazaları «idarə olunmayan» (unmanaged) servislərdir — avtomatik backup yoxdur. Test üçün problem deyil; real istifadəyə keçəndə ayrıca qurulmalıdır.</p>
-    </div>
-
-    <!-- Step 4 -->
-    <h3 data-page-node-id="hivX0wezRsn0TiMEE4iYNV">Addım 4 — Backend (API) servisi</h3>
-    <ol class="steps" data-page-node-id="zSLyy4zmaikV9yWctQkwLw">
-      <li data-page-node-id="iP58zsAx9vOMAXXfvTZqTr"><p data-page-node-id="xbJIN6hJu7YPIwrFKiycKu">Kanvasda <b data-page-node-id="a0YiDfzzrlx2JEO01gcCFu">+ New</b> → <b data-page-node-id="2ZqNtJHWreFf7q2alGXMRe">GitHub Repo</b> seçin.</p></li>
-      <li data-page-node-id="6p2c5tNLNzU3D09pD45Wxd"><p data-page-node-id="zMV4PghQMIvCgOE6mjguEa">Siyahıdan <b data-page-node-id="tRj3NIoTc3BLCugoJFLOy1">oneteam</b> reposunu seçin.</p></li>
-      <li data-page-node-id="mdDpnVYPM1GkyGA5lGZAOy"><p data-page-node-id="qXBsMupCkRIDmtV4oqXJNg">Servisin adını dəyişin: <code data-page-node-id="W2vZLfpAeNxrsSso0EGYPA">api</code></p></li>
-    </ol>
-
-    <p data-page-node-id="NZv9KafF1R0N4yA1EqmUCj"><b data-page-node-id="Zrvh1Ul8dhIaQowZkyuBUg">a) Dockerfile yolu</b> — <b data-page-node-id="eJ5zVbSvCZhbc0TJTA8kjd">Settings → Build</b> bölməsini açın. <b data-page-node-id="TgRXAm12TuPF44ifIi7DzO">Dockerfile Path</b> sahəsinə yazın:</p>
-    <pre data-page-node-id="TAwOAuZBeXWACwY4fCXfGl"><code data-page-node-id="m9a55PoyRaMXhBNCcpPqCk">apps/api/Dockerfile</code></pre>
-
-    <p data-page-node-id="1K48d7hbUJmvtOkaOCyLui"><b data-page-node-id="hc2ZI9sBzinGkffwlrsy2E">b) Dəyişənlər</b> — servisin <b data-page-node-id="0FHVDTcNa5O8C9FxU87LIZ">Variables</b> tabına keçin, sağ yuxarıda <b data-page-node-id="2GIulCkuNV9KVhVLHL6E2p">RAW Editor</b> düyməsinə basın, aşağıdakı sətirləri olduğu kimi yapışdırın və <span class="ph" data-page-node-id="C9NMHvbJwLGdc1Qlt4pvSG">&lt;…&gt;</span> yerlərini öz dəyərlərinizlə dəyişin:</p>
-<pre data-page-node-id="6rZD6OuTeSYzVDbrxwEWka"><code data-page-node-id="L5tfv1qeCBD2exooFBkn9A">NODE_ENV=production
+        <p data-page-node-id="1K48d7hbUJmvtOkaOCyLui">
+          <b data-page-node-id="hc2ZI9sBzinGkffwlrsy2E">b) Dəyişənlər</b> — servisin
+          <b data-page-node-id="0FHVDTcNa5O8C9FxU87LIZ">Variables</b> tabına keçin, sağ yuxarıda
+          <b data-page-node-id="2GIulCkuNV9KVhVLHL6E2p">RAW Editor</b> düyməsinə basın, aşağıdakı
+          sətirləri olduğu kimi yapışdırın və
+          <span class="ph" data-page-node-id="C9NMHvbJwLGdc1Qlt4pvSG">&lt;…&gt;</span> yerlərini öz
+          dəyərlərinizlə dəyişin:
+        </p>
+        <pre
+          data-page-node-id="6rZD6OuTeSYzVDbrxwEWka"
+        ><code data-page-node-id="L5tfv1qeCBD2exooFBkn9A">NODE_ENV=production
 PORT=3001
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 TELEGRAM_BOT_TOKEN=<span class="ph" data-page-node-id="zLPAK6ciQDk7KgxRcrkgnu">&lt;BotFather-dan aldığınız token&gt;</span>
@@ -525,205 +1062,513 @@ CORS_ALLOWED_ORIGINS=https://<span class="ph" data-page-node-id="aBR0Vfiq7jVSllE
 SUPABASE_URL=https://mock-oneteam.supabase.co
 SUPABASE_ANON_KEY=mock-anon-key
 SUPABASE_SERVICE_ROLE_KEY=mock-service-role-key</code></pre>
-    <ul class="plain" data-page-node-id="DUDmyZqWu8K6vcyVYTMxLX">
-      <li data-page-node-id="5Ze9CfoWuziQ77SyNpWRlE"><code data-page-node-id="d2CFQV4jpYSY26cAsi85kN">${{Postgres.DATABASE_URL}}</code> hissəsini <b data-page-node-id="zF1yxImRkFuDyKc8qACvRo">olduğu kimi</b> saxlayın. Railway bunu avtomatik olaraq bazanın ünvanı ilə əvəz edir.</li>
-      <li data-page-node-id="KLKLHueJAocFFCvCprdsyU"><code data-page-node-id="JhJmCCm3JUpTNxmEQnDyf5">CORS_ALLOWED_ORIGINS</code> — bunu Addım 5-i bitirdikdən <b data-page-node-id="KYVrZYjFGNOWDK7vN9Qo2i">sonra</b> doldurun.</li>
-    </ul>
+        <ul class="plain" data-page-node-id="DUDmyZqWu8K6vcyVYTMxLX">
+          <li data-page-node-id="5Ze9CfoWuziQ77SyNpWRlE">
+            <code data-page-node-id="d2CFQV4jpYSY26cAsi85kN">${{Postgres.DATABASE_URL}}</code>
+            hissəsini <b data-page-node-id="zF1yxImRkFuDyKc8qACvRo">olduğu kimi</b> saxlayın.
+            Railway bunu avtomatik olaraq bazanın ünvanı ilə əvəz edir.
+          </li>
+          <li data-page-node-id="KLKLHueJAocFFCvCprdsyU">
+            <code data-page-node-id="JhJmCCm3JUpTNxmEQnDyf5">CORS_ALLOWED_ORIGINS</code> — bunu
+            Addım 5-i bitirdikdən <b data-page-node-id="KYVrZYjFGNOWDK7vN9Qo2i">sonra</b> doldurun.
+          </li>
+        </ul>
 
-    <p data-page-node-id="fp3sbs1Wws520LhVKnU1SX"><b data-page-node-id="251rCZ6LGIztxTu5Oj0GXV">c) Ünvan yaratmaq</b> — <b data-page-node-id="ZxQcXenHhdAuJQkbjZtD0p">Settings → Networking</b> bölməsini açın, <b data-page-node-id="r2gDwmkxZEkGi8Xq6lVajr">Generate Domain</b> düyməsinə basın. Port soruşsa: <b data-page-node-id="67RNXYNCnty6mDb3whGufR">3001</b></p>
-    <p data-page-node-id="eZdOizoVTG9Zg7Tl9hbQCd">Bu ünvanı kopyalayın — Telegram botu bura müraciət edəcək:</p>
-    <pre data-page-node-id="EMpS9yPxmD7othJSY2rRxn"><code data-page-node-id="v5SCckp0bEzCTk3iRLOC28">api-production-xxxx.up.railway.app</code></pre>
+        <p data-page-node-id="fp3sbs1Wws520LhVKnU1SX">
+          <b data-page-node-id="251rCZ6LGIztxTu5Oj0GXV">c) Ünvan yaratmaq</b> —
+          <b data-page-node-id="ZxQcXenHhdAuJQkbjZtD0p">Settings → Networking</b> bölməsini açın,
+          <b data-page-node-id="r2gDwmkxZEkGi8Xq6lVajr">Generate Domain</b> düyməsinə basın. Port
+          soruşsa: <b data-page-node-id="67RNXYNCnty6mDb3whGufR">3001</b>
+        </p>
+        <p data-page-node-id="eZdOizoVTG9Zg7Tl9hbQCd">
+          Bu ünvanı kopyalayın — Telegram botu bura müraciət edəcək:
+        </p>
+        <pre
+          data-page-node-id="EMpS9yPxmD7othJSY2rRxn"
+        ><code data-page-node-id="v5SCckp0bEzCTk3iRLOC28">api-production-xxxx.up.railway.app</code></pre>
 
-    <!-- Step 5 -->
-    <h3 data-page-node-id="1UJv3rcSEmdp0tkb0Dc0j1">Addım 5 — Veb panel servisi</h3>
-    <ol class="steps" data-page-node-id="QOp1ch4ft6RvGkuSf22m6v">
-      <li data-page-node-id="16JcqSERvN9kfKPCPxObUm"><p data-page-node-id="QzKFyEW1OW6rprUSr6ZGuf">Kanvasda <b data-page-node-id="zqHEW0V7LazCiYV1rw9SVr">+ New</b> → <b data-page-node-id="3Ag8EgyjCejh4mFTR2BB2t">GitHub Repo</b> → yenə <b data-page-node-id="DIaYeHqrk5JpVNCo7IlouZ">oneteam</b> reposunu seçin.</p></li>
-      <li data-page-node-id="JLdhJF3fmsIk5cX6rNDoOA"><p data-page-node-id="STht8DtgGtMoIgqfYWmeOU">Servisin adını dəyişin: <code data-page-node-id="m4buBDy9wiMDA1XKXpBIOc">web</code></p></li>
-      <li data-page-node-id="0Df7LPR3drxAF4APtw3G2r"><p data-page-node-id="jLAuRUvddg2uaNEkr3gE47"><b data-page-node-id="8fAGXINebMInZKEC09X4Dy">Settings → Build → Dockerfile Path</b> sahəsinə yazın: <code data-page-node-id="TNBCvMgmtLmjlbY1v98EAa">web/Dockerfile</code></p></li>
-      <li data-page-node-id="P0htCuqdtjeJE0uFtOLoBG">
-        <p data-page-node-id="a046On6ZnQxBsvpnw5BOiU"><b data-page-node-id="cAqBWDEQH2flEpHjDag3aF">Variables</b> tabına keçin. Bu dəyişənlər <b data-page-node-id="SAue9QotqStNvicRdWSAfk">build vaxtı</b> istifadə olunur (Vite onları fayllara «yazır»), ona görə düzgün adla yazılmalıdır:</p>
-<pre data-page-node-id="6GBo2AlAQcUM7sixCjvspj"><code data-page-node-id="mCiP5UiExdi3gIE0xs28gl">VITE_SUPABASE_URL=https://mock-oneteam.supabase.co
+        <!-- Step 5 -->
+        <h3 data-page-node-id="1UJv3rcSEmdp0tkb0Dc0j1">Addım 5 — Veb panel servisi</h3>
+        <ol class="steps" data-page-node-id="QOp1ch4ft6RvGkuSf22m6v">
+          <li data-page-node-id="16JcqSERvN9kfKPCPxObUm">
+            <p data-page-node-id="QzKFyEW1OW6rprUSr6ZGuf">
+              Kanvasda <b data-page-node-id="zqHEW0V7LazCiYV1rw9SVr">+ New</b> →
+              <b data-page-node-id="3Ag8EgyjCejh4mFTR2BB2t">GitHub Repo</b> → yenə
+              <b data-page-node-id="DIaYeHqrk5JpVNCo7IlouZ">oneteam</b> reposunu seçin.
+            </p>
+          </li>
+          <li data-page-node-id="JLdhJF3fmsIk5cX6rNDoOA">
+            <p data-page-node-id="STht8DtgGtMoIgqfYWmeOU">
+              Servisin adını dəyişin: <code data-page-node-id="m4buBDy9wiMDA1XKXpBIOc">web</code>
+            </p>
+          </li>
+          <li data-page-node-id="0Df7LPR3drxAF4APtw3G2r">
+            <p data-page-node-id="jLAuRUvddg2uaNEkr3gE47">
+              <b data-page-node-id="8fAGXINebMInZKEC09X4Dy">Settings → Build → Dockerfile Path</b>
+              sahəsinə yazın: <code data-page-node-id="TNBCvMgmtLmjlbY1v98EAa">web/Dockerfile</code>
+            </p>
+          </li>
+          <li data-page-node-id="P0htCuqdtjeJE0uFtOLoBG">
+            <p data-page-node-id="a046On6ZnQxBsvpnw5BOiU">
+              <b data-page-node-id="cAqBWDEQH2flEpHjDag3aF">Variables</b> tabına keçin. Bu
+              dəyişənlər <b data-page-node-id="SAue9QotqStNvicRdWSAfk">build vaxtı</b> istifadə
+              olunur (Vite onları fayllara «yazır»), ona görə düzgün adla yazılmalıdır:
+            </p>
+            <pre
+              data-page-node-id="6GBo2AlAQcUM7sixCjvspj"
+            ><code data-page-node-id="mCiP5UiExdi3gIE0xs28gl">VITE_SUPABASE_URL=https://mock-oneteam.supabase.co
 VITE_SUPABASE_ANON_KEY=mock-anon-key</code></pre>
-        <p data-page-node-id="ySewOfLCjovZxZESIpQD0m">Supabase qurmasanız da bu iki sətri yazın. Boş qalsa panel yenə açılır, sadəcə demo məlumatla.</p>
-      </li>
-      <li data-page-node-id="gHWMxoVXvVzSGQsJeZDzRT"><p data-page-node-id="IfCWjkEHjcBXiYsSc7z0wA"><b data-page-node-id="eMAZG96JH0A4RCs3tTmKxP">Settings → Networking → Generate Domain</b>. Port soruşsa: <b data-page-node-id="tlSwBGDEvHWsIex4q0LvSf">80</b></p></li>
-      <li data-page-node-id="cHqaWreeuwxQSU90IQsWMH"><p data-page-node-id="FLigWu8O6JqpTA6gKDHnXU">Bu ünvanı kopyalayın — <b data-page-node-id="mwst0VDBqoNUNF8l2M70iN">bu, panelinizin linkidir</b>. Komandaya göndərəcəyiniz link budur.</p></li>
-      <li data-page-node-id="H7AaPyrXBWQA8WJrF8AP1E">
-        <p data-page-node-id="fwhc8RR67UFLkAl4zW1nJD">İndi <b data-page-node-id="dh9Ogyylt0t2qdUTGdLBYt">Addım 4-b</b>-ə qayıdın və <code data-page-node-id="jdzCSrIZ5x0Dk3kJ05M8U2">CORS_ALLOWED_ORIGINS</code> dəyərini bu ünvanla doldurun:</p>
-<pre data-page-node-id="ho1wwzkArgKmN5XKyBAwHE"><code data-page-node-id="W5CtuzI2FfckVJGEY20VWj">CORS_ALLOWED_ORIGINS=https://<span class="ph" data-page-node-id="dZ2F5ZCroVtMVQ1JgbdnnT">&lt;burada-panel-ünvanı&gt;</span></code></pre>
-      </li>
-    </ol>
-    <div class="callout info" data-page-node-id="RzXWT1pCIlgrSDa3vog1MG">
-      <span class="tag" data-page-node-id="rMJxEXgC75lerMd9t261MJ">Niyə bu lazımdır?</span>
-      <p data-page-node-id="d1e7E603MgrwZmYw98NB4X">Təhlükəsizlik üçün API yalnız <b data-page-node-id="VLgt11iNyQPEFAj6kEHhY5">icazə verdiyiniz ünvandan</b> gələn sorğuları qəbul edir. Ünvanı yazmasanız, brauzerdən heç bir sorğu keçməyəcək.</p>
-    </div>
+            <p data-page-node-id="ySewOfLCjovZxZESIpQD0m">
+              Supabase qurmasanız da bu iki sətri yazın. Boş qalsa panel yenə açılır, sadəcə demo
+              məlumatla.
+            </p>
+          </li>
+          <li data-page-node-id="gHWMxoVXvVzSGQsJeZDzRT">
+            <p data-page-node-id="IfCWjkEHjcBXiYsSc7z0wA">
+              <b data-page-node-id="eMAZG96JH0A4RCs3tTmKxP"
+                >Settings → Networking → Generate Domain</b
+              >. Port soruşsa: <b data-page-node-id="tlSwBGDEvHWsIex4q0LvSf">80</b>
+            </p>
+          </li>
+          <li data-page-node-id="cHqaWreeuwxQSU90IQsWMH">
+            <p data-page-node-id="FLigWu8O6JqpTA6gKDHnXU">
+              Bu ünvanı kopyalayın —
+              <b data-page-node-id="mwst0VDBqoNUNF8l2M70iN">bu, panelinizin linkidir</b>. Komandaya
+              göndərəcəyiniz link budur.
+            </p>
+          </li>
+          <li data-page-node-id="H7AaPyrXBWQA8WJrF8AP1E">
+            <p data-page-node-id="fwhc8RR67UFLkAl4zW1nJD">
+              İndi <b data-page-node-id="dh9Ogyylt0t2qdUTGdLBYt">Addım 4-b</b>-ə qayıdın və
+              <code data-page-node-id="jdzCSrIZ5x0Dk3kJ05M8U2">CORS_ALLOWED_ORIGINS</code> dəyərini
+              bu ünvanla doldurun:
+            </p>
+            <pre
+              data-page-node-id="ho1wwzkArgKmN5XKyBAwHE"
+            ><code data-page-node-id="W5CtuzI2FfckVJGEY20VWj">CORS_ALLOWED_ORIGINS=https://<span class="ph" data-page-node-id="dZ2F5ZCroVtMVQ1JgbdnnT">&lt;burada-panel-ünvanı&gt;</span></code></pre>
+          </li>
+        </ol>
+        <div class="callout info" data-page-node-id="RzXWT1pCIlgrSDa3vog1MG">
+          <span class="tag" data-page-node-id="rMJxEXgC75lerMd9t261MJ">Niyə bu lazımdır?</span>
+          <p data-page-node-id="d1e7E603MgrwZmYw98NB4X">
+            Təhlükəsizlik üçün API yalnız
+            <b data-page-node-id="VLgt11iNyQPEFAj6kEHhY5">icazə verdiyiniz ünvandan</b> gələn
+            sorğuları qəbul edir. Ünvanı yazmasanız, brauzerdən heç bir sorğu keçməyəcək.
+          </p>
+        </div>
 
-    <!-- Step 6 -->
-    <h3 data-page-node-id="PU3h7UutxEAv3TGTFzzxDG">Addım 6 — Telegram bot servisi <span class="pill opt" data-page-node-id="buQ9BFzcv7HyTkJxcLI91Z">İSTƏYƏ BAĞLI</span></h3>
-    <div class="callout warn" data-page-node-id="4BfR7gz35PiPIOCT3kDZFC">
-      <span class="tag" data-page-node-id="e3Hmz5FEqkHjPV7HgNxXHn">Bunu atlaya bilərsiniz</span>
-      <p data-page-node-id="YgCZb1DVfRFdDwEpHjJntx">Yalnız paneli görmək istəyirsinizsə, birbaşa <b data-page-node-id="ScVXOSJO0JDcLtWCY3ckQi">Addım 7</b>-yə keçin. Botu atlamaq aylıq xərci də azaldır.</p>
-    </div>
-    <ol class="steps" data-page-node-id="RcVodQVAbnO4igfK3XMxu5">
-      <li data-page-node-id="YGJwLCpvHR10F8sFEErUWh"><p data-page-node-id="qK3WOzRl3CY2yKund9gpxm"><b data-page-node-id="oBgMmsfpioGJAzb2qZOSr9">+ New</b> → <b data-page-node-id="r6S9W7zxAtKdUW9MlC8dRg">GitHub Repo</b> → <b data-page-node-id="4FeSSACXVansnu4EiumjsI">oneteam</b>. Servisin adı: <code data-page-node-id="v4Mo3Ryye2WLdS4jkg9GEL">bot</code></p></li>
-      <li data-page-node-id="fb4L3HcgF9XVr9vtRiB0lS"><p data-page-node-id="4nik4x2eNObakpaJ0inF4k"><b data-page-node-id="cdiqjdiX79BB2ECtbGJSFc">Settings → Build → Dockerfile Path</b>: <code data-page-node-id="2xdQG535QGVVt1fNc27pSr">Dockerfile.bot</code></p></li>
-      <li data-page-node-id="ozKNQV96BQk0XBpbiEFsaq">
-        <p data-page-node-id="vOoEW6bcRnjsNqAV7AcLn6"><b data-page-node-id="kXYoBVkpzKbBTwSpYSTXdx">Variables</b>:</p>
-<pre data-page-node-id="FM8cl1n2PUWb7WnMc1xJWA"><code data-page-node-id="AfHS7IrqWEyTl6vzOTHS2Q">NODE_ENV=production
+        <!-- Step 6 -->
+        <h3 data-page-node-id="PU3h7UutxEAv3TGTFzzxDG">
+          Addım 6 — Telegram bot servisi
+          <span class="pill opt" data-page-node-id="buQ9BFzcv7HyTkJxcLI91Z">İSTƏYƏ BAĞLI</span>
+        </h3>
+        <div class="callout warn" data-page-node-id="4BfR7gz35PiPIOCT3kDZFC">
+          <span class="tag" data-page-node-id="e3Hmz5FEqkHjPV7HgNxXHn">Bunu atlaya bilərsiniz</span>
+          <p data-page-node-id="YgCZb1DVfRFdDwEpHjJntx">
+            Yalnız paneli görmək istəyirsinizsə, birbaşa
+            <b data-page-node-id="ScVXOSJO0JDcLtWCY3ckQi">Addım 7</b>-yə keçin. Botu atlamaq aylıq
+            xərci də azaldır.
+          </p>
+        </div>
+        <ol class="steps" data-page-node-id="RcVodQVAbnO4igfK3XMxu5">
+          <li data-page-node-id="YGJwLCpvHR10F8sFEErUWh">
+            <p data-page-node-id="qK3WOzRl3CY2yKund9gpxm">
+              <b data-page-node-id="oBgMmsfpioGJAzb2qZOSr9">+ New</b> →
+              <b data-page-node-id="r6S9W7zxAtKdUW9MlC8dRg">GitHub Repo</b> →
+              <b data-page-node-id="4FeSSACXVansnu4EiumjsI">oneteam</b>. Servisin adı:
+              <code data-page-node-id="v4Mo3Ryye2WLdS4jkg9GEL">bot</code>
+            </p>
+          </li>
+          <li data-page-node-id="fb4L3HcgF9XVr9vtRiB0lS">
+            <p data-page-node-id="4nik4x2eNObakpaJ0inF4k">
+              <b data-page-node-id="cdiqjdiX79BB2ECtbGJSFc">Settings → Build → Dockerfile Path</b>:
+              <code data-page-node-id="2xdQG535QGVVt1fNc27pSr">Dockerfile.bot</code>
+            </p>
+          </li>
+          <li data-page-node-id="ozKNQV96BQk0XBpbiEFsaq">
+            <p data-page-node-id="vOoEW6bcRnjsNqAV7AcLn6">
+              <b data-page-node-id="kXYoBVkpzKbBTwSpYSTXdx">Variables</b>:
+            </p>
+            <pre
+              data-page-node-id="FM8cl1n2PUWb7WnMc1xJWA"
+            ><code data-page-node-id="AfHS7IrqWEyTl6vzOTHS2Q">NODE_ENV=production
 TELEGRAM_BOT_TOKEN=<span class="ph" data-page-node-id="CWWtsW1hdJUNs78Ml9VXkC">&lt;BotFather-dan aldığınız token&gt;</span>
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 API_BASE_URL=http://api.railway.internal:3001
 SUPABASE_URL=https://mock-oneteam.supabase.co
 SUPABASE_ANON_KEY=mock-anon-key</code></pre>
-        <p data-page-node-id="6BUqItjMFUQ5MGKxhJrZCn"><code data-page-node-id="qOxg5MXPH8B0vZTc2mpB3h">http://api.railway.internal:3001</code> — bu, Railway-in daxili şəbəkə ünvanıdır. <code data-page-node-id="rvbL9G7VFlBJJYnhl9SyLN">api</code> servisin adıdır, <code data-page-node-id="dCIpbEagfBPtfQZxHXHDEu">3001</code> isə onun portu. <b data-page-node-id="UhyWOWUdsGbPlVvdsaUXqI">Dəyişməyin.</b></p>
-      </li>
-      <li data-page-node-id="18AVHAch5B2HArIGKLrIJG"><p data-page-node-id="ufAHOvp3hSBQLxbC8vmMvg">Bu servisə <b data-page-node-id="Z2bfUX19HG09Xyo6xpgdqq">ünvan (domain) lazım deyil</b>. Bot özü Telegram-a qoşulur.</p></li>
-      <li data-page-node-id="zHr4qaiXAPWKxsghDXr1Kf">
-        <p data-page-node-id="zownmlFxfN5dG4cAvl6ow4">Telegram-a webhook-u bildirin. Terminal açın və yapışdırın (<span class="ph" data-page-node-id="Vgge2dKzAW2ue6hZypUBjA">&lt;TOKEN&gt;</span> və <span class="ph" data-page-node-id="ErNZKfg9rX6jJnzqZouzkm">&lt;API-ÜNVANI&gt;</span> yerlərini doldurun):</p>
-<pre data-page-node-id="vVbc2wHbILGd79HwScbXa2"><code data-page-node-id="c4q1QKER26E8SNBse8v6s1">curl -X POST "https://api.telegram.org/bot<span class="ph" data-page-node-id="UJkct1KJcFcPgwOeBGd5IG">&lt;TOKEN&gt;</span>/setWebhook" \
+            <p data-page-node-id="6BUqItjMFUQ5MGKxhJrZCn">
+              <code data-page-node-id="qOxg5MXPH8B0vZTc2mpB3h"
+                >http://api.railway.internal:3001</code
+              >
+              — bu, Railway-in daxili şəbəkə ünvanıdır.
+              <code data-page-node-id="rvbL9G7VFlBJJYnhl9SyLN">api</code> servisin adıdır,
+              <code data-page-node-id="dCIpbEagfBPtfQZxHXHDEu">3001</code> isə onun portu.
+              <b data-page-node-id="UhyWOWUdsGbPlVvdsaUXqI">Dəyişməyin.</b>
+            </p>
+          </li>
+          <li data-page-node-id="18AVHAch5B2HArIGKLrIJG">
+            <p data-page-node-id="ufAHOvp3hSBQLxbC8vmMvg">
+              Bu servisə
+              <b data-page-node-id="Z2bfUX19HG09Xyo6xpgdqq">ünvan (domain) lazım deyil</b>. Bot özü
+              Telegram-a qoşulur.
+            </p>
+          </li>
+          <li data-page-node-id="zHr4qaiXAPWKxsghDXr1Kf">
+            <p data-page-node-id="zownmlFxfN5dG4cAvl6ow4">
+              Telegram-a webhook-u bildirin. Terminal açın və yapışdırın (<span
+                class="ph"
+                data-page-node-id="Vgge2dKzAW2ue6hZypUBjA"
+                >&lt;TOKEN&gt;</span
+              >
+              və
+              <span class="ph" data-page-node-id="ErNZKfg9rX6jJnzqZouzkm">&lt;API-ÜNVANI&gt;</span>
+              yerlərini doldurun):
+            </p>
+            <pre
+              data-page-node-id="vVbc2wHbILGd79HwScbXa2"
+            ><code data-page-node-id="c4q1QKER26E8SNBse8v6s1">curl -X POST "https://api.telegram.org/bot<span class="ph" data-page-node-id="UJkct1KJcFcPgwOeBGd5IG">&lt;TOKEN&gt;</span>/setWebhook" \
      -d "url=https://<span class="ph" data-page-node-id="TtBW4YWexVH6HB2q2szTib">&lt;API-ÜNVANI&gt;</span>/api/notifications/telegram/webhook" \
      -d "secret_token=<span class="ph" data-page-node-id="QJm5pKR1skduf8DPd0jvnb">&lt;TELEGRAM_WEBHOOK_SECRET&gt;</span>"</code></pre>
-        <p data-page-node-id="3EMdr2eYwSvkZGClZvQ5wX">Cavabda <code data-page-node-id="RW6BzZca2WeDeJm4xHbMQA">{"ok":true, ...}</code> görməlisiniz.</p>
-      </li>
-    </ol>
+            <p data-page-node-id="3EMdr2eYwSvkZGClZvQ5wX">
+              Cavabda
+              <code data-page-node-id="RW6BzZca2WeDeJm4xHbMQA">{"ok":true, ...}</code> görməlisiniz.
+            </p>
+          </li>
+        </ol>
 
-    <!-- Step 3.1 -->
-    <h3 data-page-node-id="wDRCrrEira5U59DbUcr4tB">Addım 3.1 — Gizli açarı yaratmaq</h3>
-    <p data-page-node-id="SvutSt2gNOg6wqlQbDeMX9">Terminal açmaq üçün: <code data-page-node-id="cnFjFkWDdppkh5iJFU8uEn">Cmd + Space</code> basın, <b data-page-node-id="b25oBfB3BO0kc69Jyv1rGj">Terminal</b> yazın, Enter.</p>
-    <p data-page-node-id="tmp25Ay7kXJcKHONPlNAir">Terminalda bu əmri yapışdırıb Enter basın:</p>
-    <pre data-page-node-id="h2PzDFcPNYHfR21oosbTL4"><code data-page-node-id="jXEQC9vU1YTeT4poC9gj37">openssl rand -hex 32</code></pre>
-    <p data-page-node-id="OecwpPdxEAkmWbRI3IzjHb">Ekranda 64 simvollu təsadüfi bir mətn çıxacaq, məsələn:</p>
-    <pre data-page-node-id="BFN6cMQVFd1rhBK0G2MDFR"><code data-page-node-id="mTXrpLfoXASRmR1ZDCUQMG">9f3a7c1e5b8d2046a1c9e7f3b5d8024e6a9c1f7b3d5e8024a6c9f1b3d5e7a902</code></pre>
-    <p data-page-node-id="C91Wj2K5TG58ENTgYj9qK0">Bu mətni kopyalayın. <b data-page-node-id="sdWwKFzwi6b2bSXFzue1i4">Bu, <code data-page-node-id="uRwnbvtEfR50ApmXDAAqzz">TELEGRAM_WEBHOOK_SECRET</code> dəyəridir.</b> Onu:</p>
-    <ul class="plain" data-page-node-id="TVJRzR2h3TcNJyifrcOGz6">
-      <li data-page-node-id="qhFkf8GTkGj7azMxIRv43i">Addım 4-də API servisinin dəyişənlərinə,</li>
-      <li data-page-node-id="vF2zAXqSOOJDpKN0DzYO6f">Addım 6-da botun webhook əmrində <code data-page-node-id="Dv1pmFJc7p111PmMSivVsa">secret_token=</code> hissəsinə</li>
-    </ul>
-    <p data-page-node-id="0bY4r5GLzuWdNYOJWnyDfp">yazacaqsınız. Hər iki yerdə <b data-page-node-id="VGPk95TpfVHDwSNcymaq3z">eyni</b> olmalıdır.</p>
-    <div class="callout danger" data-page-node-id="q3cfpX4oTe6alVNkURQwO0">
-      <span class="tag" data-page-node-id="EygHZ00JgiNaYOhHNAo6ch">Niyə bu lazımdır?</span>
-      <p data-page-node-id="A7KT67R2t2T12ea1bkymW1">Telegram webhook ünvanını bilən hər kəs saxta sorğu göndərə bilər. Bu açar olmadan API <b data-page-node-id="aoYZCU6JRbd3YLRH1FeG5E">heç bir</b> webhook-u qəbul etmir — bu, qəsdən belədir.</p>
-    </div>
-
-    <!-- Step 7 -->
-    <h3 data-page-node-id="7KBSvioWSy0NgEVRfEbc5G">Addım 7 — Yoxlama</h3>
-    <p data-page-node-id="ab8apx6vnlGAkflhg7XuD0"><b data-page-node-id="lxuva2v1laK3mSjAsMoHsI">7.1 · Servislərin işə düşdüyünü yoxlayın</b><br data-page-node-id="3yj7qICOAW5gb8Y7ywTYhi">
-      Kanvasda hər servisin üzərindəki rəngə baxın: <b style="color:var(--ok)" data-page-node-id="735aFRiNKNMpJSQFTjDkaB">yaşıl</b> = işləyir,
-      <b style="color:var(--accent)" data-page-node-id="Ru1HdL4HUc7wbbNES79bCF">qırmızı</b> = xəta. Qırmızıdırsa, servisin üzərinə basıb
-      <b data-page-node-id="0GH9nxc6fMLG1JKvcLC4BK">Deploy Logs</b> bölməsindəki son 20 sətri oxuyun.</p>
-
-    <p data-page-node-id="OJBkofBHVqLxHDu5q6thpr"><b data-page-node-id="A4pHYvJ95an9v2yaekeOyv">7.2 · Veb paneli yoxlayın</b><br data-page-node-id="g6ltJ6qBUonU8qGJU7LbK3">
-      Brauzerdə panel ünvanını açın. Gözlənilən: mağazalar, tapşırıqlar və yoxlamalar olan
-      idarəetmə paneli açılır.</p>
-
-    <p data-page-node-id="5LNbCCJrB0Vg1NrE1bTCbc"><b data-page-node-id="eEbjtIQxE0r7ChYPTypcB0">7.3 · API-ni yoxlayın</b><br data-page-node-id="O3gASPbWt8CccFPAupRGIv">
-      Brauzerdə API ünvanının sonuna <code data-page-node-id="aLrBeIFuzAf8gCCN4gmz1C">/api/health</code> əlavə edin:</p>
-    <pre data-page-node-id="c7XRdS1eE56mjzn5swmKvL"><code data-page-node-id="y15Y4CXEIoo858G3FzfUWO">https://<span class="ph" data-page-node-id="v3jQDOHClEjJl0sDrkkmpN">&lt;api-ünvanı&gt;</span>/api/health</code></pre>
-    <p data-page-node-id="kBiwrOv4L6BHGEKAwBmlCt">Gözlənilən cavab:</p>
-<pre data-page-node-id="jzphQASFNaRPDCpIsGljuy"><code data-page-node-id="EmKCfXNoNeCEc3Ygunh4vh">{ "status": "ok", "service": "oneteam-api", "uptimeSeconds": 42, "timestamp": 1789306800000 }</code></pre>
-    <div class="callout warn" data-page-node-id="cVLBWV0IDWP9mqhc0lrGqf">
-      <span class="tag" data-page-node-id="Yz3aD95A0R4IRUQ5nF5Maz">Diqqət</span>
-      <p data-page-node-id="Ykc1VdG4nPxhOc99vkm6vJ"><code data-page-node-id="n8qzVcrEmV2BTsLKcQLBk8">/api/tasks</code> ünvanını açsanız <b data-page-node-id="IO9A5PUxUfUu0dT90xixz5">401 Unauthorized</b> görəcəksiniz. Bu <b data-page-node-id="BxJ1qJPnC407e45dd1j4nI">xəta deyil</b> — tapşırıq siyahısı giriş tələb edir və 401 girişin işlədiyini sübut edir. Yoxlama üçün <code data-page-node-id="B8jOHxQ1xqnzdtu0lmADHa">/api/health</code> istifadə edin.</p>
-    </div>
-
-    <p data-page-node-id="SJdA9rKwFW56DcoX4PIoBX"><b data-page-node-id="Ka4DQfoz4A1f6Rv2gIh8oT">7.4 · Botu yoxlayın</b><br data-page-node-id="eb5rB6afa1JFdZzVwseaPC">
-      Telegram-da botunuza girib <b data-page-node-id="hFEmOKq4eOypMhn15yrO7G">/start</b> yazın. Cavab gəlməlidir.</p>
-  </section>
-
-  <!-- ================= 4 ================= -->
-  <section data-page-node-id="KcjRmrhfsFTMrKTIWV3E6R">
-    <h2 data-page-node-id="75r2Su1mtZSpXldTy4Sr8Q"><span class="num" data-page-node-id="6mLAAetRm1p8YDFwREtngO">4</span> Nə qədər pul gedəcək?</h2>
-
-    <table data-page-node-id="mTgFh1g91rGdE7heZWK2jC">
-      <thead data-page-node-id="j6QihkeTvIUIu5QNsVkyFM"><tr data-page-node-id="NuUM1gYHPStGMemqP6XvjE"><th style="width:58%" data-page-node-id="Nqk70VSPjahhadrnsHWGG4">Xərc</th><th data-page-node-id="3f2BsnsunyIYzgF2MebWYo">Məbləğ</th></tr></thead>
-      <tbody data-page-node-id="pTSVo5oinMO9F9bnPVsRjI">
-        <tr data-page-node-id="MEaZzvnBZpYyrFo5MkxLgH"><td data-page-node-id="AHAkgZoOrh6UB2o0prautC">Railway <b data-page-node-id="8HGfzMeYL0NRIZzgA4tIaB">Hobby</b> planı</td><td data-page-node-id="pmpyPhsqBm7aX5HPYkqGW0"><b data-page-node-id="SGQlvId0E82b7FQIHmUEN4">$5/ay</b> (içində $5 istifadə daxildir)</td></tr>
-        <tr data-page-node-id="jWAsErP40cbhgLEnSY3K3j"><td data-page-node-id="gvNQVjyh6EtBBzR6VoxBNh">Yeni hesab üçün birdəfəlik sınaq krediti</td><td data-page-node-id="UDZIkhhp3hRAPH8iIWKMg9"><b data-page-node-id="gIcQtrF1jN7HprXqxMGmz7">$5</b> (ilk günlər pulsuz)</td></tr>
-        <tr data-page-node-id="RFp6epepQ1q6MQEKTIz8Ov"><td data-page-node-id="dXaB4ynJMPZXADhTvPhMeV">Bu layihənin real istehlakı</td><td data-page-node-id="bRHsRQzKRU28JSjqslPBUa">təxminən <b data-page-node-id="wDzfUKXd1zQcQLGWxGY2XP">$5–15/ay</b></td></tr>
-      </tbody>
-    </table>
-
-    <p data-page-node-id="nwrJ71mAIRqulg5g9lpeWf">Yekun gözlənti: <b data-page-node-id="gvDyZgaa5OJMITyOFFIZE8">aylıq təxminən $5–15</b>. Dəqiq rəqəmi Railway panelində
-      <b data-page-node-id="8xeI8hgN6jYopi9S3AIUyP">Usage</b> bölməsində görəcəksiniz — orada günlük xərc canlı göstərilir.</p>
-
-    <h3 data-page-node-id="WeJZTICmuaijr0SBBhSvdY">Xərci azaltmağın yolları</h3>
-    <ul class="plain" data-page-node-id="EFWoPaVJNcs2wjWOddaDSO">
-      <li data-page-node-id="xHoZL4vDctn91bbU2OSxzu">Bot servisini hələlik əlavə etməyin (Addım 6-nı atlayın).</li>
-      <li data-page-node-id="neXVtMQ4fG3Sidx9Pu0cFC">Servis yatmırsa (idle) belə pul gedir. Test bitdikdən sonra servisləri
-        <b data-page-node-id="Ldktdy94IcJrvBoI0kjq4R">Settings → Danger → Delete Service</b> ilə silin və ya proyekti <b data-page-node-id="BE6R3dn32Fa8wiBMtNFnHF">paused</b> edin.</li>
-    </ul>
-
-    <div class="callout danger" data-page-node-id="yxfWWPz59BgHUJtX3vTlVR">
-      <span class="tag" data-page-node-id="ZPs8D7dE49gLaNIz4cJyLe">Kart mütləqdir</span>
-      <p data-page-node-id="YAGjQOWVUdEvSzkq1B025l">Railway 2026-cı ilin mart ayından ödəniş kartı tələb edir. Kart əlavə etməsəniz deploy başlamayacaq.</p>
-    </div>
-  </section>
-
-  <!-- ================= 5 ================= -->
-  <section data-page-node-id="XzzT6cek6tvyKxtgV8L14w">
-    <h2 data-page-node-id="A7km1U2PQbbTTvjXk5bB1w"><span class="num" data-page-node-id="ypN9NNk2EzGmhZ2b4LoPAm">5</span> Nə isə səhv olsa</h2>
-
-    <table data-page-node-id="oebDhyg44qLW90ulBkH4Xe">
-      <thead data-page-node-id="orCDwr6rUij3Qh8ouoAepR"><tr data-page-node-id="F7CFBZmYFzlgXdu0ZC7FEE"><th style="width:36%" data-page-node-id="aFHPhl2QNXM7b9fHaAnIHQ">Əlamət</th><th data-page-node-id="3LBDCOfvNmn7B76SfjOVpm">Səbəb və həll</th></tr></thead>
-      <tbody data-page-node-id="WjnPTPuqu3QPFEGS1ULA2R">
-        <tr data-page-node-id="AtCX9muiXV1KWFrb9BCUGl">
-          <td data-page-node-id="oC5KpVODM7xibQGzaIHEML">Servis qırmızı, logda <code data-page-node-id="1MIGXVeRhg5XTBSCdU7b8b">EUNSUPPORTEDPROTOCOL</code></td>
-          <td data-page-node-id="LNx58zxf3NMmIIavHY2kpX"><code data-page-node-id="H6qjaB4ly9ybGAC0ngH5oF">package.json</code> faylındaki <code data-page-node-id="zZwZkDtGkdrxJ7bTD9hD1W">workspace:*</code> düzəldilməyib. Bu, artıq düzəldilib — köhnə commit deploy olunursa yaranır. Yenidən push edin.</td>
-        </tr>
-        <tr data-page-node-id="p81A1hUvyDOlf1YqyCR6yt">
-          <td data-page-node-id="lGfLQI0GwgRY96y29zZxua">Servis qırmızı, logda <code data-page-node-id="oha82kgLHuYrMVQlx5d99S">POSTGRES_PASSWORD is required</code></td>
-          <td data-page-node-id="jmmuDz9AfJXYXHqssDTLSh">Dəyişənlər yazılmayıb. Addım 4-b-yə qayıdın.</td>
-        </tr>
-        <tr data-page-node-id="JNnfr2seeF7soq2zN8BY0F">
-          <td data-page-node-id="I5R4On1fRrZNxfdBfUbAsY">Panel açılır, amma boşdur</td>
-          <td data-page-node-id="o7OeZCWzEfZqMYKgzRwmhO">Normal — demo məlumat. Bölmə 6-ya baxın.</td>
-        </tr>
-        <tr data-page-node-id="9TEFBN65eaU9EVGC3MiJAA">
-          <td data-page-node-id="Je9EKPPYqeW87QlwMFLvAD">Brauzer konsolunda <code data-page-node-id="SVHq51XI9GgeprrWSPphX8">CORS</code> xətası</td>
-          <td data-page-node-id="Go1FbdI7O3WMX4m8BrMwF9"><code data-page-node-id="FA9zWv9MsYv311bVK2T7H2">CORS_ALLOWED_ORIGINS</code> düzgün yazılmayıb. Protokol (<code data-page-node-id="Z5FRYIpbHkEqY2MGmdHUaP">https://</code>) daxil olmaqla, panel ünvanını yazın.</td>
-        </tr>
-        <tr data-page-node-id="hlPFdPjLKNB99X4K22D5H6">
-          <td data-page-node-id="5ygwppAthlgaCzRgDB1ZRj">Bot <b data-page-node-id="t53Iye7i3NKUCuvQt9GcQE">/start</b>-a cavab vermir</td>
-          <td data-page-node-id="NsdW6FEGfKEJPRB0BNCtpL">(1) <code data-page-node-id="MNqdAKFwXZ4zJ1RFm6N2SF">TELEGRAM_BOT_TOKEN</code> düzgündürmü? (2) Addım 6-5-dəki webhook əmri icra olunubmu? (3) API logunda <code data-page-node-id="3U9HEsj3hT0zCuH7661hAW">503</code> varsa — <code data-page-node-id="b0iljMgcF590eK4YrCGVKl">TELEGRAM_WEBHOOK_SECRET</code> boşdur.</td>
-        </tr>
-        <tr data-page-node-id="pRNdBqqftdOKOVNY5xZam9">
-          <td data-page-node-id="bNudmOlVcrvz2R7XyylMMv">Log: <code data-page-node-id="bRUAdZxgBecf5J9uVYoHfL">PORT</code> ilə bağlı xəta</td>
-          <td data-page-node-id="vbgEkG9dhrcbqsdBD15RAg">API servisində <code data-page-node-id="Ar4NDoFn9pnOT4W4mRUdOT">PORT=3001</code> dəyəri yoxdur. Əlavə edin.</td>
-        </tr>
-      </tbody>
-    </table>
-  </section>
-
-  <!-- ================= 6 ================= -->
-  <section data-page-node-id="OLOTj9B9JQZG7ufC8AuTw0">
-    <h2 data-page-node-id="Z17BIkf8MSefmfYzbLTMJK"><span class="num" data-page-node-id="H56dviiL2xhX0UFmLyeg0W">6</span> Sonrakı addımlar (test-dən sonra)</h2>
-    <ol class="steps" data-page-node-id="mKWCDgKn8VQmvHbLzBLHXx">
-      <li data-page-node-id="oCEzj8VlEl4GfEv5zZb44x">
-        <p data-page-node-id="H5qv2GQkJukELLJGEz0AoD"><b data-page-node-id="nMXReGw3kMTyLb9ndThhYo">API-ni real bazaya qoşmaq.</b> Ən böyük boşluq budur. <code data-page-node-id="sC7GpmimfCdDiG5YpjV9l3">packages/database</code>
-          hazırda yaddaşdaki <code data-page-node-id="dnjLUYQCkenKfF7Nbz7MkX">SEED_DATA</code>-dan istifadə edir; <code data-page-node-id="dgEBunjv95QygZH2praMOP">DATABASE_URL</code>
-          dəyişəni heç oxunmur. Yəni baza qoşulub işləyir, amma heç bir kod ona müraciət etmir.
-          Bu, kod dəyişikliyi tələb edir və ayrı bir işdir.</p>
-      </li>
-      <li data-page-node-id="ZGbQHJ3aA8CBMmg0nviZgd">
-        <p data-page-node-id="2G3wvX1Aa67c7rpPdZkRwU"><b data-page-node-id="PZiSIgKwShPB71j5EScOQw">Real Supabase bazası.</b> <code data-page-node-id="QQ7kiYps72Bqc8GHCqmvNa">supabase.com</code>-da pulsuz layihə açın,
-          <b data-page-node-id="AhymLYW10W50KK0IoCanZA">Settings → API</b> bölməsindən <b data-page-node-id="DHz790snvU0iaZWvWPAm8M">URL</b> və <b data-page-node-id="pbRTImVIl1zyBqHqPDlkXV">anon key</b> götürün. Sonra:</p>
-        <ul class="plain" data-page-node-id="fGQ44Xx1m35gZL2giqVdnv">
-          <li data-page-node-id="uPaCLVRtlgDgIeHw3ceavf"><code data-page-node-id="GSVtFbu024ykwwwrddHDcj">web</code> servisinin <code data-page-node-id="lXcSNX7kAzlAzZL0L54M4Y">VITE_SUPABASE_URL</code> / <code data-page-node-id="7yNvKxtMc1YBu5C7UtIRvi">VITE_SUPABASE_ANON_KEY</code> dəyişənlərinə,</li>
-          <li data-page-node-id="mz9DTc8lpzGNw08lU8TTEL"><code data-page-node-id="wF4149iTuZYQEExpKpJ4XP">api</code> servisinin <code data-page-node-id="Tzd2n8toZVFCltJDloHZwl">SUPABASE_URL</code> / <code data-page-node-id="EQHzaeIZpypMykE4uSsKjJ">SUPABASE_ANON_KEY</code> dəyişənlərinə yazın.</li>
+        <!-- Step 3.1 -->
+        <h3 data-page-node-id="wDRCrrEira5U59DbUcr4tB">Addım 3.1 — Gizli açarı yaratmaq</h3>
+        <p data-page-node-id="SvutSt2gNOg6wqlQbDeMX9">
+          Terminal açmaq üçün:
+          <code data-page-node-id="cnFjFkWDdppkh5iJFU8uEn">Cmd + Space</code> basın,
+          <b data-page-node-id="b25oBfB3BO0kc69Jyv1rGj">Terminal</b> yazın, Enter.
+        </p>
+        <p data-page-node-id="tmp25Ay7kXJcKHONPlNAir">Terminalda bu əmri yapışdırıb Enter basın:</p>
+        <pre
+          data-page-node-id="h2PzDFcPNYHfR21oosbTL4"
+        ><code data-page-node-id="jXEQC9vU1YTeT4poC9gj37">openssl rand -hex 32</code></pre>
+        <p data-page-node-id="OecwpPdxEAkmWbRI3IzjHb">
+          Ekranda 64 simvollu təsadüfi bir mətn çıxacaq, məsələn:
+        </p>
+        <pre
+          data-page-node-id="BFN6cMQVFd1rhBK0G2MDFR"
+        ><code data-page-node-id="mTXrpLfoXASRmR1ZDCUQMG">9f3a7c1e5b8d2046a1c9e7f3b5d8024e6a9c1f7b3d5e8024a6c9f1b3d5e7a902</code></pre>
+        <p data-page-node-id="C91Wj2K5TG58ENTgYj9qK0">
+          Bu mətni kopyalayın.
+          <b data-page-node-id="sdWwKFzwi6b2bSXFzue1i4"
+            >Bu,
+            <code data-page-node-id="uRwnbvtEfR50ApmXDAAqzz">TELEGRAM_WEBHOOK_SECRET</code>
+            dəyəridir.</b
+          >
+          Onu:
+        </p>
+        <ul class="plain" data-page-node-id="TVJRzR2h3TcNJyifrcOGz6">
+          <li data-page-node-id="qhFkf8GTkGj7azMxIRv43i">
+            Addım 4-də API servisinin dəyişənlərinə,
+          </li>
+          <li data-page-node-id="vF2zAXqSOOJDpKN0DzYO6f">
+            Addım 6-da botun webhook əmrində
+            <code data-page-node-id="Dv1pmFJc7p111PmMSivVsa">secret_token=</code> hissəsinə
+          </li>
         </ul>
-        <p data-page-node-id="R3i3d2qC0D7JJK0IXA2v6f">Sonra <code data-page-node-id="LA5rGDoDV0PfRDENfIcqSv">supabase/migrations</code> qovluğundaki SQL fayllarını Supabase-də işə salın.</p>
-      </li>
-      <li data-page-node-id="raoVQNAhMTHKdRBEYxZCDz"><p data-page-node-id="3hmXvYTm1FbM7GJZnsZ5oT"><b data-page-node-id="lwTOIY7HDmcvf5vOR5hVfh">Ehtiyat nüsxə.</b> Railway bazası avtomatik backup etmir. Gündəlik dump qurun.</p></li>
-      <li data-page-node-id="7qUX3ncEc1JAViMrlvrbHj"><p data-page-node-id="XHfavZzUfO7qH2CMkcHLud"><b data-page-node-id="zCQrpyDYAeyiy1eempis1q">Şifrələrin rotasiyası.</b> <code data-page-node-id="FYAfTeSUrybCOPd9NiLGZS">TELEGRAM_BOT_TOKEN</code> və <code data-page-node-id="PHpVnvLrw4hHMaVljICbUU">TELEGRAM_WEBHOOK_SECRET</code> dəyərlərini mütəmadi dəyişin.</p></li>
-      <li data-page-node-id="vaMzZwPTFOradXAiiVrSHZ"><p data-page-node-id="TZAAIp2Fo5LlyGn8kclwXU"><b data-page-node-id="cEPU7wQ6733jEKofy34JSG">Domen.</b> Öz domeninizi qoşun (<b data-page-node-id="w8XHlcNHIpTep4qHY9emiI">Settings → Networking → Custom Domain</b>).</p></li>
-    </ol>
-  </section>
+        <p data-page-node-id="0bY4r5GLzuWdNYOJWnyDfp">
+          yazacaqsınız. Hər iki yerdə
+          <b data-page-node-id="VGPk95TpfVHDwSNcymaq3z">eyni</b> olmalıdır.
+        </p>
+        <div class="callout danger" data-page-node-id="q3cfpX4oTe6alVNkURQwO0">
+          <span class="tag" data-page-node-id="EygHZ00JgiNaYOhHNAo6ch">Niyə bu lazımdır?</span>
+          <p data-page-node-id="A7KT67R2t2T12ea1bkymW1">
+            Telegram webhook ünvanını bilən hər kəs saxta sorğu göndərə bilər. Bu açar olmadan API
+            <b data-page-node-id="aoYZCU6JRbd3YLRH1FeG5E">heç bir</b> webhook-u qəbul etmir — bu,
+            qəsdən belədir.
+          </p>
+        </div>
 
-  <footer class="doc" data-page-node-id="ngKD5GU8pkd4G0IsJqK6r7">
-    oneTeam · Test Deploy Təlimatı · 13 sentyabr 2026<br data-page-node-id="ut4EWZGYeTXaySGQmc38BK">
-    <span style="font-size:12px" data-page-node-id="V0UEwlEFLdQc7O4U3SKtCf">Markdown versiyası: <code data-page-node-id="lB1uBWl7gshcLxhoa2KHqz">docs/DEPLOY-TEST-AZ.md</code></span>
-  </footer>
+        <!-- Step 7 -->
+        <h3 data-page-node-id="7KBSvioWSy0NgEVRfEbc5G">Addım 7 — Yoxlama</h3>
+        <p data-page-node-id="ab8apx6vnlGAkflhg7XuD0">
+          <b data-page-node-id="lxuva2v1laK3mSjAsMoHsI">7.1 · Servislərin işə düşdüyünü yoxlayın</b
+          ><br data-page-node-id="3yj7qICOAW5gb8Y7ywTYhi" />
+          Kanvasda hər servisin üzərindəki rəngə baxın:
+          <b style="color: var(--ok)" data-page-node-id="735aFRiNKNMpJSQFTjDkaB">yaşıl</b> =
+          işləyir,
+          <b style="color: var(--accent)" data-page-node-id="Ru1HdL4HUc7wbbNES79bCF">qırmızı</b> =
+          xəta. Qırmızıdırsa, servisin üzərinə basıb
+          <b data-page-node-id="0GH9nxc6fMLG1JKvcLC4BK">Deploy Logs</b> bölməsindəki son 20 sətri
+          oxuyun.
+        </p>
 
-</div>
-</body>
+        <p data-page-node-id="OJBkofBHVqLxHDu5q6thpr">
+          <b data-page-node-id="A4pHYvJ95an9v2yaekeOyv">7.2 · Veb paneli yoxlayın</b
+          ><br data-page-node-id="g6ltJ6qBUonU8qGJU7LbK3" />
+          Brauzerdə panel ünvanını açın. Gözlənilən: mağazalar, tapşırıqlar və yoxlamalar olan
+          idarəetmə paneli açılır.
+        </p>
+
+        <p data-page-node-id="5LNbCCJrB0Vg1NrE1bTCbc">
+          <b data-page-node-id="eEbjtIQxE0r7ChYPTypcB0">7.3 · API-ni yoxlayın</b
+          ><br data-page-node-id="O3gASPbWt8CccFPAupRGIv" />
+          Brauzerdə API ünvanının sonuna
+          <code data-page-node-id="aLrBeIFuzAf8gCCN4gmz1C">/api/health</code> əlavə edin:
+        </p>
+        <pre
+          data-page-node-id="c7XRdS1eE56mjzn5swmKvL"
+        ><code data-page-node-id="y15Y4CXEIoo858G3FzfUWO">https://<span class="ph" data-page-node-id="v3jQDOHClEjJl0sDrkkmpN">&lt;api-ünvanı&gt;</span>/api/health</code></pre>
+        <p data-page-node-id="kBiwrOv4L6BHGEKAwBmlCt">Gözlənilən cavab:</p>
+        <pre
+          data-page-node-id="jzphQASFNaRPDCpIsGljuy"
+        ><code data-page-node-id="EmKCfXNoNeCEc3Ygunh4vh">{ "status": "ok", "service": "oneteam-api", "uptimeSeconds": 42, "timestamp": 1789306800000 }</code></pre>
+        <div class="callout warn" data-page-node-id="cVLBWV0IDWP9mqhc0lrGqf">
+          <span class="tag" data-page-node-id="Yz3aD95A0R4IRUQ5nF5Maz">Diqqət</span>
+          <p data-page-node-id="Ykc1VdG4nPxhOc99vkm6vJ">
+            <code data-page-node-id="n8qzVcrEmV2BTsLKcQLBk8">/api/tasks</code> ünvanını açsanız
+            <b data-page-node-id="IO9A5PUxUfUu0dT90xixz5">401 Unauthorized</b> görəcəksiniz. Bu
+            <b data-page-node-id="BxJ1qJPnC407e45dd1j4nI">xəta deyil</b> — tapşırıq siyahısı giriş
+            tələb edir və 401 girişin işlədiyini sübut edir. Yoxlama üçün
+            <code data-page-node-id="B8jOHxQ1xqnzdtu0lmADHa">/api/health</code> istifadə edin.
+          </p>
+        </div>
+
+        <p data-page-node-id="SJdA9rKwFW56DcoX4PIoBX">
+          <b data-page-node-id="Ka4DQfoz4A1f6Rv2gIh8oT">7.4 · Botu yoxlayın</b
+          ><br data-page-node-id="eb5rB6afa1JFdZzVwseaPC" />
+          Telegram-da botunuza girib <b data-page-node-id="hFEmOKq4eOypMhn15yrO7G">/start</b> yazın.
+          Cavab gəlməlidir.
+        </p>
+      </section>
+
+      <!-- ================= 4 ================= -->
+      <section data-page-node-id="KcjRmrhfsFTMrKTIWV3E6R">
+        <h2 data-page-node-id="75r2Su1mtZSpXldTy4Sr8Q">
+          <span class="num" data-page-node-id="6mLAAetRm1p8YDFwREtngO">4</span> Nə qədər pul
+          gedəcək?
+        </h2>
+
+        <table data-page-node-id="mTgFh1g91rGdE7heZWK2jC">
+          <thead data-page-node-id="j6QihkeTvIUIu5QNsVkyFM">
+            <tr data-page-node-id="NuUM1gYHPStGMemqP6XvjE">
+              <th style="width: 58%" data-page-node-id="Nqk70VSPjahhadrnsHWGG4">Xərc</th>
+              <th data-page-node-id="3f2BsnsunyIYzgF2MebWYo">Məbləğ</th>
+            </tr>
+          </thead>
+          <tbody data-page-node-id="pTSVo5oinMO9F9bnPVsRjI">
+            <tr data-page-node-id="MEaZzvnBZpYyrFo5MkxLgH">
+              <td data-page-node-id="AHAkgZoOrh6UB2o0prautC">
+                Railway <b data-page-node-id="8HGfzMeYL0NRIZzgA4tIaB">Hobby</b> planı
+              </td>
+              <td data-page-node-id="pmpyPhsqBm7aX5HPYkqGW0">
+                <b data-page-node-id="SGQlvId0E82b7FQIHmUEN4">$5/ay</b> (içində $5 istifadə
+                daxildir)
+              </td>
+            </tr>
+            <tr data-page-node-id="jWAsErP40cbhgLEnSY3K3j">
+              <td data-page-node-id="gvNQVjyh6EtBBzR6VoxBNh">
+                Yeni hesab üçün birdəfəlik sınaq krediti
+              </td>
+              <td data-page-node-id="UDZIkhhp3hRAPH8iIWKMg9">
+                <b data-page-node-id="gIcQtrF1jN7HprXqxMGmz7">$5</b> (ilk günlər pulsuz)
+              </td>
+            </tr>
+            <tr data-page-node-id="RFp6epepQ1q6MQEKTIz8Ov">
+              <td data-page-node-id="dXaB4ynJMPZXADhTvPhMeV">Bu layihənin real istehlakı</td>
+              <td data-page-node-id="bRHsRQzKRU28JSjqslPBUa">
+                təxminən <b data-page-node-id="wDzfUKXd1zQcQLGWxGY2XP">$5–15/ay</b>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p data-page-node-id="nwrJ71mAIRqulg5g9lpeWf">
+          Yekun gözlənti: <b data-page-node-id="gvDyZgaa5OJMITyOFFIZE8">aylıq təxminən $5–15</b>.
+          Dəqiq rəqəmi Railway panelində
+          <b data-page-node-id="8xeI8hgN6jYopi9S3AIUyP">Usage</b> bölməsində görəcəksiniz — orada
+          günlük xərc canlı göstərilir.
+        </p>
+
+        <h3 data-page-node-id="WeJZTICmuaijr0SBBhSvdY">Xərci azaltmağın yolları</h3>
+        <ul class="plain" data-page-node-id="EFWoPaVJNcs2wjWOddaDSO">
+          <li data-page-node-id="xHoZL4vDctn91bbU2OSxzu">
+            Bot servisini hələlik əlavə etməyin (Addım 6-nı atlayın).
+          </li>
+          <li data-page-node-id="neXVtMQ4fG3Sidx9Pu0cFC">
+            Servis yatmırsa (idle) belə pul gedir. Test bitdikdən sonra servisləri
+            <b data-page-node-id="Ldktdy94IcJrvBoI0kjq4R">Settings → Danger → Delete Service</b> ilə
+            silin və ya proyekti <b data-page-node-id="BE6R3dn32Fa8wiBMtNFnHF">paused</b> edin.
+          </li>
+        </ul>
+
+        <div class="callout danger" data-page-node-id="yxfWWPz59BgHUJtX3vTlVR">
+          <span class="tag" data-page-node-id="ZPs8D7dE49gLaNIz4cJyLe">Kart mütləqdir</span>
+          <p data-page-node-id="YAGjQOWVUdEvSzkq1B025l">
+            Railway 2026-cı ilin mart ayından ödəniş kartı tələb edir. Kart əlavə etməsəniz deploy
+            başlamayacaq.
+          </p>
+        </div>
+      </section>
+
+      <!-- ================= 5 ================= -->
+      <section data-page-node-id="XzzT6cek6tvyKxtgV8L14w">
+        <h2 data-page-node-id="A7km1U2PQbbTTvjXk5bB1w">
+          <span class="num" data-page-node-id="ypN9NNk2EzGmhZ2b4LoPAm">5</span> Nə isə səhv olsa
+        </h2>
+
+        <table data-page-node-id="oebDhyg44qLW90ulBkH4Xe">
+          <thead data-page-node-id="orCDwr6rUij3Qh8ouoAepR">
+            <tr data-page-node-id="F7CFBZmYFzlgXdu0ZC7FEE">
+              <th style="width: 36%" data-page-node-id="aFHPhl2QNXM7b9fHaAnIHQ">Əlamət</th>
+              <th data-page-node-id="3LBDCOfvNmn7B76SfjOVpm">Səbəb və həll</th>
+            </tr>
+          </thead>
+          <tbody data-page-node-id="WjnPTPuqu3QPFEGS1ULA2R">
+            <tr data-page-node-id="AtCX9muiXV1KWFrb9BCUGl">
+              <td data-page-node-id="oC5KpVODM7xibQGzaIHEML">
+                Servis qırmızı, logda
+                <code data-page-node-id="1MIGXVeRhg5XTBSCdU7b8b">EUNSUPPORTEDPROTOCOL</code>
+              </td>
+              <td data-page-node-id="LNx58zxf3NMmIIavHY2kpX">
+                <code data-page-node-id="H6qjaB4ly9ybGAC0ngH5oF">package.json</code> faylındaki
+                <code data-page-node-id="zZwZkDtGkdrxJ7bTD9hD1W">workspace:*</code> düzəldilməyib.
+                Bu, artıq düzəldilib — köhnə commit deploy olunursa yaranır. Yenidən push edin.
+              </td>
+            </tr>
+            <tr data-page-node-id="p81A1hUvyDOlf1YqyCR6yt">
+              <td data-page-node-id="lGfLQI0GwgRY96y29zZxua">
+                Servis qırmızı, logda
+                <code data-page-node-id="oha82kgLHuYrMVQlx5d99S"
+                  >POSTGRES_PASSWORD is required</code
+                >
+              </td>
+              <td data-page-node-id="jmmuDz9AfJXYXHqssDTLSh">
+                Dəyişənlər yazılmayıb. Addım 4-b-yə qayıdın.
+              </td>
+            </tr>
+            <tr data-page-node-id="JNnfr2seeF7soq2zN8BY0F">
+              <td data-page-node-id="I5R4On1fRrZNxfdBfUbAsY">Panel açılır, amma boşdur</td>
+              <td data-page-node-id="o7OeZCWzEfZqMYKgzRwmhO">
+                Normal — demo məlumat. Bölmə 6-ya baxın.
+              </td>
+            </tr>
+            <tr data-page-node-id="9TEFBN65eaU9EVGC3MiJAA">
+              <td data-page-node-id="Je9EKPPYqeW87QlwMFLvAD">
+                Brauzer konsolunda
+                <code data-page-node-id="SVHq51XI9GgeprrWSPphX8">CORS</code> xətası
+              </td>
+              <td data-page-node-id="Go1FbdI7O3WMX4m8BrMwF9">
+                <code data-page-node-id="FA9zWv9MsYv311bVK2T7H2">CORS_ALLOWED_ORIGINS</code> düzgün
+                yazılmayıb. Protokol (<code data-page-node-id="Z5FRYIpbHkEqY2MGmdHUaP"
+                  >https://</code
+                >) daxil olmaqla, panel ünvanını yazın.
+              </td>
+            </tr>
+            <tr data-page-node-id="hlPFdPjLKNB99X4K22D5H6">
+              <td data-page-node-id="5ygwppAthlgaCzRgDB1ZRj">
+                Bot <b data-page-node-id="t53Iye7i3NKUCuvQt9GcQE">/start</b>-a cavab vermir
+              </td>
+              <td data-page-node-id="NsdW6FEGfKEJPRB0BNCtpL">
+                (1)
+                <code data-page-node-id="MNqdAKFwXZ4zJ1RFm6N2SF">TELEGRAM_BOT_TOKEN</code>
+                düzgündürmü? (2) Addım 6-5-dəki webhook əmri icra olunubmu? (3) API logunda
+                <code data-page-node-id="3U9HEsj3hT0zCuH7661hAW">503</code> varsa —
+                <code data-page-node-id="b0iljMgcF590eK4YrCGVKl">TELEGRAM_WEBHOOK_SECRET</code>
+                boşdur.
+              </td>
+            </tr>
+            <tr data-page-node-id="pRNdBqqftdOKOVNY5xZam9">
+              <td data-page-node-id="bNudmOlVcrvz2R7XyylMMv">
+                Log: <code data-page-node-id="bRUAdZxgBecf5J9uVYoHfL">PORT</code> ilə bağlı xəta
+              </td>
+              <td data-page-node-id="vbgEkG9dhrcbqsdBD15RAg">
+                API servisində
+                <code data-page-node-id="Ar4NDoFn9pnOT4W4mRUdOT">PORT=3001</code> dəyəri yoxdur.
+                Əlavə edin.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ================= 6 ================= -->
+      <section data-page-node-id="OLOTj9B9JQZG7ufC8AuTw0">
+        <h2 data-page-node-id="Z17BIkf8MSefmfYzbLTMJK">
+          <span class="num" data-page-node-id="H56dviiL2xhX0UFmLyeg0W">6</span> Sonrakı addımlar
+          (test-dən sonra)
+        </h2>
+        <ol class="steps" data-page-node-id="mKWCDgKn8VQmvHbLzBLHXx">
+          <li data-page-node-id="oCEzj8VlEl4GfEv5zZb44x">
+            <p data-page-node-id="H5qv2GQkJukELLJGEz0AoD">
+              <b data-page-node-id="nMXReGw3kMTyLb9ndThhYo">API-ni real bazaya qoşmaq.</b> Ən böyük
+              boşluq budur.
+              <code data-page-node-id="sC7GpmimfCdDiG5YpjV9l3">packages/database</code> hazırda
+              yaddaşdaki <code data-page-node-id="dnjLUYQCkenKfF7Nbz7MkX">SEED_DATA</code>-dan
+              istifadə edir;
+              <code data-page-node-id="dgEBunjv95QygZH2praMOP">DATABASE_URL</code> dəyişəni heç
+              oxunmur. Yəni baza qoşulub işləyir, amma heç bir kod ona müraciət etmir. Bu, kod
+              dəyişikliyi tələb edir və ayrı bir işdir.
+            </p>
+          </li>
+          <li data-page-node-id="ZGbQHJ3aA8CBMmg0nviZgd">
+            <p data-page-node-id="2G3wvX1Aa67c7rpPdZkRwU">
+              <b data-page-node-id="PZiSIgKwShPB71j5EScOQw">Real Supabase bazası.</b>
+              <code data-page-node-id="QQ7kiYps72Bqc8GHCqmvNa">supabase.com</code>-da pulsuz layihə
+              açın, <b data-page-node-id="AhymLYW10W50KK0IoCanZA">Settings → API</b> bölməsindən
+              <b data-page-node-id="DHz790snvU0iaZWvWPAm8M">URL</b> və
+              <b data-page-node-id="pbRTImVIl1zyBqHqPDlkXV">anon key</b> götürün. Sonra:
+            </p>
+            <ul class="plain" data-page-node-id="fGQ44Xx1m35gZL2giqVdnv">
+              <li data-page-node-id="uPaCLVRtlgDgIeHw3ceavf">
+                <code data-page-node-id="GSVtFbu024ykwwwrddHDcj">web</code> servisinin
+                <code data-page-node-id="lXcSNX7kAzlAzZL0L54M4Y">VITE_SUPABASE_URL</code> /
+                <code data-page-node-id="7yNvKxtMc1YBu5C7UtIRvi">VITE_SUPABASE_ANON_KEY</code>
+                dəyişənlərinə,
+              </li>
+              <li data-page-node-id="mz9DTc8lpzGNw08lU8TTEL">
+                <code data-page-node-id="wF4149iTuZYQEExpKpJ4XP">api</code> servisinin
+                <code data-page-node-id="Tzd2n8toZVFCltJDloHZwl">SUPABASE_URL</code> /
+                <code data-page-node-id="EQHzaeIZpypMykE4uSsKjJ">SUPABASE_ANON_KEY</code>
+                dəyişənlərinə yazın.
+              </li>
+            </ul>
+            <p data-page-node-id="R3i3d2qC0D7JJK0IXA2v6f">
+              Sonra
+              <code data-page-node-id="LA5rGDoDV0PfRDENfIcqSv">supabase/migrations</code>
+              qovluğundaki SQL fayllarını Supabase-də işə salın.
+            </p>
+          </li>
+          <li data-page-node-id="raoVQNAhMTHKdRBEYxZCDz">
+            <p data-page-node-id="3hmXvYTm1FbM7GJZnsZ5oT">
+              <b data-page-node-id="lwTOIY7HDmcvf5vOR5hVfh">Ehtiyat nüsxə.</b> Railway bazası
+              avtomatik backup etmir. Gündəlik dump qurun.
+            </p>
+          </li>
+          <li data-page-node-id="7qUX3ncEc1JAViMrlvrbHj">
+            <p data-page-node-id="XHfavZzUfO7qH2CMkcHLud">
+              <b data-page-node-id="zCQrpyDYAeyiy1eempis1q">Şifrələrin rotasiyası.</b>
+              <code data-page-node-id="FYAfTeSUrybCOPd9NiLGZS">TELEGRAM_BOT_TOKEN</code> və
+              <code data-page-node-id="PHpVnvLrw4hHMaVljICbUU">TELEGRAM_WEBHOOK_SECRET</code>
+              dəyərlərini mütəmadi dəyişin.
+            </p>
+          </li>
+          <li data-page-node-id="vaMzZwPTFOradXAiiVrSHZ">
+            <p data-page-node-id="TZAAIp2Fo5LlyGn8kclwXU">
+              <b data-page-node-id="cEPU7wQ6733jEKofy34JSG">Domen.</b> Öz domeninizi qoşun (<b
+                data-page-node-id="w8XHlcNHIpTep4qHY9emiI"
+                >Settings → Networking → Custom Domain</b
+              >).
+            </p>
+          </li>
+        </ol>
+      </section>
+
+      <footer class="doc" data-page-node-id="ngKD5GU8pkd4G0IsJqK6r7">
+        oneTeam · Test Deploy Təlimatı · 13 sentyabr 2026<br
+          data-page-node-id="ut4EWZGYeTXaySGQmc38BK"
+        />
+        <span style="font-size: 12px" data-page-node-id="V0UEwlEFLdQc7O4U3SKtCf"
+          >Markdown versiyası:
+          <code data-page-node-id="lB1uBWl7gshcLxhoa2KHqz">docs/DEPLOY-TEST-AZ.md</code></span
+        >
+      </footer>
+    </div>
+  </body>
 </html>

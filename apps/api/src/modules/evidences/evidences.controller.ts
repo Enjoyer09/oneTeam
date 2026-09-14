@@ -21,9 +21,7 @@ export class EvidencesController {
   constructor(private readonly evidenceService: EvidenceService) {}
 
   @Get()
-  getAllEvidences(
-    @Request() request: ExpressRequest & { principal?: AuthenticatedPrincipal }
-  ) {
+  getAllEvidences(@Request() request: ExpressRequest & { principal?: AuthenticatedPrincipal }) {
     const principal = getPrincipal(request);
     const evidences = db.getEvidencesForUser(principal.userId, principal.role);
     return {
@@ -37,7 +35,7 @@ export class EvidencesController {
   @HttpCode(HttpStatus.CREATED)
   async submitEvidence(
     @Body() dto: SubmitEvidenceRequestDto,
-    @Request() request: ExpressRequest & { principal?: AuthenticatedPrincipal }
+    @Request() request: ExpressRequest & { principal?: AuthenticatedPrincipal },
   ) {
     return this.evidenceService.submitEvidence(dto, getPrincipal(request));
   }

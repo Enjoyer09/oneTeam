@@ -103,7 +103,7 @@ export class CameraAuditController {
       throw new MobileApiError(
         `"${this.store.name}" mağazasının koordinatları yoxdur — geolokasiya yoxlaması aparıla bilməz.`,
         400,
-        'STORE_HAS_NO_COORDINATES'
+        'STORE_HAS_NO_COORDINATES',
       );
     }
 

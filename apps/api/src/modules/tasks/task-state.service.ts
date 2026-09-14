@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  HttpException,
-  HttpStatus,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import {
   TaskState,
   UserRole,
@@ -25,9 +20,7 @@ import { NotificationDispatcherService } from '../notifications/notification-dis
 export class TaskStateService {
   private readonly logger = new Logger(TaskStateService.name);
 
-  constructor(
-    private readonly notificationDispatcher: NotificationDispatcherService
-  ) {}
+  constructor(private readonly notificationDispatcher: NotificationDispatcherService) {}
 
   /**
    * Bulk dispatches store tasks to segmented stores matching criteria (region, chain, format).
@@ -35,7 +28,7 @@ export class TaskStateService {
    */
   async bulkDispatchTasks(
     dto: BulkDispatchDto,
-    principal: AuthenticatedPrincipal
+    principal: AuthenticatedPrincipal,
   ): Promise<BulkDispatchResultDto> {
     if (!isPrivilegedPrincipal(principal)) {
       throw new HttpException('Bu əməliyyat üçün icazə yoxdur', HttpStatus.FORBIDDEN);
@@ -45,7 +38,7 @@ export class TaskStateService {
     if (!assignedUserId || !db.getUser(assignedUserId)) {
       throw new HttpException(
         'Mövcud və etibarlı icraçı istifadəçi tələb olunur',
-        HttpStatus.BAD_REQUEST
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -53,7 +46,7 @@ export class TaskStateService {
     if (!assignee || assignee.role !== UserRole.MERCHANDISER) {
       throw new HttpException(
         'Tapşırıq yalnız mövcud merchandiser istifadəçiyə təyin edilə bilər',
-        HttpStatus.BAD_REQUEST
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -61,7 +54,7 @@ export class TaskStateService {
     if (!template) {
       throw new HttpException(
         `Təlimat şablonu tapılmadı (ID: ${dto.templateId})`,
-        HttpStatus.NOT_FOUND
+        HttpStatus.NOT_FOUND,
       );
     }
 
@@ -74,12 +67,12 @@ export class TaskStateService {
     if (matchedStores.length === 0) {
       throw new HttpException(
         'Göstərilən seqmentasiya meyarlarına uyğun heç bir aktiv mağaza tapılmadı.',
-        HttpStatus.BAD_REQUEST
+        HttpStatus.BAD_REQUEST,
       );
     }
 
     this.logger.log(
-      `🚀 [BULK DISPATCH] Dispatching template '${template.title}' to ${matchedStores.length} stores (Chain: ${dto.chainName || 'All'}, Format: ${dto.storeFormat || 'All'})`
+      `🚀 [BULK DISPATCH] Dispatching template '${template.title}' to ${matchedStores.length} stores (Chain: ${dto.chainName || 'All'}, Format: ${dto.storeFormat || 'All'})`,
     );
 
     const createdTasks: InMemoryStoreTask[] = [];
@@ -123,14 +116,14 @@ export class TaskStateService {
 
       // Dispatch Notifications
       const dispatchRes = await this.notificationDispatcher.dispatchTaskPublished(
-        newTask as unknown as StoreTask
+        newTask as unknown as StoreTask,
       );
       if (dispatchRes.telegram) telegramCount++;
       if (dispatchRes.pushNotification) pushCount++;
     }
 
     this.logger.log(
-      `✅ [BULK DISPATCH COMPLETE] Created ${createdTasks.length} tasks. Dispatched ${telegramCount} Telegram and ${pushCount} Push notifications.`
+      `✅ [BULK DISPATCH COMPLETE] Created ${createdTasks.length} tasks. Dispatched ${telegramCount} Telegram and ${pushCount} Push notifications.`,
     );
 
     return {
@@ -153,14 +146,11 @@ export class TaskStateService {
     taskId: string,
     targetState: TaskState,
     principal: AuthenticatedPrincipal,
-    notes?: string
+    notes?: string,
   ): Promise<StateTransitionResponseDto> {
     const task = db.getTask(taskId);
     if (!task) {
-      throw new HttpException(
-        `Tapşırıq tapılmadı (ID: ${taskId})`,
-        HttpStatus.NOT_FOUND
-      );
+      throw new HttpException(`Tapşırıq tapılmadı (ID: ${taskId})`, HttpStatus.NOT_FOUND);
     }
 
     if (!db.canUserAccessTask(principal.userId, principal.role, taskId)) {
@@ -171,7 +161,8 @@ export class TaskStateService {
 
     // 1. Strict State Machine Validation
     if (!isValidTransition(previousState, targetState)) {
-      const allowed = ALLOWED_STATE_TRANSITIONS[previousState]?.join(', ') || 'NONE (Terminal State)';
+      const allowed =
+        ALLOWED_STATE_TRANSITIONS[previousState]?.join(', ') || 'NONE (Terminal State)';
       const errorMessage =
         `Qadağan olunmuş status keçidi: '${previousState}' -> '${targetState}'. ` +
         `Cari statusdan yalnız bu keçidlərə icazə verilir: [${allowed}].`;
@@ -198,7 +189,7 @@ export class TaskStateService {
           attemptedState: targetState,
           allowedTransitions: ALLOWED_STATE_TRANSITIONS[previousState],
         },
-        HttpStatus.BAD_REQUEST
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -207,7 +198,7 @@ export class TaskStateService {
     if (!updatedTask) {
       throw new HttpException(
         'Tapşırığın statusunu yeniləmək mümkün olmadı',
-        HttpStatus.INTERNAL_SERVER_ERROR
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
 
@@ -223,14 +214,14 @@ export class TaskStateService {
     });
 
     this.logger.log(
-      `✅ [STATE TRANSITION] Task ${taskId}: ${previousState} -> ${targetState} (Actor: ${principal.userId})`
+      `✅ [STATE TRANSITION] Task ${taskId}: ${previousState} -> ${targetState} (Actor: ${principal.userId})`,
     );
 
     // 4. Multi-Channel Notification Trigger on PUBLISHED
     let notificationResult: { telegram: boolean; pushNotification: boolean } | undefined;
     if (targetState === TaskState.PUBLISHED) {
       notificationResult = await this.notificationDispatcher.dispatchTaskPublished(
-        updatedTask as unknown as StoreTask
+        updatedTask as unknown as StoreTask,
       );
     }
 

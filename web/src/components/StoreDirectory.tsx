@@ -16,7 +16,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({ stores, submissi
     (s) =>
       s.name.toLowerCase().includes(query) ||
       s.store_code.toLowerCase().includes(query) ||
-      s.city.toLowerCase().includes(query)
+      s.city.toLowerCase().includes(query),
   );
 
   return (
@@ -112,8 +112,8 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({ stores, submissi
                     compliancePercent >= 80
                       ? { bar: 'var(--ok-dot)', text: 'var(--ok)' }
                       : compliancePercent >= 50
-                      ? { bar: 'var(--warn-dot)', text: 'var(--warn)' }
-                      : { bar: 'var(--bad-dot)', text: 'var(--bad)' };
+                        ? { bar: 'var(--warn-dot)', text: 'var(--warn)' }
+                        : { bar: 'var(--bad-dot)', text: 'var(--bad)' };
 
                   return (
                     <tr key={store.id}>

@@ -57,7 +57,7 @@ export function stampAuditMetadata(params: {
 export function assertLiveCameraCapture(source: 'camera' | 'gallery'): void {
   if (source === 'gallery') {
     throw new Error(
-      'SAXTA AUDİT QADAĞANDIR: Qalereyadan köhnə foto seçmək qadağandır. Zəhmət olmasa birbaşa canlı kamera ilə rəf fotosunu çəkin.'
+      'SAXTA AUDİT QADAĞANDIR: Qalereyadan köhnə foto seçmək qadağandır. Zəhmət olmasa birbaşa canlı kamera ilə rəf fotosunu çəkin.',
     );
   }
 }

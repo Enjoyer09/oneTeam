@@ -159,7 +159,8 @@ services:
     healthcheck:
       # /api/health, not /api/tasks — the latter is behind AuthGuard and answers
       # 401, which the healthcheck would read as "unhealthy".
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
+      test:
+        ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
       interval: 15s
       timeout: 5s
       retries: 3

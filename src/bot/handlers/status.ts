@@ -13,7 +13,7 @@ export async function handleMyStatus(ctx: BotContext) {
     console.error(`[oneTeam Bot] Status lookup failed for chat ${chatId}:`, detail);
     await ctx.reply(
       `❌ *Status məlumatını yükləmək mümkün olmadı.*\n\nZəhmət olmasa bir az sonra yenidən cəhd edin.`,
-      { parse_mode: 'Markdown' }
+      { parse_mode: 'Markdown' },
     );
     return;
   }
@@ -22,7 +22,7 @@ export async function handleMyStatus(ctx: BotContext) {
     await ctx.reply(
       `ℹ️ *Hələ heç bir rəf fotosu göndərilməyib.*\n\n` +
         `Aktiv tapşırıqlara baxmaq və foto göndərmək üçün /tasks əmrindən istifadə edin.`,
-      { parse_mode: 'Markdown' }
+      { parse_mode: 'Markdown' },
     );
     return;
   }

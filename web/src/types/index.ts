@@ -35,11 +35,7 @@ export interface Task {
 }
 
 export type CocaColaSKU =
-  | 'coca_cola_classic'
-  | 'coca_cola_zero'
-  | 'fanta'
-  | 'sprite'
-  | 'out_of_stock_gap';
+  'coca_cola_classic' | 'coca_cola_zero' | 'fanta' | 'sprite' | 'out_of_stock_gap';
 
 export interface BoundingBox {
   x: number;

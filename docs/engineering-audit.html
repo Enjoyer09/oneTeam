@@ -1,469 +1,1048 @@
 <!doctype html>
 <html lang="en" data-page-node-id="Tzv4DWbccZAo5CAibKqo93">
-<head data-page-node-id="sfgdyhIwowczQrvmd1NEKi">
-<meta charset="utf-8" data-page-node-id="jhouSoGv2Y2VQFsc2YTaW4" />
-<meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="dV9CrV0iMqYBzLBFGZ5u1E" />
-<title>oneTeam — Engineering Quality Audit</title>
-<style>
-  :root {
-    --ink: #0d1424;
-    --ink-2: #26324a;
-    --muted: #5d6c86;
-    --faint: #8d9ab0;
-    --hair: #e2e7f0;
-    --hair-2: #eef1f7;
-    --bg: #f4f6fa;
-    --card: #ffffff;
-    --crit: #c40008;
-    --crit-bg: #fdecec;
-    --high: #b45309;
-    --high-bg: #fef4e6;
-    --ok: #067a51;
-    --ok-bg: #e7f6ef;
-    --info: #2f5fd0;
-    --info-bg: #eaf0fe;
-    --shadow: 0 1px 2px rgba(13,20,36,.06), 0 8px 24px -12px rgba(13,20,36,.16);
-  }
-  * { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; }
-  body {
-    margin: 0; background: var(--bg); color: var(--ink);
-    font: 15px/1.62 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  }
-  .wrap { max-width: 940px; margin: 0 auto; padding: 40px 22px 80px; }
+  <head data-page-node-id="sfgdyhIwowczQrvmd1NEKi">
+    <meta charset="utf-8" data-page-node-id="jhouSoGv2Y2VQFsc2YTaW4" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+      data-page-node-id="dV9CrV0iMqYBzLBFGZ5u1E"
+    />
+    <title>oneTeam — Engineering Quality Audit</title>
+    <style>
+      :root {
+        --ink: #0d1424;
+        --ink-2: #26324a;
+        --muted: #5d6c86;
+        --faint: #8d9ab0;
+        --hair: #e2e7f0;
+        --hair-2: #eef1f7;
+        --bg: #f4f6fa;
+        --card: #ffffff;
+        --crit: #c40008;
+        --crit-bg: #fdecec;
+        --high: #b45309;
+        --high-bg: #fef4e6;
+        --ok: #067a51;
+        --ok-bg: #e7f6ef;
+        --info: #2f5fd0;
+        --info-bg: #eaf0fe;
+        --shadow: 0 1px 2px rgba(13, 20, 36, 0.06), 0 8px 24px -12px rgba(13, 20, 36, 0.16);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          15px/1.62 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          'Helvetica Neue',
+          Arial,
+          sans-serif;
+      }
+      .wrap {
+        max-width: 940px;
+        margin: 0 auto;
+        padding: 40px 22px 80px;
+      }
 
-  header.top { margin-bottom: 34px; }
-  .eyebrow {
-    font-size: 11px; font-weight: 800; letter-spacing: .14em;
-    text-transform: uppercase; color: var(--crit); margin-bottom: 10px;
-  }
-  h1 { font-size: 31px; line-height: 1.2; margin: 0 0 12px; letter-spacing: -.02em; }
-  .lede { font-size: 16.5px; color: var(--ink-2); margin: 0; max-width: 66ch; }
-  .meta { margin-top: 16px; font-size: 13px; color: var(--muted); }
+      header.top {
+        margin-bottom: 34px;
+      }
+      .eyebrow {
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--crit);
+        margin-bottom: 10px;
+      }
+      h1 {
+        font-size: 31px;
+        line-height: 1.2;
+        margin: 0 0 12px;
+        letter-spacing: -0.02em;
+      }
+      .lede {
+        font-size: 16.5px;
+        color: var(--ink-2);
+        margin: 0;
+        max-width: 66ch;
+      }
+      .meta {
+        margin-top: 16px;
+        font-size: 13px;
+        color: var(--muted);
+      }
 
-  h2 {
-    font-size: 13px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
-    color: var(--muted); margin: 44px 0 16px; padding-bottom: 9px; border-bottom: 1px solid var(--hair);
-  }
-  h3 { font-size: 17px; margin: 0 0 8px; letter-spacing: -.01em; }
-  p { margin: 0 0 13px; }
-  code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: .88em; background: var(--hair-2); padding: 1.5px 5px; border-radius: 5px;
-    color: var(--ink-2); word-break: break-word;
-  }
-  pre {
-    background: #0f172a; color: #e6edf7; padding: 15px 17px; border-radius: 11px;
-    overflow-x: auto; font-size: 12.8px; line-height: 1.6; margin: 0 0 14px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  }
-  pre code { background: none; color: inherit; padding: 0; }
+      h2 {
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 44px 0 16px;
+        padding-bottom: 9px;
+        border-bottom: 1px solid var(--hair);
+      }
+      h3 {
+        font-size: 17px;
+        margin: 0 0 8px;
+        letter-spacing: -0.01em;
+      }
+      p {
+        margin: 0 0 13px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.88em;
+        background: var(--hair-2);
+        padding: 1.5px 5px;
+        border-radius: 5px;
+        color: var(--ink-2);
+        word-break: break-word;
+      }
+      pre {
+        background: #0f172a;
+        color: #e6edf7;
+        padding: 15px 17px;
+        border-radius: 11px;
+        overflow-x: auto;
+        font-size: 12.8px;
+        line-height: 1.6;
+        margin: 0 0 14px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      pre code {
+        background: none;
+        color: inherit;
+        padding: 0;
+      }
 
-  /* ---- metric strip ---- */
-  .metrics {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 12px; margin-bottom: 8px;
-  }
-  .metric {
-    background: var(--card); border: 1px solid var(--hair); border-radius: 14px;
-    padding: 15px 16px; box-shadow: var(--shadow);
-  }
-  .metric .label {
-    font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
-    color: var(--faint); margin-bottom: 7px;
-  }
-  .metric .value { font-size: 25px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
-  .metric .sub { font-size: 12.5px; color: var(--muted); margin-top: 5px; }
-  .value.bad { color: var(--crit); }
-  .value.good { color: var(--ok); }
+      /* ---- metric strip ---- */
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 12px;
+        margin-bottom: 8px;
+      }
+      .metric {
+        background: var(--card);
+        border: 1px solid var(--hair);
+        border-radius: 14px;
+        padding: 15px 16px;
+        box-shadow: var(--shadow);
+      }
+      .metric .label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        color: var(--faint);
+        margin-bottom: 7px;
+      }
+      .metric .value {
+        font-size: 25px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        line-height: 1.1;
+      }
+      .metric .sub {
+        font-size: 12.5px;
+        color: var(--muted);
+        margin-top: 5px;
+      }
+      .value.bad {
+        color: var(--crit);
+      }
+      .value.good {
+        color: var(--ok);
+      }
 
-  /* ---- finding cards ---- */
-  .finding {
-    background: var(--card); border: 1px solid var(--hair); border-radius: 15px;
-    padding: 20px 22px; margin-bottom: 14px; box-shadow: var(--shadow);
-    border-left: 4px solid var(--faint);
-  }
-  .finding.crit { border-left-color: var(--crit); }
-  .finding.high { border-left-color: var(--high); }
-  .finding.ok { border-left-color: var(--ok); }
-  .tagrow { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 9px; }
-  .tag {
-    font-size: 10.5px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase;
-    padding: 3px 9px; border-radius: 999px; white-space: nowrap;
-  }
-  .tag.crit { background: var(--crit-bg); color: var(--crit); }
-  .tag.high { background: var(--high-bg); color: var(--high); }
-  .tag.ok { background: var(--ok-bg); color: var(--ok); }
-  .tag.info { background: var(--info-bg); color: var(--info); }
-  .tag.plain { background: var(--hair-2); color: var(--muted); }
+      /* ---- finding cards ---- */
+      .finding {
+        background: var(--card);
+        border: 1px solid var(--hair);
+        border-radius: 15px;
+        padding: 20px 22px;
+        margin-bottom: 14px;
+        box-shadow: var(--shadow);
+        border-left: 4px solid var(--faint);
+      }
+      .finding.crit {
+        border-left-color: var(--crit);
+      }
+      .finding.high {
+        border-left-color: var(--high);
+      }
+      .finding.ok {
+        border-left-color: var(--ok);
+      }
+      .tagrow {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        flex-wrap: wrap;
+        margin-bottom: 9px;
+      }
+      .tag {
+        font-size: 10.5px;
+        font-weight: 800;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        padding: 3px 9px;
+        border-radius: 999px;
+        white-space: nowrap;
+      }
+      .tag.crit {
+        background: var(--crit-bg);
+        color: var(--crit);
+      }
+      .tag.high {
+        background: var(--high-bg);
+        color: var(--high);
+      }
+      .tag.ok {
+        background: var(--ok-bg);
+        color: var(--ok);
+      }
+      .tag.info {
+        background: var(--info-bg);
+        color: var(--info);
+      }
+      .tag.plain {
+        background: var(--hair-2);
+        color: var(--muted);
+      }
 
-  .finding ul, .finding ol { margin: 10px 0 0; padding-left: 20px; }
-  .finding li { margin-bottom: 6px; }
+      .finding ul,
+      .finding ol {
+        margin: 10px 0 0;
+        padding-left: 20px;
+      }
+      .finding li {
+        margin-bottom: 6px;
+      }
 
-  .callout {
-    border-radius: 12px; padding: 14px 16px; margin: 14px 0 0; font-size: 14px;
-    background: var(--info-bg); border: 1px solid #cfdcfb; color: #1c3a86;
-  }
-  .callout.warn { background: var(--high-bg); border-color: #f5dcb4; color: #7c3d06; }
-  .callout.danger { background: var(--crit-bg); border-color: #f6c9c9; color: #8c0006; }
-  .callout strong { font-weight: 800; }
+      .callout {
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin: 14px 0 0;
+        font-size: 14px;
+        background: var(--info-bg);
+        border: 1px solid #cfdcfb;
+        color: #1c3a86;
+      }
+      .callout.warn {
+        background: var(--high-bg);
+        border-color: #f5dcb4;
+        color: #7c3d06;
+      }
+      .callout.danger {
+        background: var(--crit-bg);
+        border-color: #f6c9c9;
+        color: #8c0006;
+      }
+      .callout strong {
+        font-weight: 800;
+      }
 
-  /* ---- table ---- */
-  table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 8px; }
-  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--hair); vertical-align: top; }
-  th { font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
-  td:first-child { white-space: nowrap; }
-  tr:last-child td { border-bottom: 0; }
-  .tbl-wrap {
-    background: var(--card); border: 1px solid var(--hair); border-radius: 14px;
-    padding: 4px 8px; box-shadow: var(--shadow); overflow-x: auto;
-  }
+      /* ---- table ---- */
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+        margin-bottom: 8px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--hair);
+        vertical-align: top;
+      }
+      th {
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      td:first-child {
+        white-space: nowrap;
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      .tbl-wrap {
+        background: var(--card);
+        border: 1px solid var(--hair);
+        border-radius: 14px;
+        padding: 4px 8px;
+        box-shadow: var(--shadow);
+        overflow-x: auto;
+      }
 
-  /* ---- roadmap ---- */
-  .phase { margin-bottom: 22px; }
-  .phase-title { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
-  .phase-title .n {
-    width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center;
-    font-size: 12px; font-weight: 800; background: var(--ink); color: #fff; flex: none;
-  }
-  .phase-title .t { font-weight: 800; font-size: 15px; }
-  .phase-title .w { font-size: 12.5px; color: var(--muted); }
-  ol.steps { counter-reset: s; list-style: none; padding: 0; margin: 0; }
-  ol.steps li {
-    counter-increment: s; position: relative; padding: 11px 14px 11px 46px;
-    background: var(--card); border: 1px solid var(--hair); border-radius: 12px;
-    margin-bottom: 8px; box-shadow: var(--shadow); font-size: 14.5px;
-  }
-  ol.steps li::before {
-    content: counter(s); position: absolute; left: 13px; top: 12px;
-    width: 21px; height: 21px; border-radius: 6px; display: grid; place-items: center;
-    font-size: 11px; font-weight: 800; background: var(--hair-2); color: var(--muted);
-  }
-  ol.steps li .why { display: block; color: var(--muted); font-size: 13px; margin-top: 3px; }
-  ol.steps li.urgent { border-color: #f6c9c9; background: #fffafa; }
-  ol.steps li.urgent::before { background: var(--crit); color: #fff; }
+      /* ---- roadmap ---- */
+      .phase {
+        margin-bottom: 22px;
+      }
+      .phase-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 11px;
+      }
+      .phase-title .n {
+        width: 26px;
+        height: 26px;
+        border-radius: 8px;
+        display: grid;
+        place-items: center;
+        font-size: 12px;
+        font-weight: 800;
+        background: var(--ink);
+        color: #fff;
+        flex: none;
+      }
+      .phase-title .t {
+        font-weight: 800;
+        font-size: 15px;
+      }
+      .phase-title .w {
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+      ol.steps {
+        counter-reset: s;
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      ol.steps li {
+        counter-increment: s;
+        position: relative;
+        padding: 11px 14px 11px 46px;
+        background: var(--card);
+        border: 1px solid var(--hair);
+        border-radius: 12px;
+        margin-bottom: 8px;
+        box-shadow: var(--shadow);
+        font-size: 14.5px;
+      }
+      ol.steps li::before {
+        content: counter(s);
+        position: absolute;
+        left: 13px;
+        top: 12px;
+        width: 21px;
+        height: 21px;
+        border-radius: 6px;
+        display: grid;
+        place-items: center;
+        font-size: 11px;
+        font-weight: 800;
+        background: var(--hair-2);
+        color: var(--muted);
+      }
+      ol.steps li .why {
+        display: block;
+        color: var(--muted);
+        font-size: 13px;
+        margin-top: 3px;
+      }
+      ol.steps li.urgent {
+        border-color: #f6c9c9;
+        background: #fffafa;
+      }
+      ol.steps li.urgent::before {
+        background: var(--crit);
+        color: #fff;
+      }
 
-  footer {
-    margin-top: 52px; padding-top: 20px; border-top: 1px solid var(--hair);
-    font-size: 13px; color: var(--muted);
-  }
-  @media (max-width: 620px) {
-    h1 { font-size: 25px; }
-    .wrap { padding: 26px 15px 60px; }
-    td:first-child { white-space: normal; }
-  }
-</style>
-</head>
-<body data-page-node-id="QsvUfEVBFC7VN8xaG7rWgS">
-<div class="wrap" data-page-node-id="nnbY3rR526k6iuAsJzqOVc">
+      footer {
+        margin-top: 52px;
+        padding-top: 20px;
+        border-top: 1px solid var(--hair);
+        font-size: 13px;
+        color: var(--muted);
+      }
+      @media (max-width: 620px) {
+        h1 {
+          font-size: 25px;
+        }
+        .wrap {
+          padding: 26px 15px 60px;
+        }
+        td:first-child {
+          white-space: normal;
+        }
+      }
+    </style>
+  </head>
+  <body data-page-node-id="QsvUfEVBFC7VN8xaG7rWgS">
+    <div class="wrap" data-page-node-id="nnbY3rR526k6iuAsJzqOVc">
+      <header class="top" data-page-node-id="LIdwG0FiwiaZYKqGvuPrg1">
+        <div class="eyebrow" data-page-node-id="C8khTb4aYPranw8dFfY0wg">
+          Senior engineering review
+        </div>
+        <h1 data-page-node-id="kxD78UcQcl0tH3gkesNQMd">oneTeam — Engineering Quality Audit</h1>
+        <p class="lede" data-page-node-id="pFihPduBKAnDNwGscNlHBI">
+          A measured review of the codebase, not an opinion piece. Every number below came from
+          running a tool against the real repository. Where something was broken, it has been fixed;
+          where a decision belongs to the team, it is listed in the roadmap instead.
+        </p>
+        <div class="meta" data-page-node-id="hpop6vpA6UPpPpp7zCPnPw">
+          69 first-party files &middot; 10,035 lines &middot; audited 13 September 2026
+        </div>
+      </header>
 
-<header class="top" data-page-node-id="LIdwG0FiwiaZYKqGvuPrg1">
-  <div class="eyebrow" data-page-node-id="C8khTb4aYPranw8dFfY0wg">Senior engineering review</div>
-  <h1 data-page-node-id="kxD78UcQcl0tH3gkesNQMd">oneTeam — Engineering Quality Audit</h1>
-  <p class="lede" data-page-node-id="pFihPduBKAnDNwGscNlHBI">
-    A measured review of the codebase, not an opinion piece. Every number below came from
-    running a tool against the real repository. Where something was broken, it has been fixed;
-    where a decision belongs to the team, it is listed in the roadmap instead.
-  </p>
-  <div class="meta" data-page-node-id="hpop6vpA6UPpPpp7zCPnPw">69 first-party files &middot; 10,035 lines &middot; audited 13 September 2026</div>
-</header>
+      <h2 data-page-node-id="dBouVsb5Z5FtCb8PaKG1K0">Before and after</h2>
+      <div class="metrics" data-page-node-id="pvxfuCe7iNy7lkC4LQGxo3">
+        <div class="metric" data-page-node-id="sq0NEdx36oMuXbnbnROiPo">
+          <div class="label" data-page-node-id="RCWAADAZxK0rckvekT4DEE">TypeScript errors</div>
+          <div class="value good" data-page-node-id="gcdBwtxlzOfxMmZ2o7majS">19 → 0</div>
+          <div class="sub" data-page-node-id="0v613Q6LvzjHcpj71DO5Q5">
+            16 fixed in code, 3 by installing a declared dependency
+          </div>
+        </div>
+        <div class="metric" data-page-node-id="kpETCBDIuuubJxtJeEQrZ0">
+          <div class="label" data-page-node-id="9VCQOdQhejmRvEKlrCA8T3">Core engine tests</div>
+          <div class="value good" data-page-node-id="kY9zFO3W8COeo0a3rL6dPC">2 → 25</div>
+          <div class="sub" data-page-node-id="aARBMB3LcMNHAK4nWbjD6t">
+            of 25 — the suite used to abort after two
+          </div>
+        </div>
+        <div class="metric" data-page-node-id="fdEmaiQJd56YWBHbC1WUNG">
+          <div class="label" data-page-node-id="ay23Zd0BsVnJ7gJPy4VQNx">Security gaps closed</div>
+          <div class="value good" data-page-node-id="GgTNVV9OW7fWb74UaWOWzd">4</div>
+          <div class="sub" data-page-node-id="VzJZdupTTHNVBu1VdTF3Zv">
+            webhook, CORS, identity, build order
+          </div>
+        </div>
+        <div class="metric" data-page-node-id="07rcQwXh34CaETnqB1oCWQ">
+          <div class="label" data-page-node-id="pK6UKCpuaKN4XXswQ2OuvD">CI pipelines</div>
+          <div class="value good" data-page-node-id="P0lmcaYMHTS9veBAhvDU12">0 → 3</div>
+          <div class="sub" data-page-node-id="Pfjvbob9xs9Gx0HRgMuAPZ">verify, test, build</div>
+        </div>
+        <div class="metric" data-page-node-id="6o1hpT0Wo1rMJRKccN0Hhu">
+          <div class="label" data-page-node-id="h37uuBoEyR3xTMqVjhMylt">Quality tooling</div>
+          <div class="value good" data-page-node-id="ggtZrynOsgGwSD5VizNj19">0 → 9</div>
+          <div class="sub" data-page-node-id="lKTvcWhTEWxNQ3WOKU1Cxi">
+            lint, format, hooks, secret scanning
+          </div>
+        </div>
+      </div>
 
-<h2 data-page-node-id="dBouVsb5Z5FtCb8PaKG1K0">Before and after</h2>
-<div class="metrics" data-page-node-id="pvxfuCe7iNy7lkC4LQGxo3">
-  <div class="metric" data-page-node-id="sq0NEdx36oMuXbnbnROiPo">
-    <div class="label" data-page-node-id="RCWAADAZxK0rckvekT4DEE">TypeScript errors</div>
-    <div class="value good" data-page-node-id="gcdBwtxlzOfxMmZ2o7majS">19 → 0</div>
-    <div class="sub" data-page-node-id="0v613Q6LvzjHcpj71DO5Q5">16 fixed in code, 3 by installing a declared dependency</div>
-  </div>
-  <div class="metric" data-page-node-id="kpETCBDIuuubJxtJeEQrZ0">
-    <div class="label" data-page-node-id="9VCQOdQhejmRvEKlrCA8T3">Core engine tests</div>
-    <div class="value good" data-page-node-id="kY9zFO3W8COeo0a3rL6dPC">2 → 25</div>
-    <div class="sub" data-page-node-id="aARBMB3LcMNHAK4nWbjD6t">of 25 — the suite used to abort after two</div>
-  </div>
-  <div class="metric" data-page-node-id="fdEmaiQJd56YWBHbC1WUNG">
-    <div class="label" data-page-node-id="ay23Zd0BsVnJ7gJPy4VQNx">Security gaps closed</div>
-    <div class="value good" data-page-node-id="GgTNVV9OW7fWb74UaWOWzd">4</div>
-    <div class="sub" data-page-node-id="VzJZdupTTHNVBu1VdTF3Zv">webhook, CORS, identity, build order</div>
-  </div>
-  <div class="metric" data-page-node-id="07rcQwXh34CaETnqB1oCWQ">
-    <div class="label" data-page-node-id="pK6UKCpuaKN4XXswQ2OuvD">CI pipelines</div>
-    <div class="value good" data-page-node-id="P0lmcaYMHTS9veBAhvDU12">0 → 3</div>
-    <div class="sub" data-page-node-id="Pfjvbob9xs9Gx0HRgMuAPZ">verify, test, build</div>
-  </div>
-  <div class="metric" data-page-node-id="6o1hpT0Wo1rMJRKccN0Hhu">
-    <div class="label" data-page-node-id="h37uuBoEyR3xTMqVjhMylt">Quality tooling</div>
-    <div class="value good" data-page-node-id="ggtZrynOsgGwSD5VizNj19">0 → 9</div>
-    <div class="sub" data-page-node-id="lKTvcWhTEWxNQ3WOKU1Cxi">lint, format, hooks, secret scanning</div>
-  </div>
-</div>
+      <h2 data-page-node-id="QFt2gAKPIZQL53n4ytVCQd">Critical findings</h2>
 
-<h2 data-page-node-id="QFt2gAKPIZQL53n4ytVCQd">Critical findings</h2>
+      <div class="finding crit" data-page-node-id="BNZyVxRQCL3yEHx1lqdOHb">
+        <div class="tagrow" data-page-node-id="U5adBdVkAkQ4ItDKlt2VEP">
+          <span class="tag crit" data-page-node-id="gbyntLXFvdpF3Y76vdWf0V">Critical</span>
+          <span class="tag plain" data-page-node-id="zDEvaktRbvx4KwLJV8f644">Security</span>
+        </div>
+        <h3 data-page-node-id="6xzpctWHNviePosi109yyn">
+          The product is not in version control — and the home directory is
+        </h3>
+        <p data-page-node-id="yolE2ZyRJpiXlujiNbhuRL">
+          The git repository root is the user's
+          <strong data-page-node-id="QLS880shwDRwdOhtwvruZm">home directory</strong>, not the
+          project. It tracks 50,215 files — caches, AI agent state, package stores — and
+          <strong data-page-node-id="qIH1rZ9qp907iTsE2FvNNY"
+            >not one file from the actual product</strong
+          >.
+        </p>
+        <ul data-page-node-id="Q5xp5dt24rgSBbV1JNFJqM">
+          <li data-page-node-id="nDJRyvwekejh1P2tFlQDtA">No history, so no rollback.</li>
+          <li data-page-node-id="tdg5vf9rLAzabn35bInUOI">No diff, so no code review.</li>
+          <li data-page-node-id="MGWkCy1UwfBZnlDSm4k3AN">
+            No CI — a workflow file at the project root would simply be ignored.
+          </li>
+        </ul>
+        <div class="callout danger" data-page-node-id="brG5FhaJVDqToDUWm6AnCY">
+          <strong data-page-node-id="aBgy7iOXHkA8fVmt19Qd99"
+            >This is the one thing to fix first.</strong
+          >
+          Nothing else on this page works properly until the project has its own repository.
+        </div>
+      </div>
 
-<div class="finding crit" data-page-node-id="BNZyVxRQCL3yEHx1lqdOHb">
-  <div class="tagrow" data-page-node-id="U5adBdVkAkQ4ItDKlt2VEP">
-    <span class="tag crit" data-page-node-id="gbyntLXFvdpF3Y76vdWf0V">Critical</span>
-    <span class="tag plain" data-page-node-id="zDEvaktRbvx4KwLJV8f644">Security</span>
-  </div>
-  <h3 data-page-node-id="6xzpctWHNviePosi109yyn">The product is not in version control — and the home directory is</h3>
-  <p data-page-node-id="yolE2ZyRJpiXlujiNbhuRL">
-    The git repository root is the user's <strong data-page-node-id="QLS880shwDRwdOhtwvruZm">home directory</strong>, not the project.
-    It tracks 50,215 files — caches, AI agent state, package stores — and
-    <strong data-page-node-id="qIH1rZ9qp907iTsE2FvNNY">not one file from the actual product</strong>.
-  </p>
-  <ul data-page-node-id="Q5xp5dt24rgSBbV1JNFJqM">
-    <li data-page-node-id="nDJRyvwekejh1P2tFlQDtA">No history, so no rollback.</li>
-    <li data-page-node-id="tdg5vf9rLAzabn35bInUOI">No diff, so no code review.</li>
-    <li data-page-node-id="MGWkCy1UwfBZnlDSm4k3AN">No CI — a workflow file at the project root would simply be ignored.</li>
-  </ul>
-  <div class="callout danger" data-page-node-id="brG5FhaJVDqToDUWm6AnCY">
-    <strong data-page-node-id="aBgy7iOXHkA8fVmt19Qd99">This is the one thing to fix first.</strong> Nothing else on this page works
-    properly until the project has its own repository.
-  </div>
-</div>
+      <div class="finding crit" data-page-node-id="daLPFECtIru0NVZdivVsJd">
+        <div class="tagrow" data-page-node-id="W1RXFBUmdtiBJe6bX0mxCw">
+          <span class="tag crit" data-page-node-id="bMpqGc74B25VeHZDHBFJ3p">Critical</span>
+          <span class="tag plain" data-page-node-id="rHmnxE34UHImBGbeUE67Xz">Security</span>
+        </div>
+        <h3 data-page-node-id="CbkOGRpqIvfKpEKmc4sKBd">
+          Credentials are committed to a repository with a GitHub remote
+        </h3>
+        <p data-page-node-id="opId6T0AUjdaUcWophrfKr">
+          These are tracked in a repository pushed to
+          <code data-page-node-id="FhNVFnWvJsfcFfFEdtlNfC">github.com/Enjoyer09/AZERIGIS</code>:
+        </p>
+        <div class="tbl-wrap" data-page-node-id="xdGEC2CjxTf98HGtCX2BU2">
+          <table data-page-node-id="dB4rhIOCYh3FIlOmh89ASk">
+            <thead data-page-node-id="awPdBP1aKZsT8StIZFUrrS">
+              <tr data-page-node-id="chBnlbAWpUE8AxzAT3OHWb">
+                <th data-page-node-id="UWLELvDtjjbgeTveMkPcPr">Path</th>
+                <th data-page-node-id="gBHkHEXIPAJ2B8O84pYbTs">What it is</th>
+              </tr>
+            </thead>
+            <tbody data-page-node-id="4CheVi9rOYKFPzXsQuycMf">
+              <tr data-page-node-id="6tVxbQDXUfNkvVQRog4dQO">
+                <td data-page-node-id="QPYl9iHXcJlTC3oCmb6Dma">
+                  <code data-page-node-id="eNTF6GH261HcMfPHnkvOOJ">.ssh/id_ed25519</code>
+                </td>
+                <td data-page-node-id="G1KBSjWepH3jj3Vb4imdA1">
+                  <strong data-page-node-id="szDmEcPxe6bD5tCEblR4Z2">An SSH private key</strong>
+                </td>
+              </tr>
+              <tr data-page-node-id="sgYA9FJV4eLDwZ0VlxFtsO">
+                <td data-page-node-id="zX5W0tBiLJFSypvjCBPCYA">
+                  <code data-page-node-id="cpfMhVb8c5NPcA7EDmbtJL">.railway/config.json</code>
+                </td>
+                <td data-page-node-id="0uLrZsCgSA1GAZ8P8rXdd6">
+                  Railway credentials — this project deploys on Railway
+                </td>
+              </tr>
+              <tr data-page-node-id="M4ALBTsUF82JWgoS0LiAjI">
+                <td data-page-node-id="fYi0MnRF3fQBcF0EBaTtty">
+                  <code data-page-node-id="S7mf60Ur4kXAAZb6keDYOr">.aws/sso/cache/…</code>
+                </td>
+                <td data-page-node-id="6FgFDhLF7rzD4AOlAt68tm">AWS SSO token</td>
+              </tr>
+              <tr data-page-node-id="pegFMFshzgKUJCAXggXqHk">
+                <td data-page-node-id="C7ftJmMaG6C2HknGGBW7NA">
+                  <code data-page-node-id="xKznEtP2eVxF3vBJFNd3XW">.docker/config.json</code>
+                </td>
+                <td data-page-node-id="aWBlAp8Zw8OUzRRhCyf9eN">Docker registry credentials</td>
+              </tr>
+              <tr data-page-node-id="khyA57UB4JZpeDWioU5M7r">
+                <td data-page-node-id="TAtM377KJlDnG0E231mdgk">
+                  <code data-page-node-id="Hyt4wQAcGre3M6dyZkW55P">.config/gh/</code>
+                </td>
+                <td data-page-node-id="mhdmRhLjG4FX7bndCBhGFV">GitHub CLI configuration</td>
+              </tr>
+              <tr data-page-node-id="OMhEO7ArADhyULgBynzGkt">
+                <td data-page-node-id="5O1vF5QHBn8XYwtrMCL8Ey">
+                  <code data-page-node-id="8awrtyVJ2QjKdVEMdgpzlc">.claude.json</code>,
+                  <code data-page-node-id="2n68H1YQTHZAadb71LeIQ5">.gemini/</code>
+                </td>
+                <td data-page-node-id="pE5Vc754U0TbYJfPelDb1k">
+                  AI agent configs — routinely hold API keys
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout warn" data-page-node-id="he4BBAStbZdPiwSQxixkIc">
+          The repository is
+          <strong data-page-node-id="bI75B5VhrvI5XK3jaBohrC">private</strong> (verified), which is
+          the only reason this is not already an incident. That protection disappears the moment it
+          is made public, forked, or a collaborator's account is compromised.
+          <br data-page-node-id="38r4qnPDS9REp9MTtHHd5r" /><br
+            data-page-node-id="U2mwBmPuHjTSoDPcYvOUAJ"
+          />
+          <strong data-page-node-id="bF4X0huwpX0Pqa3rDq3yHu"
+            >Rotate every one of these credentials, then purge them from history.</strong
+          >
+          Deleting the files in a new commit is not enough — history is permanent.
+          <br data-page-node-id="jpS2igZ3oKV3wRgQl9GGri" /><br
+            data-page-node-id="HoRjKlyML9a5BjumcAxN77"
+          />
+          The good news: a scan of first-party source found
+          <strong data-page-node-id="No5WvGNYxrCsTeewyEllBg">zero</strong> hardcoded credentials.
+          The leak is entirely from the home-directory repository.
+        </div>
+      </div>
 
-<div class="finding crit" data-page-node-id="daLPFECtIru0NVZdivVsJd">
-  <div class="tagrow" data-page-node-id="W1RXFBUmdtiBJe6bX0mxCw">
-    <span class="tag crit" data-page-node-id="bMpqGc74B25VeHZDHBFJ3p">Critical</span>
-    <span class="tag plain" data-page-node-id="rHmnxE34UHImBGbeUE67Xz">Security</span>
-  </div>
-  <h3 data-page-node-id="CbkOGRpqIvfKpEKmc4sKBd">Credentials are committed to a repository with a GitHub remote</h3>
-  <p data-page-node-id="opId6T0AUjdaUcWophrfKr">These are tracked in a repository pushed to <code data-page-node-id="FhNVFnWvJsfcFfFEdtlNfC">github.com/Enjoyer09/AZERIGIS</code>:</p>
-  <div class="tbl-wrap" data-page-node-id="xdGEC2CjxTf98HGtCX2BU2">
-    <table data-page-node-id="dB4rhIOCYh3FIlOmh89ASk">
-      <thead data-page-node-id="awPdBP1aKZsT8StIZFUrrS"><tr data-page-node-id="chBnlbAWpUE8AxzAT3OHWb"><th data-page-node-id="UWLELvDtjjbgeTveMkPcPr">Path</th><th data-page-node-id="gBHkHEXIPAJ2B8O84pYbTs">What it is</th></tr></thead>
-      <tbody data-page-node-id="4CheVi9rOYKFPzXsQuycMf">
-        <tr data-page-node-id="6tVxbQDXUfNkvVQRog4dQO"><td data-page-node-id="QPYl9iHXcJlTC3oCmb6Dma"><code data-page-node-id="eNTF6GH261HcMfPHnkvOOJ">.ssh/id_ed25519</code></td><td data-page-node-id="G1KBSjWepH3jj3Vb4imdA1"><strong data-page-node-id="szDmEcPxe6bD5tCEblR4Z2">An SSH private key</strong></td></tr>
-        <tr data-page-node-id="sgYA9FJV4eLDwZ0VlxFtsO"><td data-page-node-id="zX5W0tBiLJFSypvjCBPCYA"><code data-page-node-id="cpfMhVb8c5NPcA7EDmbtJL">.railway/config.json</code></td><td data-page-node-id="0uLrZsCgSA1GAZ8P8rXdd6">Railway credentials — this project deploys on Railway</td></tr>
-        <tr data-page-node-id="M4ALBTsUF82JWgoS0LiAjI"><td data-page-node-id="fYi0MnRF3fQBcF0EBaTtty"><code data-page-node-id="S7mf60Ur4kXAAZb6keDYOr">.aws/sso/cache/…</code></td><td data-page-node-id="6FgFDhLF7rzD4AOlAt68tm">AWS SSO token</td></tr>
-        <tr data-page-node-id="pegFMFshzgKUJCAXggXqHk"><td data-page-node-id="C7ftJmMaG6C2HknGGBW7NA"><code data-page-node-id="xKznEtP2eVxF3vBJFNd3XW">.docker/config.json</code></td><td data-page-node-id="aWBlAp8Zw8OUzRRhCyf9eN">Docker registry credentials</td></tr>
-        <tr data-page-node-id="khyA57UB4JZpeDWioU5M7r"><td data-page-node-id="TAtM377KJlDnG0E231mdgk"><code data-page-node-id="Hyt4wQAcGre3M6dyZkW55P">.config/gh/</code></td><td data-page-node-id="mhdmRhLjG4FX7bndCBhGFV">GitHub CLI configuration</td></tr>
-        <tr data-page-node-id="OMhEO7ArADhyULgBynzGkt"><td data-page-node-id="5O1vF5QHBn8XYwtrMCL8Ey"><code data-page-node-id="8awrtyVJ2QjKdVEMdgpzlc">.claude.json</code>, <code data-page-node-id="2n68H1YQTHZAadb71LeIQ5">.gemini/</code></td><td data-page-node-id="pE5Vc754U0TbYJfPelDb1k">AI agent configs — routinely hold API keys</td></tr>
-      </tbody>
-    </table>
-  </div>
-  <div class="callout warn" data-page-node-id="he4BBAStbZdPiwSQxixkIc">
-    The repository is <strong data-page-node-id="bI75B5VhrvI5XK3jaBohrC">private</strong> (verified), which is the only reason this is not
-    already an incident. That protection disappears the moment it is made public, forked, or a
-    collaborator's account is compromised.
-    <br  data-page-node-id="38r4qnPDS9REp9MTtHHd5r"/><br  data-page-node-id="U2mwBmPuHjTSoDPcYvOUAJ"/>
-    <strong data-page-node-id="bF4X0huwpX0Pqa3rDq3yHu">Rotate every one of these credentials, then purge them from history.</strong>
-    Deleting the files in a new commit is not enough — history is permanent.
-    <br  data-page-node-id="jpS2igZ3oKV3wRgQl9GGri"/><br  data-page-node-id="HoRjKlyML9a5BjumcAxN77"/>
-    The good news: a scan of first-party source found <strong data-page-node-id="No5WvGNYxrCsTeewyEllBg">zero</strong> hardcoded
-    credentials. The leak is entirely from the home-directory repository.
-  </div>
-</div>
+      <div class="finding crit" data-page-node-id="Nu6dz7NEFkUcdicXIArQQT">
+        <div class="tagrow" data-page-node-id="ZZlWTMam1xjCsJxkU7xJVG">
+          <span class="tag crit" data-page-node-id="YuxyTuMLw1N20SgUJEiwj3">Critical</span>
+          <span class="tag plain" data-page-node-id="UO1vHwN3TXDrNOtB4kehDV">Dead feature</span>
+        </div>
+        <h3 data-page-node-id="tLQTDxnSAFpA5WHPX8KcFL">
+          A core feature has never worked: acknowledging a task from Telegram
+        </h3>
+        <p data-page-node-id="FF6HeCRnOq0ocApQb1dlWT">
+          The Telegram webhook built the acting user as a plain string and passed it where an
+          authenticated principal object was required. The authorisation layer saw an undefined user
+          and rejected
+          <strong data-page-node-id="aw1vUp9ghpmiq2uOGG4adz">every single call</strong> with 403.
+        </p>
+        <p data-page-node-id="H8W7DoKbE1NkCAaMXRNW8k">
+          The compiler reported this on two lines. Nothing ran the compiler, so nobody knew.
+        </p>
+        <div class="callout danger" data-page-node-id="Qmfs2wX2Kqir4U2g3pQuY9">
+          <strong data-page-node-id="38VirbXYs0SxAqDygpaV67"
+            >And it was also an authorisation hole.</strong
+          >
+          The actor identity came from the request body, which an attacker controls. Any Telegram
+          account that knew a task id could have acted on it, and written itself into the audit log.
+          <br data-page-node-id="Vr9pAkOzGFLbSeHFawxP4L" /><br
+            data-page-node-id="l9JpBJtGVxx3up3EkpnDD2"
+          />
+          <strong data-page-node-id="tibQjlsShnS5n9dnxjHLW2">Fixed.</strong> Identity now comes from
+          the Telegram-to-user mapping that already existed and was simply never called. An
+          unregistered account is refused.
+        </div>
+      </div>
 
-<div class="finding crit" data-page-node-id="Nu6dz7NEFkUcdicXIArQQT">
-  <div class="tagrow" data-page-node-id="ZZlWTMam1xjCsJxkU7xJVG">
-    <span class="tag crit" data-page-node-id="YuxyTuMLw1N20SgUJEiwj3">Critical</span>
-    <span class="tag plain" data-page-node-id="UO1vHwN3TXDrNOtB4kehDV">Dead feature</span>
-  </div>
-  <h3 data-page-node-id="tLQTDxnSAFpA5WHPX8KcFL">A core feature has never worked: acknowledging a task from Telegram</h3>
-  <p data-page-node-id="FF6HeCRnOq0ocApQb1dlWT">
-    The Telegram webhook built the acting user as a plain string and passed it where an
-    authenticated principal object was required. The authorisation layer saw an undefined user
-    and rejected <strong data-page-node-id="aw1vUp9ghpmiq2uOGG4adz">every single call</strong> with 403.
-  </p>
-  <p data-page-node-id="H8W7DoKbE1NkCAaMXRNW8k">
-    The compiler reported this on two lines. Nothing ran the compiler, so nobody knew.
-  </p>
-  <div class="callout danger" data-page-node-id="Qmfs2wX2Kqir4U2g3pQuY9">
-    <strong data-page-node-id="38VirbXYs0SxAqDygpaV67">And it was also an authorisation hole.</strong> The actor identity came from the
-    request body, which an attacker controls. Any Telegram account that knew a task id could
-    have acted on it, and written itself into the audit log.
-    <br  data-page-node-id="Vr9pAkOzGFLbSeHFawxP4L"/><br  data-page-node-id="l9JpBJtGVxx3up3EkpnDD2"/>
-    <strong data-page-node-id="tibQjlsShnS5n9dnxjHLW2">Fixed.</strong> Identity now comes from the Telegram-to-user mapping that already
-    existed and was simply never called. An unregistered account is refused.
-  </div>
-</div>
+      <div class="finding high" data-page-node-id="pXb0NcZFMgSRnAXCDL5DBV">
+        <div class="tagrow" data-page-node-id="RDFXk1uhnnelabeYG87MOz">
+          <span class="tag high" data-page-node-id="748vPSwBdkcluMzEiLH0X2">High</span>
+          <span class="tag plain" data-page-node-id="G4ccGPLisNEO59EekMtdlm">Build integrity</span>
+        </div>
+        <h3 data-page-node-id="DQAkVyRIChDVTOsIX98RsN">
+          The API was compiling against a stale build artefact
+        </h3>
+        <p data-page-node-id="d37QLokyqlYaYlDlluDU4E">
+          The API resolves its own workspace packages to
+          <em data-page-node-id="Wl5qlOoXo9sCO6UEWUtEQZ">compiled</em> declaration files, not
+          source. The compiled copy predated four methods, so the compiler believed they did not
+          exist — producing 8 of the 19 errors out of thin air. Rebuilding made them vanish.
+        </p>
+        <p data-page-node-id="uy5iaxUhoO5yhvJTRPlWgw">
+          The real problem is that nothing enforces build order. The permanent fix is TypeScript
+          <strong data-page-node-id="TFcRqiFuLLuK9wUPuk7Vbe">project references</strong>, which
+          makes the compiler refuse to use a stale declaration.
+        </p>
+      </div>
 
-<div class="finding high" data-page-node-id="pXb0NcZFMgSRnAXCDL5DBV">
-  <div class="tagrow" data-page-node-id="RDFXk1uhnnelabeYG87MOz">
-    <span class="tag high" data-page-node-id="748vPSwBdkcluMzEiLH0X2">High</span>
-    <span class="tag plain" data-page-node-id="G4ccGPLisNEO59EekMtdlm">Build integrity</span>
-  </div>
-  <h3 data-page-node-id="DQAkVyRIChDVTOsIX98RsN">The API was compiling against a stale build artefact</h3>
-  <p data-page-node-id="d37QLokyqlYaYlDlluDU4E">
-    The API resolves its own workspace packages to <em data-page-node-id="Wl5qlOoXo9sCO6UEWUtEQZ">compiled</em> declaration files, not
-    source. The compiled copy predated four methods, so the compiler believed they did not
-    exist — producing 8 of the 19 errors out of thin air. Rebuilding made them vanish.
-  </p>
-  <p data-page-node-id="uy5iaxUhoO5yhvJTRPlWgw">
-    The real problem is that nothing enforces build order. The permanent fix is TypeScript
-    <strong data-page-node-id="TFcRqiFuLLuK9wUPuk7Vbe">project references</strong>, which makes the compiler refuse to use a stale
-    declaration.
-  </p>
-</div>
+      <div class="finding high" data-page-node-id="zuc3j7t5RV6PQak71iePeC">
+        <div class="tagrow" data-page-node-id="ETvVy07BDGE6ix4P5X4j3l">
+          <span class="tag high" data-page-node-id="penxohAO9X5Smw9U8RHBLX">High</span>
+          <span class="tag plain" data-page-node-id="1Lnx7tzXerVtDBTKskufEj">Process</span>
+        </div>
+        <h3 data-page-node-id="dVFZ6j7SMwQ3boDvkaahUq">
+          Tests were never type-checked, and that hid fourteen errors
+        </h3>
+        <p data-page-node-id="1yAFLjCHwIanahw2HgaJgE">
+          The API's TypeScript config included only
+          <code data-page-node-id="IqHM6dZaEwcus82OXri1E1">src/**</code>. The test directory was
+          therefore invisible to the compiler — which is how fourteen call sites that omitted a
+          required argument survived unnoticed.
+        </p>
+        <div class="tbl-wrap" data-page-node-id="MWrS0RJDR6UFkytOXgQbbL">
+          <table data-page-node-id="6kfC4NtY0lS8Fv1B3rhHkD">
+            <thead data-page-node-id="z2CfBiHxEFz3B8fO62csFF">
+              <tr data-page-node-id="frqTTN0H4EpvBvqCrc2NDE">
+                <th data-page-node-id="Cmrc1bHoOrijoe6LF8wyW1">Suite</th>
+                <th data-page-node-id="ndi4mQugvlbfsUzE30onHr">Was</th>
+                <th data-page-node-id="BmwXPOFMFbiImmoRkoF7lF">Now</th>
+              </tr>
+            </thead>
+            <tbody data-page-node-id="G1LoeAA7MHL6vQRoNHp7Jy">
+              <tr data-page-node-id="jrcBxTH4ipHxiUq1kZpULl">
+                <td data-page-node-id="dJMk45LwP9JLgNS3Av8eMV">Core engine</td>
+                <td data-page-node-id="9kDUi2IYTatB2UVYPOEBRF">aborted after 2 of 19 tests</td>
+                <td data-page-node-id="5eEDkJrwwrD6vJZaTZK0C7">
+                  <strong data-page-node-id="jfGlhrBNHNZcU1udwpJG70">19 / 19</strong>
+                </td>
+              </tr>
+              <tr data-page-node-id="2ZJiGCalFL09proWh09FCp">
+                <td data-page-node-id="3tmP0xNRBZEs0wAaibCWUI">Phase 2</td>
+                <td data-page-node-id="7h4ugwoZKs3QD2u1Qe5ROd">1 test could never pass</td>
+                <td data-page-node-id="u3Y7NljFkbknRhGGBRFrGw">
+                  <strong data-page-node-id="zOkYihCXZZVXB2EJ9aLBN8">14 / 14</strong>
+                </td>
+              </tr>
+              <tr data-page-node-id="AkBZEjnN2IkgHMhOhc0H8G">
+                <td data-page-node-id="w17Wkzn4JDQAmLHpg7jBrD">AI vision</td>
+                <td data-page-node-id="cVzZTNg6dewhrjqV3zUg5P">flaky under load</td>
+                <td data-page-node-id="mcrkI7RXF7R6CoJp79226T">
+                  <strong data-page-node-id="0TejaGaxKf54Erc6DaqoUK">16 / 16</strong>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout" data-page-node-id="qdMeXPsqlgPl0Pxi1clIKl">
+          Three of those failures were
+          <em data-page-node-id="DFIsnnNpUpbNSAua5bGyTo">impossible</em> tests — they asserted
+          behaviour that the code could not produce. A test that cannot pass is worse than no test:
+          it teaches the team to ignore red.
+        </div>
+      </div>
 
-<div class="finding high" data-page-node-id="zuc3j7t5RV6PQak71iePeC">
-  <div class="tagrow" data-page-node-id="ETvVy07BDGE6ix4P5X4j3l">
-    <span class="tag high" data-page-node-id="penxohAO9X5Smw9U8RHBLX">High</span>
-    <span class="tag plain" data-page-node-id="1Lnx7tzXerVtDBTKskufEj">Process</span>
-  </div>
-  <h3 data-page-node-id="dVFZ6j7SMwQ3boDvkaahUq">Tests were never type-checked, and that hid fourteen errors</h3>
-  <p data-page-node-id="1yAFLjCHwIanahw2HgaJgE">
-    The API's TypeScript config included only <code data-page-node-id="IqHM6dZaEwcus82OXri1E1">src/**</code>. The test directory was
-    therefore invisible to the compiler — which is how fourteen call sites that omitted a
-    required argument survived unnoticed.
-  </p>
-  <div class="tbl-wrap" data-page-node-id="MWrS0RJDR6UFkytOXgQbbL">
-    <table data-page-node-id="6kfC4NtY0lS8Fv1B3rhHkD">
-      <thead data-page-node-id="z2CfBiHxEFz3B8fO62csFF"><tr data-page-node-id="frqTTN0H4EpvBvqCrc2NDE"><th data-page-node-id="Cmrc1bHoOrijoe6LF8wyW1">Suite</th><th data-page-node-id="ndi4mQugvlbfsUzE30onHr">Was</th><th data-page-node-id="BmwXPOFMFbiImmoRkoF7lF">Now</th></tr></thead>
-      <tbody data-page-node-id="G1LoeAA7MHL6vQRoNHp7Jy">
-        <tr data-page-node-id="jrcBxTH4ipHxiUq1kZpULl"><td data-page-node-id="dJMk45LwP9JLgNS3Av8eMV">Core engine</td><td data-page-node-id="9kDUi2IYTatB2UVYPOEBRF">aborted after 2 of 19 tests</td><td data-page-node-id="5eEDkJrwwrD6vJZaTZK0C7"><strong data-page-node-id="jfGlhrBNHNZcU1udwpJG70">19 / 19</strong></td></tr>
-        <tr data-page-node-id="2ZJiGCalFL09proWh09FCp"><td data-page-node-id="3tmP0xNRBZEs0wAaibCWUI">Phase 2</td><td data-page-node-id="7h4ugwoZKs3QD2u1Qe5ROd">1 test could never pass</td><td data-page-node-id="u3Y7NljFkbknRhGGBRFrGw"><strong data-page-node-id="zOkYihCXZZVXB2EJ9aLBN8">14 / 14</strong></td></tr>
-        <tr data-page-node-id="AkBZEjnN2IkgHMhOhc0H8G"><td data-page-node-id="w17Wkzn4JDQAmLHpg7jBrD">AI vision</td><td data-page-node-id="cVzZTNg6dewhrjqV3zUg5P">flaky under load</td><td data-page-node-id="mcrkI7RXF7R6CoJp79226T"><strong data-page-node-id="0TejaGaxKf54Erc6DaqoUK">16 / 16</strong></td></tr>
-      </tbody>
-    </table>
-  </div>
-  <div class="callout" data-page-node-id="qdMeXPsqlgPl0Pxi1clIKl">
-    Three of those failures were <em data-page-node-id="DFIsnnNpUpbNSAua5bGyTo">impossible</em> tests — they asserted behaviour that the
-    code could not produce. A test that cannot pass is worse than no test: it teaches the team
-    to ignore red.
-  </div>
-</div>
+      <h2 data-page-node-id="TeG5O6uv8LUOolnzUdaJSc">Security gaps closed in code</h2>
 
-<h2 data-page-node-id="TeG5O6uv8LUOolnzUdaJSc">Security gaps closed in code</h2>
+      <div class="finding ok" data-page-node-id="GPf9WXr1puZJhVnETpVXR6">
+        <div class="tagrow" data-page-node-id="7ypaf9EVJupYvJ1PCWQFkf">
+          <span class="tag ok" data-page-node-id="6yCw9Ye7ZPJbYaOCQldo7V">Fixed</span>
+          <span class="tag plain" data-page-node-id="lhXInGjdzi4CSOT07XuIZH"
+            >Webhook authentication</span
+          >
+        </div>
+        <h3 data-page-node-id="SwC8pb1mpxbhkdYZ6dl17m">
+          The Telegram webhook now verifies its sender
+        </h3>
+        <p data-page-node-id="jgVbPZWDobb23ItyrOES4u">
+          The endpoint is reachable by anyone who knows the URL, and it can move a task through its
+          state machine and write to the audit log. It now requires Telegram's secret-token header,
+          compared in <strong data-page-node-id="ANBErEm8viIBSBbOTjvYKu">constant time</strong> so
+          the secret cannot be recovered by measuring response times.
+        </p>
+        <div class="callout" data-page-node-id="TRCRHhjtwSbemddFt2Ql0P">
+          <strong data-page-node-id="SNq5wHcSaYGC12O35f2IqD">It fails closed.</strong> If the secret
+          is not configured in production, every request is refused rather than accepted unverified.
+          "Secure when configured" is how a misconfiguration becomes a breach.
+        </div>
+        <p style="margin-top: 13px" data-page-node-id="pKG0tV7aqGKghcBaFb3616">
+          <strong data-page-node-id="RYsEHAQQEb8ZdOLHjHRsaQ">Six tests prove it:</strong> forged
+          token rejected (401) · task state provably unchanged · missing header rejected · correct
+          token accepted · unregistered Telegram account refused (403) · production-without-secret
+          failing closed (503).
+        </p>
+      </div>
 
-<div class="finding ok" data-page-node-id="GPf9WXr1puZJhVnETpVXR6">
-  <div class="tagrow" data-page-node-id="7ypaf9EVJupYvJ1PCWQFkf">
-    <span class="tag ok" data-page-node-id="6yCw9Ye7ZPJbYaOCQldo7V">Fixed</span>
-    <span class="tag plain" data-page-node-id="lhXInGjdzi4CSOT07XuIZH">Webhook authentication</span>
-  </div>
-  <h3 data-page-node-id="SwC8pb1mpxbhkdYZ6dl17m">The Telegram webhook now verifies its sender</h3>
-  <p data-page-node-id="jgVbPZWDobb23ItyrOES4u">
-    The endpoint is reachable by anyone who knows the URL, and it can move a task
-    through its state machine and write to the audit log. It now requires Telegram's
-    secret-token header, compared in <strong data-page-node-id="ANBErEm8viIBSBbOTjvYKu">constant time</strong> so the secret cannot be
-    recovered by measuring response times.
-  </p>
-  <div class="callout" data-page-node-id="TRCRHhjtwSbemddFt2Ql0P">
-    <strong data-page-node-id="SNq5wHcSaYGC12O35f2IqD">It fails closed.</strong> If the secret is not configured in production, every
-    request is refused rather than accepted unverified. "Secure when configured" is how a
-    misconfiguration becomes a breach.
-  </div>
-  <p style="margin-top:13px" data-page-node-id="pKG0tV7aqGKghcBaFb3616"><strong data-page-node-id="RYsEHAQQEb8ZdOLHjHRsaQ">Six tests prove it:</strong> forged token rejected (401) · task state provably unchanged · missing header rejected · correct token accepted · unregistered Telegram account refused (403) · production-without-secret failing closed (503).</p>
-</div>
+      <div class="finding ok" data-page-node-id="6vmtjywmgwDd78lX4pPd10">
+        <div class="tagrow" data-page-node-id="AFzmI6e8xZw5BMPM1RM5QU">
+          <span class="tag ok" data-page-node-id="8yBcL0kGCbG6gZyRk9lElD">Fixed</span>
+          <span class="tag plain" data-page-node-id="5gTVonqPme8PJuMpGnSP5q">CORS</span>
+        </div>
+        <h3 data-page-node-id="eDmGADJtW0mq5j45BPrxEr">
+          The API no longer accepts requests from any website
+        </h3>
+        <p data-page-node-id="DpZU1r3TP2qF4EdiqpAsYg">
+          It previously answered
+          <code data-page-node-id="oBJI0Nuyniq9Pympla7a4u">origin: '*'</code>. With bearer-token
+          authorisation that means any page a signed-in user visits can call the API as them and
+          read the responses — the token never has to leak.
+        </p>
+        <p data-page-node-id="fOfZ9HFULYTk5BBFdTAcEI">
+          It is now an explicit allow-list. A wildcard value is actively rejected, and production
+          with no configured list refuses cross-origin requests and says so loudly in the log.
+        </p>
+      </div>
 
-<div class="finding ok" data-page-node-id="6vmtjywmgwDd78lX4pPd10">
-  <div class="tagrow" data-page-node-id="AFzmI6e8xZw5BMPM1RM5QU">
-    <span class="tag ok" data-page-node-id="8yBcL0kGCbG6gZyRk9lElD">Fixed</span>
-    <span class="tag plain" data-page-node-id="5gTVonqPme8PJuMpGnSP5q">CORS</span>
-  </div>
-  <h3 data-page-node-id="eDmGADJtW0mq5j45BPrxEr">The API no longer accepts requests from any website</h3>
-  <p data-page-node-id="DpZU1r3TP2qF4EdiqpAsYg">
-    It previously answered <code data-page-node-id="oBJI0Nuyniq9Pympla7a4u">origin: '*'</code>. With bearer-token authorisation that
-    means any page a signed-in user visits can call the API as them and read the responses —
-    the token never has to leak.
-  </p>
-  <p data-page-node-id="fOfZ9HFULYTk5BBFdTAcEI">
-    It is now an explicit allow-list. A wildcard value is actively rejected, and production
-    with no configured list refuses cross-origin requests and says so loudly in the log.
-  </p>
-</div>
+      <div class="finding ok" data-page-node-id="uFECrcBR3F0BRtieouUJNv">
+        <div class="tagrow" data-page-node-id="vn5IfQyOOe58AFYyDKYGxH">
+          <span class="tag ok" data-page-node-id="umsGfLUV5oqd5Pyb1eVN7U">Fixed</span>
+          <span class="tag plain" data-page-node-id="xSKWHPTgHNBFhA3ALfAumO">Identity</span>
+        </div>
+        <h3 data-page-node-id="kjsm3ppv2zXcRNiQqiUcw3">
+          A request can no longer state who it is from
+        </h3>
+        <p data-page-node-id="HObDP8KAQRSgE2CWZpTRlI">
+          The evidence-submission request carried a
+          <code data-page-node-id="sXzEKSCQeiip0udxS01IO7">submittedById</code> field. The service
+          ignored it and used the authenticated principal — but it was a trap: it invited exactly
+          the mistake that caused the Telegram bug, and any future code that trusted it would be
+          identity spoofing.
+        </p>
+        <p data-page-node-id="HU3hUafCv91rcTmA5R93Kw">
+          Removed from the request DTO, along with all ten call sites. The stored record keeps the
+          field, because recording who actually acted is necessary for the audit trail. The rule is
+          now enforced by the type system.
+        </p>
+      </div>
 
-<div class="finding ok" data-page-node-id="uFECrcBR3F0BRtieouUJNv">
-  <div class="tagrow" data-page-node-id="vn5IfQyOOe58AFYyDKYGxH">
-    <span class="tag ok" data-page-node-id="umsGfLUV5oqd5Pyb1eVN7U">Fixed</span>
-    <span class="tag plain" data-page-node-id="xSKWHPTgHNBFhA3ALfAumO">Identity</span>
-  </div>
-  <h3 data-page-node-id="kjsm3ppv2zXcRNiQqiUcw3">A request can no longer state who it is from</h3>
-  <p data-page-node-id="HObDP8KAQRSgE2CWZpTRlI">
-    The evidence-submission request carried a <code data-page-node-id="sXzEKSCQeiip0udxS01IO7">submittedById</code> field. The service
-    ignored it and used the authenticated principal — but it was a trap: it invited exactly
-    the mistake that caused the Telegram bug, and any future code that trusted it would be
-    identity spoofing.
-  </p>
-  <p data-page-node-id="HU3hUafCv91rcTmA5R93Kw">
-    Removed from the request DTO, along with all ten call sites. The stored record keeps the
-    field, because recording who actually acted is necessary for the audit trail. The rule is
-    now enforced by the type system.
-  </p>
-</div>
+      <div class="finding ok" data-page-node-id="RAy4egOoOUIBIEaPccb9xd">
+        <div class="tagrow" data-page-node-id="L7z9k78Xq61tgWlSshto60">
+          <span class="tag ok" data-page-node-id="DJbrfsREV6zOXxazBSG5tD">Fixed</span>
+          <span class="tag plain" data-page-node-id="eluTv9wAx9ZsAlOEGQ1FFi">Build integrity</span>
+        </div>
+        <h3 data-page-node-id="Dhhbad9857PmUN2CDOb5je">
+          Stale build artefacts can no longer be compiled against
+        </h3>
+        <p data-page-node-id="UuDsiBBuVVmNHgQM5HtwsS">
+          The API now uses TypeScript
+          <strong data-page-node-id="IS6NMchKMtpl7Ws2YCcB6D">project references</strong>. The
+          compiler refuses to use a declaration file that predates the source it describes, which
+          permanently closes the class of bug described above.
+        </p>
+        <p data-page-node-id="HvWXrpS8ZCsGIM01PHk0H1">
+          Separately, strict type checking is now on for the API. It turned out to cost
+          <strong data-page-node-id="2TQcSfAIMJSdjms5dX9A5B">nothing</strong> — zero new errors. The
+          code was already strict-clean; the flag was unnecessary caution that had been suppressing
+          future guarantees.
+        </p>
+      </div>
 
-<div class="finding ok" data-page-node-id="RAy4egOoOUIBIEaPccb9xd">
-  <div class="tagrow" data-page-node-id="L7z9k78Xq61tgWlSshto60">
-    <span class="tag ok" data-page-node-id="DJbrfsREV6zOXxazBSG5tD">Fixed</span>
-    <span class="tag plain" data-page-node-id="eluTv9wAx9ZsAlOEGQ1FFi">Build integrity</span>
-  </div>
-  <h3 data-page-node-id="Dhhbad9857PmUN2CDOb5je">Stale build artefacts can no longer be compiled against</h3>
-  <p data-page-node-id="UuDsiBBuVVmNHgQM5HtwsS">
-    The API now uses TypeScript <strong data-page-node-id="IS6NMchKMtpl7Ws2YCcB6D">project references</strong>. The compiler refuses to
-    use a declaration file that predates the source it describes, which permanently closes the
-    class of bug described above.
-  </p>
-  <p data-page-node-id="HvWXrpS8ZCsGIM01PHk0H1">
-    Separately, strict type checking is now on for the API. It turned out to cost
-    <strong data-page-node-id="2TQcSfAIMJSdjms5dX9A5B">nothing</strong> — zero new errors. The code was already strict-clean; the flag
-    was unnecessary caution that had been suppressing future guarantees.
-  </p>
-</div>
+      <h2 data-page-node-id="BLM7PvgT0nDUeDicerZKff">What was added</h2>
+      <div class="tbl-wrap" data-page-node-id="3J3tLBPKVraVuFvnQE79sd">
+        <table data-page-node-id="MAjVaKAQCiLv6fxxNRDyp3">
+          <thead data-page-node-id="VTS7B41BK03XsroTDdDlkG">
+            <tr data-page-node-id="Yjh4Mb7lluBSYVbssGLy0m">
+              <th data-page-node-id="TU6ck1B3iC6Gds0aE6Giug">Artifact</th>
+              <th data-page-node-id="C0O2EHKAIVjI3X05X80QuQ">What it does</th>
+            </tr>
+          </thead>
+          <tbody data-page-node-id="Q2Awts81oQcskLMAuEnNUB">
+            <tr data-page-node-id="KqirVsm6Jig6vXsoKQAgTM">
+              <td data-page-node-id="Wy3FQ3ivd4Bcp4mw3qgkTu">
+                <code data-page-node-id="VXVPjmeNoZTwDFFKZMz1t0">eslint.config.mjs</code>
+              </td>
+              <td data-page-node-id="usslntrjTz1VUz1wE2rG28">
+                Catches real bugs — unawaited promises, misused promises, unused variables. Tiered
+                so it can be adopted without a mass rewrite.
+              </td>
+            </tr>
+            <tr data-page-node-id="HZQwoOpfNiZAEiTkLQsFKd">
+              <td data-page-node-id="eWBzrERNmMQX0mx15oihOq">
+                <code data-page-node-id="a7n1A0B7vOMYBOhT4UrVYN">.prettierrc.json</code>
+              </td>
+              <td data-page-node-id="k8HcVOQm2nDKD5CPS4xzE0">
+                Formatting becomes a machine decision, so review time goes to correctness.
+              </td>
+            </tr>
+            <tr data-page-node-id="Wv1WQXA13P5MA81RVTLbvw">
+              <td data-page-node-id="O9rOuNWD5YPjrIDAFKxqFn">
+                <code data-page-node-id="JRQt0n8qY63zsNxR3yRVNX">.editorconfig</code>
+              </td>
+              <td data-page-node-id="rVnTryElcYanmRWkXPppbd">
+                Stops whitespace churn from burying real changes in diffs.
+              </td>
+            </tr>
+            <tr data-page-node-id="apEW5Cw8c0zmQGS6qc1KEp">
+              <td data-page-node-id="x3QHe29B35G0F9wqJjXDJp">
+                <code data-page-node-id="pXLyrnV3xXHbwqghi91dLO">.gitignore</code>
+              </td>
+              <td data-page-node-id="7UFb3aWfCh7IuD0cpZPObM">
+                Secrets, build output, model weights. The first line of defence.
+              </td>
+            </tr>
+            <tr data-page-node-id="PoXC5Ve8aDNY8sRgp2vGW4">
+              <td data-page-node-id="k6i7lNoThHqCdEoPZlih1f">
+                <code data-page-node-id="9ci5TOW5MaRI4lQI34ViYp">.github/workflows/ci.yml</code>
+              </td>
+              <td data-page-node-id="JXgkj59ZHFPFAlC2vkPXrF">
+                Three jobs on every push: verify, test, build.
+              </td>
+            </tr>
+            <tr data-page-node-id="dCbI2yDReKqa3OAVr5T5OH">
+              <td data-page-node-id="b2nDvptZY4mwQ1e7XIqqd8">
+                <code data-page-node-id="VsLMjYdudzh4HFhSHEdXna"
+                  >scripts/quality/secret-scan.mjs</code
+                >
+              </td>
+              <td data-page-node-id="sTSZxKfEcTNUlRKqcHUzE1">
+                Refuses commits containing credentials. Verified: 7 of 7 real patterns caught, 5 of
+                5 benign patterns ignored.
+              </td>
+            </tr>
+            <tr data-page-node-id="xwYcsBgT4yXBAji5vQZM5W">
+              <td data-page-node-id="vIHbZCQ712CLAual0B3pa5">
+                <code data-page-node-id="Ledt2s1KjkJYHhZUWYmVyp"
+                  >scripts/quality/hooks/pre-commit</code
+                >
+              </td>
+              <td data-page-node-id="EX9wAyVZFCnCfVbdpfXMiz">
+                The only gate that runs <em data-page-node-id="RseDle1oYFqwY0BIqxvzEL">before</em> a
+                secret leaves the machine.
+              </td>
+            </tr>
+            <tr data-page-node-id="MBJxwQD42vkex7cGUct2SN">
+              <td data-page-node-id="e1gKiPExMKjdxZoyAhqCLm">
+                <code data-page-node-id="7t0GxTApOs2HfnbrrjEuwu"
+                  >docs/ENGINEERING-STANDARDS.md</code
+                >
+              </td>
+              <td data-page-node-id="9eKF3BrfuDdlZfuFcnWmAu">
+                The full report, the rules, the review checklist, and the roadmap.
+              </td>
+            </tr>
+            <tr data-page-node-id="nK623dUN6TTxckHzisc04t">
+              <td data-page-node-id="qfcsCZrcLdDhQ93FjY2QJN">
+                <code data-page-node-id="pR5mAHp2452H1r2WnEyuiq">CONTRIBUTING.md</code>
+              </td>
+              <td data-page-node-id="EiQ0K2Dqncp6jfGCTjOmFA">
+                Onboarding, the daily loop, and what "done" means.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-<h2 data-page-node-id="BLM7PvgT0nDUeDicerZKff">What was added</h2>
-<div class="tbl-wrap" data-page-node-id="3J3tLBPKVraVuFvnQE79sd">
-  <table data-page-node-id="MAjVaKAQCiLv6fxxNRDyp3">
-    <thead data-page-node-id="VTS7B41BK03XsroTDdDlkG"><tr data-page-node-id="Yjh4Mb7lluBSYVbssGLy0m"><th data-page-node-id="TU6ck1B3iC6Gds0aE6Giug">Artifact</th><th data-page-node-id="C0O2EHKAIVjI3X05X80QuQ">What it does</th></tr></thead>
-    <tbody data-page-node-id="Q2Awts81oQcskLMAuEnNUB">
-      <tr data-page-node-id="KqirVsm6Jig6vXsoKQAgTM"><td data-page-node-id="Wy3FQ3ivd4Bcp4mw3qgkTu"><code data-page-node-id="VXVPjmeNoZTwDFFKZMz1t0">eslint.config.mjs</code></td><td data-page-node-id="usslntrjTz1VUz1wE2rG28">Catches real bugs — unawaited promises, misused promises, unused variables. Tiered so it can be adopted without a mass rewrite.</td></tr>
-      <tr data-page-node-id="HZQwoOpfNiZAEiTkLQsFKd"><td data-page-node-id="eWBzrERNmMQX0mx15oihOq"><code data-page-node-id="a7n1A0B7vOMYBOhT4UrVYN">.prettierrc.json</code></td><td data-page-node-id="k8HcVOQm2nDKD5CPS4xzE0">Formatting becomes a machine decision, so review time goes to correctness.</td></tr>
-      <tr data-page-node-id="Wv1WQXA13P5MA81RVTLbvw"><td data-page-node-id="O9rOuNWD5YPjrIDAFKxqFn"><code data-page-node-id="JRQt0n8qY63zsNxR3yRVNX">.editorconfig</code></td><td data-page-node-id="rVnTryElcYanmRWkXPppbd">Stops whitespace churn from burying real changes in diffs.</td></tr>
-      <tr data-page-node-id="apEW5Cw8c0zmQGS6qc1KEp"><td data-page-node-id="x3QHe29B35G0F9wqJjXDJp"><code data-page-node-id="pXLyrnV3xXHbwqghi91dLO">.gitignore</code></td><td data-page-node-id="7UFb3aWfCh7IuD0cpZPObM">Secrets, build output, model weights. The first line of defence.</td></tr>
-      <tr data-page-node-id="PoXC5Ve8aDNY8sRgp2vGW4"><td data-page-node-id="k6i7lNoThHqCdEoPZlih1f"><code data-page-node-id="9ci5TOW5MaRI4lQI34ViYp">.github/workflows/ci.yml</code></td><td data-page-node-id="JXgkj59ZHFPFAlC2vkPXrF">Three jobs on every push: verify, test, build.</td></tr>
-      <tr data-page-node-id="dCbI2yDReKqa3OAVr5T5OH"><td data-page-node-id="b2nDvptZY4mwQ1e7XIqqd8"><code data-page-node-id="VsLMjYdudzh4HFhSHEdXna">scripts/quality/secret-scan.mjs</code></td><td data-page-node-id="sTSZxKfEcTNUlRKqcHUzE1">Refuses commits containing credentials. Verified: 7 of 7 real patterns caught, 5 of 5 benign patterns ignored.</td></tr>
-      <tr data-page-node-id="xwYcsBgT4yXBAji5vQZM5W"><td data-page-node-id="vIHbZCQ712CLAual0B3pa5"><code data-page-node-id="Ledt2s1KjkJYHhZUWYmVyp">scripts/quality/hooks/pre-commit</code></td><td data-page-node-id="EX9wAyVZFCnCfVbdpfXMiz">The only gate that runs <em data-page-node-id="RseDle1oYFqwY0BIqxvzEL">before</em> a secret leaves the machine.</td></tr>
-      <tr data-page-node-id="MBJxwQD42vkex7cGUct2SN"><td data-page-node-id="e1gKiPExMKjdxZoyAhqCLm"><code data-page-node-id="7t0GxTApOs2HfnbrrjEuwu">docs/ENGINEERING-STANDARDS.md</code></td><td data-page-node-id="9eKF3BrfuDdlZfuFcnWmAu">The full report, the rules, the review checklist, and the roadmap.</td></tr>
-      <tr data-page-node-id="nK623dUN6TTxckHzisc04t"><td data-page-node-id="qfcsCZrcLdDhQ93FjY2QJN"><code data-page-node-id="pR5mAHp2452H1r2WnEyuiq">CONTRIBUTING.md</code></td><td data-page-node-id="EiQ0K2Dqncp6jfGCTjOmFA">Onboarding, the daily loop, and what "done" means.</td></tr>
-    </tbody>
-  </table>
-</div>
+      <h2 data-page-node-id="WZLjbw2XQH6k1HVzYnIDnW">What to do, in order</h2>
 
-<h2 data-page-node-id="WZLjbw2XQH6k1HVzYnIDnW">What to do, in order</h2>
+      <div class="phase" data-page-node-id="NgRPzF1NPzn0geODaDqBbN">
+        <div class="phase-title" data-page-node-id="ImGoiDSHNIpRPGnI3poV3Y">
+          <span class="n" data-page-node-id="cB37LvoxirVHDdXA0nuUaL">1</span
+          ><span class="t" data-page-node-id="VEgB28tijbYhi65zuzTpxq">This week</span
+          ><span class="w" data-page-node-id="uzcTcluVKAtsKx89ismQRT"
+            >— security and foundations</span
+          >
+        </div>
+        <ol class="steps" data-page-node-id="eyNPl6fqrQ8nt1SrHIIKFz">
+          <li class="urgent" data-page-node-id="EY73FzCIm6XiBOz6IL5KyT">
+            Rotate every credential listed above<span
+              class="why"
+              data-page-node-id="ktioFHlbZCcG5E45ZWTj7Q"
+              >They sit in a git history you do not fully control. Treat them as compromised.</span
+            >
+          </li>
+          <li class="urgent" data-page-node-id="jglG9qMYyFQQ3B4YYKF7rV">
+            Purge them from history and force-push<span
+              class="why"
+              data-page-node-id="HRWN5IrmCM87ybgQ4IGo1g"
+              >Deleting the files in a new commit does not remove them from history.</span
+            >
+          </li>
+          <li class="urgent" data-page-node-id="0tfxlO7U6AAigVxewK7Rxj">
+            Give the project its own repository<span
+              class="why"
+              data-page-node-id="fqJA4URiTCXTVIj3FhNk8J"
+              >One command. Nothing else on this list works until it is done.</span
+            >
+          </li>
+          <li data-page-node-id="IHlCTAEEEhZh4UcLCxKLOB">
+            Apply the one-time code format<span
+              class="why"
+              data-page-node-id="QCM9vtKejaQwfVCcZEwK8M"
+              >59 of 69 files need it. Do it as one standalone commit, before any feature work, so
+              it never pollutes a real diff.</span
+            >
+          </li>
+          <li data-page-node-id="e6SEBGx2qW6VYf3L2A2Jr6">
+            Turn on branch protection<span class="why" data-page-node-id="G4S0CUezeZN8nb1RvwCAPL"
+              >Require CI to pass before merging. This is what makes the pipeline real rather than
+              decorative.</span
+            >
+          </li>
+        </ol>
+      </div>
 
-<div class="phase" data-page-node-id="NgRPzF1NPzn0geODaDqBbN">
-  <div class="phase-title" data-page-node-id="ImGoiDSHNIpRPGnI3poV3Y"><span class="n" data-page-node-id="cB37LvoxirVHDdXA0nuUaL">1</span><span class="t" data-page-node-id="VEgB28tijbYhi65zuzTpxq">This week</span><span class="w" data-page-node-id="uzcTcluVKAtsKx89ismQRT">— security and foundations</span></div>
-  <ol class="steps" data-page-node-id="eyNPl6fqrQ8nt1SrHIIKFz">
-    <li class="urgent" data-page-node-id="EY73FzCIm6XiBOz6IL5KyT">Rotate every credential listed above<span class="why" data-page-node-id="ktioFHlbZCcG5E45ZWTj7Q">They sit in a git history you do not fully control. Treat them as compromised.</span></li>
-    <li class="urgent" data-page-node-id="jglG9qMYyFQQ3B4YYKF7rV">Purge them from history and force-push<span class="why" data-page-node-id="HRWN5IrmCM87ybgQ4IGo1g">Deleting the files in a new commit does not remove them from history.</span></li>
-    <li class="urgent" data-page-node-id="0tfxlO7U6AAigVxewK7Rxj">Give the project its own repository<span class="why" data-page-node-id="fqJA4URiTCXTVIj3FhNk8J">One command. Nothing else on this list works until it is done.</span></li>
-    <li data-page-node-id="IHlCTAEEEhZh4UcLCxKLOB">Apply the one-time code format<span class="why" data-page-node-id="QCM9vtKejaQwfVCcZEwK8M">59 of 69 files need it. Do it as one standalone commit, before any feature work, so it never pollutes a real diff.</span></li>
-    <li data-page-node-id="e6SEBGx2qW6VYf3L2A2Jr6">Turn on branch protection<span class="why" data-page-node-id="G4S0CUezeZN8nb1RvwCAPL">Require CI to pass before merging. This is what makes the pipeline real rather than decorative.</span></li>
-  </ol>
-</div>
+      <div class="phase" data-page-node-id="VUSnhPR64buBuxQENPmnwx">
+        <div class="phase-title" data-page-node-id="SoifRYHXeMOSwzJoOoL4m1">
+          <span class="n" data-page-node-id="DRjIDEKo1MFXwDItmsJCPC">2</span
+          ><span class="t" data-page-node-id="WzgRWdHAUktiNFELJ5DG9a">This month</span
+          ><span class="w" data-page-node-id="lg1RHPxNLHyFVK19UeEK58">— what is left</span>
+        </div>
+        <ol class="steps" data-page-node-id="pMGNygJFZIF9OY1Yz87yL5">
+          <li data-page-node-id="SuXCPo2PSuo9MXsTTYA1dK">
+            Set <code data-page-node-id="Xer8OVnSJTzqumR7aZqiss">TELEGRAM_WEBHOOK_SECRET</code> and
+            re-register the webhook<span class="why" data-page-node-id="DooDRjrvlbP552QsvdSoE6"
+              >The code now requires it in production, so the endpoint will refuse everything until
+              this is done. Generate a random string, set the variable, and pass the same value as
+              <code data-page-node-id="Ggp1hQ7yTTCBea124dKeWy">secret_token</code> when calling
+              Telegram's <code data-page-node-id="UVCzQMXv62kre72bePciAP">setWebhook</code>.</span
+            >
+          </li>
+          <li data-page-node-id="hIq7FoesHdEpXslRlJ45EX">
+            Replace the placeholder bearer token with real signed tokens<span
+              class="why"
+              data-page-node-id="Iqxn3sqCGwtzuEIAlu4kDV"
+              >Today,
+              <code data-page-node-id="mqpNie6RAfwZxKVg0M7zE2">Bearer oneteam-user:&lt;id&gt;</code>
+              is accepted with no signature and no expiry. Anyone who guesses a user id is that
+              user. This needs a decision about the identity provider, so it is the team's call
+              rather than a unilateral change.</span
+            >
+          </li>
+          <li data-page-node-id="qGxPkA2pEGLRDKhy0d8cnD">
+            Connect the database for real<span
+              class="why"
+              data-page-node-id="t8QGo6nz1De93jB7Rxdvdc"
+              >The API stores everything in memory and loses it on restart. The real PostgreSQL
+              schema exists but is not wired up.</span
+            >
+          </li>
+          <li data-page-node-id="EXex8GffIvfG5XNJQOuETA">
+            Add a database-backed test tier<span
+              class="why"
+              data-page-node-id="VDYbtpUouva4S2cG7zc9ow"
+              >Today's "integration tests" run against an in-memory fake. The SQL schema,
+              constraints and row-level security are completely untested.</span
+            >
+          </li>
+        </ol>
+      </div>
 
-<div class="phase" data-page-node-id="VUSnhPR64buBuxQENPmnwx">
-  <div class="phase-title" data-page-node-id="SoifRYHXeMOSwzJoOoL4m1"><span class="n" data-page-node-id="DRjIDEKo1MFXwDItmsJCPC">2</span><span class="t" data-page-node-id="WzgRWdHAUktiNFELJ5DG9a">This month</span><span class="w" data-page-node-id="lg1RHPxNLHyFVK19UeEK58">— what is left</span></div>
-  <ol class="steps" data-page-node-id="pMGNygJFZIF9OY1Yz87yL5">
-    <li data-page-node-id="SuXCPo2PSuo9MXsTTYA1dK">Set <code data-page-node-id="Xer8OVnSJTzqumR7aZqiss">TELEGRAM_WEBHOOK_SECRET</code> and re-register the webhook<span class="why" data-page-node-id="DooDRjrvlbP552QsvdSoE6">The code now requires it in production, so the endpoint will refuse everything until this is done. Generate a random string, set the variable, and pass the same value as <code data-page-node-id="Ggp1hQ7yTTCBea124dKeWy">secret_token</code> when calling Telegram's <code data-page-node-id="UVCzQMXv62kre72bePciAP">setWebhook</code>.</span></li>
-    <li data-page-node-id="hIq7FoesHdEpXslRlJ45EX">Replace the placeholder bearer token with real signed tokens<span class="why" data-page-node-id="Iqxn3sqCGwtzuEIAlu4kDV">Today, <code data-page-node-id="mqpNie6RAfwZxKVg0M7zE2">Bearer oneteam-user:&lt;id&gt;</code> is accepted with no signature and no expiry. Anyone who guesses a user id is that user. This needs a decision about the identity provider, so it is the team's call rather than a unilateral change.</span></li>
-    <li data-page-node-id="qGxPkA2pEGLRDKhy0d8cnD">Connect the database for real<span class="why" data-page-node-id="t8QGo6nz1De93jB7Rxdvdc">The API stores everything in memory and loses it on restart. The real PostgreSQL schema exists but is not wired up.</span></li>
-    <li data-page-node-id="EXex8GffIvfG5XNJQOuETA">Add a database-backed test tier<span class="why" data-page-node-id="VDYbtpUouva4S2cG7zc9ow">Today's "integration tests" run against an in-memory fake. The SQL schema, constraints and row-level security are completely untested.</span></li>
-  </ol>
-</div>
+      <div class="phase" data-page-node-id="0pwjKwCflEcbkPSbpn8IGg">
+        <div class="phase-title" data-page-node-id="vls90vn6bXhSGoc7vXkh50">
+          <span class="n" data-page-node-id="OkOUoNpNlfi2H0LX6wz6IC">✓</span
+          ><span class="t" data-page-node-id="0Yp2Y4k2fkvpODTMEEezE2">Already done</span
+          ><span class="w" data-page-node-id="L0WyhfjuDtaK9G0GYYoUvH">— closed in code</span>
+        </div>
+        <ol class="steps" data-page-node-id="KHtrog7VcicUfkLPd5qtdI">
+          <li data-page-node-id="na0VbjGfqCP0000fweSAN5">
+            Telegram webhook sender verification<span
+              class="why"
+              data-page-node-id="3gGqeokqvBAS9qmEgfuvIo"
+              >Constant-time secret comparison, fails closed in production, six tests covering
+              it.</span
+            >
+          </li>
+          <li data-page-node-id="aLc2QAvSXnjhbVCbxa34cb">
+            CORS restricted to an explicit allow-list<span
+              class="why"
+              data-page-node-id="doMGgSdMCWD14xdV6BEJug"
+              >Wildcard values rejected; production fails closed when unset.</span
+            >
+          </li>
+          <li data-page-node-id="dbNfyfJB2afgfj44ITW60D">
+            <code data-page-node-id="iULLoWurAJQDVw1kaA5Co9">submittedById</code> removed from the
+            request DTO<span class="why" data-page-node-id="3U87HMIpdTMPVHIDRP0HuT"
+              >A request can no longer claim an identity.</span
+            >
+          </li>
+          <li data-page-node-id="IPnWIBNOCQH6eTLn9kCA7F">
+            TypeScript project references<span
+              class="why"
+              data-page-node-id="L00cITbRo7EUrEJAk9BdwT"
+              >Stale build artefacts can no longer be compiled against.</span
+            >
+          </li>
+          <li data-page-node-id="Fjba29hxvn6SIeQlaJwY6K">
+            Strict type checking on the API<span
+              class="why"
+              data-page-node-id="ngJDNtQcwWzngfizBHp392"
+              >Cost nothing — the code was already clean.</span
+            >
+          </li>
+        </ol>
+      </div>
 
-<div class="phase" data-page-node-id="0pwjKwCflEcbkPSbpn8IGg">
-  <div class="phase-title" data-page-node-id="vls90vn6bXhSGoc7vXkh50"><span class="n" data-page-node-id="OkOUoNpNlfi2H0LX6wz6IC">✓</span><span class="t" data-page-node-id="0Yp2Y4k2fkvpODTMEEezE2">Already done</span><span class="w" data-page-node-id="L0WyhfjuDtaK9G0GYYoUvH">— closed in code</span></div>
-  <ol class="steps" data-page-node-id="KHtrog7VcicUfkLPd5qtdI">
-    <li data-page-node-id="na0VbjGfqCP0000fweSAN5">Telegram webhook sender verification<span class="why" data-page-node-id="3gGqeokqvBAS9qmEgfuvIo">Constant-time secret comparison, fails closed in production, six tests covering it.</span></li>
-    <li data-page-node-id="aLc2QAvSXnjhbVCbxa34cb">CORS restricted to an explicit allow-list<span class="why" data-page-node-id="doMGgSdMCWD14xdV6BEJug">Wildcard values rejected; production fails closed when unset.</span></li>
-    <li data-page-node-id="dbNfyfJB2afgfj44ITW60D"><code data-page-node-id="iULLoWurAJQDVw1kaA5Co9">submittedById</code> removed from the request DTO<span class="why" data-page-node-id="3U87HMIpdTMPVHIDRP0HuT">A request can no longer claim an identity.</span></li>
-    <li data-page-node-id="IPnWIBNOCQH6eTLn9kCA7F">TypeScript project references<span class="why" data-page-node-id="L00cITbRo7EUrEJAk9BdwT">Stale build artefacts can no longer be compiled against.</span></li>
-    <li data-page-node-id="Fjba29hxvn6SIeQlaJwY6K">Strict type checking on the API<span class="why" data-page-node-id="ngJDNtQcwWzngfizBHp392">Cost nothing — the code was already clean.</span></li>
-  </ol>
-</div>
+      <div class="phase" data-page-node-id="GpENtGJ3cMvX6GBKWXNPMa">
+        <div class="phase-title" data-page-node-id="Axb6hSk1rAd0eahEUaaKth">
+          <span class="n" data-page-node-id="beVyA2t9fmEWUFOdXPXp8f">3</span
+          ><span class="t" data-page-node-id="piIavfk9fTv4RUprWhmIqZ">This quarter</span
+          ><span class="w" data-page-node-id="HMFE7sA3AxKYe1qDD9wbkR">— raise the floor</span>
+        </div>
+        <ol class="steps" data-page-node-id="6H8D6X3JGxPcFqyzOkKTcX">
+          <li data-page-node-id="RDLQ35Wd15pVw94cme5e87">
+            Add a database-backed test tier<span
+              class="why"
+              data-page-node-id="SBFT7Uo9JelR9nZBpzfuae"
+              >Today's "integration tests" run against an in-memory fake. The SQL schema,
+              constraints and row-level security are completely untested.</span
+            >
+          </li>
+          <li data-page-node-id="Y1NBOQ9EBighyQ324kv7xW">
+            Ratchet the lint rules<span class="why" data-page-node-id="G5MGBfZ2FisZ3B7ZB5B2eE"
+              >58 <code data-page-node-id="83st0HefGrBNXZVCE81WXE">any</code> usages today. Drive to
+              zero, then make it an error so it cannot come back.</span
+            >
+          </li>
+          <li data-page-node-id="h8C0TWvDriA9dloLGPeK1h">
+            Replace console logging with structured logs<span
+              class="why"
+              data-page-node-id="xntETb01FSdvunTb00MrXU"
+              >98 calls. Unsearchable and unstructured in production.</span
+            >
+          </li>
+          <li data-page-node-id="EaKBAi3xhH57qdQ7vMwNY7">
+            Split the two 700-line components<span
+              class="why"
+              data-page-node-id="AbIPdcMyCReLRb70UIVKKc"
+              >Hard to review, hard to test.</span
+            >
+          </li>
+        </ol>
+      </div>
 
-<div class="phase" data-page-node-id="GpENtGJ3cMvX6GBKWXNPMa">
-  <div class="phase-title" data-page-node-id="Axb6hSk1rAd0eahEUaaKth"><span class="n" data-page-node-id="beVyA2t9fmEWUFOdXPXp8f">3</span><span class="t" data-page-node-id="piIavfk9fTv4RUprWhmIqZ">This quarter</span><span class="w" data-page-node-id="HMFE7sA3AxKYe1qDD9wbkR">— raise the floor</span></div>
-  <ol class="steps" data-page-node-id="6H8D6X3JGxPcFqyzOkKTcX">
-    <li data-page-node-id="RDLQ35Wd15pVw94cme5e87">Add a database-backed test tier<span class="why" data-page-node-id="SBFT7Uo9JelR9nZBpzfuae">Today's "integration tests" run against an in-memory fake. The SQL schema, constraints and row-level security are completely untested.</span></li>
-    <li data-page-node-id="Y1NBOQ9EBighyQ324kv7xW">Ratchet the lint rules<span class="why" data-page-node-id="G5MGBfZ2FisZ3B7ZB5B2eE">58 <code data-page-node-id="83st0HefGrBNXZVCE81WXE">any</code> usages today. Drive to zero, then make it an error so it cannot come back.</span></li>
-    <li data-page-node-id="h8C0TWvDriA9dloLGPeK1h">Replace console logging with structured logs<span class="why" data-page-node-id="xntETb01FSdvunTb00MrXU">98 calls. Unsearchable and unstructured in production.</span></li>
-    <li data-page-node-id="EaKBAi3xhH57qdQ7vMwNY7">Split the two 700-line components<span class="why" data-page-node-id="AbIPdcMyCReLRb70UIVKKc">Hard to review, hard to test.</span></li>
-  </ol>
-</div>
-
-<h2 data-page-node-id="x9vz3kdu2sR3w1l34P9Ilx">How to reproduce any of this</h2>
-<pre data-page-node-id="Qb60KksCDAUeZxnNsJXNJc"><code data-page-node-id="h57Bowhlr1vD0m0IGklNxN">cd /Users/macbookair/GitHub/oneTeam
+      <h2 data-page-node-id="x9vz3kdu2sR3w1l34P9Ilx">How to reproduce any of this</h2>
+      <pre
+        data-page-node-id="Qb60KksCDAUeZxnNsJXNJc"
+      ><code data-page-node-id="h57Bowhlr1vD0m0IGklNxN">cd /Users/macbookair/GitHub/oneTeam
 
 # Type safety — currently reports zero errors
 node ./node_modules/typescript/bin/tsc --noEmit
@@ -477,20 +1056,23 @@ npm run test:all
 # Was the product ever tracked?
 git -C /Users/macbookair ls-files oneTeam | wc -l</code></pre>
 
-<footer data-page-node-id="Q09ZDFRB7E0r8MRFPaFoLs">
-  <p data-page-node-id="Bt8VBYmIyc1amwVOznE2kx">
-    <strong data-page-node-id="YUb3StUqd8htkEOsBo4Oez">Full detail:</strong> <code data-page-node-id="aukdCwdgB5NqZ9Psr8hFGh">docs/ENGINEERING-STANDARDS.md</code> — the findings, the
-    reasoning behind each standard, the code review checklist, and the definition of done.
-  </p>
-  <p data-page-node-id="x6D7M18NGedcjAQuu6GBIc">
-    <strong data-page-node-id="rjNbKgckllAJFeAMb3QCF3">One caveat, stated plainly:</strong> the ESLint and Prettier configurations are
-    written and syntax-validated, but could not be <em data-page-node-id="MvlKUBMGm4O4lZZEeEr7g0">executed</em> in the review environment —
-    dependency installation was blocked there. Run <code data-page-node-id="CNNArXPcxXAoahfMsD7bwS">pnpm install</code> and
-    <code data-page-node-id="F1cUncX35wHtGbcdpaDyga">pnpm run lint</code> once on your own machine to confirm. Everything else on this page
-    was measured directly.
-  </p>
-</footer>
-
-</div>
-</body>
+      <footer data-page-node-id="Q09ZDFRB7E0r8MRFPaFoLs">
+        <p data-page-node-id="Bt8VBYmIyc1amwVOznE2kx">
+          <strong data-page-node-id="YUb3StUqd8htkEOsBo4Oez">Full detail:</strong>
+          <code data-page-node-id="aukdCwdgB5NqZ9Psr8hFGh">docs/ENGINEERING-STANDARDS.md</code> —
+          the findings, the reasoning behind each standard, the code review checklist, and the
+          definition of done.
+        </p>
+        <p data-page-node-id="x6D7M18NGedcjAQuu6GBIc">
+          <strong data-page-node-id="rjNbKgckllAJFeAMb3QCF3">One caveat, stated plainly:</strong>
+          the ESLint and Prettier configurations are written and syntax-validated, but could not be
+          <em data-page-node-id="MvlKUBMGm4O4lZZEeEr7g0">executed</em> in the review environment —
+          dependency installation was blocked there. Run
+          <code data-page-node-id="CNNArXPcxXAoahfMsD7bwS">pnpm install</code> and
+          <code data-page-node-id="F1cUncX35wHtGbcdpaDyga">pnpm run lint</code> once on your own
+          machine to confirm. Everything else on this page was measured directly.
+        </p>
+      </footer>
+    </div>
+  </body>
 </html>

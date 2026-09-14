@@ -71,7 +71,7 @@ export class FieldService {
     private readonly portal: PortalService,
     private readonly evidenceService: EvidenceService,
     private readonly taskStateService: TaskStateService,
-    private readonly storage: StorageService
+    private readonly storage: StorageService,
   ) {}
 
   private toPrincipal(user: {
@@ -122,7 +122,7 @@ export class FieldService {
           ? 'Bu Telegram hesabı heç bir istifadəçiyə bağlanmayıb. /start əmri ilə mağaza kodunu göndərin.'
           : 'Bu cihaz heç bir istifadəçiyə bağlanmayıb. Tətbiqdən yenidən daxil olun.',
       },
-      HttpStatus.NOT_FOUND
+      HttpStatus.NOT_FOUND,
     );
   }
 
@@ -179,7 +179,7 @@ export class FieldService {
           error: 'MISSING_ACTOR_KEY',
           message: 'chatId və ya deviceId tələb olunur',
         },
-        HttpStatus.BAD_REQUEST
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -203,23 +203,17 @@ export class FieldService {
   private claimStoreTasks(
     userId: string,
     storeId: string | undefined,
-    channel: 'telegram' | 'mobile'
+    channel: 'telegram' | 'mobile',
   ): string[] {
     if (!storeId) return [];
 
-    const open = new Set([
-      'PUBLISHED',
-      'DELIVERED',
-      'ACKNOWLEDGED',
-      'IN_PROGRESS',
-      'SUBMITTED',
-    ]);
+    const open = new Set(['PUBLISHED', 'DELIVERED', 'ACKNOWLEDGED', 'IN_PROGRESS', 'SUBMITTED']);
 
     const claimable = db.storeTasks.filter(
       (task) =>
         task.storeId === storeId &&
         open.has(task.status) &&
-        (!task.assignedUserId || task.assignedUserId === userId)
+        (!task.assignedUserId || task.assignedUserId === userId),
     );
 
     const claimed: string[] = [];
@@ -243,7 +237,7 @@ export class FieldService {
         },
       });
       this.logger.log(
-        `📌 [FIELD CLAIM] ${userId} claimed ${claimed.length} task(s) at store ${storeId} (${channel})`
+        `📌 [FIELD CLAIM] ${userId} claimed ${claimed.length} task(s) at store ${storeId} (${channel})`,
       );
     }
 
@@ -300,10 +294,7 @@ export class FieldService {
 
     const task = db.getTask(taskId);
     if (!task) {
-      throw new HttpException(
-        `Tapşırıq tapılmadı: ${taskId}`,
-        HttpStatus.NOT_FOUND
-      );
+      throw new HttpException(`Tapşırıq tapılmadı: ${taskId}`, HttpStatus.NOT_FOUND);
     }
 
     if (!db.canUserAccessTask(actor.userId, actor.role, taskId)) {
@@ -311,11 +302,7 @@ export class FieldService {
     }
 
     // Ordered, so each step is a legal transition from the one before it.
-    const chain = [
-      TaskState.PUBLISHED,
-      TaskState.DELIVERED,
-      TaskState.ACKNOWLEDGED,
-    ];
+    const chain = [TaskState.PUBLISHED, TaskState.DELIVERED, TaskState.ACKNOWLEDGED];
 
     const targetIndex = chain.indexOf(TaskState.ACKNOWLEDGED);
     const currentIndex = chain.indexOf(task.status);
@@ -336,7 +323,7 @@ export class FieldService {
         actor,
         i === targetIndex
           ? 'Sahə işçisi tapşırığı Telegram çatında açdı (qəbul edildi)'
-          : 'Tapşırıq işçiyə çatdırıldı'
+          : 'Tapşırıq işçiyə çatdırıldı',
       );
       state = result.currentState;
     }
@@ -360,13 +347,7 @@ export class FieldService {
    * disappear from the bot at the right moment rather than never.
    */
   getTasksForStore(storeId: string): PanelTask[] {
-    const open = new Set([
-      'PUBLISHED',
-      'DELIVERED',
-      'ACKNOWLEDGED',
-      'IN_PROGRESS',
-      'SUBMITTED',
-    ]);
+    const open = new Set(['PUBLISHED', 'DELIVERED', 'ACKNOWLEDGED', 'IN_PROGRESS', 'SUBMITTED']);
     return db.storeTasks
       .filter((task) => task.storeId === storeId && open.has(task.status))
       .map((task) => this.portal.toPanelTask(task));
@@ -470,24 +451,18 @@ export class FieldService {
               `Şəkil çox böyükdür (${Math.round(payload.photoUrl.length / 1024)} KB). ` +
               `Maksimum ${Math.round(MAX_PHOTO_BYTES / 1024)} KB qəbul edilir.`,
           },
-          HttpStatus.PAYLOAD_TOO_LARGE
+          HttpStatus.PAYLOAD_TOO_LARGE,
         );
       }
     }
 
     const task = db.getTask(payload.storeTaskId);
     if (!task) {
-      throw new HttpException(
-        `Tapşırıq tapılmadı: ${payload.storeTaskId}`,
-        HttpStatus.NOT_FOUND
-      );
+      throw new HttpException(`Tapşırıq tapılmadı: ${payload.storeTaskId}`, HttpStatus.NOT_FOUND);
     }
     const store = db.getStore(task.storeId);
     if (!store) {
-      throw new HttpException(
-        `Mağaza məlumatı tapılmadı: ${task.storeId}`,
-        HttpStatus.NOT_FOUND
-      );
+      throw new HttpException(`Mağaza məlumatı tapılmadı: ${task.storeId}`, HttpStatus.NOT_FOUND);
     }
 
     // Offload the photo before anything is written, so that a storage failure
@@ -502,7 +477,7 @@ export class FieldService {
       .catch((error: unknown) => {
         const reason = error instanceof Error ? error.message : String(error);
         this.logger.error(
-          `⛔ [FIELD] Photo upload failed for task ${payload.storeTaskId}: ${reason}`
+          `⛔ [FIELD] Photo upload failed for task ${payload.storeTaskId}: ${reason}`,
         );
         throw new HttpException(
           {
@@ -511,7 +486,7 @@ export class FieldService {
               'Şəkli obyekt anbarına yükləmək mümkün olmadı. Zəhmət olmasa bir az ' +
               'sonra yenidən cəhd edin — hesabat hələ qeydə alınmayıb.',
           },
-          HttpStatus.BAD_GATEWAY
+          HttpStatus.BAD_GATEWAY,
         );
       });
 
@@ -527,7 +502,7 @@ export class FieldService {
           message:
             'Geolokasiya tələb olunur. Telegram kanalı üçün locationUnverified: true göndərilməlidir.',
         },
-        HttpStatus.BAD_REQUEST
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -541,8 +516,7 @@ export class FieldService {
         actorId: actor.userId,
         payload: {
           channel: 'telegram',
-          reason:
-            'Telegram foto ilə koordinat göndərmir; geolokasiya yoxlanılmamış hesab olunur.',
+          reason: 'Telegram foto ilə koordinat göndərmir; geolokasiya yoxlanılmamış hesab olunur.',
           storeLocation: { latitude: store.latitude, longitude: store.longitude },
         },
       });
@@ -576,7 +550,7 @@ export class FieldService {
         latitude: hasRealFix ? (payload.latitude as number) : store.latitude,
         longitude: hasRealFix ? (payload.longitude as number) : store.longitude,
       },
-      actor
+      actor,
     );
 
     // Recorded on every submission, not only when a bucket is in use: whether
@@ -640,11 +614,7 @@ export class FieldService {
    * request is refused with a clear reason rather than answered with a data URL
    * the caller could have produced itself.
    */
-  async uploadPhoto(payload: {
-    base64: string;
-    contentType?: string;
-    scope?: string;
-  }) {
+  async uploadPhoto(payload: { base64: string; contentType?: string; scope?: string }) {
     const { driver, detail } = this.storage.description;
 
     if (driver !== 's3') {
@@ -656,7 +626,7 @@ export class FieldService {
             '(photoUrl sahəsində) göndərin.',
           detail,
         },
-        HttpStatus.SERVICE_UNAVAILABLE
+        HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
 
@@ -664,7 +634,7 @@ export class FieldService {
     if (body.length === 0) {
       throw new HttpException(
         { error: 'EMPTY_PHOTO', message: 'Şəkil məlumatı boşdur.' },
-        HttpStatus.BAD_REQUEST
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -683,7 +653,7 @@ export class FieldService {
       this.logger.error('⛔ [FIELD] Direct photo upload failed: ' + reason);
       throw new HttpException(
         { error: 'PHOTO_UPLOAD_FAILED', message: 'Şəkli yükləmək mümkün olmadı.', detail: reason },
-        HttpStatus.BAD_GATEWAY
+        HttpStatus.BAD_GATEWAY,
       );
     }
   }
