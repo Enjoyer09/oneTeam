@@ -8,8 +8,10 @@
 
 ## ✅ CANLI VƏZİYYƏT — deploy artıq edilib
 
-Bu təlimatı **əllə izləmək lazım deyil.** Deploy 13 sentyabr 2026 tarixində
-tamamlandı və hazırda işləyir.
+Bu təlimatı **əllə izləmək lazım deyil.** Deploy tamamlandı və hazırda işləyir.
+Son yoxlama: **14 sentyabr 2026** — üç servis də eyni kod versiyasında
+(`b0beeba`), `/api/health` sxemi **tamam** göstərir (101 sütun, 5 miqrasiya
+tətbiq olunub), kənar giriş isə rədd olunur.
 
 ### İşləyən ünvanlar
 
@@ -459,22 +461,84 @@ Yekun gözlənti: **aylıq təxminən $5–15**. Dəqiq rəqəmi Railway panelin
 
 ---
 
-## 6. Sonrakı addımlar (test-dən sonra)
+## 6. Sonrakı addımlar — qalan işlər
 
-1. **API-ni real bazaya qoşmaq.** Ən böyük boşluq budur. `packages/database` hazırda
-   yaddaşdaki `SEED_DATA`-dan istifadə edir; `DATABASE_URL` dəyişəni heç oxunmur. Yəni
-   baza qoşulub işləyir, amma heç bir kod ona müraciət etmir. Bu, kod dəyişikliyi
-   tələb edir və ayrı bir işdir.
-2. **Real Supabase bazası** — `supabase.com`-da pulsuz layihə açın, `Settings → API`
-   bölməsindən `URL` və `anon key` götürün, həm `web` servisinin
-   `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` dəyişənlərinə, həm də `api`
-   servisinin `SUPABASE_URL` / `SUPABASE_ANON_KEY` dəyişənlərinə yazın.
-   Sonra `supabase/migrations` qovluğundaki SQL fayllarını Supabase-də işə salın.
-3. **Ehtiyat nüsxə** — Railway bazası avtomatik backup etmir. Gündəlik dump qurun.
-4. **Ehtiyat şifrələrin rotasiyası** — `TELEGRAM_BOT_TOKEN` və `TELEGRAM_WEBHOOK_SECRET`
-   dəyərlərini mütəmadi dəyişin.
-5. **Domen** — öz domeninizi qoşun (`Settings → Networking → Custom Domain`).
+> **14 sentyabr 2026: canlı sistem yoxlanıldı.** Bu siyahı həmin yoxlamanın
+> nəticəsidir. Əvvəlki versiyada olan "API bazaya qoşulmayıb" və "Supabase
+> lazımdır" maddələri **artıq keçərli deyil** — API real bazaya qoşulub və sxemi
+> özü yaradır.
+
+### ✅ Artıq edilib — təkrar etməyin
+
+| Nə               | Vəziyyət                                                 |
+| ---------------- | -------------------------------------------------------- |
+| Kod GitHub-da    | ✅ `Enjoyer09/oneTeam`, `main` budağı                    |
+| Avtomatik deploy | ✅ hər push üç servisə də çatır (hamısı eyni commit-də)  |
+| API → real baza  | ✅ `/api/health` → `persistence: postgres`               |
+| Baza sxemi       | ✅ API işə düşəndə özü yaradır və tamamlayır (101 sütun) |
+| Giriş qoruması   | ✅ kənar kredensial `/api/portal/...`-da **401** alır    |
+| Ehtiyat nüsxə    | ✅ PITR aktiv + gündəlik cədvəl qurulub                  |
+| Bot              | ✅ işləyir — **@oneTeamCCIbot**                          |
+
+### 1. 🔴 TƏCİLİ — Telegram bot açarını dəyişin
+
+**Niyə təcili:** hazırkı açar (`8802362949:…`) söhbət tarixçəsinə düşüb. Bot
+işlədiyi üçün bu, **aktiv sızma**dır — açarı bilən hər kəs botunuz kimi danışa bilər.
+
+**Necə:**
+
+1. Telegram-da **@BotFather**-i açın.
+2. `/revoke` yazın → botunuzu seçin → təsdiqləyin.
+3. BotFather yeni açar verəcək (`1234567890:AAH...` kimi). Kopyalayın.
+4. Railway → `oneTeam` → **`bot`** servisi → **Variables**.
+5. `TELEGRAM_BOT_TOKEN` sətrini tapın → dəyəri yeni açarla əvəz edin → **Save**.
+6. Servis özü yenidən başlayacaq. Logda `✅ connected as @oneTeamCCIbot` görməlisiniz.
+
+### 2. 🔴 Panelə giriş açarı yaradın — panel hələ açıqdır
+
+**Niyə:** panel hazırda **heç bir açar tələb etmir**; ünvanı bilən hər kəs girə bilər.
+Yoxlanıldı: `liveKeys: 0`, `bootstrapConfigured: false`.
+
+**Necə:**
+
+1. Panelı açın: https://web-production-1392e.up.railway.app
+2. Yuxarı sağ küncdəki **açar** düyməsini basın → özünüzə şəxsi açar yaradın.
+3. Açarı **təhlükəsiz saxlayın** — bu, sizin girişinizdir.
+
+Açar yaratdığınız **anda** giriş ekranı avtomatik qoşulacaq və kənar giriş bağlanacaq.
+Açarı itirsəniz: Railway → `api` → `ONETEAM_PANEL_BOOTSTRAP_KEY` (ən azı 24 simvol)
+qoyun, sonra yeni açar yaradın.
+
+### 3. Mağaza kodunu gücləndirin — `ONETEAM_ENROLLMENT_SECRET`
+
+**Niyə:** hazırda cihaz qeydiyyatı üçün **yalnız mağaza kodu** kifayətdir. Mağaza
+kodu yarı-açıq məlumatdır (brifinqdə çap olunur, həmkarlar arasında paylaşılır).
+Mağaza üzrə limit artıq var, amma əsl həll bu gizli açardır.
+
+**Vacib:** bu, **iki tərəfli** dəyişiklikdir — eyni açar mobil tətbiqin içinə də
+yazılmalıdır. Mobil tətbiq hələ real telefonlara çıxmadığı üçün **indi qoymaq
+təhlükəsizdir**.
+
+### 4. Foto saxlancı — mağaza sayı artanda
+
+**Niyə:** fotolar hazırda **bazanın içində** saxlanılır (yoxlanıldı:
+`photoStorage.driver: "inline"`). 1.5 MB limit var və baza sürətlə böyüyür —
+1000+ mağaza üçün uyğun deyil.
+
+**Nə lazım:** Railway-də bucket yaradıb `STORAGE_DRIVER=s3` və `S3_*` dəyişənlərini
+`api` servisinə yazmaq.
+
+### 5. Öz domeniniz
+
+Railway → `web` servisi → **Settings → Networking → Custom Domain**.
+
+### 6. Mobil tətbiq — əsl telefonlar üçün
+
+Hazırkı mobil kod **başsız kontroller qatıdır**, əsl telefon tətbiqi deyil: native
+kamera və qalıcı saxlanc yoxdur, ona görə hər açılışda yenidən qeydiyyat lazımdır.
+**Server tərəfi buna hazırdır** — təkrar qeydiyyat limitə sayılmır, yəni qalıcı
+saxlanc əlavə olunanda serverdə heç nə dəyişmir.
 
 ---
 
-_Son yenilənmə: 13 sentyabr 2026_
+_Son yenilənmə: 14 sentyabr 2026_
