@@ -23,6 +23,10 @@ yarn.lock
 *.map
 *.tsbuildinfo
 
+# Ultralytics writes its settings here on first run, uuid included. It is
+# generated, so formatting it only guarantees the check fails again next run.
+.yolo_config/
+
 # Database migrations are reviewed as SQL, not reformatted by a JS formatter.
 supabase/migrations/
 

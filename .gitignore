@@ -79,6 +79,11 @@ __pycache__/
 *.ckpt
 yolov8*.pt
 
+# Ultralytics writes this directory on its first run, including a per-machine
+# uuid. It is generated state, not source. It was tracked until 2026-09-14,
+# which meant every machine that ran the vision worker produced a diff.
+.yolo_config/
+
 # ---- Editor & OS ----------------------------------------------------------
 .DS_Store
 .DS_Store?
