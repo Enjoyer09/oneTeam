@@ -153,6 +153,15 @@ export class EnterpriseDatabase {
    * impossible to reproduce and easy to blame on something else.
    */
   private pendingWrites = 0;
+
+  /**
+   * The tail of the write queue. See `persist()` for why writes are ordered.
+   *
+   * Typed `unknown` rather than `void` because the value is never read — it
+   * exists only so the next write can be appended to it.
+   */
+  private writeQueue: Promise<unknown> = Promise.resolve();
+
   private refreshTimer: NodeJS.Timeout | null = null;
   private refreshing = false;
 
@@ -437,25 +446,103 @@ export class EnterpriseDatabase {
   }
 
   /**
-   * Fire-and-forget write-through.
+   * Fire-and-forget write-through, in submission order.
    *
    * The callers are synchronous and stay that way — see the note in
    * postgres.ts. A failed write is logged loudly rather than thrown: an audit
    * row that cannot be written should not fail the business operation that
    * produced it, but it must be visible in the logs.
+   *
+   * WHY THIS IS A QUEUE AND NOT A BARE PROMISE
+   * ------------------------------------------
+   * It used to accept an already-started promise, so every write ran
+   * concurrently on its own pool connection and the order in which they reached
+   * PostgreSQL was whatever the scheduler decided. That is harmless until one
+   * row is the parent of another, and then it is silent data loss. Observed on
+   * a device's first enrolment, which queues four writes at once:
+   *
+   *   - `users`         — the row this installation is about to become
+   *   - `store_tasks`   — the claim on the store's open work
+   *   - `audit_logs`    — the record that the enrolment happened
+   *   - `device_tokens` — the credential, the only one of the four awaited
+   *
+   * The first three lost the race. The response said
+   * `claimedTaskIds: ["task-yasamal-cooler-01"]` and the log said
+   * `claimed 1 task(s)`, while the database held neither the claim nor the
+   * audit entry. `device_tokens` failed with a foreign-key violation that
+   * escaped as a bare HTTP 500, so the phone was told the sign-in had failed
+   * for no stated reason. Intermittent, and only under load — the kind of fault
+   * that gets blamed on the network and never reproduced.
+   *
+   * Taking a thunk instead of a promise is the fix. The query is not created
+   * until its turn comes, so a child row cannot be written before the parent it
+   * references. One rule, applied once, for every table.
+   *
+   * The cost is throughput: writes no longer overlap. This repository is the
+   * single writer for a single-replica pilot, and a lost claim or a missing
+   * audit record is worse than a slower write, so the trade is made
+   * deliberately. If a hot path ever genuinely needs concurrency, give it its
+   * own pool and keep this guarantee for anything with a foreign key.
+   *
+   * A failed write does not stall the queue: the error is caught here, so the
+   * next thunk still runs. Without that, one failing parent write would leave
+   * every dependent write rejected for the life of the process.
    */
-  private persist(op: Promise<unknown>, label: string): void {
-    if (!this.pool) return;
-
-    this.pendingWrites += 1;
-    op.catch((error) => {
+  private persist(op: (pool: Pool) => Promise<unknown>, label: string): void {
+    void this.enqueue(op, label).catch((error) => {
       console.error(
         `⛔ [oneTeam DB] Failed to persist ${label}: ` +
           (error instanceof Error ? error.message : String(error)),
       );
-    }).finally(() => {
-      this.pendingWrites -= 1;
     });
+  }
+
+  /**
+   * Appends a write to the queue and hands back the promise for that link.
+   *
+   * The queue exists so a child row is never written before its parent; see
+   * `persist()` for the failure that made that necessary. `persist()` is the
+   * fire-and-forget wrapper over this. This method exists separately because a
+   * few writes have a result the caller must act on — issuing a credential is
+   * the one that matters, since a token that could not be stored must not be
+   * handed out.
+   *
+   * The returned promise rejects if the write failed, so an awaiting caller can
+   * fail closed. The queue's own tail never rejects, so one bad write does not
+   * poison every write behind it.
+   *
+   * WHAT IS DELIBERATELY NOT QUEUED
+   * -------------------------------
+   * Inserts and updates to a row that must already exist are left as direct
+   * awaits — the four revocation methods, and the two "last seen" touches, which
+   * do go through `persist()` but only ever update an existing row. They are
+   * idempotent, they report a result the caller acts on, and they have no
+   * ordering dependency on anything submitted in the same tick, so putting them
+   * behind the queue would buy nothing and make their return types awkward.
+   *
+   * The rule is about *dependencies*, not about writes in general: if a write
+   * can only succeed once another write has landed, it goes through here.
+   */
+  private enqueue(op: (pool: Pool) => Promise<unknown>, label: string): Promise<unknown> {
+    // Captured rather than read inside the thunk: `close()` sets `this.pool` to
+    // null, and a write already queued should still go to the pool it was
+    // queued against rather than throw a TypeError.
+    const pool = this.pool;
+    if (!pool) return Promise.resolve();
+
+    this.pendingWrites += 1;
+    const attempt = this.writeQueue.then(() => op(pool));
+
+    this.writeQueue = attempt
+      .then(
+        () => undefined,
+        () => undefined,
+      )
+      .finally(() => {
+        this.pendingWrites -= 1;
+      });
+
+    return attempt;
   }
 
   /** Closes the pool. Used by tests and by graceful shutdown. */
@@ -490,7 +577,7 @@ export class EnterpriseDatabase {
       createdAt: new Date(),
     };
     this.auditLogs.push(entry);
-    if (this.pool) this.persist(pg.insertAuditLog(this.pool, entry), `audit ${entry.id}`);
+    if (this.pool) this.persist((pool) => pg.insertAuditLog(pool, entry), `audit ${entry.id}`);
     return entry;
   }
 
@@ -503,7 +590,7 @@ export class EnterpriseDatabase {
    */
   public createStoreTask(task: InMemoryStoreTask): InMemoryStoreTask {
     this.storeTasks.push(task);
-    if (this.pool) this.persist(pg.insertStoreTask(this.pool, task), `task ${task.id}`);
+    if (this.pool) this.persist((pool) => pg.insertStoreTask(pool, task), `task ${task.id}`);
     return task;
   }
 
@@ -514,7 +601,8 @@ export class EnterpriseDatabase {
    */
   public createEvidence(evidence: InMemoryEvidence): InMemoryEvidence {
     this.evidences.push(evidence);
-    if (this.pool) this.persist(pg.insertEvidence(this.pool, evidence), `evidence ${evidence.id}`);
+    if (this.pool)
+      this.persist((pool) => pg.insertEvidence(pool, evidence), `evidence ${evidence.id}`);
     return evidence;
   }
 
@@ -549,7 +637,7 @@ export class EnterpriseDatabase {
     };
 
     this.users.push(record as (typeof this.users)[number]);
-    if (this.pool) this.persist(pg.upsertTelegramUser(this.pool, record), `user ${record.id}`);
+    if (this.pool) this.persist((pool) => pg.upsertTelegramUser(pool, record), `user ${record.id}`);
 
     return { id: record.id, role: record.role };
   }
@@ -592,7 +680,7 @@ export class EnterpriseDatabase {
     };
 
     this.users.push(record as (typeof this.users)[number]);
-    if (this.pool) this.persist(pg.upsertDeviceUser(this.pool, record), `user ${record.id}`);
+    if (this.pool) this.persist((pool) => pg.upsertDeviceUser(pool, record), `user ${record.id}`);
 
     return { id: record.id, role: record.role };
   }
@@ -625,7 +713,7 @@ export class EnterpriseDatabase {
       updatedAt: new Date(),
     };
     this.templates.push(record as (typeof this.templates)[number]);
-    if (this.pool) this.persist(pg.insertTemplate(this.pool, record), `template ${record.id}`);
+    if (this.pool) this.persist((pool) => pg.insertTemplate(pool, record), `template ${record.id}`);
     return record;
   }
 
@@ -655,7 +743,10 @@ export class EnterpriseDatabase {
     evidence.updatedAt = new Date();
 
     if (this.pool) {
-      this.persist(pg.updateEvidenceRow(this.pool, evidence), `evidence ${evidence.id} review`);
+      this.persist(
+        (pool) => pg.updateEvidenceRow(pool, evidence),
+        `evidence ${evidence.id} review`,
+      );
     }
     return evidence;
   }
@@ -697,12 +788,31 @@ export class EnterpriseDatabase {
     const token = DEVICE_TOKEN_PREFIX + randomBytes(32).toString('base64url');
     const tokenHash = hashDeviceToken(token);
 
-    await pg.insertDeviceToken(this.pool, {
-      tokenHash,
-      userId: params.userId,
-      deviceId: params.deviceId,
-      label: params.label ?? null,
-    });
+    // Through the queue, not straight to the pool. On a device's first
+    // enrolment the `users` row this token references is itself still queued, so
+    // writing directly raced it and lost — a foreign-key violation that reached
+    // the phone as a bare HTTP 500 on its very first sign-in.
+    try {
+      await this.enqueue(
+        (pool) =>
+          pg.insertDeviceToken(pool, {
+            tokenHash,
+            userId: params.userId,
+            deviceId: params.deviceId,
+            label: params.label ?? null,
+          }),
+        `device token for ${params.userId}`,
+      );
+    } catch (error) {
+      // Fail closed, exactly as the no-pool branch above does: a device that is
+      // told it is enrolled and then is not is worse than one that was never
+      // enrolled. The caller answers 503 and the phone asks a human.
+      console.error(
+        '⛔ [oneTeam DB] Could not store a device token: ' +
+          (error instanceof Error ? error.message : String(error)),
+      );
+      return null;
+    }
 
     return { token, tokenHash };
   }
@@ -731,7 +841,7 @@ export class EnterpriseDatabase {
     // write for a field nobody reads in a hurry.
     const FIVE_MINUTES = 5 * 60 * 1000;
     if (!found.lastSeenAt || Date.now() - found.lastSeenAt.getTime() > FIVE_MINUTES) {
-      this.persist(pg.touchDeviceToken(this.pool, tokenHash), 'device token last-seen');
+      this.persist((pool) => pg.touchDeviceToken(pool, tokenHash), 'device token last-seen');
     }
 
     return { userId: found.userId, deviceId: found.deviceId };
@@ -784,12 +894,26 @@ export class EnterpriseDatabase {
     const token = PANEL_TOKEN_PREFIX + randomBytes(32).toString('base64url');
     const tokenHash = hashPanelToken(token);
 
-    await pg.insertPanelToken(this.pool, {
-      tokenHash,
-      userId: params.userId,
-      label: params.label ?? null,
-      createdBy: params.createdBy ?? null,
-    });
+    // Through the queue for the same reason as the device path: `panel_tokens`
+    // references `users`, and the two writes are not otherwise ordered.
+    try {
+      await this.enqueue(
+        (pool) =>
+          pg.insertPanelToken(pool, {
+            tokenHash,
+            userId: params.userId,
+            label: params.label ?? null,
+            createdBy: params.createdBy ?? null,
+          }),
+        `panel key for ${params.userId}`,
+      );
+    } catch (error) {
+      console.error(
+        '⛔ [oneTeam DB] Could not store a panel key: ' +
+          (error instanceof Error ? error.message : String(error)),
+      );
+      return null;
+    }
 
     return { token, tokenHash };
   }
@@ -813,7 +937,7 @@ export class EnterpriseDatabase {
     // into a write.
     const FIVE_MINUTES = 5 * 60 * 1000;
     if (!found.lastSeenAt || Date.now() - found.lastSeenAt.getTime() > FIVE_MINUTES) {
-      this.persist(pg.touchPanelToken(this.pool, tokenHash), 'panel token last-seen');
+      this.persist((pool) => pg.touchPanelToken(pool, tokenHash), 'panel token last-seen');
     }
 
     return { userId: found.userId };
@@ -1010,7 +1134,7 @@ export class EnterpriseDatabase {
     task.updatedAt = new Date();
 
     if (this.pool)
-      this.persist(pg.updateStoreTaskRow(this.pool, task), `task ${task.id} assignment`);
+      this.persist((pool) => pg.updateStoreTaskRow(pool, task), `task ${task.id} assignment`);
     return task;
   }
 
@@ -1029,7 +1153,8 @@ export class EnterpriseDatabase {
       task.reviewedAt = new Date();
     }
 
-    if (this.pool) this.persist(pg.updateStoreTaskRow(this.pool, task), `task ${task.id} state`);
+    if (this.pool)
+      this.persist((pool) => pg.updateStoreTaskRow(pool, task), `task ${task.id} state`);
 
     return task;
   }

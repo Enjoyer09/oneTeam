@@ -26,7 +26,13 @@
  * string from a downloadable bundle gave access to every store, every task and
  * every audit.
  *
- * Three things narrow it further, and all three are cheap:
+ * It is also a REPLAYABLE claim, which the first version of this file did not
+ * reckon with. A store code does not get used up, so it could be presented again
+ * and again with a different `deviceId` — and each presentation produced another
+ * user and another live credential. Measured against the running API: five
+ * requests, five identities, no limit. The fix is the fourth bullet below.
+ *
+ * Four things narrow it, and all four are cheap:
  *
  *   - `ONETEAM_ENROLLMENT_SECRET`, when set, must be supplied as well. That
  *     turns the store code into a username and this into the password, and is
@@ -37,6 +43,9 @@
  *   - Every enrolment is written to the audit log with the address it came from.
  *     "Which device was enrolled, when, and from where" is the question asked
  *     after an incident, and it is only answerable if it was recorded before one.
+ *   - New installations are capped per store, so a code that has leaked yields a
+ *     bounded number of identities instead of an unbounded supply. See
+ *     `MAX_NEW_DEVICES_PER_STORE` for what is counted and why re-enrolment is not.
  *
  * The token that comes back identifies exactly one user. Unlike the service
  * credential it cannot be used to act as anybody else, so its blast radius is
@@ -69,7 +78,10 @@ import { FieldService } from './field.service';
  * it exists to allow.
  *
  * Counting failures targets the actual attack instead: guessing store codes in a
- * loop. Correct sign-ins are unlimited; wrong ones are what run out.
+ * loop. Correct sign-ins are unlimited *here*; wrong ones are what run out.
+ * Unlimited here is not unlimited everywhere — a new installation is capped per
+ * store by `MAX_NEW_DEVICES_PER_STORE` below, which is a different control for a
+ * different attack and deliberately counts different things.
  *
  * Sized for a person who mistypes a few times, not for a script. Overridable
  * with `ONETEAM_ENROLLMENT_MAX_FAILURES` so a deployment can tighten or relax it
@@ -123,9 +135,105 @@ function recordFailure(key: string): void {
   }
 }
 
+/**
+ * New installations one store may enrol in a window.
+ *
+ * THE HOLE THIS CLOSES
+ * --------------------
+ * This endpoint hands out credentials without one, so it is the only place an
+ * identity can be created out of nothing. It was bounded only by the failure
+ * limiter above, which counts *wrong* store codes — and a correct one is not a
+ * failure. So one valid, semi-public store code could be replayed with a fresh
+ * `deviceId` for as long as the caller cared to keep going. Measured on the real
+ * API: five requests, five new `users` rows, five live device credentials, no
+ * limit and no signal. Each of those identities is a merchandiser at that store,
+ * and `bind()` also hands each one the store's unassigned open work.
+ *
+ * WHAT IS COUNTED, AND WHY IT IS NOT THE SAME AS THE LIMITER ABOVE
+ * ----------------------------------------------------------------
+ * Only enrolments that create a *new* installation. A device that is already
+ * known is re-enrolling, not joining, and this is not a theoretical distinction:
+ * the mobile client has no storage layer, so it enrols again on every process
+ * start. Counting those would make the cap fire on entirely ordinary use, which
+ * is how a security control gets switched off.
+ *
+ * The key is the STORE, not the address. The failure limiter is per-address
+ * because guessing store codes is an address-shaped attack; this one is
+ * store-shaped, because the resource being consumed is identities at one store.
+ * Keying it on the address would have punished a shop behind one NAT — the exact
+ * mistake the limiter above already made once and had to be fixed for.
+ *
+ * A store's real device count is a handful of phones, so the default is set well
+ * above any honest onboarding day and well below anything a script would want.
+ * It is a bound on the damage, not a barrier to the work.
+ *
+ * THE TRADE-OFF, STATED
+ * ---------------------
+ * Someone holding a leaked store code can spend this budget to stop a colleague
+ * enrolling that day. That is worse than nothing only if the alternative were
+ * unlimited identities — which it was — so the bound is still the better
+ * arrangement. It is also visible rather than silent: a refusal is logged, and
+ * written to the audit trail with the store and the source address, so an
+ * operator can see it happening and raise the limit. `ONETEAM_ENROLLMENT_SECRET`
+ * remains the actual answer, and this is what limits the damage until it is set.
+ *
+ * In memory, and therefore per replica — the same honest limitation as the
+ * limiter above. A second API instance would allow a second window's worth.
+ */
+const MAX_NEW_DEVICES_PER_STORE = Number(process.env.ONETEAM_ENROLLMENT_MAX_NEW_DEVICES) || 30;
+const NEW_DEVICE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+const newDevices = new Map<string, number[]>();
+
+/** Whether this store has already taken as many new installations as it may. */
+function newDeviceGate(storeId: string): {
+  allowed: boolean;
+  used: number;
+  retryAfterSeconds: number;
+} {
+  const now = Date.now();
+  const recent = (newDevices.get(storeId) ?? []).filter((at) => now - at < NEW_DEVICE_WINDOW_MS);
+
+  if (recent.length === 0) {
+    newDevices.delete(storeId);
+    return { allowed: true, used: 0, retryAfterSeconds: 0 };
+  }
+
+  newDevices.set(storeId, recent);
+
+  if (recent.length >= MAX_NEW_DEVICES_PER_STORE) {
+    return {
+      allowed: false,
+      used: recent.length,
+      retryAfterSeconds: Math.max(1, Math.ceil((NEW_DEVICE_WINDOW_MS - (now - recent[0])) / 1000)),
+    };
+  }
+
+  return { allowed: true, used: recent.length, retryAfterSeconds: 0 };
+}
+
+/** Records that a new installation joined this store. */
+function recordNewDevice(storeId: string): void {
+  const now = Date.now();
+  const recent = (newDevices.get(storeId) ?? []).filter((at) => now - at < NEW_DEVICE_WINDOW_MS);
+  recent.push(now);
+  newDevices.set(storeId, recent);
+
+  if (newDevices.size > 10_000) {
+    const keys = [...newDevices.keys()].slice(0, 5_000);
+    for (const k of keys) newDevices.delete(k);
+  }
+}
+
 /** Exposed so a test can start from a clean window. */
 export function resetEnrollmentThrottle(): void {
   failures.clear();
+  newDevices.clear();
+}
+
+/** The configured new-installation cap, for tests and for the refusal message. */
+export function enrollmentNewDeviceLimit(): number {
+  return MAX_NEW_DEVICES_PER_STORE;
 }
 
 @Controller('api/portal/field')
@@ -221,12 +329,61 @@ export class EnrollmentController {
       );
     }
 
+    // A device that is already known is re-enrolling, not joining. The mobile
+    // client has no storage layer, so it does this on every process start, and
+    // counting those would make the cap below fire on ordinary use — see
+    // `MAX_NEW_DEVICES_PER_STORE`.
+    const knownDevice = db.getUserByMobileDeviceId(deviceId);
+
+    if (!knownDevice) {
+      const gate = newDeviceGate(store.id);
+      if (!gate.allowed) {
+        // Written before the refusal is returned, because this is the signal an
+        // operator needs: a store that suddenly starts asking for more
+        // installations than it has phones is either a rollout or an incident,
+        // and only the trail can tell them apart afterwards.
+        db.logAuditEvent({
+          entityType: 'store',
+          entityId: store.id,
+          action: 'DEVICE_ENROLMENT_LIMIT_REACHED',
+          // No actorId: no identity was established, which is the whole point.
+          payload: {
+            storeId: store.id,
+            storeCode: store.storeCode,
+            deviceId,
+            source,
+            used: gate.used,
+            cap: MAX_NEW_DEVICES_PER_STORE,
+          },
+        });
+        this.logger.warn(
+          `⛔ Enrolment refused for ${source}: ${store.storeCode} has already enrolled ` +
+            `${gate.used} new device(s) (cap ${MAX_NEW_DEVICES_PER_STORE}).`,
+        );
+        throw new HttpException(
+          {
+            error: 'ENROLMENT_LIMIT_REACHED',
+            message:
+              `Bu mağaza üçün yeni cihaz limiti dolub ` +
+              `(${gate.used}/${MAX_NEW_DEVICES_PER_STORE}). ` +
+              'Zəhmət olmasa administratorla əlaqə saxlayın.',
+            retryAfterSeconds: gate.retryAfterSeconds,
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+    }
+
     // Binding is the same call the chat channel makes: it creates or updates the
     // user for this external key and claims the store's open work. Reusing it
     // rather than writing a second path is what keeps the two channels from
     // drifting on who may claim what.
     const bound = this.fieldService.bind({ deviceId }, fullName, store.id);
     const userId = bound.data.id as string;
+
+    // Counted only once the identity actually exists, so a failure further down
+    // does not spend the store's budget on an installation that never joined.
+    if (!knownDevice) recordNewDevice(store.id);
 
     const issued = await db.issueDeviceToken({
       userId,

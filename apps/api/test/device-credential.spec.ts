@@ -26,6 +26,13 @@
  * The load-bearing assertions are the refusals. A suite that only checked that
  * enrolment returns a token would pass against an API that authorises anything.
  *
+ * It also guards the enrolment path itself, because that is where credentials are
+ * created out of nothing and it has now failed in two different ways. A burst of
+ * first-time enrolments must not lose its writes (they used to race, and a lost
+ * credential surfaced as a bare 500), and a store code must not be replayable
+ * into an unbounded supply of identities (it was, and only failures were
+ * rate-limited). Both are covered below.
+ *
  * It also asserts the opposite direction: the service credential MUST still be
  * able to name any user, because that is what lets the Telegram bot act for
  * whichever chat an update came from. A "fix" that locked both credentials down
@@ -49,6 +56,25 @@ const SERVICE_TOKEN = process.env.ONETEAM_TEST_SERVICE_TOKEN || 'oneteam-user:us
 
 /** The enrolment second factor, when the API under test requires one. */
 const ENROLLMENT_SECRET = process.env.ONETEAM_ENROLLMENT_SECRET || '';
+
+/**
+ * The store the new-installation cap is exercised against.
+ *
+ * A store of its own on purpose. The cap is per store and per window, so a test
+ * that spent the main store's budget would start refusing the suite's *other*
+ * enrolments — the check would take out the checks around it. This store has no
+ * other purpose, so spending its budget is the test's business and nobody
+ * else's.
+ */
+const CAP_STORE_CODE = process.env.ONETEAM_TEST_CAP_STORE_CODE || 'BAZAR_PORTBAKU_03';
+
+/**
+ * The cap the API under test is running with.
+ *
+ * Read from the same variable the API reads, so a run against an API started
+ * with a smaller cap still measures the right number instead of guessing.
+ */
+const NEW_DEVICE_CAP = Number(process.env.ONETEAM_ENROLLMENT_MAX_NEW_DEVICES) || 30;
 
 let pass = 0;
 let fail = 0;
@@ -471,6 +497,181 @@ async function main(): Promise<void> {
   );
 
   // -------------------------------------------------------------------------
+  // A burst of first-time enrolments must not lose its writes
+  // -------------------------------------------------------------------------
+  console.log('\na burst of first-time enrolments');
+
+  // Every one of these is a NEW installation, so each queues four writes at
+  // once: the `users` row it is about to become, the claim on the store's open
+  // work, the audit entry, and the credential itself.
+  //
+  // Those writes used to run concurrently, and the ones that lost the race were
+  // the ones nobody looks at: a claim reported in the response but absent from
+  // the database, an enrolment missing from the audit trail, and — because the
+  // credential was the only write the caller awaited — a foreign-key violation
+  // that reached the phone as a bare HTTP 500. Measured against the unfixed API:
+  // two of five requests. Intermittent, load-dependent, and blamed on the
+  // network. This is the regression test for the write queue.
+  const stamp = Date.now();
+  const burst: Array<{ deviceId: string; status: number; token?: string }> = [];
+  for (let i = 0; i < 6; i += 1) {
+    const deviceId = `dev-order-${stamp}-${i}`;
+    const result = await call('POST', '/api/portal/field/enroll', {
+      body: {
+        storeCode: STORE_CODE,
+        fullName: `Order Probe ${i}`,
+        deviceId,
+        enrollmentSecret: ENROLLMENT_SECRET || undefined,
+      },
+    });
+    burst.push({ deviceId, status: result.status, token: result.body?.data?.token });
+  }
+
+  const accepted = burst.filter((entry) => entry.status === 200);
+  const serverErrors = burst.filter((entry) => entry.status >= 500);
+
+  if (accepted.length === 0) {
+    skip(
+      'a burst of first-time enrolments produces no server error',
+      `${STORE_CODE} has no new-installation budget left — restart the API to reset it`,
+    );
+  } else {
+    check(
+      'a burst of first-time enrolments produces no server error',
+      serverErrors.length === 0,
+      serverErrors,
+    );
+  }
+
+  // A token that was returned but never stored is the failure this catches: the
+  // response said the device was enrolled and the credential did not exist.
+  const brokenTokens: string[] = [];
+  for (const entry of accepted) {
+    if (!entry.token) {
+      brokenTokens.push(`${entry.deviceId}: no token in the response`);
+      continue;
+    }
+    const who = await call('GET', '/api/portal/field/whoami', { token: entry.token });
+    if (who.status !== 200) brokenTokens.push(`${entry.deviceId}: whoami answered ${who.status}`);
+  }
+  if (accepted.length === 0) {
+    skip('every accepted enrolment was handed a working credential', 'none were accepted');
+  } else {
+    check(
+      'every accepted enrolment was handed a working credential',
+      brokenTokens.length === 0,
+      brokenTokens,
+    );
+  }
+
+  if (!db) {
+    skip('every accepted enrolment is in the audit trail', 'DATABASE_URL not set');
+  } else if (accepted.length === 0) {
+    skip('every accepted enrolment is in the audit trail', 'none were accepted');
+  } else {
+    const rows = await query(
+      `SELECT payload->>'deviceId' AS device_id FROM audit_logs
+        WHERE action = 'DEVICE_ENROLLED' AND payload->>'deviceId' = ANY($1)`,
+      [accepted.map((entry) => entry.deviceId)],
+    );
+    const recorded = new Set(rows.map((row) => row.device_id));
+    const missing = accepted
+      .filter((entry) => !recorded.has(entry.deviceId))
+      .map((entry) => entry.deviceId);
+    check('every accepted enrolment is in the audit trail', missing.length === 0, missing);
+  }
+
+  // -------------------------------------------------------------------------
+  // A store code is replayable, so new installations are bounded
+  // -------------------------------------------------------------------------
+  console.log('\nthe new-installation cap');
+
+  // A store code does not get used up. Before this cap existed it could be
+  // presented again and again with a different `deviceId`, and each presentation
+  // produced another identity and another live credential. Only *failures* were
+  // rate-limited, and a correct store code is not a failure — so the measured
+  // result was five requests, five users, no limit and nothing in the logs.
+  const capStamp = Date.now();
+
+  // One known installation first, so there is something to re-enrol after the
+  // budget is spent.
+  const knownDeviceId = `dev-cap-known-${capStamp}`;
+  const knownFirst = await call('POST', '/api/portal/field/enroll', {
+    body: {
+      storeCode: CAP_STORE_CODE,
+      fullName: 'Cap Known Device',
+      deviceId: knownDeviceId,
+      enrollmentSecret: ENROLLMENT_SECRET || undefined,
+    },
+  });
+
+  const attempts: number[] = [];
+  for (let i = 0; i < NEW_DEVICE_CAP + 3; i += 1) {
+    const result = await call('POST', '/api/portal/field/enroll', {
+      body: {
+        storeCode: CAP_STORE_CODE,
+        fullName: `Cap Probe ${i}`,
+        deviceId: `dev-cap-${capStamp}-${i}`,
+        enrollmentSecret: ENROLLMENT_SECRET || undefined,
+      },
+    });
+    attempts.push(result.status);
+  }
+
+  const refused = attempts.filter((status) => status === 429).length;
+  const succeeded = attempts.filter((status) => status === 200).length;
+  const unexpected = attempts.filter((status) => status !== 200 && status !== 429);
+
+  check('the store eventually stops accepting new installations', refused > 0, {
+    refused,
+    succeeded,
+    cap: NEW_DEVICE_CAP,
+  });
+  check('a refusal is a 429, not a server error', unexpected.length === 0, unexpected);
+  check('a store accepts no more than the configured cap', succeeded <= NEW_DEVICE_CAP, {
+    succeeded,
+    cap: NEW_DEVICE_CAP,
+  });
+
+  // The load-bearing one. The mobile client has no storage layer, so it enrols
+  // again on every process start. If re-enrolment were counted, the cap would
+  // fire on entirely ordinary use — and a security control that interferes with
+  // normal work is one somebody turns off. A known device must never be refused,
+  // however much of the budget has been spent.
+  const reEnrol = await call('POST', '/api/portal/field/enroll', {
+    body: {
+      storeCode: CAP_STORE_CODE,
+      fullName: 'Cap Known Device',
+      deviceId: knownDeviceId,
+      enrollmentSecret: ENROLLMENT_SECRET || undefined,
+    },
+  });
+  if (knownFirst.status !== 200) {
+    skip(
+      'a device that is already enrolled may enrol again after the cap is reached',
+      `${CAP_STORE_CODE} had no budget left at the start of this run — restart the API to reset it`,
+    );
+  } else {
+    check(
+      'a device that is already enrolled may enrol again after the cap is reached',
+      reEnrol.status === 200,
+      { knownFirst: knownFirst.status, reEnrol: reEnrol.status, body: reEnrol.body },
+    );
+  }
+
+  if (!db) {
+    skip('the refusal is written to the audit trail', 'DATABASE_URL not set');
+  } else {
+    const audit = await query(
+      `SELECT count(*)::int AS n FROM audit_logs
+        WHERE action = 'DEVICE_ENROLMENT_LIMIT_REACHED'
+          AND payload->>'storeCode' = $1`,
+      [CAP_STORE_CODE],
+    );
+    check('the refusal is written to the audit trail', (audit[0]?.n ?? 0) > 0, audit[0]?.n);
+  }
+
+  // -------------------------------------------------------------------------
   // The second factor, when configured
   // -------------------------------------------------------------------------
   if (secretRequired) {
@@ -504,9 +705,17 @@ async function main(): Promise<void> {
   console.log(`\n=== ${pass} passed, ${fail} failed${skipped ? `, ${skipped} skipped` : ''} ===\n`);
   if (skipped) {
     console.log(
-      '  A skip means the assertion could not run, not that it held. The enrolment\n' +
-        '  rate limit counts failures per address, so repeated runs in quick\n' +
-        '  succession exhaust the budget — restart the API or wait out the window.\n',
+      '  A skip means the assertion could not run, not that it held. Two controls\n' +
+        '  can cause one, and both are per-process state that a restart clears:\n' +
+        '\n' +
+        '    - enrolment failures are counted per address, so repeated runs in\n' +
+        '      quick succession exhaust the budget;\n' +
+        '    - new installations are capped per store per window, so the stores\n' +
+        '      this suite enrols into run out of budget after a few runs.\n' +
+        '\n' +
+        '  Restart the API to reset both. To exercise the cap deliberately, start\n' +
+        '  it with a small ONETEAM_ENROLLMENT_MAX_NEW_DEVICES and pass the same\n' +
+        '  value to this suite so the loop and the API agree on the number.\n',
     );
   }
   process.exit(fail === 0 ? 0 : 1);
