@@ -46,6 +46,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { Request as ExpressRequest } from 'express';
+import { db } from '@oneteam/database';
 import { FieldService, FieldActorKey } from './field.service';
 import { AuthGuard, getPrincipal } from '../../common/auth/auth.guard';
 import {
@@ -83,10 +84,7 @@ function requireActorKey(key: FieldActorKey): FieldActorKey {
  * request would succeed while answering about someone else's data, which is the
  * kind of bug that looks like a feature until it is an incident.
  */
-function enforceActorScope(
-  principal: AuthenticatedPrincipal,
-  key: FieldActorKey
-): FieldActorKey {
+function enforceActorScope(principal: AuthenticatedPrincipal, key: FieldActorKey): FieldActorKey {
   if (mayActAsAnotherUser(principal)) return key;
 
   const ownsDevice = Boolean(key.deviceId) && key.deviceId === principal.deviceId;
@@ -114,15 +112,45 @@ export class FieldController {
     return { success: true, data: store };
   }
 
+  /**
+   * Answers "is my credential accepted, and as whom".
+   *
+   * This exists because both clients used to prove liveness by calling
+   * `/api/portal/stores` — a supervisor route. That worked only because nothing
+   * was guarding it, and it meant a field client was reading the full store list
+   * of the whole chain to check whether it was online.
+   *
+   * It takes no actor key: the caller is asking about its own credential, and
+   * the answer comes from the credential itself. Requiring an actor key here
+   * would make the one route whose purpose is "who am I" depend on the caller
+   * already knowing who it is.
+   */
+  @Get('whoami')
+  whoami(@Request() request: AuthedRequest) {
+    const principal = getPrincipal(request);
+    const user = db.getUser(principal.userId);
+
+    return {
+      success: true,
+      data: {
+        userId: principal.userId,
+        fullName: user?.fullName ?? null,
+        role: principal.role,
+        via: principal.via ?? 'service',
+        deviceId: principal.deviceId ?? null,
+      },
+    };
+  }
+
   @Get('session')
   getSession(
     @Request() request: AuthedRequest,
     @Query('chatId') chatId?: string,
-    @Query('deviceId') deviceId?: string
+    @Query('deviceId') deviceId?: string,
   ) {
     const key = enforceActorScope(
       getPrincipal(request),
-      requireActorKey(actorKeyFromQuery(chatId, deviceId))
+      requireActorKey(actorKeyFromQuery(chatId, deviceId)),
     );
     return this.fieldService.session(key);
   }
@@ -137,7 +165,7 @@ export class FieldController {
       deviceId?: string;
       fullName?: string;
       storeId?: string;
-    }
+    },
   ) {
     const key = enforceActorScope(getPrincipal(request), requireActorKey(actorKeyFrom(body)));
     return this.fieldService.bind(key, body.fullName || 'Sahə işçisi', body.storeId);
@@ -164,7 +192,7 @@ export class FieldController {
   async acknowledge(
     @Request() request: AuthedRequest,
     @Param('id') id: string,
-    @Body() body: { chatId?: string | number; deviceId?: string }
+    @Body() body: { chatId?: string | number; deviceId?: string },
   ) {
     const key = enforceActorScope(getPrincipal(request), requireActorKey(actorKeyFrom(body)));
     return this.fieldService.acknowledgeTask(key, id);
@@ -175,11 +203,11 @@ export class FieldController {
     @Request() request: AuthedRequest,
     @Query('chatId') chatId?: string,
     @Query('deviceId') deviceId?: string,
-    @Query('limit') limit?: string
+    @Query('limit') limit?: string,
   ) {
     const key = enforceActorScope(
       getPrincipal(request),
-      requireActorKey(actorKeyFromQuery(chatId, deviceId))
+      requireActorKey(actorKeyFromQuery(chatId, deviceId)),
     );
     const data = this.fieldService.getSubmissions(key, limit ? Number(limit) : 5);
     return { success: true, data, total: data.length };
@@ -217,7 +245,7 @@ export class FieldController {
       base64?: string;
       contentType?: string;
       scope?: string;
-    }
+    },
   ) {
     if (!body?.base64) {
       throw new BadRequestException('base64 tələb olunur');

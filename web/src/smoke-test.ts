@@ -57,9 +57,46 @@ async function runWebSmokeTest() {
         '     VITE_API_BASE_URL=http://localhost:3001 \\\n' +
         '     ONETEAM_API_TOKEN=oneteam-user:usr-admin-001 \\\n' +
         '     npm run web:test\n\n' +
-        '   (In the deployed panel neither is needed: nginx proxies /api/ and\n' +
-        '    attaches the credential at the edge.)'
+        '   (In the deployed panel neither is needed: nginx proxies /api/, and a\n' +
+        '    signed-in supervisor supplies their own key.)',
     );
+  }
+
+  // -------------------------------------------------------------------------
+  // 0. Is the supervisor API even open to this credential?
+  // -------------------------------------------------------------------------
+  //
+  // Once a panel key exists, the supervisor routes stop accepting a service
+  // credential — that is the whole point of the login, and it is asserted in
+  // `npm run test:panel`. This suite stands in for a supervisor using one, so
+  // against a configured panel it would fail with a 403 on the first call and
+  // read like a broken API rather than a closed door.
+  //
+  // Asked up front, and answered in words, because the two situations need
+  // completely different responses from whoever is running this.
+  const authStatus = await fetch(`${process.env.VITE_API_BASE_URL}/api/panel/auth-status`)
+    .then((response) => (response.ok ? response.json() : null))
+    .catch(() => null);
+
+  // A panel key IS the credential this suite should be using against a
+  // configured panel, so passing one is the answer rather than a problem. The
+  // first version of this check refused both, which made the escape hatch it
+  // recommended in its own error message not work.
+  const usingPanelKey = (process.env.ONETEAM_API_TOKEN || '').startsWith('otp_');
+
+  if (authStatus?.data?.required === true && !usingPanelKey) {
+    console.log(
+      '\n  ⚠️  The supervisor panel is configured: it now requires a panel key, and\n' +
+        '      a service credential is refused on the routes this suite exercises.\n\n' +
+        '      Either run against a database with no live panel keys (see\n' +
+        '      `npm run test:panel`, which cleans up after itself), or pass a key:\n\n' +
+        '        ONETEAM_API_TOKEN=otp_... npm run web:test\n',
+    );
+    throw new Error('The panel requires a key — see the note above.');
+  }
+
+  if (authStatus?.data?.required === true) {
+    console.log('  Using a panel key against a configured panel.');
   }
 
   // -------------------------------------------------------------------------
@@ -80,7 +117,7 @@ async function runWebSmokeTest() {
   const bravo = stores.find((s) => s.store_code === EXPECTED_STORE_CODE);
   if (!bravo) {
     throw new Error(
-      `Store ${EXPECTED_STORE_CODE} not found. Got: ${stores.map((s) => s.store_code).join(', ')}`
+      `Store ${EXPECTED_STORE_CODE} not found. Got: ${stores.map((s) => s.store_code).join(', ')}`,
     );
   }
   ok(`Found ${bravo.name} (${bravo.store_code}, ${bravo.city})`);
@@ -125,7 +162,7 @@ async function runWebSmokeTest() {
   // is derived server-side. Every submission must land in one of the three
   // values the panel knows how to render.
   const unknown = submissions.filter(
-    (s) => !['pending_review', 'approved', 'rejected'].includes(s.status)
+    (s) => !['pending_review', 'approved', 'rejected'].includes(s.status),
   );
   if (unknown.length > 0) {
     throw new Error(`Unmapped submission status(es): ${unknown.map((s) => s.status).join(', ')}`);
@@ -187,7 +224,7 @@ async function runWebSmokeTest() {
 
   console.log('\n============================================================');
   console.log(
-    `  PASSED (${RUN_WRITES ? 'read + write' : 'read-only'}) — the panel is reading the real API.`
+    `  PASSED (${RUN_WRITES ? 'read + write' : 'read-only'}) — the panel is reading the real API.`,
   );
   console.log('============================================================\n');
 }
@@ -196,7 +233,7 @@ runWebSmokeTest().catch((err) => {
   console.error('\n❌ Web smoke test failed:', err?.message || err);
   console.error(
     '\n   If this is a connection error, the API is not running. Start it with:\n' +
-      '     npm run api:dev\n'
+      '     npm run api:dev\n',
   );
   process.exit(1);
 });

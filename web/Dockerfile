@@ -62,10 +62,18 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # `$remote_addr` and `$request_uri` would each be replaced by the empty string,
 # silently breaking the proxy headers with no error anywhere.
 #
-# PORTAL_TOKEN is the credential the proxy attaches to /api/portal/ requests so
-# that the token never reaches the browser. Its default is the seeded admin user
-# from db/api-seed.sql; override it with a PORTAL_TOKEN variable on the web
-# service to change who the panel acts as.
+# PORTAL_TOKEN is the PRE-SETUP fallback credential, not the panel's identity.
+#
+# Before any panel key has been issued the browser has nothing of its own to
+# send, and this is what keeps the panel working exactly as it did before logins
+# existed. The API honours it only while the panel is unconfigured, so the moment
+# the first key is minted it stops being a way in and the login screen becomes
+# the only door (see `mayUseRoute` in apps/api/src/common/auth/auth.guard.ts).
+#
+# The default is the seeded administrator because that is what it takes to mint
+# the first key. It is worth replacing with a supervisor once keys are in use,
+# and it can be removed altogether once every person who needs the panel has
+# their own key — at which point the bootstrap key is the recovery path.
 ENV API_UPSTREAM=http://api:3001
 ENV PORTAL_TOKEN=oneteam-user:usr-admin-001
 ENV NGINX_ENVSUBST_FILTER=^(API_UPSTREAM|PORTAL_TOKEN)$

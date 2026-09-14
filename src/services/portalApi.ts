@@ -102,7 +102,13 @@ export class PortalApiError extends Error {
   }
 }
 
-type Envelope<T> = { success?: boolean; data?: T; message?: string; error?: string; total?: number };
+type Envelope<T> = {
+  success?: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
+  total?: number;
+};
 
 /**
  * Turns any API answer into either `data` or a thrown `PortalApiError`.
@@ -131,7 +137,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new PortalApiError(
       `API-yə qoşulmaq mümkün olmadı (${API_BASE_URL}). Səbəb: ${reason}`,
       null,
-      'API_UNREACHABLE'
+      'API_UNREACHABLE',
     );
   }
 
@@ -146,7 +152,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
         throw new PortalApiError(
           `API gözlənilməz cavab qaytardı (HTTP ${response.status})`,
           response.status,
-          'BAD_RESPONSE'
+          'BAD_RESPONSE',
         );
       }
     }
@@ -158,7 +164,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new PortalApiError(
       message || `API xətası (HTTP ${response.status})`,
       response.status,
-      (payload as any)?.error ?? null
+      (payload as any)?.error ?? null,
     );
   }
 
@@ -178,7 +184,12 @@ class PortalApiClient {
   /** Confirms the API answers and the credential is accepted. */
   async ping(): Promise<{ ok: true } | { ok: false; error: string }> {
     try {
-      await request<unknown>('/api/portal/stores');
+      // `/api/portal/field/whoami`, not `/api/portal/stores`. The stores route is
+      // the supervisor API: it used to answer a bot with the whole chain's store
+      // list, which is more than a liveness check should ever read. Now that the
+      // supervisor routes require a panel key, it would also be the wrong
+      // question to ask.
+      await request<unknown>('/api/portal/field/whoami');
       return { ok: true };
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
@@ -194,7 +205,7 @@ class PortalApiClient {
     const code = storeCode.trim().toUpperCase();
     if (!code) return null;
     const store = await request<StoreRecord | null>(
-      `/api/portal/field/store?code=${encodeURIComponent(code)}`
+      `/api/portal/field/store?code=${encodeURIComponent(code)}`,
     );
     // A deactivated store must not accept audits even though it still resolves.
     if (!store || store.is_active === false) return null;
@@ -209,7 +220,7 @@ class PortalApiClient {
    */
   async getTasksForStore(storeId: string): Promise<TaskRecord[]> {
     const tasks = await request<TaskRecord[]>(
-      `/api/portal/field/tasks?storeId=${encodeURIComponent(storeId)}`
+      `/api/portal/field/tasks?storeId=${encodeURIComponent(storeId)}`,
     );
     return tasks ?? [];
   }
@@ -223,13 +234,13 @@ class PortalApiClient {
    */
   async getTaskById(taskId: string): Promise<TaskRecord | null> {
     return await request<TaskRecord | null>(
-      `/api/portal/field/tasks/${encodeURIComponent(taskId)}`
+      `/api/portal/field/tasks/${encodeURIComponent(taskId)}`,
     );
   }
 
   async getSubmissionsByChatId(chatId: number | string, limit = 5): Promise<SubmissionRecord[]> {
     const submissions = await request<SubmissionRecord[]>(
-      `/api/portal/field/submissions?chatId=${encodeURIComponent(String(chatId))}&limit=${limit}`
+      `/api/portal/field/submissions?chatId=${encodeURIComponent(String(chatId))}&limit=${limit}`,
     );
     return submissions ?? [];
   }
@@ -252,11 +263,11 @@ class PortalApiClient {
    */
   async acknowledgeTask(
     taskId: string,
-    chatId: number | string
+    chatId: number | string,
   ): Promise<{ taskId: string; currentState: string; advanced: boolean }> {
     return await request<{ taskId: string; currentState: string; advanced: boolean }>(
       `/api/portal/field/tasks/${encodeURIComponent(taskId)}/acknowledge`,
-      { method: 'POST', body: JSON.stringify({ chatId }) }
+      { method: 'POST', body: JSON.stringify({ chatId }) },
     );
   }
 
@@ -287,7 +298,7 @@ class PortalApiClient {
           fullName: params.fullName,
           storeId: params.storeId,
         }),
-      }
+      },
     );
 
     if (!result?.id) {
@@ -320,7 +331,7 @@ class PortalApiClient {
           `Maksimum ${Math.round(MAX_PHOTO_BYTES / 1024)} KB qəbul edilir. ` +
           `Zəhmət olmasa daha aşağı keyfiyyətdə yenidən çəkin.`,
         413,
-        'PHOTO_TOO_LARGE'
+        'PHOTO_TOO_LARGE',
       );
     }
 

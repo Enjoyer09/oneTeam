@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { PlusCircle, Clock, Menu, Sun, Moon } from 'lucide-react';
+import { PlusCircle, Clock, Menu, Sun, Moon, KeyRound, LogOut, ShieldAlert } from 'lucide-react';
 import { TabType } from './Sidebar';
+import type { PanelIdentity } from '../lib/panelAuth';
 
 interface HeaderProps {
   activeTab: TabType;
@@ -9,15 +10,35 @@ interface HeaderProps {
   onOpenDrawer?: () => void;
   /** Məzmun sürüşdürülübsə toolbar bir az qatılaşır — "üzən" hissi */
   scrolled?: boolean;
+  /**
+   * Who the API says is calling, or null when it could not be asked.
+   *
+   * `via: 'service'` means nobody signed in and the edge supplied a credential —
+   * the open-panel state. That distinction is shown rather than hidden: a person
+   * approving audits should be able to see whether the system knows who they
+   * are.
+   */
+  identity: PanelIdentity | null;
+  onSignOut: () => void;
+  onOpenKeys: () => void;
 }
 
 const THEME_KEY = 'oneteam-theme';
+
+const ROLE_LABEL: Record<string, string> = {
+  ADMIN: 'Administrator',
+  SUPERVISOR: 'Supervayzer',
+  MERCHANDISER: 'Merchandiser',
+};
 
 export const Header: React.FC<HeaderProps> = ({
   activeTab,
   onOpenCreateTask,
   onOpenDrawer,
   scrolled = false,
+  identity,
+  onSignOut,
+  onOpenKeys,
 }) => {
   const [timeStr, setTimeStr] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -34,7 +55,7 @@ export const Header: React.FC<HeaderProps> = ({
           hour: '2-digit',
           minute: '2-digit',
           second: '2-digit',
-        })
+        }),
       );
     };
     updateTime();
@@ -74,6 +95,9 @@ export const Header: React.FC<HeaderProps> = ({
 
   const { title, subtitle } = titles[activeTab];
 
+  /** A signed-in person, as opposed to the credential the edge supplied. */
+  const signedIn = identity !== null && identity.via === 'panel';
+
   return (
     <header
       className={[
@@ -105,6 +129,59 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="flex items-center gap-2 flex-shrink-0">
+        {/* Kim daxil olub. Açıq panel vəziyyəti burada da görünür — yalnız bir
+            yerdə xəbərdarlıq göstərmək onu asanlıqla gözdən qaçıran edir. */}
+        <div
+          className="hidden md:flex items-center gap-2 h-[34px] pl-2.5 pr-3 rounded-[10px] glass-panel"
+          title={
+            signedIn ? 'Şəxsi açarınızla daxil olmusunuz' : 'Heç kim daxil olmayıb — panel açıqdır'
+          }
+        >
+          {signedIn ? (
+            <KeyRound className="w-3.5 h-3.5 text-muted" strokeWidth={1.9} />
+          ) : (
+            <ShieldAlert className="w-3.5 h-3.5 text-[#b23b3b]" strokeWidth={1.9} />
+          )}
+          <div className="min-w-0 leading-tight">
+            <span className="block max-w-[190px] truncate text-[11.5px] font-bold text-ink">
+              {identity?.fullName ?? 'Kimlik bilinmir'}
+            </span>
+            <span className="block text-[10px] text-muted">
+              {signedIn
+                ? (ROLE_LABEL[identity?.role ?? ''] ?? identity?.role ?? '')
+                : 'Açıq panel — giriş yoxdur'}
+            </span>
+          </div>
+        </div>
+
+        {/* Açar idarəetməsi — yalnız administratora. Açıq vəziyyətdə də
+            göstərilir, çünki ilk açarı yaradan məhz bu düymədir. */}
+        {identity?.canManageKeys && (
+          <button
+            type="button"
+            onClick={onOpenKeys}
+            className="iconbtn-g"
+            aria-label="Panel giriş açarları"
+            title="Panel giriş açarları"
+          >
+            <KeyRound className="w-[17px] h-[17px]" strokeWidth={1.9} />
+          </button>
+        )}
+
+        {/* Çıxış — yalnız şəxsi açarla daxil olubsa. Açıq vəziyyətdə çıxılacaq
+            bir şey yoxdur, və düymə göstərmək "daxil olmusunuz" təəssüratı verər. */}
+        {signedIn && (
+          <button
+            type="button"
+            onClick={onSignOut}
+            className="iconbtn-g"
+            aria-label="Çıxış"
+            title="Çıxış"
+          >
+            <LogOut className="w-[17px] h-[17px]" strokeWidth={1.9} />
+          </button>
+        )}
+
         {/* Bakı saatı */}
         <div
           className="hidden lg:flex items-center gap-1.5 h-[34px] px-3 rounded-[10px] glass-panel text-[11.5px] text-muted"
@@ -112,9 +189,7 @@ export const Header: React.FC<HeaderProps> = ({
         >
           <Clock className="w-3.5 h-3.5 text-muted" strokeWidth={1.9} />
           <span className="hidden xl:inline">Bakı:</span>
-          <span className="font-mono font-bold text-ink tabular-nums">
-            {timeStr || '--:--:--'}
-          </span>
+          <span className="font-mono font-bold text-ink tabular-nums">{timeStr || '--:--:--'}</span>
         </div>
 
         {/* Tema keçidi */}

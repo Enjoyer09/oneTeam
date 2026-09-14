@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PortalService } from './portal.service';
 import { PortalController } from './portal.controller';
+import { PanelAuthController } from './panel-auth.controller';
 import { FieldService } from './field.service';
 import { FieldController } from './field.controller';
 import { EnrollmentController } from './enrollment.controller';
@@ -26,10 +27,18 @@ import { AuthGuard } from '../../common/auth/auth.guard';
  */
 @Module({
   imports: [TasksModule, EvidencesModule, StorageModule],
-  // EnrollmentController is separate from FieldController because it is the one
-  // route that must NOT sit behind AuthGuard — its job is to issue the
-  // credential the guard checks. See its file header.
-  controllers: [PortalController, FieldController, EnrollmentController],
+  // Three controllers, and the difference between them is what stands in front:
+  //
+  //   PortalController     — everything behind AuthGuard. The panel's data.
+  //   FieldController      — AuthGuard plus an actor-scope check, because these
+  //                          routes are called by devices.
+  //   EnrollmentController — deliberately NOT behind AuthGuard: its job is to
+  //                          issue the credential the guard checks.
+  //   PanelAuthController  — mixed, and that is why the guard is applied per
+  //                          route rather than to the class. `auth-status` has
+  //                          to be public: the caller asking "do I need a key"
+  //                          is by definition the caller who has not got one.
+  controllers: [PortalController, PanelAuthController, FieldController, EnrollmentController],
   providers: [PortalService, FieldService, AuthGuard],
   exports: [PortalService, FieldService],
 })

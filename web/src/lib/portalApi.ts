@@ -19,22 +19,25 @@
  * Every call goes to `/api/portal/...` on the SAME ORIGIN, and nginx proxies it
  * to the API. Two consequences worth stating:
  *
- *   - No build-time configuration. The base is a relative path, so the bundle
+ *   - No build-time credential. The base is a relative path, so the bundle
  *     works unchanged on localhost, in Docker Compose and on Railway. Vite
  *     inlines VITE_* variables at build time, so anything that had to be
  *     configured that way would need an image rebuild to change — which is
  *     exactly the kind of deploy surprise this rewrite is meant to remove.
  *
- *   - No credential in the browser. The API requires a bearer token, and nginx
- *     attaches it at the edge (see the map in nginx.conf). The token is
- *     therefore not in this bundle, not in the DOM, and can be rotated without
- *     rebuilding the frontend.
+ *   - The credential is the signed-in person's own. It is attached here from
+ *     `panelAuth`, which reads it from `localStorage`; see that module for why a
+ *     key per person replaced the single admin token the edge used to inject.
+ *     Before any key exists the edge still supplies one, and the panel is open —
+ *     `panelAuth.fetchAuthStatus()` is what tells the shell which of the two
+ *     situations it is in.
  *
  * The service keeps the exact method signatures the components already call, so
  * no component had to change.
  */
 
 import { Store, Task, Submission, DashboardMetrics, SubmissionStatus } from '../types';
+import { panelAuthHeaders } from './panelAuth';
 
 const env: Record<string, any> =
   (typeof import.meta !== 'undefined' && (import.meta as any).env) ||
@@ -69,7 +72,7 @@ const DIRECT_TOKEN = env.ONETEAM_API_TOKEN || '';
 export class PortalApiError extends Error {
   constructor(
     message: string,
-    public readonly status?: number
+    public readonly status?: number,
   ) {
     super(message);
     this.name = 'PortalApiError';
@@ -86,6 +89,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       headers: {
         'Content-Type': 'application/json',
         ...(DIRECT_TOKEN ? { Authorization: `Bearer ${DIRECT_TOKEN}` } : {}),
+        // A signed-in panel key comes after DIRECT_TOKEN, so it wins. In the
+        // deployed panel DIRECT_TOKEN is empty and this is the only credential;
+        // under `npm run web:test` there is no key and the environment token is
+        // used, which is the one place a service credential is still correct.
+        ...panelAuthHeaders(),
         ...(init?.headers ?? {}),
       },
     });
@@ -94,7 +102,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     // from an HTTP error because the remedies are completely different.
     throw new PortalApiError(
       `API-yə qoşulmaq mümkün olmadı (${url}). Şəbəkəni yoxlayın.`,
-      undefined
+      undefined,
     );
   }
 
@@ -105,7 +113,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   } catch {
     throw new PortalApiError(
       `API gözlənilməz cavab qaytardı (HTTP ${response.status})`,
-      response.status
+      response.status,
     );
   }
 
@@ -114,7 +122,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       payload?.message ?? payload?.error ?? payload?.data?.message ?? response.statusText;
     throw new PortalApiError(
       Array.isArray(detail) ? detail.join('; ') : String(detail),
-      response.status
+      response.status,
     );
   }
 
@@ -180,22 +188,21 @@ class PortalDataService {
     requires_before_after_photo?: boolean;
     checklist_schema?: any[];
   }): Promise<Task> {
-    const result = await request<Envelope<{ templateId?: string; tasksCreated?: number; taskIds?: string[] }>>(
-      '/api/portal/tasks',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          title: data.title,
-          description: data.description,
-          reference_image_url: data.reference_image_url,
-          priority: String(data.priority).toUpperCase(),
-          deadline: data.deadline,
-          assigned_stores: data.assigned_stores,
-          requires_before_after_photo: data.requires_before_after_photo ?? false,
-          checklist_schema: data.checklist_schema ?? [],
-        }),
-      }
-    );
+    const result = await request<
+      Envelope<{ templateId?: string; tasksCreated?: number; taskIds?: string[] }>
+    >('/api/portal/tasks', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: data.title,
+        description: data.description,
+        reference_image_url: data.reference_image_url,
+        priority: String(data.priority).toUpperCase(),
+        deadline: data.deadline,
+        assigned_stores: data.assigned_stores,
+        requires_before_after_photo: data.requires_before_after_photo ?? false,
+        checklist_schema: data.checklist_schema ?? [],
+      }),
+    });
 
     // The API turns one briefing into one store task per store, so the id here is
     // the first store task's. It used to be a fabricated `pending-<timestamp>`,
@@ -204,7 +211,7 @@ class PortalDataService {
     const id = result?.data?.taskIds?.[0];
     if (!id) {
       throw new PortalApiError(
-        'Tapşırıq yaradıldı, amma heç bir mağazaya göndərilmədi. Mağaza seçimini yoxlayın.'
+        'Tapşırıq yaradıldı, amma heç bir mağazaya göndərilmədi. Mağaza seçimini yoxlayın.',
       );
     }
 
@@ -257,10 +264,18 @@ class PortalDataService {
     const stores = await this.getStores();
     const matched = stores.filter((store) => {
       if (!store.is_active) return false;
-      if (data.chainName && data.chainName !== 'all' && store.chain_name?.toLowerCase() !== data.chainName.toLowerCase()) {
+      if (
+        data.chainName &&
+        data.chainName !== 'all' &&
+        store.chain_name?.toLowerCase() !== data.chainName.toLowerCase()
+      ) {
         return false;
       }
-      if (data.storeFormat && data.storeFormat !== 'all' && store.store_format?.toLowerCase() !== data.storeFormat.toLowerCase()) {
+      if (
+        data.storeFormat &&
+        data.storeFormat !== 'all' &&
+        store.store_format?.toLowerCase() !== data.storeFormat.toLowerCase()
+      ) {
         return false;
       }
       if (data.regionId && data.regionId !== 'all' && store.region_id !== data.regionId) {
@@ -275,7 +290,7 @@ class PortalDataService {
   async updateSubmissionStatus(
     id: string,
     status: SubmissionStatus,
-    reviewer_feedback?: string
+    reviewer_feedback?: string,
   ): Promise<Submission | null> {
     await request(`/api/portal/submissions/${encodeURIComponent(id)}/review`, {
       method: 'POST',

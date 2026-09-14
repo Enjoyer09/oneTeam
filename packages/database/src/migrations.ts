@@ -208,6 +208,19 @@ export const EXPECTED_SCHEMA: Record<string, string[]> = {
   // change forever. A replica would stay silently stale, which is the exact
   // failure the table exists to prevent.
   data_version: ['id', 'version', 'updated_at'],
+  // Checked for the same reason as `data_version`, from the other direction: a
+  // missing `panel_tokens` makes the panel report "no keys exist", which is
+  // read as "the login screen is not needed yet" — so the panel would stay open
+  // to anyone and nothing would say why.
+  panel_tokens: [
+    'token_hash',
+    'user_id',
+    'label',
+    'created_by',
+    'created_at',
+    'last_seen_at',
+    'revoked_at',
+  ],
 };
 
 /**

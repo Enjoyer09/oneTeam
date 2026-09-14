@@ -48,11 +48,7 @@
 
 import { Pool } from 'pg';
 import type { TaskState } from '@oneteam/types';
-import type {
-  InMemoryStoreTask,
-  InMemoryEvidence,
-  InMemoryAuditLog,
-} from './types';
+import type { InMemoryStoreTask, InMemoryEvidence, InMemoryAuditLog } from './types';
 
 /** Everything the in-memory repository needs to start from real data. */
 export interface HydratedState {
@@ -276,7 +272,7 @@ export async function insertStoreTask(pool: Pool, task: InMemoryStoreTask): Prom
       task.reviewedAt ?? null,
       task.createdAt,
       task.updatedAt,
-    ]
+    ],
   );
 }
 
@@ -306,7 +302,7 @@ export async function insertEvidence(pool: Pool, evidence: InMemoryEvidence): Pr
       evidence.submittedAt,
       evidence.createdAt,
       evidence.updatedAt,
-    ]
+    ],
   );
 }
 
@@ -326,7 +322,7 @@ export async function insertAuditLog(pool: Pool, entry: InMemoryAuditLog): Promi
       entry.actorId ?? null,
       entry.payload === undefined ? null : JSON.stringify(entry.payload),
       entry.createdAt,
-    ]
+    ],
   );
 }
 
@@ -360,7 +356,7 @@ export async function updateStoreTaskRow(pool: Pool, task: InMemoryStoreTask): P
       task.reviewedAt ?? null,
       task.updatedAt,
       task.assignedUserId ?? null,
-    ]
+    ],
   );
 }
 
@@ -390,7 +386,7 @@ export async function insertTemplate(
     checklistSchema?: unknown[];
     createdAt?: Date;
     updatedAt?: Date;
-  }
+  },
 ): Promise<void> {
   await pool.query(
     `INSERT INTO task_templates
@@ -411,7 +407,7 @@ export async function insertTemplate(
       JSON.stringify(template.checklistSchema ?? []),
       template.createdAt ?? new Date(),
       template.updatedAt ?? new Date(),
-    ]
+    ],
   );
 }
 
@@ -439,7 +435,7 @@ export async function updateEvidenceRow(pool: Pool, evidence: InMemoryEvidence):
       JSON.stringify(evidence.aiDetections ?? []),
       evidence.reviewerFeedback ?? null,
       evidence.updatedAt,
-    ]
+    ],
   );
 }
 
@@ -462,7 +458,7 @@ export async function upsertTelegramUser(
     role: string;
     telegramChatId: string;
     phone?: string | null;
-  }
+  },
 ): Promise<void> {
   await pool.query(
     `INSERT INTO users (id, email, full_name, role, telegram_chat_id, phone, created_at, updated_at)
@@ -470,14 +466,7 @@ export async function upsertTelegramUser(
      ON CONFLICT (telegram_chat_id) DO UPDATE
         SET full_name = EXCLUDED.full_name,
             updated_at = now()`,
-    [
-      user.id,
-      user.email,
-      user.fullName,
-      user.role,
-      user.telegramChatId,
-      user.phone ?? null,
-    ]
+    [user.id, user.email, user.fullName, user.role, user.telegramChatId, user.phone ?? null],
   );
 }
 
@@ -516,7 +505,7 @@ export async function upsertDeviceUser(
     role: string;
     mobileDeviceId: string;
     phone?: string | null;
-  }
+  },
 ): Promise<void> {
   await pool.query(
     `INSERT INTO users (id, email, full_name, role, mobile_device_id, phone, created_at, updated_at)
@@ -525,14 +514,7 @@ export async function upsertDeviceUser(
      DO UPDATE
         SET full_name = EXCLUDED.full_name,
             updated_at = now()`,
-    [
-      user.id,
-      user.email,
-      user.fullName,
-      user.role,
-      user.mobileDeviceId,
-      user.phone ?? null,
-    ]
+    [user.id, user.email, user.fullName, user.role, user.mobileDeviceId, user.phone ?? null],
   );
 }
 
@@ -562,7 +544,7 @@ export async function insertDeviceToken(
     userId: string;
     deviceId: string;
     label?: string | null;
-  }
+  },
 ): Promise<void> {
   const client = await pool.connect();
   try {
@@ -572,12 +554,12 @@ export async function insertDeviceToken(
           SET revoked_at = now()
         WHERE device_id = $1
           AND revoked_at IS NULL`,
-      [token.deviceId]
+      [token.deviceId],
     );
     await client.query(
       `INSERT INTO device_tokens (token_hash, user_id, device_id, label)
        VALUES ($1, $2, $3, $4)`,
-      [token.tokenHash, token.userId, token.deviceId, token.label ?? null]
+      [token.tokenHash, token.userId, token.deviceId, token.label ?? null],
     );
     await client.query('COMMIT');
   } catch (error) {
@@ -597,14 +579,14 @@ export async function insertDeviceToken(
  */
 export async function findDeviceToken(
   pool: Pool,
-  tokenHash: string
+  tokenHash: string,
 ): Promise<{ userId: string; deviceId: string; lastSeenAt: Date | null } | null> {
   const result = await pool.query(
     `SELECT user_id, device_id, last_seen_at
        FROM device_tokens
       WHERE token_hash = $1
         AND revoked_at IS NULL`,
-    [tokenHash]
+    [tokenHash],
   );
 
   const row = result.rows[0];
@@ -628,9 +610,153 @@ export async function touchDeviceToken(pool: Pool, tokenHash: string): Promise<v
 export async function revokeDeviceToken(pool: Pool, tokenHash: string): Promise<boolean> {
   const result = await pool.query(
     'UPDATE device_tokens SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL',
-    [tokenHash]
+    [tokenHash],
   );
   return (result.rowCount ?? 0) > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Panel credentials
+// ---------------------------------------------------------------------------
+//
+// Same reasoning as the device helpers above: the read path is the database,
+// not the in-memory copy, because a credential has to be authoritative. Unlike
+// device tokens these are never used by a machine — they belong to a person
+// sitting at a browser, and they are the thing that makes `audit_logs` name an
+// individual instead of "whichever admin the edge injected".
+
+/**
+ * Inserts a panel key.
+ *
+ * No revoke-then-insert transaction, unlike the device path: there is no unique
+ * constraint to satisfy, because a person may hold several live keys at once.
+ * See the migration for why that is the intended behaviour.
+ */
+export async function insertPanelToken(
+  pool: Pool,
+  token: {
+    tokenHash: string;
+    userId: string;
+    label?: string | null;
+    createdBy?: string | null;
+  },
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO panel_tokens (token_hash, user_id, label, created_by)
+     VALUES ($1, $2, $3, $4)`,
+    [token.tokenHash, token.userId, token.label ?? null, token.createdBy ?? null],
+  );
+}
+
+/**
+ * Looks up a live key by its hash.
+ *
+ * Returns null for a key that is unknown, revoked, or whose user has been
+ * deleted — three cases that must all be "not authorised", and none of which
+ * the caller may distinguish.
+ */
+export async function findPanelToken(
+  pool: Pool,
+  tokenHash: string,
+): Promise<{ userId: string; lastSeenAt: Date | null } | null> {
+  const result = await pool.query(
+    `SELECT user_id, last_seen_at
+       FROM panel_tokens
+      WHERE token_hash = $1
+        AND revoked_at IS NULL`,
+    [tokenHash],
+  );
+
+  const row = result.rows[0];
+  if (!row) return null;
+
+  return {
+    userId: row.user_id,
+    lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at) : null,
+  };
+}
+
+/** Records that a key was used. Fire-and-forget; throttled by the caller. */
+export async function touchPanelToken(pool: Pool, tokenHash: string): Promise<void> {
+  await pool.query('UPDATE panel_tokens SET last_seen_at = now() WHERE token_hash = $1', [
+    tokenHash,
+  ]);
+}
+
+/** Cuts a key off. Kept as a timestamp rather than a delete; see the migration. */
+export async function revokePanelToken(pool: Pool, tokenHash: string): Promise<boolean> {
+  const result = await pool.query(
+    'UPDATE panel_tokens SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL',
+    [tokenHash],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/** Revokes every live key belonging to one user. Used when someone leaves. */
+export async function revokePanelTokensForUser(pool: Pool, userId: string): Promise<number> {
+  const result = await pool.query(
+    `UPDATE panel_tokens
+        SET revoked_at = now()
+      WHERE user_id = $1
+        AND revoked_at IS NULL`,
+    [userId],
+  );
+  return result.rowCount ?? 0;
+}
+
+export interface PanelTokenRow {
+  tokenHash: string;
+  userId: string;
+  label: string | null;
+  createdBy: string | null;
+  createdAt: Date;
+  lastSeenAt: Date | null;
+  revokedAt: Date | null;
+}
+
+/**
+ * Lists keys, live ones first.
+ *
+ * Returns the hash so the panel can revoke by identity, and the caller is
+ * responsible for showing only a prefix of it. The hash is not a secret in the
+ * way the key is — it cannot be replayed — but printing it in full is a habit
+ * worth not forming.
+ */
+export async function listPanelTokens(
+  pool: Pool,
+  options: { includeRevoked?: boolean } = {},
+): Promise<PanelTokenRow[]> {
+  const result = await pool.query(
+    `SELECT token_hash, user_id, label, created_by, created_at, last_seen_at, revoked_at
+       FROM panel_tokens
+      ${options.includeRevoked ? '' : 'WHERE revoked_at IS NULL'}
+      ORDER BY revoked_at IS NULL DESC, created_at DESC`,
+  );
+
+  return result.rows.map((row) => ({
+    tokenHash: row.token_hash,
+    userId: row.user_id,
+    label: row.label ?? null,
+    createdBy: row.created_by ?? null,
+    createdAt: new Date(row.created_at),
+    lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at) : null,
+    revokedAt: row.revoked_at ? new Date(row.revoked_at) : null,
+  }));
+}
+
+/**
+ * How many live keys exist.
+ *
+ * This is the switch that turns the panel's login screen on, so it is a count
+ * of *live* rows: a deployment where every key has been revoked must fall back
+ * to "no keys" rather than staying locked behind credentials that no longer
+ * work.
+ */
+export async function countLivePanelTokens(pool: Pool): Promise<number> {
+  const result = await pool.query(
+    'SELECT count(*)::int AS live FROM panel_tokens WHERE revoked_at IS NULL',
+  );
+  return Number(result.rows[0]?.live ?? 0);
 }
 
 /** Cheap liveness probe used by `init()` and reported through /api/health. */

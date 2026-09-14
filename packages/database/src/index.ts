@@ -12,12 +12,8 @@ export * from './seed';
 export * from './types';
 import { SEED_DATA } from './seed';
 import { TaskState, UserRole } from '@oneteam/types';
-import type {
-  InMemoryStoreTask,
-  InMemoryEvidence,
-  InMemoryAuditLog,
-} from './types';
-import { createHash, randomBytes } from 'crypto';
+import type { InMemoryStoreTask, InMemoryEvidence, InMemoryAuditLog } from './types';
+import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import * as pg from './postgres';
 import {
   runMigrations,
@@ -145,7 +141,7 @@ export class EnterpriseDatabase {
   public refreshCount = 0;
   /** A sentence for /api/health describing whether replicas converge. */
   public refreshDetail =
-    'refresh is off — reads are this process\'s memory, and a second replica would not converge';
+    "refresh is off — reads are this process's memory, and a second replica would not converge";
 
   private observedVersion: number | null = null;
   /**
@@ -186,7 +182,7 @@ export class EnterpriseDatabase {
       this.schemaDetail = 'schema was not verified: DATABASE_URL is not set';
       console.warn(
         '⚠️  [oneTeam DB] DATABASE_URL is not set. Running entirely in memory — ' +
-          'every task, evidence and audit entry will be lost on restart.'
+          'every task, evidence and audit entry will be lost on restart.',
       );
       return;
     }
@@ -243,7 +239,7 @@ export class EnterpriseDatabase {
         } else {
           console.error(
             '⛔ [oneTeam DB] The database schema is not what this build expects. ' +
-              schemaHealth.detail
+              schemaHealth.detail,
           );
         }
 
@@ -261,7 +257,7 @@ export class EnterpriseDatabase {
         } else {
           console.warn(
             '⚠️  [oneTeam DB] Connected, but the users table is empty. Keeping the ' +
-              'built-in seed data in memory. Run db/api-seed.sql against this database.'
+              'built-in seed data in memory. Run db/api-seed.sql against this database.',
           );
         }
 
@@ -276,6 +272,21 @@ export class EnterpriseDatabase {
         // compare against. Starting it earlier would poll a counter with nothing
         // to reload.
         this.startRefreshLoop();
+
+        // Said out loud at start-up, because both situations are invisible from
+        // the outside and both are the operator's to fix. A configured bootstrap
+        // key that is being refused is the more urgent of the two: the panel
+        // will be asking for a key that nothing satisfies until it is replaced.
+        const bootstrapProblem = panelBootstrapProblem();
+        if (bootstrapProblem) {
+          console.error('⛔ [oneTeam DB] ' + bootstrapProblem);
+        } else if (panelBootstrapKey()) {
+          console.warn(
+            '🔑 [oneTeam DB] ONETEAM_PANEL_BOOTSTRAP_KEY is active. Sign in with it, ' +
+              'mint a personal key for yourself, then remove the variable — it is a ' +
+              'master key and does not need to stay.',
+          );
+        }
         return;
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
@@ -284,7 +295,7 @@ export class EnterpriseDatabase {
           console.warn(
             `⏳ [oneTeam DB] Attempt ${attempt}/${attempts} failed (${reason}). ` +
               `Retrying in ${Math.round(delayMs / 1000)}s — the database is often still ` +
-              'starting when the application container is already up.'
+              'starting when the application container is already up.',
           );
           await new Promise((resolve) => setTimeout(resolve, delayMs));
           continue;
@@ -300,7 +311,8 @@ export class EnterpriseDatabase {
         this.schemaDetail = 'schema was not verified: the database was unreachable';
         console.error(
           `⛔ [oneTeam DB] Gave up after ${attempts} attempts. Falling back to in-memory ` +
-            'seed data; writes will NOT survive a restart. Reason: ' + reason
+            'seed data; writes will NOT survive a restart. Reason: ' +
+            reason,
         );
       }
     }
@@ -330,7 +342,7 @@ export class EnterpriseDatabase {
 
     if (interval === 0) {
       this.refreshDetail =
-        'refresh is OFF (ONETEAM_REFRESH_MS=0) — a second replica would never see this one\'s writes';
+        "refresh is OFF (ONETEAM_REFRESH_MS=0) — a second replica would never see this one's writes";
       console.warn('⚠️  [oneTeam DB] ' + this.refreshDetail);
       return;
     }
@@ -345,7 +357,7 @@ export class EnterpriseDatabase {
 
     console.log(
       `🔄 [oneTeam DB] Cross-replica refresh every ${interval}ms — a write on another ` +
-        'replica becomes visible here within about that long.'
+        'replica becomes visible here within about that long.',
     );
   }
 
@@ -416,7 +428,7 @@ export class EnterpriseDatabase {
       // nobody is awaiting.
       console.warn(
         '⚠️  [oneTeam DB] Refresh failed, keeping the previous snapshot: ' +
-          (error instanceof Error ? error.message : String(error))
+          (error instanceof Error ? error.message : String(error)),
       );
       return false;
     } finally {
@@ -439,7 +451,7 @@ export class EnterpriseDatabase {
     op.catch((error) => {
       console.error(
         `⛔ [oneTeam DB] Failed to persist ${label}: ` +
-          (error instanceof Error ? error.message : String(error))
+          (error instanceof Error ? error.message : String(error)),
       );
     }).finally(() => {
       this.pendingWrites -= 1;
@@ -556,10 +568,10 @@ export class EnterpriseDatabase {
    * controls, exactly as the bot only accepts a chat id it derived from the
    * update it is handling.
    */
-  public bindDeviceUser(params: {
-    deviceId: string;
-    fullName: string;
-  }): { id: string; role: string } {
+  public bindDeviceUser(params: { deviceId: string; fullName: string }): {
+    id: string;
+    role: string;
+  } {
     const deviceId = String(params.deviceId).trim();
     const existing = this.getUserByMobileDeviceId(deviceId);
 
@@ -631,7 +643,7 @@ export class EnterpriseDatabase {
       aiScore?: number | null;
       aiSummary?: string | null;
       aiDetections?: any[];
-    }
+    },
   ): InMemoryEvidence | null {
     const evidence = this.evidences.find((e) => e.id === evidenceId);
     if (!evidence) return null;
@@ -677,7 +689,7 @@ export class EnterpriseDatabase {
       console.error(
         '⛔ [oneTeam DB] Cannot issue a device token: no database connection. ' +
           'A credential stored only in memory would not survive a restart, so ' +
-          'none was issued.'
+          'none was issued.',
       );
       return null;
     }
@@ -705,7 +717,7 @@ export class EnterpriseDatabase {
    * lookup on a small table.
    */
   public async verifyDeviceToken(
-    token: string
+    token: string,
   ): Promise<{ userId: string; deviceId: string } | null> {
     if (!this.pool) return null;
 
@@ -729,6 +741,159 @@ export class EnterpriseDatabase {
   public async revokeDeviceToken(token: string): Promise<boolean> {
     if (!this.pool) return false;
     return pg.revokeDeviceToken(this.pool, hashDeviceToken(token));
+  }
+
+  // -------------------------------------------------------------------------
+  // Panel credentials
+  // -------------------------------------------------------------------------
+
+  /**
+   * Mints a login key for one person.
+   *
+   * Returned exactly once and never stored — only the SHA-256 is. There is no
+   * recovery path on purpose: a key that can be looked up again is a key that
+   * leaks with a database read.
+   *
+   * Returns null rather than throwing when there is no database, for the same
+   * reason the device path does: a credential that exists only in memory is
+   * lost on the next restart, and telling someone their key works when it will
+   * not survive the night is worse than refusing to issue one.
+   */
+  public async issuePanelToken(params: {
+    userId: string;
+    label?: string;
+    createdBy?: string;
+  }): Promise<{ token: string; tokenHash: string } | null> {
+    if (!this.pool) {
+      console.error(
+        '⛔ [oneTeam DB] Cannot issue a panel key: no database connection. ' +
+          'A key stored only in memory would not survive a restart, so none was issued.',
+      );
+      return null;
+    }
+
+    const user = this.getUser(params.userId);
+    if (!user) {
+      console.error(
+        `⛔ [oneTeam DB] Cannot issue a panel key: no user ${params.userId}. ` +
+          'A key that resolves to nobody would be refused at every request.',
+      );
+      return null;
+    }
+
+    const token = PANEL_TOKEN_PREFIX + randomBytes(32).toString('base64url');
+    const tokenHash = hashPanelToken(token);
+
+    await pg.insertPanelToken(this.pool, {
+      tokenHash,
+      userId: params.userId,
+      label: params.label ?? null,
+      createdBy: params.createdBy ?? null,
+    });
+
+    return { token, tokenHash };
+  }
+
+  /**
+   * Resolves a presented key to the user it belongs to, or null.
+   *
+   * Reads the database on every call rather than the in-memory set, because a
+   * revoked key must stop working immediately — waiting for the next restart,
+   * or for a replica to catch up, would mean "revoked" was a suggestion.
+   */
+  public async verifyPanelToken(token: string): Promise<{ userId: string } | null> {
+    if (!this.pool) return null;
+
+    const tokenHash = hashPanelToken(token);
+    const found = await pg.findPanelToken(this.pool, tokenHash);
+    if (!found) return null;
+
+    // Same five-minute throttle as the device path: useful for "is this key
+    // still in use", and writing it on every request would turn each panel read
+    // into a write.
+    const FIVE_MINUTES = 5 * 60 * 1000;
+    if (!found.lastSeenAt || Date.now() - found.lastSeenAt.getTime() > FIVE_MINUTES) {
+      this.persist(pg.touchPanelToken(this.pool, tokenHash), 'panel token last-seen');
+    }
+
+    return { userId: found.userId };
+  }
+
+  /** Cuts one key off. Returns false when it was unknown or already revoked. */
+  public async revokePanelToken(token: string): Promise<boolean> {
+    if (!this.pool) return false;
+    return pg.revokePanelToken(this.pool, hashPanelToken(token));
+  }
+
+  /**
+   * Cuts a key off by its hash rather than its value.
+   *
+   * The panel never holds anyone else's key — only its hash — so revoking
+   * somebody's access from the key list has to work from the hash. Both paths
+   * end in the same `UPDATE`, which is the point: there is one definition of
+   * "revoked", not one per caller.
+   */
+  public async revokePanelTokenByHash(tokenHash: string): Promise<boolean> {
+    if (!this.pool) return false;
+    return pg.revokePanelToken(this.pool, tokenHash);
+  }
+
+  /** Cuts every key belonging to one person off. What "they left" means. */
+  public async revokePanelTokensForUser(userId: string): Promise<number> {
+    if (!this.pool) return 0;
+    return pg.revokePanelTokensForUser(this.pool, userId);
+  }
+
+  public async listPanelTokens(includeRevoked = false): Promise<pg.PanelTokenRow[]> {
+    if (!this.pool) return [];
+    return pg.listPanelTokens(this.pool, { includeRevoked });
+  }
+
+  /**
+   * Whether the panel should ask for a key at all.
+   *
+   * The answer is "yes" as soon as either a live key exists or a usable
+   * bootstrap key is configured. That makes switching the login on a deliberate
+   * act — set the environment variable, or mint a key — rather than something
+   * that happens by deploying. Until then the panel keeps working as it did,
+   * and the shell says out loud that it is open.
+   *
+   * `bootstrapProblem` is reported separately from `bootstrapConfigured` on
+   * purpose. A key that was set but refused is not the same as no key at all,
+   * and the difference is the whole reason someone is looking at a login screen
+   * that nothing satisfies.
+   */
+  public async panelAuthStatus(): Promise<{
+    required: boolean;
+    liveKeys: number;
+    bootstrapConfigured: boolean;
+    bootstrapProblem: string | null;
+  }> {
+    const bootstrapConfigured = Boolean(usablePanelBootstrapKey());
+    const bootstrapProblem = panelBootstrapProblem();
+
+    if (!this.pool) {
+      return { required: bootstrapConfigured, liveKeys: 0, bootstrapConfigured, bootstrapProblem };
+    }
+
+    let liveKeys = 0;
+    try {
+      liveKeys = await pg.countLivePanelTokens(this.pool);
+    } catch (error) {
+      // A count that cannot be read must not be reported as zero, because zero
+      // means "no login needed". Failing toward `required: true` would lock the
+      // operator out of a panel whose keys cannot be read either, so the honest
+      // answer is "unknown", and unknown is surfaced rather than swallowed.
+      console.error('⛔ [oneTeam DB] Could not count panel keys: ' + describeError(error));
+      return { required: true, liveKeys: -1, bootstrapConfigured, bootstrapProblem };
+    }
+
+    return {
+      required: liveKeys > 0 || bootstrapConfigured,
+      liveKeys,
+      bootstrapConfigured,
+      bootstrapProblem,
+    };
   }
 
   public getUserByTelegramChatId(telegramChatId: string | number) {
@@ -811,9 +976,7 @@ export class EnterpriseDatabase {
     }
     if (role === UserRole.MERCHANDISER) {
       const taskIds = new Set(
-        this.storeTasks
-          .filter((task) => task.assignedUserId === userId)
-          .map((task) => task.id)
+        this.storeTasks.filter((task) => task.assignedUserId === userId).map((task) => task.id),
       );
       return this.evidences.filter((evidence) => taskIds.has(evidence.storeTaskId));
     }
@@ -846,7 +1009,8 @@ export class EnterpriseDatabase {
     task.assignedUserId = userId;
     task.updatedAt = new Date();
 
-    if (this.pool) this.persist(pg.updateStoreTaskRow(this.pool, task), `task ${task.id} assignment`);
+    if (this.pool)
+      this.persist(pg.updateStoreTaskRow(this.pool, task), `task ${task.id} assignment`);
     return task;
   }
 
@@ -890,6 +1054,124 @@ export function hashDeviceToken(token: string): string {
 /** Whether a bearer value is a device credential rather than a service one. */
 export function isDeviceToken(value: string): boolean {
   return typeof value === 'string' && value.startsWith(DEVICE_TOKEN_PREFIX);
+}
+
+/**
+ * Prefix on every panel login key.
+ *
+ * Chosen to differ from `otd_` at the third character, so a value can be routed
+ * by shape without a database call and without any risk of the two being
+ * confused — a device credential must never be looked up in `panel_tokens`, and
+ * a panel key must never resolve to a device's user.
+ */
+export const PANEL_TOKEN_PREFIX = 'otp_';
+
+/** SHA-256 of a panel key, hex. The only form that is ever stored. */
+export function hashPanelToken(token: string): string {
+  return createHash('sha256').update(token, 'utf8').digest('hex');
+}
+
+/** Whether a bearer value is a panel key rather than a device or service one. */
+export function isPanelToken(value: string): boolean {
+  return typeof value === 'string' && value.startsWith(PANEL_TOKEN_PREFIX);
+}
+
+/**
+ * The bootstrap key, if the operator configured one.
+ *
+ * This is the way in before any personal key exists. It is read from the
+ * environment rather than stored, so removing the variable is all it takes to
+ * switch it off — there is no row to remember to revoke, and nothing in a
+ * database dump that grants access.
+ *
+ * It is deliberately NOT a fallback that applies when the panel is otherwise
+ * open: setting it is what turns the login on. See `panelAuthStatus`.
+ */
+export function panelBootstrapKey(): string | null {
+  const value = (process.env.ONETEAM_PANEL_BOOTSTRAP_KEY || '').trim();
+  return value.length > 0 ? value : null;
+}
+
+/**
+ * Minimum length of the bootstrap key.
+ *
+ * Minted keys are 32 random bytes and cannot be guessed. The bootstrap key is
+ * typed by a person, so its strength is whatever they chose — and unlike a
+ * personal key, guessing it once grants full administrative access. A short one
+ * is not a weaker version of this system, it is a broken one.
+ *
+ * 24 characters is the floor rather than a target. `openssl rand -base64 24`
+ * produces 32 characters, which is the recommended way to generate it.
+ */
+export const PANEL_BOOTSTRAP_MIN_LENGTH = 24;
+
+/**
+ * Why the configured bootstrap key cannot be used, or null if there is no
+ * problem (including "no key configured", which is a normal state).
+ *
+ * Kept next to the key itself so that the guard, the status endpoint and the
+ * startup log cannot disagree about whether the key is acceptable.
+ */
+export function panelBootstrapProblem(): string | null {
+  const value = panelBootstrapKey();
+  if (!value) return null;
+  if (value.length < PANEL_BOOTSTRAP_MIN_LENGTH) {
+    return (
+      `ONETEAM_PANEL_BOOTSTRAP_KEY is only ${value.length} characters. ` +
+      `It must be at least ${PANEL_BOOTSTRAP_MIN_LENGTH}, because guessing this ` +
+      `one value grants full administrative access. It is being refused rather ` +
+      `than accepted, so the panel will ask for a key that nothing satisfies ` +
+      `until it is replaced. Generate one with: openssl rand -base64 24`
+    );
+  }
+
+  // A value shaped like another credential would be routed as that credential by
+  // every reader except the one comparison that checks it here. The result would
+  // be a bootstrap key that works in some code paths and not others — the worst
+  // kind of failure to debug, and one an operator could easily create by pasting
+  // the wrong string from a dashboard.
+  const reserved: Array<[string, string]> = [
+    [DEVICE_TOKEN_PREFIX, 'a device token'],
+    [PANEL_TOKEN_PREFIX, 'a panel key'],
+    ['oneteam-user:', 'the service credential'],
+  ];
+  for (const [prefix, what] of reserved) {
+    if (value.startsWith(prefix)) {
+      return (
+        `ONETEAM_PANEL_BOOTSTRAP_KEY begins with "${prefix}", which is how ${what} ` +
+        `is recognised. It would be read as ${what} and never as a bootstrap key. ` +
+        `Use a value with no prefix — openssl rand -base64 24 produces one.`
+      );
+    }
+  }
+
+  return null;
+}
+
+/** The bootstrap key when it is configured AND strong enough to honour. */
+export function usablePanelBootstrapKey(): string | null {
+  if (panelBootstrapProblem()) return null;
+  return panelBootstrapKey();
+}
+
+/**
+ * Whether a presented key is the bootstrap key.
+ *
+ * Compared as fixed-length SHA-256 digests through `timingSafeEqual`, so the
+ * comparison takes the same time whatever was presented. A plain `===` on a
+ * secret leaks its length and, in principle, its prefix — and this is the one
+ * credential that can be brute-forced at leisure if it is guessable.
+ *
+ * A key that fails the length check is never matched, so a weak value cannot be
+ * used even by someone who knows it.
+ */
+export function matchesPanelBootstrapKey(candidate: string): boolean {
+  const expected = usablePanelBootstrapKey();
+  if (!expected || !candidate) return false;
+
+  const a = createHash('sha256').update(candidate, 'utf8').digest();
+  const b = createHash('sha256').update(expected, 'utf8').digest();
+  return timingSafeEqual(a, b);
 }
 
 /** One-line description of a caught value, for a log message. */

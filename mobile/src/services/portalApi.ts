@@ -56,11 +56,10 @@ const env: Record<string, string | undefined> =
   typeof process !== 'undefined' && process.env ? process.env : {};
 
 /** Same variable names the bot uses, so one deployment describes both channels. */
-const API_BASE_URL = (
-  env.ONETEAM_API_URL ||
-  env.API_BASE_URL ||
-  'http://localhost:3001'
-).replace(/\/+$/, '');
+const API_BASE_URL = (env.ONETEAM_API_URL || env.API_BASE_URL || 'http://localhost:3001').replace(
+  /\/+$/,
+  '',
+);
 
 /**
  * The credential this installation holds.
@@ -153,7 +152,7 @@ export async function enroll(params: {
     throw new MobileApiError(
       `API-yə qoşulmaq mümkün olmadı (${API_BASE_URL}). Səbəb: ${reason}`,
       null,
-      'API_UNREACHABLE'
+      'API_UNREACHABLE',
     );
   }
 
@@ -169,13 +168,11 @@ export async function enroll(params: {
 
   if (!response.ok || !payload?.data?.token) {
     const detail =
-      payload?.message ||
-      payload?.error ||
-      `Qeydiyyat alınmadı (HTTP ${response.status})`;
+      payload?.message || payload?.error || `Qeydiyyat alınmadı (HTTP ${response.status})`;
     throw new MobileApiError(
       Array.isArray(detail) ? detail.join(', ') : String(detail),
       response.status,
-      payload?.error ?? 'ENROLLMENT_FAILED'
+      payload?.error ?? 'ENROLLMENT_FAILED',
     );
   }
 
@@ -264,7 +261,7 @@ async function callApi(path: string, init: RequestInit = {}): Promise<Envelope<a
     throw new MobileApiError(
       'Bu cihaz hələ qeydiyyatdan keçməyib. Mağaza kodunu daxil edib yenidən yoxlayın.',
       null,
-      'NOT_ENROLLED'
+      'NOT_ENROLLED',
     );
   }
 
@@ -286,7 +283,7 @@ async function callApi(path: string, init: RequestInit = {}): Promise<Envelope<a
     throw new MobileApiError(
       `API-yə qoşulmaq mümkün olmadı (${API_BASE_URL}). Səbəb: ${reason}`,
       null,
-      'API_UNREACHABLE'
+      'API_UNREACHABLE',
     );
   }
 
@@ -301,7 +298,7 @@ async function callApi(path: string, init: RequestInit = {}): Promise<Envelope<a
         throw new MobileApiError(
           `API gözlənilməz cavab qaytardı (HTTP ${response.status})`,
           response.status,
-          'BAD_RESPONSE'
+          'BAD_RESPONSE',
         );
       }
     }
@@ -313,7 +310,7 @@ async function callApi(path: string, init: RequestInit = {}): Promise<Envelope<a
     throw new MobileApiError(
       message || `API xətası (HTTP ${response.status})`,
       response.status,
-      (payload as any)?.error ?? null
+      (payload as any)?.error ?? null,
     );
   }
 
@@ -417,7 +414,7 @@ function toMobileTask(task: ApiTask): MobileTask {
 
 function toMobileSubmission(
   submission: ApiSubmission,
-  photoStorage?: ApiPhotoStorage
+  photoStorage?: ApiPhotoStorage,
 ): MobileSubmission {
   return {
     id: submission.id,
@@ -455,7 +452,12 @@ class MobilePortalApi {
   /** Confirms the API answers and the credential is accepted. */
   async ping(): Promise<{ ok: true } | { ok: false; error: string }> {
     try {
-      await request<unknown>('/api/portal/stores');
+      // `/api/portal/field/whoami`, not `/api/portal/stores`. The stores route is
+      // the supervisor API, and a device credential is refused there now: a
+      // merchandiser's installation has no business reading the whole chain's
+      // store list, and using it as a liveness probe was only ever possible
+      // because nothing was checking.
+      await request<unknown>('/api/portal/field/whoami');
       return { ok: true };
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
@@ -472,7 +474,7 @@ class MobilePortalApi {
     if (!code) return null;
 
     const store = await request<ApiStore | null>(
-      `/api/portal/field/store?code=${encodeURIComponent(code)}`
+      `/api/portal/field/store?code=${encodeURIComponent(code)}`,
     );
 
     // A deactivated store must not accept audits even though it still resolves.
@@ -482,7 +484,7 @@ class MobilePortalApi {
 
   async getTasksForStore(storeId: string): Promise<MobileTask[]> {
     const tasks = await request<ApiTask[]>(
-      `/api/portal/field/tasks?storeId=${encodeURIComponent(storeId)}`
+      `/api/portal/field/tasks?storeId=${encodeURIComponent(storeId)}`,
     );
     return (tasks ?? []).map(toMobileTask);
   }
@@ -497,7 +499,7 @@ class MobilePortalApi {
    */
   async getSubmissionsForStore(storeId: string, limit = 50): Promise<MobileSubmission[]> {
     const submissions = await request<ApiSubmission[]>(
-      `/api/portal/field/submissions?deviceId=${encodeURIComponent(deviceId())}&limit=${limit}`
+      `/api/portal/field/submissions?deviceId=${encodeURIComponent(deviceId())}&limit=${limit}`,
     );
     return (submissions ?? [])
       .map((submission) => toMobileSubmission(submission))
@@ -507,7 +509,7 @@ class MobilePortalApi {
   /** Every audit this device has filed, across stores. */
   async getAllSubmissions(limit = 50): Promise<MobileSubmission[]> {
     const submissions = await request<ApiSubmission[]>(
-      `/api/portal/field/submissions?deviceId=${encodeURIComponent(deviceId())}&limit=${limit}`
+      `/api/portal/field/submissions?deviceId=${encodeURIComponent(deviceId())}&limit=${limit}`,
     );
     return (submissions ?? []).map((submission) => toMobileSubmission(submission));
   }
@@ -526,11 +528,11 @@ class MobilePortalApi {
    * act. Idempotent and forward-only, so calling it twice is harmless.
    */
   async acknowledgeTask(
-    taskId: string
+    taskId: string,
   ): Promise<{ taskId: string; currentState: string; advanced: boolean }> {
     return await request<{ taskId: string; currentState: string; advanced: boolean }>(
       `/api/portal/field/tasks/${encodeURIComponent(taskId)}/acknowledge`,
-      { method: 'POST', body: JSON.stringify({ deviceId: deviceId() }) }
+      { method: 'POST', body: JSON.stringify({ deviceId: deviceId() }) },
     );
   }
 
@@ -567,7 +569,7 @@ class MobilePortalApi {
         `Foto məlumatı yoxdur (${fileName}). Bu mühitdə kamera modulu yoxdur — ` +
           `zəhmət olmasa real cihazdan çəkilmiş şəkil ötürün.`,
         400,
-        'CAPTURE_NOT_AVAILABLE'
+        'CAPTURE_NOT_AVAILABLE',
       );
     }
 
@@ -579,7 +581,7 @@ class MobilePortalApi {
         `Şəkil çox böyükdür (${Math.round(dataUrl.length / 1024)} KB). ` +
           `Maksimum ${Math.round(MAX_PHOTO_BYTES / 1024)} KB qəbul edilir.`,
         413,
-        'PHOTO_TOO_LARGE'
+        'PHOTO_TOO_LARGE',
       );
     }
 
