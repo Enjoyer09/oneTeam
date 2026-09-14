@@ -15,31 +15,30 @@
  * Telegram bot uses. One data path for both field channels, so a store cannot
  * look like one thing in the chat and another in the app.
  *
- * HOW THE APP IDENTIFIES ITSELF
- * -----------------------------
+ * HOW THE APP IDENTIFIES ITSELF, AND WHAT IT HOLDS
+ * ------------------------------------------------
  * The bot identifies the acting person by the Telegram chat an update came from.
- * A device has no chat, so it identifies them by the installation it was bound
- * on: `ONETEAM_DEVICE_ID`, bound through `POST /api/portal/field/bind`, which
- * also claims the store's open work exactly as the chat does.
+ * A device has no chat, so it identifies them by the installation it was enrolled
+ * on: `ONETEAM_DEVICE_ID`, plus a credential issued to that installation.
  *
- * ⚠️ THE SERVICE CREDENTIAL IS IN THIS BUNDLE, AND THAT IS A KNOWN GAP.
+ * The credential is a device token, obtained once from
+ * `POST /api/portal/field/enroll` by presenting the store's code, and it
+ * identifies exactly one user. It replaced a shared service credential that this
+ * bundle used to carry — and which defaulted to `oneteam-user:usr-admin-001`, so
+ * an unconfigured build acted as an administrator. Anyone who extracted that
+ * string from the downloaded bundle had access to every store, every task and
+ * every audit. A device token is worth one installation, and the API refuses a
+ * device credential that tries to name a different one.
  *
- * A mobile app is a client, so it should hold a per-user token, not the service
- * credential that the bot uses as a server. It holds one here because the app has
- * no login of its own yet and there is nothing else to authenticate with. Anyone
- * who extracts the bundle can act as the service account.
- *
- * What that means in practice: do not ship this build to a device outside the
- * pilot until `bind` returns a device-scoped token and this file sends that
- * instead. The change is small — one constant and one header — and the reason it
- * has not been made is that there is no login screen to issue the token yet. It
- * is written down here rather than left to be discovered.
+ * There is no persistence layer in this harness, so the token lives in memory for
+ * the life of the process and `enroll` runs again on each start. A real build
+ * would keep it in the keychain; nothing about the API side changes either way.
  *
  * WHERE THE PHOTOS GO
  * -------------------
- * Nowhere durable. There is no object store configured for this project, so the
- * image travels as a `data:` URL and lands in the database. See the same note in
- * the bot's client and in `field.service.ts`.
+ * To object storage when the API is configured with a bucket, and into the
+ * database as a `data:` URL when it is not. Either way this client sends the
+ * image inline and lets the API decide — see `StorageService` in the API.
  */
 
 import {
@@ -63,7 +62,126 @@ const API_BASE_URL = (
   'http://localhost:3001'
 ).replace(/\/+$/, '');
 
-const API_TOKEN = env.ONETEAM_API_TOKEN || 'oneteam-user:usr-admin-001';
+/**
+ * The credential this installation holds.
+ *
+ * Deliberately NOT a default. The value it replaced fell back to
+ * `oneteam-user:usr-admin-001`, which meant a build with no configuration
+ * authenticated as an administrator — the worst possible default for a string
+ * that ships inside a downloadable bundle. There is now no way to reach the API
+ * without a token that was actually issued to this installation, and
+ * `request()` refuses rather than trying.
+ *
+ * Held in memory because this harness has no storage layer. A real build reads
+ * it from the keychain at launch and writes it once after enrolling.
+ */
+let deviceToken: string | null = (env.ONETEAM_DEVICE_TOKEN || '').trim() || null;
+
+/** Whether this installation can talk to the API yet. */
+export function hasDeviceToken(): boolean {
+  return deviceToken !== null;
+}
+
+/** The current token, for a caller that needs to persist it. */
+export function currentDeviceToken(): string | null {
+  return deviceToken;
+}
+
+/**
+ * Drops the credential, for example after a 401.
+ *
+ * Revoking on the server is a separate act — see the `device_tokens` migration
+ * — because a client that has been cut off should not be able to clear its own
+ * record by simply forgetting the token.
+ */
+export function clearDeviceToken(): void {
+  deviceToken = null;
+}
+
+export interface EnrollmentResult {
+  userId: string;
+  fullName: string;
+  role: string;
+  store: {
+    id: string;
+    storeCode: string;
+    name: string;
+    latitude: number | null;
+    longitude: number | null;
+  };
+  claimedTaskIds: string[];
+}
+
+/**
+ * Registers this installation and stores the credential it is given.
+ *
+ * The store code is the claim, exactly as it is in the Telegram flow: whoever
+ * knows it is treated as standing in that store. That is a deliberate reuse
+ * rather than a second, weaker rule for the app.
+ *
+ * This is the only call that does not go through `request()`, because it is the
+ * call that obtains the credential `request()` needs. It is also the only
+ * endpoint in the field API that is not behind the auth guard — see the header
+ * of the API's `enrollment.controller.ts` for why that is unavoidable and what
+ * narrows it.
+ */
+export async function enroll(params: {
+  storeCode: string;
+  fullName: string;
+  enrollmentSecret?: string;
+}): Promise<EnrollmentResult> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/portal/field/enroll`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        storeCode: params.storeCode,
+        fullName: params.fullName,
+        deviceId: deviceId(),
+        // Falls back to configuration so that a deployment which sets
+        // `ONETEAM_ENROLLMENT_SECRET` on the API can be enrolled against without
+        // a code change. Without this the second factor would be unpassable from
+        // the app, and an operator who turned it on would simply see enrolment
+        // stop working — the worst kind of security feature.
+        enrollmentSecret: params.enrollmentSecret ?? (env.ONETEAM_ENROLLMENT_SECRET || undefined),
+      }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (cause) {
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    throw new MobileApiError(
+      `API-yə qoşulmaq mümkün olmadı (${API_BASE_URL}). Səbəb: ${reason}`,
+      null,
+      'API_UNREACHABLE'
+    );
+  }
+
+  const text = await response.text();
+  let payload: any = {};
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = {};
+    }
+  }
+
+  if (!response.ok || !payload?.data?.token) {
+    const detail =
+      payload?.message ||
+      payload?.error ||
+      `Qeydiyyat alınmadı (HTTP ${response.status})`;
+    throw new MobileApiError(
+      Array.isArray(detail) ? detail.join(', ') : String(detail),
+      response.status,
+      payload?.error ?? 'ENROLLMENT_FAILED'
+    );
+  }
+
+  deviceToken = payload.data.token as string;
+  return payload.data as EnrollmentResult;
+}
 
 /**
  * The identity of this installation.
@@ -115,9 +233,41 @@ export class MobileApiError extends Error {
   }
 }
 
-type Envelope<T> = { success?: boolean; data?: T; message?: string | string[]; error?: string };
+type Envelope<T> = {
+  success?: boolean;
+  data?: T;
+  message?: string | string[];
+  error?: string;
+  /**
+   * The API puts a few facts beside `data` rather than inside it — a submission
+   * reports where the photo went, how far away the device was, and whether the
+   * location was verified. The index signature is what lets those be read
+   * without pretending the whole payload is one shape.
+   */
+  [key: string]: unknown;
+};
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+/**
+ * Performs an authenticated call and returns the whole envelope.
+ *
+ * `request` is the usual entry point and unwraps `data`. This exists for the
+ * calls whose answer is not only in `data`. It is split this way rather than
+ * given its own fetch path so the credential check and the error handling stay
+ * in exactly one place — a second copy would be a second chance to forget the
+ * token.
+ */
+async function callApi(path: string, init: RequestInit = {}): Promise<Envelope<any>> {
+  // Refused here rather than sent unauthenticated and rejected by the API: the
+  // caller gets one clear instruction, and no request leaves the device without
+  // a credential attached.
+  if (!deviceToken) {
+    throw new MobileApiError(
+      'Bu cihaz hələ qeydiyyatdan keçməyib. Mağaza kodunu daxil edib yenidən yoxlayın.',
+      null,
+      'NOT_ENROLLED'
+    );
+  }
+
   const url = `${API_BASE_URL}${path}`;
   let response: Response;
 
@@ -126,7 +276,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       ...init,
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${API_TOKEN}`,
+        Authorization: `Bearer ${deviceToken}`,
         ...(init.headers || {}),
       },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -141,7 +291,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   const text = await response.text();
-  let payload: Envelope<T> = {};
+  let payload: Envelope<any> = {};
 
   if (text) {
     try {
@@ -167,6 +317,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     );
   }
 
+  return payload;
+}
+
+/** The usual entry point: the call's `data`, with everything beside it dropped. */
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const payload = await callApi(path, init);
   return payload.data as T;
 }
 
@@ -215,6 +371,20 @@ interface ApiSubmission {
   metadata?: Record<string, unknown>;
 }
 
+/**
+ * Where the API put the photo.
+ *
+ * Not a field of the submission: the API reports it beside `data`. It is
+ * captured because the client cannot know whether the deployment has a bucket,
+ * and guessing "inline" would write a false provenance record for every
+ * s3-backed audit.
+ */
+interface ApiPhotoStorage {
+  driver: string;
+  bytes: number;
+  offloaded: boolean;
+}
+
 function toMobileStore(store: ApiStore): MobileStore {
   return {
     id: store.id,
@@ -245,7 +415,10 @@ function toMobileTask(task: ApiTask): MobileTask {
   };
 }
 
-function toMobileSubmission(submission: ApiSubmission): MobileSubmission {
+function toMobileSubmission(
+  submission: ApiSubmission,
+  photoStorage?: ApiPhotoStorage
+): MobileSubmission {
   return {
     id: submission.id,
     task_id: submission.task_id,
@@ -256,7 +429,17 @@ function toMobileSubmission(submission: ApiSubmission): MobileSubmission {
     ai_score: submission.ai_score ?? null,
     ai_summary: submission.ai_summary ?? null,
     submitted_at: submission.submitted_at,
-    metadata: submission.metadata ?? {},
+    metadata: {
+      ...(submission.metadata ?? {}),
+      // What the API actually did with the photo, recorded only when it said.
+      ...(photoStorage
+        ? {
+            storage: photoStorage.driver,
+            storage_bytes: photoStorage.bytes,
+            storage_offloaded: photoStorage.offloaded,
+          }
+        : {}),
+    },
     // The API has no column for this: a submission is "synced" the moment it is
     // accepted, and the queue only exists on the device.
     is_offline_synced: true,
@@ -317,7 +500,7 @@ class MobilePortalApi {
       `/api/portal/field/submissions?deviceId=${encodeURIComponent(deviceId())}&limit=${limit}`
     );
     return (submissions ?? [])
-      .map(toMobileSubmission)
+      .map((submission) => toMobileSubmission(submission))
       .filter((submission) => submission.store_id === storeId);
   }
 
@@ -326,42 +509,12 @@ class MobilePortalApi {
     const submissions = await request<ApiSubmission[]>(
       `/api/portal/field/submissions?deviceId=${encodeURIComponent(deviceId())}&limit=${limit}`
     );
-    return (submissions ?? []).map(toMobileSubmission);
+    return (submissions ?? []).map((submission) => toMobileSubmission(submission));
   }
 
   // -------------------------------------------------------------------------
   // Writes
   // -------------------------------------------------------------------------
-
-  /**
-   * Links this device to a person, and claims the store's open work.
-   *
-   * `storeId` is what makes submission possible: the API refuses an audit from a
-   * merchandiser who is not the task's assignee, and a device has no supervisor
-   * to do the assigning. Passing the store records the claim. See
-   * `FieldService.bind`.
-   */
-  async bindDevice(params: {
-    fullName: string;
-    storeId?: string;
-  }): Promise<{ id: string; role: string; claimedTaskIds: string[] }> {
-    const result = await request<{ id: string; role: string; claimedTaskIds?: string[] }>(
-      '/api/portal/field/bind',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          deviceId: deviceId(),
-          fullName: params.fullName,
-          storeId: params.storeId,
-        }),
-      }
-    );
-
-    if (!result?.id) {
-      throw new MobileApiError('İstifadəçi qeydiyyatı alınmadı', 500, 'BIND_FAILED');
-    }
-    return { id: result.id, role: result.role, claimedTaskIds: result.claimedTaskIds ?? [] };
-  }
 
   /**
    * Tells the API the field worker has taken the task on.
@@ -455,7 +608,7 @@ class MobilePortalApi {
     const hasFix =
       typeof params.gps?.latitude === 'number' && typeof params.gps?.longitude === 'number';
 
-    const result = await request<ApiSubmission>('/api/portal/field/submissions', {
+    const envelope = await callApi('/api/portal/field/submissions', {
       method: 'POST',
       body: JSON.stringify({
         deviceId: deviceId(),
@@ -471,16 +624,24 @@ class MobilePortalApi {
           device_id: deviceId(),
           photo_origin: params.photoOrigin ?? 'device',
           distance_from_store_meters: params.distanceFromStoreMeters,
-          storage: 'inline-data-url',
+          // No `storage` claim here. The client does not know whether this
+          // deployment has a bucket, so asserting "inline" would be a guess
+          // recorded as provenance. The API answers, and `toMobileSubmission`
+          // writes what it actually did.
         },
       }),
     });
 
+    const result = envelope.data as ApiSubmission | undefined;
     if (!result?.id) {
       throw new MobileApiError('Audit qeydə alınmadı', 500, 'SUBMISSION_FAILED');
     }
 
-    return toMobileSubmission(result);
+    // Where the photo went is a sibling of `data`, so it has to be read from the
+    // envelope. Without this the client could not record real provenance and
+    // would have to guess at it — which is exactly what it used to do.
+    const photoStorage = envelope.photoStorage as ApiPhotoStorage | undefined;
+    return toMobileSubmission(result, photoStorage);
   }
 }
 

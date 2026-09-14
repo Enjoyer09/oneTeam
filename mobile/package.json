@@ -7,9 +7,7 @@
     "test": "node ../node_modules/tsx/dist/cli.mjs src/tests/mobile-test-runner.ts",
     "type-check": "node ../node_modules/typescript/bin/tsc --noEmit"
   },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.49.1"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/node": "^22.13.9",
     "typescript": "^5.8.2"

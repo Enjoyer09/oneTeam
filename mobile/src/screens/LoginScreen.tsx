@@ -1,6 +1,6 @@
 import { MobileStore, GPSCoordinates, GeofenceResult } from '../types';
 import { verifyStoreGeofence } from '../utils/geofence';
-import { mobileApi, MobileApiError, deviceId } from '../services/portalApi';
+import { mobileApi, MobileApiError, deviceId, enroll } from '../services/portalApi';
 
 export interface LoginScreenState {
   selectedStore: MobileStore | null;
@@ -59,11 +59,13 @@ export class LoginScreenController {
   }
 
   /**
-   * Resolves the store, checks the device is really there, and binds the device.
+   * Resolves the store, checks the device is really there, and enrols the device.
    *
-   * The order is deliberate. The geofence is checked BEFORE the bind, because
-   * binding claims the store's open work — claiming from a car park would assign
-   * a merchandiser tasks they cannot do, and un-claiming is a supervisor action.
+   * The order is deliberate. The geofence is checked BEFORE enrolling, because
+   * enrolling claims the store's open work — claiming from a car park would
+   * assign a merchandiser tasks they cannot do, and un-claiming is a supervisor
+   * action. Enrolling also issues the credential the rest of the app carries, so
+   * this is the one call that must not happen from the wrong place.
    */
   async authenticateAndVerifyStore(): Promise<{
     success: boolean;
@@ -116,15 +118,17 @@ export class LoginScreenController {
       return { success: false, store, geofence, error: geofence.message };
     }
 
-    // Bind the device, and claim this store's open work in the same call — see
-    // mobileApi.bindDevice for why the claim is required rather than optional.
+    // Enrol this installation, which also claims the store's open work — the
+    // same single call the chat channel makes, so both channels agree on who may
+    // claim what. This is what issues the credential every later request carries;
+    // see `mobileApi.enroll`.
     try {
-      const profile = await mobileApi.bindDevice({
+      const enrolled = await enroll({
+        storeCode: this.state.storeCodeInput,
         fullName: `Sahə işçisi (${deviceId()})`,
-        storeId: store.id,
       });
-      this.profileId = profile.id;
-      this.claimedTaskCount = profile.claimedTaskIds.length;
+      this.profileId = enrolled.userId;
+      this.claimedTaskCount = enrolled.claimedTaskIds.length;
     } catch (error) {
       const detail = error instanceof MobileApiError ? error.message : String(error);
       this.state.errorMessage = `❌ Qeydiyyat tamamlanmadı: ${detail}`;

@@ -12,9 +12,12 @@
  * It now runs in two tiers:
  *
  *   READ-ONLY (always) — the geofence maths, the anti-gallery rule, the offline
- *   queue, and REAL reads against the running API. No records are written.
+ *   queue, and REAL reads against the running API. No records are written, but
+ *   only if `ONETEAM_DEVICE_TOKEN` is supplied: the client has no credential of
+ *   its own any more, so without one the suite enrols first and that enrolment
+ *   is a write. Which of the two happened is printed at startup.
  *
- *   WRITE (only when ONETEAM_MOBILE_WRITES=1) — the full flow: sign in, claim the
+ *   WRITE (only when ONETEAM_MOBILE_WRITES=1) — the full flow: enrol, claim the
  *   store's work, acknowledge, submit, and read the supervisor's verdict back.
  *   It provisions its own task rather than consuming the seeded one, so it is
  *   repeatable: a seeded task ends up APPROVED after the first run and a terminal
@@ -27,7 +30,7 @@
 
 import { calculateDistanceMeters, verifyStoreGeofence } from '../utils/geofence';
 import { offlineQueueService } from '../services/offlineQueue';
-import { mobileApi, deviceId, MobileApiError } from '../services/portalApi';
+import { mobileApi, deviceId, MobileApiError, enroll, hasDeviceToken } from '../services/portalApi';
 import { CameraAuditController } from '../screens/CameraAuditScreen';
 import { assertLiveCameraCapture, UNKNOWN_DEVICE_FIELD } from '../components/SmartCameraOverlay';
 import { GPSCoordinates, MobileStore, MobileTask } from '../types';
@@ -62,7 +65,17 @@ const FAR_LAT = 40.3705;
 const FAR_LON = 49.837;
 
 const API_URL = (process.env.ONETEAM_API_URL || 'http://localhost:3001').replace(/\/+$/, '');
-const API_TOKEN = process.env.ONETEAM_API_TOKEN || 'oneteam-user:usr-admin-001';
+
+/**
+ * The credential used to play the supervisor.
+ *
+ * A supervisor's decision is not something a field device can make, so the suite
+ * has to hold a second, wider credential to exercise the review path. That is
+ * why this one is a service credential and the client's is not — and why it
+ * defaults to a SUPERVISOR rather than the administrator it used to name. A test
+ * does not need the widest role in the system to approve a task.
+ */
+const SUPERVISOR_TOKEN = process.env.ONETEAM_API_TOKEN || 'oneteam-user:usr-super-002';
 
 const WRITE_TIER = process.env.ONETEAM_MOBILE_WRITES === '1';
 
@@ -90,7 +103,7 @@ async function supervisorApi<T = any>(path: string, init: RequestInit = {}): Pro
     ...init,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${API_TOKEN}`,
+      Authorization: `Bearer ${SUPERVISOR_TOKEN}`,
       ...(init.headers || {}),
     },
     signal: AbortSignal.timeout(20_000),
@@ -115,6 +128,40 @@ async function expectFailure(fn: () => Promise<unknown>, context: string): Promi
   throw new Error(`${context} — expected a failure and got none`);
 }
 
+/**
+ * Ensures the client holds a device credential, because it now holds nothing by
+ * default.
+ *
+ * The client used to ship a service credential and default to an administrator,
+ * so every call worked with no setup — and extracting one string from the
+ * bundle gave away the whole system. There is no default now, which means this
+ * runner has to obtain a credential before it can read anything at all.
+ *
+ * Two ways, and the difference is reported rather than glossed over:
+ *
+ *   - `ONETEAM_DEVICE_TOKEN` set — a token already issued to this device. This
+ *     is the genuinely read-only path: nothing is created.
+ *   - otherwise — enrol, which is a write: it creates or updates the device's
+ *     user, claims the store's open work, and issues a token. The suite says so
+ *     out loud, because "read-only" that quietly writes is a lie in a log.
+ */
+async function ensureCredential(): Promise<void> {
+  if (hasDeviceToken()) {
+    logInfo('Using the device token from ONETEAM_DEVICE_TOKEN (nothing will be created).');
+    return;
+  }
+
+  logInfo(
+    'No ONETEAM_DEVICE_TOKEN set — enrolling this device. This WRITES: it claims ' +
+      `${STORE_CODE}'s open work and issues a token.`
+  );
+  const result = await enroll({
+    storeCode: STORE_CODE,
+    fullName: `Test Device (${deviceId()})`,
+  });
+  logPass(`Enrolled as ${result.userId} at ${result.store.storeCode}`);
+}
+
 async function runMobileTests() {
   console.log(
     `${colors.bright}========================================================================${colors.reset}`
@@ -131,6 +178,11 @@ async function runMobileTests() {
   // --------------------------------------------------------------------------
   // Preconditions
   // --------------------------------------------------------------------------
+  // Before the ping, because the ping is an authenticated call: with no
+  // credential it fails with NOT_ENROLLED, which looks like an unreachable API
+  // and is not.
+  await ensureCredential();
+
   const ping = await mobileApi.ping();
   if (!ping.ok) {
     throw new Error(
@@ -387,19 +439,23 @@ async function runMobileTests() {
     }
     logPass(`Supervisor dispatched a task: ${provisionedTaskId}`);
 
-    // Signing in claims the store's open work — the same self-claim the chat
-    // channel performs with a store code.
-    const profile = await mobileApi.bindDevice({
+    // Enrolling claims the store's open work — the same self-claim the chat
+    // channel performs with a store code, and the same call `ensureCredential`
+    // makes. It is repeated here because the task above did not exist then, and
+    // the claim is what makes it assignable to this device.
+    const profile = await enroll({
+      storeCode: STORE_CODE,
       fullName: 'Test Device',
-      storeId: store.id,
     });
     if (!profile.claimedTaskIds.includes(provisionedTaskId)) {
       throw new Error(
-        `Expected the sign-in to claim ${provisionedTaskId}, claimed: ` +
+        `Expected the enrolment to claim ${provisionedTaskId}, claimed: ` +
           JSON.stringify(profile.claimedTaskIds)
       );
     }
-    logPass(`Device bound to ${profile.id} and claimed ${profile.claimedTaskIds.length} task(s)`);
+    logPass(
+      `Device enrolled as ${profile.userId} and claimed ${profile.claimedTaskIds.length} task(s)`
+    );
 
     const claimed = (await mobileApi.getTasksForStore(store.id)).find(
       (t) => t.id === provisionedTaskId
@@ -460,7 +516,31 @@ async function runMobileTests() {
     }
     const submission = result.submission;
     logPass(`Submission filed: ${submission.id} (${submission.status})`);
-    logInfo(`Photo stored inline (${submission.photo_url.slice(0, 32)}…, no object store yet)`);
+    // What the API actually did with the photo, not what this file assumed. The
+    // previous version hardcoded "no object store yet", so it would have gone on
+    // saying that after a bucket was configured — a passing test asserting a
+    // stale fact. The driver now comes back with the submission, and the two
+    // must agree: an s3 driver with a data URL, or the reverse, is a lie
+    // somewhere and is treated as a failure.
+    const driver = submission.metadata?.storage;
+    if (driver === 's3') {
+      if (String(submission.photo_url).startsWith('data:')) {
+        throw new Error('The API reported s3 storage but returned a data URL');
+      }
+      logPass(
+        `Photo offloaded to object storage (${String(submission.metadata?.storage_bytes)} bytes): ` +
+          `${String(submission.photo_url).slice(0, 48)}…`
+      );
+    } else if (driver === 'inline') {
+      if (!String(submission.photo_url).startsWith('data:')) {
+        throw new Error('The API reported inline storage but returned a non-data URL');
+      }
+      logInfo(`Photo stored inline (${String(submission.photo_url).slice(0, 32)}…, no bucket configured)`);
+    } else {
+      throw new Error(
+        `The API did not report where the photo went (metadata.storage = ${String(driver)})`
+      );
+    }
 
     if (submission.status !== 'pending_review') {
       throw new Error(`Expected pending_review, got ${submission.status}`);
