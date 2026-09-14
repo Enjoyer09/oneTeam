@@ -3,15 +3,32 @@
  * ============================================================================
  *
  * Consumed by the Telegram bot and by the mobile field client. Both
- * authenticate with the same bearer scheme as everything else; see the note in
- * field.service.ts about why the acting person arrives as a channel key
- * (`chatId` for a chat, `deviceId` for a device) rather than as the caller's own
- * identity.
+ * authenticate with a bearer token; see the note in field.service.ts about why
+ * the acting person arrives as a channel key (`chatId` for a chat, `deviceId`
+ * for a device) rather than as the caller's own identity.
  *
  * One set of endpoints for both channels is deliberate. A store that looks
  * different in the bot than in the mobile app, or a task that can be submitted
  * from one and not the other, is a bug class rather than a possibility — there is
  * only one code path to keep correct.
+ *
+ * WHY EVERY ROUTE NOW CHECKS THE ACTOR KEY AGAINST THE CREDENTIAL
+ * --------------------------------------------------------------
+ * A channel key in the body is how the bot acts on behalf of a chat, and it is
+ * safe there because the bot is a server holding the service credential: it
+ * derived that chat from the Telegram update it is handling, and a Telegram user
+ * cannot call this API directly.
+ *
+ * The mobile client holds a *device* credential, which resolves to exactly one
+ * user. If it were allowed to name an arbitrary `deviceId` in the body it would
+ * inherit the bot's ability to act as anyone, and issuing it a narrower
+ * credential would have bought nothing. `enforceActorScope` is what stops that:
+ * a device credential may only name its own installation, and a service
+ * credential may name anyone.
+ *
+ * The check lives here rather than in `FieldService` because it is a property of
+ * the caller, and `FieldService` is deliberately unaware of how the call
+ * arrived — it takes a key and acts on it.
  */
 
 import {
@@ -21,13 +38,22 @@ import {
   Param,
   Query,
   Body,
+  Request,
   HttpCode,
   HttpStatus,
   UseGuards,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
+import { Request as ExpressRequest } from 'express';
 import { FieldService, FieldActorKey } from './field.service';
-import { AuthGuard } from '../../common/auth/auth.guard';
+import { AuthGuard, getPrincipal } from '../../common/auth/auth.guard';
+import {
+  AuthenticatedPrincipal,
+  mayActAsAnotherUser,
+} from '../../common/auth/authenticated-principal';
+
+type AuthedRequest = ExpressRequest & { principal?: AuthenticatedPrincipal };
 
 /** Reads the acting person's channel key off a request body. */
 function actorKeyFrom(body: any): FieldActorKey {
@@ -48,6 +74,34 @@ function requireActorKey(key: FieldActorKey): FieldActorKey {
   return key;
 }
 
+/**
+ * Refuses a request whose actor key names someone the credential may not act as.
+ *
+ * A device credential is bound to one installation, so naming a different
+ * `deviceId` — or any `chatId` at all — is refused with 403 rather than quietly
+ * ignored. Silently substituting the caller's own device would be worse: the
+ * request would succeed while answering about someone else's data, which is the
+ * kind of bug that looks like a feature until it is an incident.
+ */
+function enforceActorScope(
+  principal: AuthenticatedPrincipal,
+  key: FieldActorKey
+): FieldActorKey {
+  if (mayActAsAnotherUser(principal)) return key;
+
+  const ownsDevice = Boolean(key.deviceId) && key.deviceId === principal.deviceId;
+  if (!ownsDevice) {
+    throw new ForbiddenException({
+      error: 'ACTOR_SCOPE_VIOLATION',
+      message:
+        'Bu cihaz açarı yalnız öz quraşdırması üçün istifadə oluna bilər. ' +
+        'Başqa cihaz və ya çat adı göstərilə bilməz.',
+    });
+  }
+
+  return key;
+}
+
 @Controller('api/portal/field')
 @UseGuards(AuthGuard)
 export class FieldController {
@@ -61,13 +115,22 @@ export class FieldController {
   }
 
   @Get('session')
-  getSession(@Query('chatId') chatId?: string, @Query('deviceId') deviceId?: string) {
-    return this.fieldService.session(requireActorKey(actorKeyFromQuery(chatId, deviceId)));
+  getSession(
+    @Request() request: AuthedRequest,
+    @Query('chatId') chatId?: string,
+    @Query('deviceId') deviceId?: string
+  ) {
+    const key = enforceActorScope(
+      getPrincipal(request),
+      requireActorKey(actorKeyFromQuery(chatId, deviceId))
+    );
+    return this.fieldService.session(key);
   }
 
   @Post('bind')
   @HttpCode(HttpStatus.OK)
   bind(
+    @Request() request: AuthedRequest,
     @Body()
     body: {
       chatId?: string | number;
@@ -76,7 +139,7 @@ export class FieldController {
       storeId?: string;
     }
   ) {
-    const key = requireActorKey(actorKeyFrom(body));
+    const key = enforceActorScope(getPrincipal(request), requireActorKey(actorKeyFrom(body)));
     return this.fieldService.bind(key, body.fullName || 'Sahə işçisi', body.storeId);
   }
 
@@ -99,27 +162,35 @@ export class FieldController {
   @Post('tasks/:id/acknowledge')
   @HttpCode(HttpStatus.OK)
   async acknowledge(
+    @Request() request: AuthedRequest,
     @Param('id') id: string,
     @Body() body: { chatId?: string | number; deviceId?: string }
   ) {
-    return this.fieldService.acknowledgeTask(requireActorKey(actorKeyFrom(body)), id);
+    const key = enforceActorScope(getPrincipal(request), requireActorKey(actorKeyFrom(body)));
+    return this.fieldService.acknowledgeTask(key, id);
   }
 
   @Get('submissions')
   getSubmissions(
+    @Request() request: AuthedRequest,
     @Query('chatId') chatId?: string,
     @Query('deviceId') deviceId?: string,
     @Query('limit') limit?: string
   ) {
-    const key = requireActorKey(actorKeyFromQuery(chatId, deviceId));
+    const key = enforceActorScope(
+      getPrincipal(request),
+      requireActorKey(actorKeyFromQuery(chatId, deviceId))
+    );
     const data = this.fieldService.getSubmissions(key, limit ? Number(limit) : 5);
     return { success: true, data, total: data.length };
   }
 
   @Post('submissions')
   @HttpCode(HttpStatus.CREATED)
-  async submitSubmission(@Body() body: any) {
-    requireActorKey(actorKeyFrom(body));
+  async submitSubmission(@Request() request: AuthedRequest, @Body() body: any) {
+    // The scope check is the point of this line; the key itself already came
+    // from the body, so nothing needs merging back into it.
+    enforceActorScope(getPrincipal(request), requireActorKey(actorKeyFrom(body)));
     if (!body?.storeTaskId) {
       throw new BadRequestException('storeTaskId tələb olunur');
     }
@@ -127,5 +198,34 @@ export class FieldController {
       throw new BadRequestException('photoUrl tələb olunur');
     }
     return this.fieldService.submitSubmission(body);
+  }
+
+  /**
+   * Optional direct upload.
+   *
+   * `POST submissions` already offloads a data URL by itself, so this is for a
+   * client that would rather send the bytes once. It takes base64 rather than
+   * multipart because the only clients are a Telegram bot and a mobile app, both
+   * of which already hold the image as base64 — a multipart parser would be a
+   * dependency added for nobody's benefit.
+   */
+  @Post('photos')
+  @HttpCode(HttpStatus.CREATED)
+  async uploadPhoto(
+    @Body()
+    body: {
+      base64?: string;
+      contentType?: string;
+      scope?: string;
+    }
+  ) {
+    if (!body?.base64) {
+      throw new BadRequestException('base64 tələb olunur');
+    }
+    return this.fieldService.uploadPhoto({
+      base64: body.base64,
+      contentType: body.contentType,
+      scope: body.scope,
+    });
   }
 }

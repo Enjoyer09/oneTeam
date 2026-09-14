@@ -4,6 +4,22 @@
 --              Telegram chat id the bot already uses.
 -- ============================================================================
 --
+-- APPLIED AUTOMATICALLY
+-- ---------------------
+-- This file is not something an operator has to run. `packages/database/src/
+-- migrations.ts` applies every `db/migrations/*.sql` in filename order when the
+-- API starts, and records each one in `schema_migrations`.
+--
+-- That mechanism exists because of this exact file. The first version of it was
+-- written, committed, and then never applied to the database the code actually
+-- ran against: the column was absent, `upsertDeviceUser` failed into a log line
+-- nobody was reading, and a bound device existed in memory and nowhere else. A
+-- migration that only exists as a file is a wish.
+--
+-- To apply it by hand instead — for a database the API never boots against —
+-- run: psql -f db/migrations/20260914000003_add_mobile_device_id.sql
+-- ============================================================================
+--
 -- WHY
 -- ---
 -- `users.telegram_chat_id` is how the chat channel names the person acting. The
@@ -42,6 +58,14 @@ END $$;
 
 -- `ON CONFLICT (mobile_device_id)` in `upsertDeviceUser` requires this index to
 -- exist; without it the upsert fails and the bind is only kept in memory.
+--
+-- It also requires the *predicate* to be repeated in the statement —
+-- `ON CONFLICT (mobile_device_id) WHERE mobile_device_id IS NOT NULL`. A bare
+-- column list only infers a total unique index, and PostgreSQL answers
+-- "there is no unique or exclusion constraint matching the ON CONFLICT
+-- specification" for a partial one. That is not obvious from the index
+-- definition, which looks like it covers the column, so it is written here and
+-- in postgres.ts.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_mobile_device_id
     ON public.users(mobile_device_id)
     WHERE mobile_device_id IS NOT NULL;

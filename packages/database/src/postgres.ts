@@ -182,6 +182,15 @@ export async function loadAll(pool: Pool): Promise<HydratedState> {
       fullName: r.full_name,
       role: r.role,
       telegramChatId: r.telegram_chat_id ?? undefined,
+      // Both channel keys, and both have to be read back.
+      //
+      // `mobile_device_id` was added to the write path (`upsertDeviceUser`)
+      // and not to this mapping, which produced a bind that persisted
+      // correctly and then vanished from the application's view on the next
+      // restart: the row was in the database, `getUserByMobileDeviceId`
+      // returned null, and the device was told it had never registered.
+      // A column that is written but never read is half a feature.
+      mobileDeviceId: r.mobile_device_id ?? undefined,
       phone: r.phone ?? undefined,
       createdAt: asRequiredDate(r.created_at),
       updatedAt: asRequiredDate(r.updated_at),
@@ -479,11 +488,24 @@ export async function upsertTelegramUser(
  * they are two names for the same person, and the anti-fraud rules are written
  * against the person.
  *
- * The conflict target is the unique index added by
- * `supabase/migrations/20260914000003_add_mobile_device_id.sql`. Until that
- * migration has been applied to a database, this statement fails and `persist()`
- * logs it — the in-memory store still works, so the failure is visible without
- * being fatal.
+ * WHY THE CONFLICT TARGET REPEATS THE INDEX PREDICATE
+ * ---------------------------------------------------
+ * `mobile_device_id` is covered by a *partial* unique index — unique where the
+ * value is not null, so that any number of Telegram-only users can coexist.
+ * PostgreSQL will not infer a partial index from a bare column list: the
+ * statement below failed at runtime with
+ *
+ *     there is no unique or exclusion constraint matching the ON CONFLICT
+ *     specification
+ *
+ * because `ON CONFLICT (mobile_device_id)` only matches a *total* unique index.
+ * The `WHERE mobile_device_id IS NOT NULL` clause is not decoration — it is how
+ * the inference is told which index is meant, and it has to be written exactly
+ * as the index was created. Removing it turns every device bind back into a
+ * silent, logged-only failure.
+ *
+ * The same does not apply to `upsertTelegramUser`, whose index on
+ * `telegram_chat_id` is a plain unique constraint covering the whole table.
  */
 export async function upsertDeviceUser(
   pool: Pool,
@@ -499,7 +521,8 @@ export async function upsertDeviceUser(
   await pool.query(
     `INSERT INTO users (id, email, full_name, role, mobile_device_id, phone, created_at, updated_at)
      VALUES ($1,$2,$3,$4,$5,$6, now(), now())
-     ON CONFLICT (mobile_device_id) DO UPDATE
+     ON CONFLICT (mobile_device_id) WHERE mobile_device_id IS NOT NULL
+     DO UPDATE
         SET full_name = EXCLUDED.full_name,
             updated_at = now()`,
     [
@@ -513,8 +536,127 @@ export async function upsertDeviceUser(
   );
 }
 
+// ---------------------------------------------------------------------------
+// Device credentials
+// ---------------------------------------------------------------------------
+//
+// These three are the only helpers in this file whose read path is the database
+// rather than the in-memory copy, and deliberately so. A credential has to be
+// authoritative: a token that is valid on one replica and not another, or that
+// survives a restart in memory but not in the database, is not a credential.
+// The tables they touch are not part of `loadAll` — nothing reads a token until
+// someone presents one.
+
+/**
+ * Revokes any live token for a device and inserts a new one, atomically.
+ *
+ * Both statements in one transaction because the partial unique index allows
+ * exactly one live token per device: inserting before revoking would violate it,
+ * and revoking without inserting would lock the device out if the insert then
+ * failed.
+ */
+export async function insertDeviceToken(
+  pool: Pool,
+  token: {
+    tokenHash: string;
+    userId: string;
+    deviceId: string;
+    label?: string | null;
+  }
+): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `UPDATE device_tokens
+          SET revoked_at = now()
+        WHERE device_id = $1
+          AND revoked_at IS NULL`,
+      [token.deviceId]
+    );
+    await client.query(
+      `INSERT INTO device_tokens (token_hash, user_id, device_id, label)
+       VALUES ($1, $2, $3, $4)`,
+      [token.tokenHash, token.userId, token.deviceId, token.label ?? null]
+    );
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Looks up a live token by its hash.
+ *
+ * Returns null for a token that is unknown, revoked, or whose user has been
+ * deleted — three cases that must all be "not authorised" and none of which
+ * should be distinguishable to the caller.
+ */
+export async function findDeviceToken(
+  pool: Pool,
+  tokenHash: string
+): Promise<{ userId: string; deviceId: string; lastSeenAt: Date | null } | null> {
+  const result = await pool.query(
+    `SELECT user_id, device_id, last_seen_at
+       FROM device_tokens
+      WHERE token_hash = $1
+        AND revoked_at IS NULL`,
+    [tokenHash]
+  );
+
+  const row = result.rows[0];
+  if (!row) return null;
+
+  return {
+    userId: row.user_id,
+    deviceId: row.device_id,
+    lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at) : null,
+  };
+}
+
+/** Records that a token was used. Fire-and-forget; throttled by the caller. */
+export async function touchDeviceToken(pool: Pool, tokenHash: string): Promise<void> {
+  await pool.query('UPDATE device_tokens SET last_seen_at = now() WHERE token_hash = $1', [
+    tokenHash,
+  ]);
+}
+
+/** Cuts a device off. Kept as a timestamp rather than a delete; see the migration. */
+export async function revokeDeviceToken(pool: Pool, tokenHash: string): Promise<boolean> {
+  const result = await pool.query(
+    'UPDATE device_tokens SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL',
+    [tokenHash]
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
 /** Cheap liveness probe used by `init()` and reported through /api/health. */
 export async function ping(pool: Pool): Promise<boolean> {
   const res = await pool.query('SELECT 1 AS ok');
   return res.rows[0]?.ok === 1;
+}
+
+/**
+ * Reads the shared change counter.
+ *
+ * One row, one column, no join — the point is that a replica can ask "has
+ * anything moved" many times a second without it mattering. Returns null when
+ * the counter does not exist, which is the honest answer for a database that
+ * predates the migration rather than a number that would be mistaken for "no
+ * change".
+ */
+export async function readDataVersion(pool: Pool): Promise<number | null> {
+  try {
+    const res = await pool.query('SELECT version FROM data_version WHERE id = TRUE');
+    const value = res.rows[0]?.version;
+    return value === undefined || value === null ? null : Number(value);
+  } catch {
+    // A missing table is not an error worth logging on a poll that runs once a
+    // second. The caller treats null as "cannot tell", and cannot-tell must not
+    // be confused with unchanged.
+    return null;
+  }
 }

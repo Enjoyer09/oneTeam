@@ -4,10 +4,16 @@
 
 # Node 22, not 20.
 #
-# Several dependencies declare `engines: { node: ">=22" }` — @supabase/supabase-js
-# and file-type among them. On node:20-alpine npm prints EBADENGINE warnings
-# during install and the packages run on an unsupported runtime. `.nvmrc` pins 22
-# as well, so this also stops the image from disagreeing with local development.
+# `@nestjs/core` declares `engines: { node: ">=20" }` and `.nvmrc` pins 22, so
+# nothing in this project *requires* 22 — but Node 20 reached end-of-life in
+# April 2026, and running the API on an unsupported runtime to save nothing is
+# not a trade worth making. The pin keeps the image and local development on the
+# same major version.
+#
+# An earlier version of this comment cited `@supabase/supabase-js` and
+# `file-type` as the reason. Neither is a dependency any more — the Supabase
+# client was removed once the last mock that used it was deleted — so the
+# justification was replaced rather than left standing.
 FROM node:22-alpine AS builder
 
 WORKDIR /app
@@ -52,6 +58,15 @@ COPY tsconfig.json ./
 COPY packages/types ./packages/types
 COPY packages/database ./packages/database
 COPY apps/api ./apps/api
+
+# The SQL the API applies at start-up.
+#
+# `packages/database/src/migrations.ts` walks up from its own compiled location
+# looking for `db/api-schema.sql`, so this directory has to sit at the same
+# relative depth in the image as it does in the repository. Copying it here and
+# not just into the builder is the difference between "migrations run on deploy"
+# and "migrations are skipped, and the health endpoint says so".
+COPY db ./db
 
 # Build the API together with its workspace dependencies.
 #

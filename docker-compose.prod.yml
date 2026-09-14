@@ -26,8 +26,17 @@
 #
 # NOTE ON THE WEB PORTAL
 # ----------------------
-# The portal's Supabase settings are *build* arguments, not runtime variables.
-# Vite compiles them into the bundle. See the web service below.
+# The portal's API address is a *build* argument, not a runtime variable: Vite
+# compiles it into the bundle. See the web service below.
+#
+# There were three more build arguments here for Supabase — a URL, an anon key
+# and a service-role key — passed to both the API and the bot as runtime
+# variables as well, each with a `mock-oneteam.supabase.co` fallback. No code in
+# this repository has read any of them since the portal, the bot and the mobile
+# client were all pointed at the API. They are gone. A variable that is passed
+# and never read is worse than a missing one: it makes the stack look
+# configured, and the fallback values made it look configured against a host
+# that does not exist.
 # ==============================================================================
 
 # The top-level `version` key is obsolete in Compose v2 and is ignored. It was
@@ -85,9 +94,6 @@ services:
       PORT: 3001
       API_PORT: 3001
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required - it must point at the postgres service}
-      SUPABASE_URL: ${SUPABASE_URL:-https://mock-oneteam.supabase.co}
-      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-mock-anon-key}
-      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-mock-service-role-key}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN is required}
       # Verifies that an incoming webhook really came from Telegram. The API
       # returns 503 rather than accepting unverified callers when this is unset,
@@ -95,6 +101,59 @@ services:
       TELEGRAM_WEBHOOK_SECRET: "${TELEGRAM_WEBHOOK_SECRET:?TELEGRAM_WEBHOOK_SECRET is required - generate one with openssl rand -hex 32}"
       # Comma-separated allow-list. An empty value blocks every browser origin.
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost,http://localhost:5173}
+      # ------------------------------------------------------------------
+      # Photo storage — OPTIONAL, and inline by default.
+      # ------------------------------------------------------------------
+      # Left unset, a submitted photo is stored in the database as a data URL,
+      # exactly as before. Set STORAGE_DRIVER=s3 together with the four S3_*
+      # values below and it is uploaded to the bucket instead, with only the URL
+      # stored. Any S3-compatible provider works: Railway Buckets, Cloudflare R2,
+      # MinIO, AWS.
+      #
+      # There is no half-configured state: if STORAGE_DRIVER=s3 is set and a
+      # required value is missing, the API keeps photos inline and says so at
+      # error level, and /api/health reports which driver is actually in use.
+      #
+      # STORAGE_DRIVER: ${STORAGE_DRIVER:-inline}
+      # S3_ENDPOINT: ${S3_ENDPOINT:-}
+      # S3_REGION: ${S3_REGION:-}
+      # S3_BUCKET: ${S3_BUCKET:-}
+      # S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      # S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      # S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:-}
+      # ------------------------------------------------------------------
+      # Device enrolment — RECOMMENDED for anything past a pilot.
+      # ------------------------------------------------------------------
+      # A mobile installation enrols itself by presenting the store's code,
+      # because that is the same proof the Telegram channel already accepts and
+      # there is no credential to ship inside a downloadable app bundle.
+      #
+      # A store code is semi-public — printed on briefings and shared between
+      # colleagues — so someone who learns one can enrol a device for that store.
+      # Setting this turns the store code into a username and this into the
+      # password. Left unset, a store code alone is enough.
+      #
+      # ONETEAM_ENROLLMENT_SECRET: ${ONETEAM_ENROLLMENT_SECRET:-}
+      # Wrong guesses allowed per address per 15 minutes before enrolment is
+      # refused. Only failures count, so a shop full of colleagues signing in
+      # behind one address is unaffected. Default 20.
+      # ONETEAM_ENROLLMENT_MAX_FAILURES: ${ONETEAM_ENROLLMENT_MAX_FAILURES:-20}
+      # ------------------------------------------------------------------
+      # Cross-replica consistency — only relevant if you run more than one API.
+      # ------------------------------------------------------------------
+      # Reads come from an in-memory snapshot, so a second replica would never
+      # see the first one's writes. This polls a change counter in the database
+      # and reloads when it moves, bounding how stale a replica can be.
+      #
+      # With one replica it costs a single row read per interval. Set to 0 to
+      # disable — but do that only if you are certain there is one replica,
+      # because a disabled loop means replicas silently diverge.
+      #
+      # ONETEAM_REFRESH_MS: ${ONETEAM_REFRESH_MS:-1000}
+      # Set to 0 to manage the schema yourself (psql, a migration tool). Left at
+      # the default, the API applies db/api-schema.sql and db/migrations/*.sql
+      # itself on start-up, which is what makes a deploy self-sufficient.
+      # ONETEAM_AUTO_MIGRATE: ${ONETEAM_AUTO_MIGRATE:-1}
     ports:
       - "3001:3001"
     healthcheck:
@@ -118,8 +177,6 @@ services:
       # Build-time only. Setting these under `environment:` would have no effect
       # because Vite has already inlined them into the bundle by then.
       args:
-        VITE_SUPABASE_URL: ${SUPABASE_URL:-}
-        VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
     container_name: oneteam-web
     restart: always
@@ -158,8 +215,6 @@ services:
     environment:
       NODE_ENV: production
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN is required}
-      SUPABASE_URL: ${SUPABASE_URL:-https://mock-oneteam.supabase.co}
-      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-mock-anon-key}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required - it must point at the postgres service}
       API_BASE_URL: http://api:3001
     networks:

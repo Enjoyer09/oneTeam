@@ -17,7 +17,15 @@ import type {
   InMemoryEvidence,
   InMemoryAuditLog,
 } from './types';
+import { createHash, randomBytes } from 'crypto';
 import * as pg from './postgres';
+import {
+  runMigrations,
+  checkSchema,
+  describeSchemaHealth,
+  type MigrationReport,
+  type SchemaReport,
+} from './migrations';
 import type { Pool } from 'pg';
 
 /**
@@ -88,6 +96,71 @@ export class EnterpriseDatabase {
   public persistenceDetail = 'DATABASE_URL is not set — running on seed data';
 
   /**
+   * What the schema actually looks like, as opposed to what it should.
+   *
+   * Recorded once at start-up and reported through /api/health, so that
+   * "the code needs a column that nobody added" is a sentence someone can read
+   * rather than a log line nobody does. That failure has now happened twice in
+   * this project; it is worth a field.
+   */
+  public migrations: MigrationReport | null = null;
+  public schema: SchemaReport | null = null;
+  public schemaOk = false;
+  public schemaDetail = 'schema has not been checked yet';
+
+  // -------------------------------------------------------------------------
+  // Cross-replica refresh
+  //
+  // THE PROBLEM THIS SOLVES
+  // -----------------------
+  // Everything above is read from in-memory arrays. They are hydrated once at
+  // start-up and updated in place by this process's own writes. That is correct
+  // for one process and silently wrong for two: a second replica hydrates at
+  // boot and never learns about anything the first one wrote afterwards. It does
+  // not fail, it does not log, and it reports a healthy status — it just answers
+  // with yesterday's data indefinitely.
+  //
+  // The mechanism is a counter in the database (`data_version`, bumped by
+  // triggers on every table the snapshot reads) which is polled on an interval.
+  // When it has moved, the snapshot is reloaded.
+  //
+  // THE STALENESS WINDOW, STATED PLAINLY
+  // ------------------------------------
+  // A replica's view is at most one interval out of date, plus the time the
+  // reload itself takes. With the default of 1000 ms, a write on replica A is
+  // visible on replica B within roughly a second. That is the trade: reads stay
+  // in-memory and instant, and cross-replica visibility is bounded rather than
+  // immediate.
+  //
+  // For a deployment that runs a single replica — which is the current one — the
+  // polling finds nothing and costs one row read per second. Set
+  // `ONETEAM_REFRESH_MS=0` to turn it off entirely.
+  // -------------------------------------------------------------------------
+
+  /** How often the change counter is polled. 0 disables the loop. */
+  public refreshIntervalMs = 0;
+  /** When the snapshot was last reloaded because the counter moved. */
+  public lastRefreshAt: Date | null = null;
+  /** How many reloads have happened since start-up. */
+  public refreshCount = 0;
+  /** A sentence for /api/health describing whether replicas converge. */
+  public refreshDetail =
+    'refresh is off — reads are this process\'s memory, and a second replica would not converge';
+
+  private observedVersion: number | null = null;
+  /**
+   * Writes handed to the database but not yet acknowledged.
+   *
+   * A reload is skipped while any are outstanding. Without this, a replica could
+   * reload from a snapshot taken before its own write committed and visibly
+   * revert its own change for an interval — the kind of flicker that is
+   * impossible to reproduce and easy to blame on something else.
+   */
+  private pendingWrites = 0;
+  private refreshTimer: NodeJS.Timeout | null = null;
+  private refreshing = false;
+
+  /**
    * Connects to PostgreSQL and replaces the seeded arrays with real rows.
    *
    * RETRIES, BECAUSE THE DEPLOY RACE IS REAL
@@ -110,6 +183,7 @@ export class EnterpriseDatabase {
   public async init(options?: { attempts?: number; delayMs?: number }): Promise<void> {
     const connectionString = process.env.DATABASE_URL;
     if (!connectionString) {
+      this.schemaDetail = 'schema was not verified: DATABASE_URL is not set';
       console.warn(
         '⚠️  [oneTeam DB] DATABASE_URL is not set. Running entirely in memory — ' +
           'every task, evidence and audit entry will be lost on restart.'
@@ -128,6 +202,50 @@ export class EnterpriseDatabase {
         this.pool = pg.createPool(connectionString);
 
         await pg.ping(this.pool);
+
+        // ------------------------------------------------------------------
+        // Bring the schema up to date BEFORE reading anything.
+        // ------------------------------------------------------------------
+        // Order matters. A database that predates a column loads perfectly well
+        // — `SELECT *` simply does not return the missing column — and then
+        // fails every write that touches it. That is precisely how a bound
+        // device came to exist in memory and nowhere else: the bind reported
+        // success, and the insert failed into a log line. Migrating first means
+        // the read that follows sees the schema the code expects.
+        //
+        // Set ONETEAM_AUTO_MIGRATE=0 to turn this off, for a deployment where
+        // the schema is managed by something else.
+        if (process.env.ONETEAM_AUTO_MIGRATE !== '0') {
+          this.migrations = await runMigrations(this.pool);
+          for (const applied of this.migrations.applied) {
+            console.log(`🔧 [oneTeam DB] Applied migration ${applied}`);
+          }
+          for (const problem of this.migrations.problems) {
+            console.error('⛔ [oneTeam DB] Migration problem: ' + problem);
+          }
+        }
+
+        // Caught separately from the connection handling below, so that a
+        // failed check cannot discard a working connection.
+        try {
+          this.schema = await checkSchema(this.pool);
+        } catch (error) {
+          this.schema = null;
+          console.warn('⚠️  [oneTeam DB] Schema check could not run: ' + describeError(error));
+        }
+
+        const schemaHealth = describeSchemaHealth(this.migrations, this.schema);
+        this.schemaOk = schemaHealth.ok;
+        this.schemaDetail = schemaHealth.detail;
+
+        if (schemaHealth.ok) {
+          console.log('✅ [oneTeam DB] Schema verified — ' + schemaHealth.detail);
+        } else {
+          console.error(
+            '⛔ [oneTeam DB] The database schema is not what this build expects. ' +
+              schemaHealth.detail
+          );
+        }
 
         const state = await pg.loadAll(this.pool);
 
@@ -153,6 +271,11 @@ export class EnterpriseDatabase {
           `${this.storeTasks.length} tasks, ${this.evidences.length} evidences, ` +
           `${this.auditLogs.length} audit entries`;
         console.log('✅ [oneTeam DB] ' + this.persistenceDetail);
+
+        // Started only now: the snapshot is loaded, so there is a baseline to
+        // compare against. Starting it earlier would poll a counter with nothing
+        // to reload.
+        this.startRefreshLoop();
         return;
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
@@ -173,11 +296,131 @@ export class EnterpriseDatabase {
         this.pool = null;
         this.persistence = 'memory';
         this.persistenceDetail = 'postgres unavailable: ' + reason;
+        this.schemaOk = false;
+        this.schemaDetail = 'schema was not verified: the database was unreachable';
         console.error(
           `⛔ [oneTeam DB] Gave up after ${attempts} attempts. Falling back to in-memory ` +
             'seed data; writes will NOT survive a restart. Reason: ' + reason
         );
       }
+    }
+  }
+
+  /**
+   * Starts polling the shared change counter.
+   *
+   * Called at the end of a successful `init()`. Never started when there is no
+   * database: with nothing to poll there is nothing to converge to, and a timer
+   * that cannot do its job is worse than no timer.
+   */
+  public startRefreshLoop(): void {
+    const configured = Number(process.env.ONETEAM_REFRESH_MS);
+    // Default 1000 ms. `0` is an explicit opt-out; anything unparseable falls
+    // back to the default rather than to 0, because a typo in an environment
+    // variable should not silently disable cross-replica consistency.
+    const interval = Number.isFinite(configured) && configured >= 0 ? configured : 1000;
+
+    this.stopRefreshLoop();
+    this.refreshIntervalMs = interval;
+
+    if (!this.pool) {
+      this.refreshDetail = 'refresh is off — no database connection';
+      return;
+    }
+
+    if (interval === 0) {
+      this.refreshDetail =
+        'refresh is OFF (ONETEAM_REFRESH_MS=0) — a second replica would never see this one\'s writes';
+      console.warn('⚠️  [oneTeam DB] ' + this.refreshDetail);
+      return;
+    }
+
+    this.refreshDetail = `polling the change counter every ${interval}ms`;
+    this.refreshTimer = setInterval(() => {
+      void this.refreshIfChanged();
+    }, interval);
+    // Node would otherwise hold the process open for the sake of a poll that
+    // only matters while the process is serving.
+    this.refreshTimer.unref?.();
+
+    console.log(
+      `🔄 [oneTeam DB] Cross-replica refresh every ${interval}ms — a write on another ` +
+        'replica becomes visible here within about that long.'
+    );
+  }
+
+  /** Stops the loop. Used by shutdown and by tests that need a quiet process. */
+  public stopRefreshLoop(): void {
+    if (this.refreshTimer) clearInterval(this.refreshTimer);
+    this.refreshTimer = null;
+  }
+
+  /**
+   * Reloads the snapshot if the counter has moved.
+   *
+   * Public so it can be driven directly by a test, which is the only way to
+   * check convergence without waiting on a timer and hoping.
+   */
+  public async refreshIfChanged(): Promise<boolean> {
+    if (!this.pool || this.refreshing) return false;
+
+    // See `pendingWrites`. Deferring rather than reloading is the safe
+    // direction: the next tick will pick the change up.
+    if (this.pendingWrites > 0) return false;
+
+    this.refreshing = true;
+    try {
+      const version = await pg.readDataVersion(this.pool);
+
+      // `null` means "could not tell" — a database that predates the migration,
+      // or a momentary error. Treating that as "unchanged" is right; treating it
+      // as "changed" would reload on every tick forever.
+      if (version === null) return false;
+
+      if (this.observedVersion === null) {
+        // First poll after start-up. The snapshot was just loaded, so adopt the
+        // current counter as the baseline rather than reloading immediately.
+        this.observedVersion = version;
+        return false;
+      }
+
+      if (version === this.observedVersion) return false;
+
+      const state = await pg.loadAll(this.pool);
+
+      // Only replace the arrays if the reload produced something usable. A
+      // database that momentarily returns no users must not blank the working
+      // set — the same guard `init()` applies, for the same reason.
+      if (state.users.length === 0) return false;
+
+      this.users = state.users as typeof this.users;
+      if (state.region) this.region = state.region as typeof this.region;
+      this.stores = state.stores as typeof this.stores;
+      if (state.campaign) this.campaign = state.campaign as typeof this.campaign;
+      this.templates = state.templates as typeof this.templates;
+      this.storeTasks = state.storeTasks;
+      this.evidences = state.evidences;
+      this.auditLogs = state.auditLogs;
+
+      this.observedVersion = version;
+      this.refreshCount += 1;
+      this.lastRefreshAt = new Date();
+      this.persistenceDetail =
+        `postgres — ${this.users.length} users, ${this.stores.length} stores, ` +
+        `${this.storeTasks.length} tasks, ${this.evidences.length} evidences, ` +
+        `${this.auditLogs.length} audit entries`;
+      return true;
+    } catch (error) {
+      // A failed poll leaves the previous snapshot in place, which is stale but
+      // usable, and the next tick retries. Throwing here would take down a timer
+      // nobody is awaiting.
+      console.warn(
+        '⚠️  [oneTeam DB] Refresh failed, keeping the previous snapshot: ' +
+          (error instanceof Error ? error.message : String(error))
+      );
+      return false;
+    } finally {
+      this.refreshing = false;
     }
   }
 
@@ -191,11 +434,15 @@ export class EnterpriseDatabase {
    */
   private persist(op: Promise<unknown>, label: string): void {
     if (!this.pool) return;
+
+    this.pendingWrites += 1;
     op.catch((error) => {
       console.error(
         `⛔ [oneTeam DB] Failed to persist ${label}: ` +
           (error instanceof Error ? error.message : String(error))
       );
+    }).finally(() => {
+      this.pendingWrites -= 1;
     });
   }
 
@@ -405,6 +652,85 @@ export class EnterpriseDatabase {
     return this.users.find((user) => user.id === userId) || null;
   }
 
+  // -------------------------------------------------------------------------
+  // Device credentials
+  // -------------------------------------------------------------------------
+
+  /**
+   * Issues a credential for one mobile installation.
+   *
+   * The token is returned to the caller exactly once and never stored — only
+   * its hash is. There is no way to recover a token from this database, which is
+   * the point: a leaked backup yields nothing usable.
+   *
+   * Returns null rather than throwing when there is no database. A credential
+   * that lives only in memory would be lost on the next restart, and a device
+   * that has been told it is enrolled and then is not is worse than one that was
+   * never enrolled at all.
+   */
+  public async issueDeviceToken(params: {
+    userId: string;
+    deviceId: string;
+    label?: string;
+  }): Promise<{ token: string; tokenHash: string } | null> {
+    if (!this.pool) {
+      console.error(
+        '⛔ [oneTeam DB] Cannot issue a device token: no database connection. ' +
+          'A credential stored only in memory would not survive a restart, so ' +
+          'none was issued.'
+      );
+      return null;
+    }
+
+    const token = DEVICE_TOKEN_PREFIX + randomBytes(32).toString('base64url');
+    const tokenHash = hashDeviceToken(token);
+
+    await pg.insertDeviceToken(this.pool, {
+      tokenHash,
+      userId: params.userId,
+      deviceId: params.deviceId,
+      label: params.label ?? null,
+    });
+
+    return { token, tokenHash };
+  }
+
+  /**
+   * Resolves a presented token to the user it belongs to, or null.
+   *
+   * This reads the database rather than the in-memory working set, on every
+   * call. That is deliberate: a credential must be authoritative, and a token
+   * that is valid on one replica and not another — or that outlives its
+   * revocation until the next restart — is not one. It is a single indexed
+   * lookup on a small table.
+   */
+  public async verifyDeviceToken(
+    token: string
+  ): Promise<{ userId: string; deviceId: string } | null> {
+    if (!this.pool) return null;
+
+    const tokenHash = hashDeviceToken(token);
+    const found = await pg.findDeviceToken(this.pool, tokenHash);
+    if (!found) return null;
+
+    // "Last seen" is written at most once every five minutes per token. It is
+    // operationally useful — it answers "is this device still in use" — and
+    // writing it on every request would turn each authenticated call into a
+    // write for a field nobody reads in a hurry.
+    const FIVE_MINUTES = 5 * 60 * 1000;
+    if (!found.lastSeenAt || Date.now() - found.lastSeenAt.getTime() > FIVE_MINUTES) {
+      this.persist(pg.touchDeviceToken(this.pool, tokenHash), 'device token last-seen');
+    }
+
+    return { userId: found.userId, deviceId: found.deviceId };
+  }
+
+  /** Cuts a device off. Returns false when the token was unknown or already revoked. */
+  public async revokeDeviceToken(token: string): Promise<boolean> {
+    if (!this.pool) return false;
+    return pg.revokeDeviceToken(this.pool, hashDeviceToken(token));
+  }
+
   public getUserByTelegramChatId(telegramChatId: string | number) {
     const chatId = String(telegramChatId);
     return this.users.find((user) => user.telegramChatId === chatId) || null;
@@ -546,3 +872,27 @@ export class EnterpriseDatabase {
 }
 
 export const db = new EnterpriseDatabase();
+
+/**
+ * Prefix on every device credential.
+ *
+ * A recognisable prefix lets the auth layer route a bearer token without a
+ * database call, and lets a leaked token be identified as one in a log or a
+ * secret scanner. It is not a security measure — the hash is.
+ */
+export const DEVICE_TOKEN_PREFIX = 'otd_';
+
+/** SHA-256 of a token, hex. The only form that is ever stored. */
+export function hashDeviceToken(token: string): string {
+  return createHash('sha256').update(token, 'utf8').digest('hex');
+}
+
+/** Whether a bearer value is a device credential rather than a service one. */
+export function isDeviceToken(value: string): boolean {
+  return typeof value === 'string' && value.startsWith(DEVICE_TOKEN_PREFIX);
+}
+
+/** One-line description of a caught value, for a log message. */
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

@@ -20,6 +20,6 @@
       "@oneteam/database": ["packages/database/src"]
     }
   },
-  "include": ["types/**/*", "src/**/*", "packages/**/*", "apps/**/*"],
+  "include": ["src/**/*", "packages/**/*", "apps/**/*"],
   "exclude": ["node_modules", "dist"]
 }

@@ -37,6 +37,7 @@ import { db } from '@oneteam/database';
 import { PortalService, PanelStore, PanelTask, PanelSubmission } from './portal.service';
 import { EvidenceService } from '../evidences/evidence.service';
 import { TaskStateService } from '../tasks/task-state.service';
+import { StorageService } from '../storage/storage.service';
 import { AuthenticatedPrincipal } from '../../common/auth/authenticated-principal';
 
 /** Largest photo accepted as a data URL. See the note in submitSubmission. */
@@ -69,7 +70,8 @@ export class FieldService {
   constructor(
     private readonly portal: PortalService,
     private readonly evidenceService: EvidenceService,
-    private readonly taskStateService: TaskStateService
+    private readonly taskStateService: TaskStateService,
+    private readonly storage: StorageService
   ) {}
 
   private toPrincipal(user: {
@@ -420,18 +422,29 @@ export class FieldService {
    * flow rather than to this endpoint, and until it exists the weakness should
    * stay visible rather than be papered over.
    *
-   * PHOTOS ARE STORED INLINE, AND THAT IS ALSO A STOPGAP.
+   * PHOTOS ARE OFFLOADED WHEN STORAGE IS CONFIGURED, AND INLINE WHEN IT IS NOT
+   * -------------------------------------------------------------------------
+   * The image arrives as a data URL and used to be stored as one, inside
+   * `task_evidences.photo_url`. That works — Telegram compresses a field photo
+   * to roughly 50-150 KB — but at a thousand stores submitting daily every
+   * database backup would carry every photo, and a `SELECT *` on evidences would
+   * drag megabytes through the connection.
    *
-   * There is no object store configured for this project, so the image travels
-   * as a data URL and lands in `task_evidences.photo_url`. Telegram compresses
-   * field photos to roughly 50-150 KB, so this is survivable at the current
-   * scale and it keeps the whole flow working end to end today.
+   * `StorageService` decides where it goes. With `STORAGE_DRIVER=s3` the bytes
+   * are uploaded to the bucket and only the resulting URL is stored; otherwise
+   * the data URL is kept exactly as it arrived, so an unconfigured deployment
+   * behaves as it always did. The cap below still applies to the inline form,
+   * because that is the form whose size lands in a database row.
    *
-   * It is not the right answer for a thousand stores submitting daily: every
-   * backup would carry every photo, and a `SELECT *` on evidences would drag
-   * megabytes through the connection. The fix is object storage — Railway
-   * Buckets or equivalent — with only the resulting URL stored here. The cap
-   * below exists so the wrong answer cannot grow without bound in the meantime.
+   * Doing this here — on the value the client already sends — is deliberate.
+   * Both channels are offloaded by one rule instead of each client having to
+   * remember to, and neither the bot nor the mobile app needed changing.
+   *
+   * An upload that fails refuses the submission rather than falling back to
+   * inline. Quietly falling back would let an operator who configured a bucket
+   * believe photos are in it while they are in a table, and the evidence row has
+   * not been written yet at this point, so refusing costs one retry and costs
+   * the audit trail nothing.
    */
   async submitSubmission(payload: {
     /** Exactly one of these identifies the acting person. See FieldActorKey. */
@@ -476,6 +489,33 @@ export class FieldService {
         HttpStatus.NOT_FOUND
       );
     }
+
+    // Offload the photo before anything is written, so that a storage failure
+    // cannot leave a half-recorded audit behind. `photoUrl` from here on is what
+    // goes into the record: a bucket URL when storage is configured, and the
+    // original data URL when it is not.
+    const storedPhoto = await this.storage
+      .persistPhoto({
+        value: payload.photoUrl,
+        scope: `tasks/${payload.storeTaskId}`,
+      })
+      .catch((error: unknown) => {
+        const reason = error instanceof Error ? error.message : String(error);
+        this.logger.error(
+          `⛔ [FIELD] Photo upload failed for task ${payload.storeTaskId}: ${reason}`
+        );
+        throw new HttpException(
+          {
+            error: 'PHOTO_UPLOAD_FAILED',
+            message:
+              'Şəkli obyekt anbarına yükləmək mümkün olmadı. Zəhmət olmasa bir az ' +
+              'sonra yenidən cəhd edin — hesabat hələ qeydə alınmayıb.',
+          },
+          HttpStatus.BAD_GATEWAY
+        );
+      });
+
+    const photoUrl = storedPhoto.url;
 
     const hasRealFix =
       typeof payload.latitude === 'number' && typeof payload.longitude === 'number';
@@ -529,7 +569,7 @@ export class FieldService {
     const result = await this.evidenceService.submitEvidence(
       {
         storeTaskId: payload.storeTaskId,
-        photoUrl: payload.photoUrl,
+        photoUrl,
         photoType: payload.photoType ?? 'standard',
         checklistAnswers: answers as any,
         checklistNotCollected: answers.length === 0,
@@ -538,6 +578,23 @@ export class FieldService {
       },
       actor
     );
+
+    // Recorded on every submission, not only when a bucket is in use: whether
+    // the image is in object storage or in the row is a property of the evidence
+    // that a reviewer may need to know, and it is not recoverable from the URL
+    // alone once a bucket is added later.
+    db.logAuditEvent({
+      entityType: 'task_evidence',
+      entityId: result.evidence.id,
+      action: 'EVIDENCE_PHOTO_STORAGE',
+      actorId: actor.userId,
+      payload: {
+        driver: storedPhoto.driver,
+        bytes: storedPhoto.bytes,
+        key: storedPhoto.key ?? null,
+        offloaded: storedPhoto.driver === 's3',
+      },
+    });
 
     if (payload.metadata && Object.keys(payload.metadata).length > 0) {
       db.logAuditEvent({
@@ -558,6 +615,76 @@ export class FieldService {
       distanceMeters: result.distanceMeters,
       taskState: result.taskState,
       locationVerified: hasRealFix,
+      // Stated explicitly rather than left for the caller to infer from the URL.
+      // A client that has just sent a data URL needs to know whether the image
+      // was offloaded or stored inline, and the two are indistinguishable from
+      // the response body alone once a bucket is configured.
+      photoStorage: {
+        driver: storedPhoto.driver,
+        bytes: storedPhoto.bytes,
+        offloaded: storedPhoto.driver === 's3',
+      },
     };
+  }
+
+  /**
+   * Stores one photo and returns the URL to submit with.
+   *
+   * An optimisation, not a requirement: `submitSubmission` offloads a data URL
+   * on its own, so a client can ignore this endpoint entirely and still have its
+   * photos land in the bucket. It exists for a client that would rather not push
+   * the bytes through the API twice — once to upload, once inside the
+   * submission.
+   *
+   * With `STORAGE_DRIVER=inline` there is nowhere to put the object, so the
+   * request is refused with a clear reason rather than answered with a data URL
+   * the caller could have produced itself.
+   */
+  async uploadPhoto(payload: {
+    base64: string;
+    contentType?: string;
+    scope?: string;
+  }) {
+    const { driver, detail } = this.storage.description;
+
+    if (driver !== 's3') {
+      throw new HttpException(
+        {
+          error: 'STORAGE_NOT_CONFIGURED',
+          message:
+            'Obyekt anbarı konfiqurasiya edilməyib. Şəkli birbaşa hesabatla ' +
+            '(photoUrl sahəsində) göndərin.',
+          detail,
+        },
+        HttpStatus.SERVICE_UNAVAILABLE
+      );
+    }
+
+    const body = Buffer.from(payload.base64.replace(/^data:[^,]*,/, ''), 'base64');
+    if (body.length === 0) {
+      throw new HttpException(
+        { error: 'EMPTY_PHOTO', message: 'Şəkil məlumatı boşdur.' },
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
+    try {
+      // Delegated, so that a direct upload and a photo inside a submission
+      // produce the same kind of object key. They did not, at first.
+      const uploaded = await this.storage.uploadBase64({
+        base64: payload.base64,
+        contentType: payload.contentType || 'image/jpeg',
+        scope: payload.scope,
+      });
+
+      return { success: true, data: uploaded };
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.logger.error('⛔ [FIELD] Direct photo upload failed: ' + reason);
+      throw new HttpException(
+        { error: 'PHOTO_UPLOAD_FAILED', message: 'Şəkli yükləmək mümkün olmadı.', detail: reason },
+        HttpStatus.BAD_GATEWAY
+      );
+    }
   }
 }

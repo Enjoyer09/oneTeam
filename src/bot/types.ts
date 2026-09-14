@@ -1,6 +1,28 @@
 import { Context, SessionFlavor } from 'grammy';
-import { ChecklistAnswer, ChecklistQuestion } from '@oneteam/types';
-import { Database, UserRole, TaskPriority, TaskStatus, SubmissionStatus } from '../../types/database.types';
+import { ChecklistAnswer, ChecklistQuestion, TaskPriority, TaskState } from '@oneteam/types';
+
+/**
+ * The verdict a supervisor gave an audit.
+ *
+ * Declared here rather than imported, because it is not a domain state: it is
+ * how the portal presents a review outcome, and it is what
+ * `PanelSubmission.status` actually carries.
+ *
+ * WHY THIS FILE NO LONGER IMPORTS FROM `types/database.types.ts`
+ * -------------------------------------------------------------
+ * That file described the Supabase schema — lowercase literals such as
+ * `'draft' | 'published' | 'completed' | 'archived'` — and the bot's task
+ * record was typed with them. The API returns the domain states instead:
+ * `'PUBLISHED'`, `'ACKNOWLEDGED'`, `'SUBMITTED'`. So `TaskRecord.status` was
+ * typed as a set of values it could never hold, and every comparison against a
+ * real state was unchecked. It survived because the API client asserts its
+ * response type rather than validating it, so nothing ever compared the two.
+ *
+ * The types now come from the same package the API does. `SubmissionStatus` is
+ * the one exception, and it is declared here rather than deleted because the
+ * portal's review vocabulary genuinely differs from the task state machine.
+ */
+export type SubmissionStatus = 'pending_review' | 'approved' | 'rejected';
 
 /**
  * Where the chat is in the guided field flow.
@@ -63,7 +85,7 @@ export interface TaskRecord {
   description: string;
   reference_image_url: string | null;
   priority: TaskPriority;
-  status: TaskStatus;
+  status: TaskState;
   deadline: string;
 
   /**
