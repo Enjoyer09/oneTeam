@@ -21,19 +21,18 @@ RUN npm ci || npm install
 # have to be present *here*, at image build time — setting them on the running
 # container changes nothing.
 #
-# That is why these are ARGs and not runtime environment variables. They are
-# also why the portal shows demo data when they are omitted: with no Supabase
-# URL, the client falls back to its built-in mock store.
+# Only one is left. There used to be two more, `VITE_SUPABASE_URL` and
+# `VITE_SUPABASE_ANON_KEY`, threaded through this file and the compose file with
+# empty defaults. Nothing in `src/` has read either of them since the portal was
+# pointed at the API, and their empty defaults were load-bearing in the worst
+# way: they are what the old Supabase client used to decide it had no backend
+# and render a built-in mock. A build argument that silently selects a mock is
+# not configuration, it is a trap.
 #
-# The anon key is a public, browser-shipped credential by design; row-level
-# security in the database is what actually protects the data. The service-role
-# key bypasses that protection and must never be passed here.
-ARG VITE_SUPABASE_URL=""
-ARG VITE_SUPABASE_ANON_KEY=""
+# The API base URL is a browser-visible address, so it is public by nature. The
+# credential that actually authorises a call never reaches this bundle.
 ARG VITE_API_BASE_URL=""
 
-ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
-ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 # Copy application source code and configuration files
