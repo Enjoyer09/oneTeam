@@ -1,6 +1,6 @@
-import { Keyboard } from 'grammy';
 import { BotContext } from '../types';
 import { portalApi, PortalApiError } from '../../services/portalApi';
+import { mainMenuKeyboard } from '../keyboards';
 
 export async function handleStart(ctx: BotContext) {
   ctx.session.step = 'awaiting_store_code';
@@ -78,7 +78,7 @@ export async function handleStoreCodeInput(ctx: BotContext) {
   ctx.session.profileId = profile.id;
   ctx.session.step = 'idle';
 
-  const keyboard = new Keyboard().text('📋 Tapşırıqlar').text('📊 Statusum').resized();
+  const keyboard = mainMenuKeyboard();
 
   // Saying how many tasks were claimed is the difference between "the bot
   // accepted me" and "there is work waiting for me", which is what the

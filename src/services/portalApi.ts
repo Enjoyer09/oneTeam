@@ -330,20 +330,23 @@ class PortalApiClient {
   /**
    * Files a shelf audit.
    *
-   * LOCATION IS DECLARED UNVERIFIED, NOT FAKED
-   * ------------------------------------------
-   * Telegram does not attach coordinates to a photo. The API's geofence check
-   * needs a pair of coordinates, and the tempting shortcut — sending the
-   * store's own coordinates — would make every chat submission pass a control
-   * that exists to catch submissions made from somewhere else.
+   * LOCATION IS EITHER REAL OR DECLARED UNVERIFIED — NEVER FAKED
+   * -----------------------------------------------------------
+   * The guided flow in `handlers/taskFlow.ts` asks for the merchandiser's
+   * location before the photo, so the common case now arrives with a genuine
+   * fix and the API's geofence check actually runs.
    *
-   * So the honest flag goes with the request: the API then runs the pipeline,
-   * records a `GEOFENCE_NOT_VERIFIED` audit event, and a supervisor can see that
-   * this evidence is weaker than one captured by the mobile client with a real
-   * fix.
+   * When the merchandiser skips that prompt there are no coordinates, and the
+   * tempting shortcut — sending the store's own coordinates — would make every
+   * chat submission pass a control that exists to catch submissions made from
+   * somewhere else. So the honest flag goes with the request instead: the API
+   * runs the pipeline, records a `GEOFENCE_NOT_VERIFIED` audit event, and a
+   * supervisor can see that this evidence is weaker than one captured with a
+   * real fix.
    *
-   * When the bot starts asking for a location before the photo, passing
-   * `latitude`/`longitude` here is the only change needed.
+   * The same applies to `checklistAnswers`: they are sent when the flow
+   * collected them, and omitted when it did not, which the API records as
+   * `CHECKLIST_NOT_COLLECTED`.
    */
   async createSubmission(params: {
     storeTaskId: string;
@@ -352,6 +355,7 @@ class PortalApiClient {
     photoType?: 'before' | 'after' | 'standard';
     latitude?: number;
     longitude?: number;
+    checklistAnswers?: Array<{ questionId: string; value: boolean | number | string }>;
     metadata?: Record<string, unknown>;
   }): Promise<SubmissionRecord> {
     const hasFix = typeof params.latitude === 'number' && typeof params.longitude === 'number';
@@ -366,6 +370,7 @@ class PortalApiClient {
         latitude: params.latitude,
         longitude: params.longitude,
         locationUnverified: !hasFix,
+        checklistAnswers: params.checklistAnswers ?? [],
         metadata: params.metadata ?? {},
       }),
     });

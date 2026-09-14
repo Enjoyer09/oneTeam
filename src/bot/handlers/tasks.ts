@@ -1,6 +1,7 @@
 import { InlineKeyboard } from 'grammy';
 import { BotContext, TaskRecord } from '../types';
 import { portalApi, PortalApiError } from '../../services/portalApi';
+import { beginTaskFlow } from './taskFlow';
 
 export async function handleTasks(ctx: BotContext) {
   if (!ctx.session.storeId) {
@@ -60,11 +61,20 @@ export async function sendTaskDetails(ctx: BotContext, task: TaskRecord) {
     minute: '2-digit',
   });
 
+  // Saying how many questions the audit will ask is not decoration: the
+  // merchandiser is about to be walked through them, and knowing that up front
+  // is the difference between "the bot is interrogating me" and "this is the
+  // audit".
+  const questionCount = task.checklist_schema?.length ?? 0;
+  const checklistLine =
+    questionCount > 0 ? `📋 *Çeklist:* ${questionCount} sual\n` : '';
+
   const messageText =
     `📌 *${task.title}*\n\n` +
     `⚡ *Prioritet:* ${priorityLabel}\n` +
-    `⏰ *Son tarix:* ${deadlineStr}\n\n` +
-    `📝 *Təlimat:*\n${task.description}`;
+    `⏰ *Son tarix:* ${deadlineStr}\n` +
+    checklistLine +
+    `\n📝 *Təlimat:*\n${task.description}`;
 
   const keyboard = new InlineKeyboard().text(
     '📸 Rəf Şəklini Göndər',
@@ -131,14 +141,17 @@ export async function handleTaskSelectCallback(ctx: BotContext) {
 
   ctx.session.activeTaskId = task.id;
   ctx.session.activeTaskTitle = task.title;
-  ctx.session.step = 'awaiting_photo';
 
   await ctx.answerCallbackQuery();
 
-  await ctx.reply(
-    `📸 *Seçilmiş Tapşırıq:* ${task.title}\n\n` +
-      `Zəhmət olmasa indi yoxlanılan rəfin / soyuducunun aydın fotosunu çəkib bu çatda göndərin.\n\n` +
-      `💡 *Məsləhət:* Bütün brend etiketlərinin və qiymət kağızlarının kadra düşdüyündən əmin olun.`,
-    { parse_mode: 'Markdown' }
-  );
+  await ctx.reply(`📌 *Seçilmiş tapşırıq:* ${task.title}`, { parse_mode: 'Markdown' });
+
+  // Straight into the guided flow: location, then checklist, then the photo.
+  // The old behaviour — jumping to "send a photo" — is what produced submissions
+  // with no location and no answers.
+  //
+  // The template's questions are handed over here rather than stored on the
+  // session beforehand: the flow clears the session as it starts, and setting
+  // them first would mean the clear wiped them.
+  await beginTaskFlow(ctx, task.checklist_schema ?? []);
 }

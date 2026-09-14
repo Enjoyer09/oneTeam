@@ -3,6 +3,12 @@ import dotenv from 'dotenv';
 import { BotContext, SessionData } from './types';
 import { handleStart, handleStoreCodeInput } from './handlers/start';
 import { handleTasks, handleTaskSelectCallback } from './handlers/tasks';
+import {
+  handleChecklistCallback,
+  handleChecklistText,
+  handleLocationMessage,
+  handleLocationSkip,
+} from './handlers/taskFlow';
 import { handlePhotoUpload } from './handlers/submission';
 import { handleMyStatus } from './handlers/status';
 
