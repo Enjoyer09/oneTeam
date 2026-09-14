@@ -478,6 +478,7 @@ Yekun gözlənti: **aylıq təxminən $5–15**. Dəqiq rəqəmi Railway panelin
 | Baza sxemi       | ✅ API işə düşəndə özü yaradır və tamamlayır (101 sütun) |
 | Giriş qoruması   | ✅ kənar kredensial `/api/portal/...`-da **401** alır    |
 | Enrolment açarı  | ✅ `ONETEAM_ENROLLMENT_SECRET` qoyulub və yoxlanılıb    |
+| Panel açarı      | ✅ yaradılıb, giriş ekranı qoşulub (`liveKeys: 1`)    |
 | Ehtiyat nüsxə    | ✅ PITR aktiv + gündəlik cədvəl qurulub                  |
 | Bot              | ✅ işləyir — **@oneTeamCCIbot**                          |
 
@@ -495,20 +496,20 @@ işlədiyi üçün bu, **aktiv sızma**dır — açarı bilən hər kəs botunuz
 5. `TELEGRAM_BOT_TOKEN` sətrini tapın → dəyəri yeni açarla əvəz edin → **Save**.
 6. Servis özü yenidən başlayacaq. Logda `✅ connected as @oneTeamCCIbot` görməlisiniz.
 
-### 2. 🔴 Panelə giriş açarı yaradın — panel hələ açıqdır
+### ✅ 2. Panelə giriş açarı yaradın — EDİLDİ
 
-**Niyə:** panel hazırda **heç bir açar tələb etmir**; ünvanı bilən hər kəs girə bilər.
-Yoxlanıldı: `liveKeys: 0`, `bootstrapConfigured: false`.
+**Hazırda aktivdir.** 14 sentyabr 2026 tarixində açar yaradıldı və canlı sistemdə
+yoxlanıldı:
 
-**Necə:**
+- Açarsız giriş → **401** `Unauthorized` (panel artıq açar tələb edir)
+- Açarlı giriş → **200** (qəbul olunur, istifadəçi məlumatları görünür)
+- `liveKeys: 1`, `required: true`
 
-1. Panelı açın: https://web-production-1392e.up.railway.app
-2. Yuxarı sağ küncdəki **açar** düyməsini basın → özünüzə şəxsi açar yaradın.
-3. Açarı **təhlükəsiz saxlayın** — bu, sizin girişinizdir.
+**Panelın işləməsi:** panela daxil olanda giriş ekranı görünür. Açarı
+"Açar" sahəsinə yapışdırıb daxil olursunuz.
 
-Açar yaratdığınız **anda** giriş ekranı avtomatik qoşulacaq və kənar giriş bağlanacaq.
-Açarı itirsəniz: Railway → `api` → `ONETEAM_PANEL_BOOTSTRAP_KEY` (ən azı 24 simvol)
-qoyun, sonra yeni açar yaradın.
+**Açarı itirsəniz:** Railway → `api` → `ONETEAM_PANEL_BOOTSTRAP_KEY` (ən azı 24
+simvol) qoyun, sonra yeni açar yaradın.
 
 ### ✅ 3. Mağaza kodunu gücləndirin — `ONETEAM_ENROLLMENT_SECRET` — EDİLDİ
 
