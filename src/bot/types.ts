@@ -1,5 +1,11 @@
 import { Context, SessionFlavor } from 'grammy';
-import { ChecklistAnswer, ChecklistQuestion, TaskPriority, TaskState } from '@oneteam/types';
+import {
+  BotStep,
+  ChecklistAnswer,
+  ChecklistQuestion,
+  TaskPriority,
+  TaskState,
+} from '@oneteam/types';
 
 /**
  * The verdict a supervisor gave an audit.
@@ -27,14 +33,32 @@ export type SubmissionStatus = 'pending_review' | 'approved' | 'rejected';
 /**
  * Where the chat is in the guided field flow.
  *
- * The three steps between "the merchandiser picked a task" and "the photo is
- * filed" are separate states because each one waits for a different kind of
- * message — a location, a text answer, a callback tap, a photo. A single
- * `awaiting_photo` state could not tell them apart.
+ * IMPORTED, NOT DECLARED HERE, SINCE THE FLOW BECAME PERSISTENT
+ * ------------------------------------------------------------
+ * This union used to live in this file. Now that the API stores the flow, the
+ * API also has to decide whether the step it is asked to save is one it knows
+ * about — so the union moved to `@oneteam/types`, and both sides read the same
+ * copy. `SessionData.step` below is typed with it.
+ *
+ * Two copies of a state enum drift the first time one of them gains a state, and
+ * this particular drift is silent: the bot enters a step the API refuses to
+ * store, every write fails, and the merchandiser watches the flow start over at
+ * the same question. One copy removes the possibility rather than the symptom.
+ *
+ * The steps between "the merchandiser picked a task" and "the photo is filed"
+ * are separate states because each one waits for a different kind of message — a
+ * location, a text answer, a callback tap, a photo. A single `awaiting_photo`
+ * state could not tell them apart.
  */
-export type BotStep =
-  'idle' | 'awaiting_store_code' | 'awaiting_location' | 'awaiting_checklist' | 'awaiting_photo';
 
+/**
+ * What the bot remembers about a chat between two updates.
+ *
+ * This is the shape grammy's session middleware reads and writes, so it is also
+ * the shape `ApiSessionStorage` sends to `/api/portal/field/flow`. The two must
+ * stay in step, and the translation between them lives in one place —
+ * `sessionStorage.ts` — so that it can only be got wrong once.
+ */
 export interface SessionData {
   step?: BotStep;
   storeId?: string;
@@ -62,6 +86,22 @@ export interface SessionData {
 
   /** Index into `checklistQuestions` of the question being asked right now. */
   checklistIndex?: number;
+
+  /**
+   * A photo the merchandiser has sent and not yet confirmed.
+   *
+   * Only Telegram's `file_id` is held here. The bytes are not fetched from
+   * Telegram and no submission is filed until the confirm button is pressed, so
+   * a bad shot costs a re-shoot rather than a wrong audit sitting in a
+   * supervisor's queue waiting to be rejected.
+   */
+  pendingPhoto?: {
+    fileId: string;
+    width?: number;
+    height?: number;
+    fileSize?: number;
+    messageId?: number;
+  };
 }
 
 export type BotContext = Context & SessionFlavor<SessionData>;

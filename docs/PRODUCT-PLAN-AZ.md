@@ -166,9 +166,43 @@ açar oxuma / yazma / təsdiq yollarında **401** alır. Skriptlər: `scripts/li
 | #   | İş paketi                                                                                                                                                      | Qəbul meyarı                                                                   | Müddət  | Vəziyyət |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------- | -------- |
 | 2.1 | **Inline keyboard state machine:** `main → store-list → task-list → checklist → photo → confirm → done`. Hər düymə `callback_data` ilə `action:id` formatında. | Basılma dublikat heç bir səhv yaratmır (idempotent).                           | 1.5 gün | ⏳       |
-| 2.2 | **Bot session store (Redis / in-memory TTL):** `chatId → {step, storeId, taskId, checklistAnswers[]}`. 15 dəq TTL, yenilənmə.                                  | Yenidən başlatma ilə state itmir; `chatId` yenidən yazanda əvvəlki davam edir. | 1 gün   | ⏳       |
+| 2.2 | **Bot session store (Redis / in-memory TTL):** `chatId → {step, storeId, taskId, checklistAnswers[]}`. 15 dəq TTL, yenilənmə.                                  | Yenidən başlatma ilə state itmir; `chatId` yenidən yazanda əvvəlki davam edir. | 1 gün   | ✅       |
 | 2.3 | **Notification:** tapşırıq yaradılması / vaxt bitməsi / rədd 15 dəq əvvəl → `sendMessage` + inline `Open` düyməsi.                                             | Supervayzer panelində yaradanda bot bildiriş alır.                             | 0.5 gün | ⏳       |
 | 2.4 | **Fallback (text):** `/start`, `/help`, `/mystatus` — inline olmadıqda işləsin.                                                                                | `/help` → menyu göstərir.                                                      | 0.5 gün | ⏳       |
+
+#### 2.2 — nə edildi, nə ilə sübut olundu
+
+**Redis yoxdur, Postgres var.** Plan "Redis / in-memory TTL" yazmışdı. Bu deployment-də Redis yoxdur və
+bir neçə yüz baytlıq sessiya üçün botla öz vəziyyəti arasına üçüncü servis qoymaq düzgün olmazdı. Sessiya
+`bot_sessions` cədvəlindədir — bot yenə də **birbaşa bazaya qoşulmur**, Core API-dən keçir (tək məlumat yolu).
+
+**TTL sürüşkəndir, oxu onu irəli itələyir.** `readBotSession` tək `UPDATE … RETURNING *`-dır: işləyən
+merçendayzer mağazasını itirmir, bir saat əvvəl gedən itirir. Vaxtı keçmiş sətir **oxunmur, amma
+silinmir** — oxuyarkən silmək `SELECT`-i yazıya çevirir və iki paralel oxu yarışar. Saatda bir işləyən
+təmizləmə onları yığır (1 saat lütf müddəti ilə — ki "bu adam nə edirdi" sualı bir müddət cavablı qalsın).
+
+**Sübut — 61 yoxlama, hamısı yaşıl:**
+- `npm run test:flow` → **47/0**. Dəst **öz API prosesini qaldırır (port 3111), öldürür, təzəsini qaldırır**
+  və axını geri oxuyur. Çünki "200 cavabı gəldi" heç nə sübut etmir — proses yaddaşındaki `Map` da 200
+  qaytarır. Yükdaşıyan yoxlama budur: **bir prosesin yazdığı axını BAŞQA proses oxuyur.** Əlavə olaraq:
+  TTL sürüşkənliyi, vaxtı keçmişin oxunmaması, təmizləmənin yalnız lütf müddətindən kənarı silməsi,
+  `user_id`-nin çatdan törədilməsi (gövdədəki saxta `userId` bazaya düşmür), 5 rədd halı, və "axın mövcud
+  olmayan tapşırığa işarə edə bilər" (xarici açar qəsdən yoxdur — supervayzer tapşırığı siləndə axın sınmasın).
+- `npm run test:bot-storage` → **14/0**. Adapterin üç görünməz qərarı: boş sessiya silinir, **amma
+  "mağazaya bağlı, tapşırıq açıq deyil" saxlanılır** (bu hal itərsə bot yenə mağaza kodu soruşur); API-dən
+  gələn `null` `undefined`-a çevrilir; və **API əlçatmaz olanda `read` XƏTA ATIR**, `undefined` qaytarmır —
+  yoxsa baza nasazlığı "bu çat heç vaxt başlamayıb" kimi görünər və merçendayzerin yaddaşdaki işi itər.
+
+**Detektoru sındırma (məcburi standart):**
+- Sessiyanı proses yaddaşındaki `Map`-a qaytardım (baza yazılarını yerində saxlayaraq) → **42/5**. Qırmızı
+  olan 5: «əvvəlki prosesin yazdığı axın geri oxunur», «hər sahə geri gəldi», «bağlı çat şəxsi saxlayır»,
+  «oxu TTL-i irəli itələyir», «vaxtı keçmiş axın davam etmir». **"Sətir bazadadır" yoxlamaları YAŞIL
+  qaldı** — yəni yenidən başlatma yoxlaması təkrar deyil, həqiqətən yükdaşıyandır.
+- Adapterdə `read`-in xətasını udub `undefined` qaytardım → **12/2**; qırmızı olan ikisi məhz "uğursuzluq
+  'sessiya yoxdur' kimi görünməməlidir" müqaviləsini saxlayan yoxlamalardır.
+
+**`ONETEAM_BOT_SWEEP_MS`** — təmizləmə dövrü (default 15 dəq, `0` söndürür). Təmizləmə **API prosesindədir**,
+botda deyil: bot bazaya yalnız API-dən çatır, ona görə təmizləmə orada ola bilməz.
 
 **Mərhələ 2 nəticəsi:** Bot **peşəkar, rahat** interfeys; sahə işçisi heç bir `/komanda` yazmır.
 
@@ -229,6 +263,7 @@ açar oxuma / yazma / təsdiq yollarında **401** alır. Skriptlər: `scripts/li
 | `pnpm-workspace.yaml` var, amma `node_modules` `npm`-dədir | Lockfile uyğunsuzluğu (`npm install --dry-run` → 304 silinir)                                                                                     | `pnpm install --frozen-lockfile` və ya `package-lock.json` bərpası                                                                                                       |
 | Geofence radiusu mağaza üzrə deyil                         | `GEOFENCE_MAX_DISTANCE_METERS` sabiti (`packages/types`)                                                                                          | Mərhələ 3-də mağaza üzrə sütun + mobil tərəfin uyğunlaşdırılması                                                                                                         |
 | `/api/health` → `persistenceDetail` **gecikən etiketdir**  | Yalnız replika poll-u yükləyəndə hesablanır → yazıdan sonra bir interval **köhnə** say göstərir (`ONETEAM_REFRESH_MS=0` olsa heç vaxt yenilənmir) | Oxu anında hesablanmalı, ya da adı "son yükləmə" olduğunu deməli. **Kiçik, amma yanlış məlumat verir** — 1.5 canlı yoxlamasında saxta "silmə baş vermədi" nəticəsi verdi |
+| Çeklist sual mətni **`label`** kimi saxlanılır, bot isə **`question`** oxuyur | `POST /api/portal/tasks` domain formasını (`question`) **400** ilə rədd edir; `label` ilə yaradılan çeklist bazada `question` saxlamır → bot sual yerinə `*undefined*` göstərir. Ona görə `npm run bot:test` (və deməli `test:live`) **qırmızıdır** | `readChecklistSchema` girişdə `label ?? question ?? …` qəbul etsin, çıxışda `question` yazsın; panel `question` oxusun; mövcud sətirlər backfill olunsun. **Qərar gözləyir (bahaI)** — tapşırıq #73 |
 
 ---
 

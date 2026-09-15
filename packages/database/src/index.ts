@@ -10,6 +10,15 @@
 
 export * from './seed';
 export * from './types';
+/**
+ * The row shapes the driver returns, for callers that need to name them.
+ *
+ * Exported as types only: `postgres.ts` is the driver, and re-exporting its
+ * functions here would offer two ways to reach the database — one of which
+ * bypasses the repository entirely and would leave the in-memory working set
+ * disagreeing with the table.
+ */
+export type { BotSessionRow, PanelTokenRow } from './postgres';
 import { SEED_DATA } from './seed';
 import { TaskState, UserRole } from '@oneteam/types';
 import type { InMemoryStoreTask, InMemoryEvidence, InMemoryAuditLog, InMemoryStore } from './types';
@@ -163,6 +172,8 @@ export class EnterpriseDatabase {
   private writeQueue: Promise<unknown> = Promise.resolve();
 
   private refreshTimer: NodeJS.Timeout | null = null;
+  /** Timer for the bot-session sweep. See `startBotSessionSweep`. */
+  private sweepTimer: NodeJS.Timeout | null = null;
   private refreshing = false;
 
   /**
@@ -282,6 +293,11 @@ export class EnterpriseDatabase {
         // to reload.
         this.startRefreshLoop();
 
+        // Started alongside it, and for the same reason: a maintenance loop only
+        // makes sense once there is a database to maintain. See
+        // `startBotSessionSweep` for why the bot itself cannot run this.
+        this.startBotSessionSweep();
+
         // Said out loud at start-up, because both situations are invisible from
         // the outside and both are the operator's to fix. A configured bootstrap
         // key that is being refused is the more urgent of the two: the panel
@@ -374,6 +390,65 @@ export class EnterpriseDatabase {
   public stopRefreshLoop(): void {
     if (this.refreshTimer) clearInterval(this.refreshTimer);
     this.refreshTimer = null;
+  }
+
+  /**
+   * Starts the periodic sweep of abandoned bot sessions.
+   *
+   * WHY A TIMER, AND NOT PART OF THE READ
+   * -------------------------------------
+   * An expired session is already ignored when it is read — the flow simply does
+   * not resume. What is left behind is the row. Keeping rows forever turns
+   * `bot_sessions` into a list of every chat that has ever messaged the bot, and
+   * deleting them inside a request would make one unlucky merchandiser's button
+   * tap responsible for a table scan.
+   *
+   * WHY IT RUNS IN THE API'S PROCESS AND NOT THE BOT'S
+   * --------------------------------------------------
+   * The bot cannot do this even if it wanted to. It reaches the database only
+   * through the API — the one-data-path rule — so a sweep in the bot would be a
+   * second writer with its own connection. The API is already the process that
+   * owns the database, and it is the only process that calls `init()`.
+   *
+   * Fifteen minutes between sweeps against a fifteen-minute TTL means an
+   * abandoned flow is gone within roughly half an hour, while an active one is
+   * never touched: the sweep deletes only rows that expired an hour ago, and a
+   * flow in use keeps pushing its expiry forward on every interaction.
+   */
+  public startBotSessionSweep(): void {
+    const configured = Number(process.env.ONETEAM_BOT_SWEEP_MS);
+    // The same rule as the refresh loop: `0` is an explicit opt-out, a typo is
+    // not, and an unparseable value falls back to the default rather than
+    // silently disabling the cleanup.
+    const interval = Number.isFinite(configured) && configured >= 0 ? configured : 15 * 60 * 1000;
+
+    this.stopBotSessionSweep();
+
+    if (!this.pool) {
+      console.warn('⚠️  [oneTeam DB] Bot-session sweep is off — no database connection.');
+      return;
+    }
+
+    if (interval === 0) {
+      console.warn(
+        '⚠️  [oneTeam DB] Bot-session sweep is OFF (ONETEAM_BOT_SWEEP_MS=0) — ' +
+          'abandoned flows will accumulate in `bot_sessions`.',
+      );
+      return;
+    }
+
+    this.sweepTimer = setInterval(() => {
+      void this.sweepBotSessions();
+    }, interval);
+    // Same reason as the refresh loop: a maintenance timer must not be the thing
+    // that keeps a process alive.
+    this.sweepTimer.unref?.();
+  }
+
+  /** Stops the sweep. Used by shutdown and by tests that need a quiet process. */
+  public stopBotSessionSweep(): void {
+    if (this.sweepTimer) clearInterval(this.sweepTimer);
+    this.sweepTimer = null;
   }
 
   /**
@@ -1142,6 +1217,92 @@ export class EnterpriseDatabase {
         '⛔ [oneTeam DB] Could not count submissions per user: ' + describeError(error),
       );
       return new Map();
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Bot sessions — where a Telegram chat is in the guided field flow
+  // -------------------------------------------------------------------------
+
+  /**
+   * How long a chat's place in the flow survives without being touched.
+   *
+   * Fifteen minutes, refreshed on every interaction. Long enough that a
+   * merchandiser walking an aisle never loses their answers; short enough that
+   * an abandoned flow is forgotten rather than resumed days later against a
+   * task that has since been reassigned.
+   */
+  public botSessionTtlSeconds = Number(process.env.ONETEAM_BOT_SESSION_TTL_SECONDS ?? 900);
+
+  /**
+   * Loads a chat's session, or null when there is nothing to resume.
+   *
+   * DELIBERATELY NOT AN IN-MEMORY ARRAY, unlike every other read in this class.
+   * The others are hydrated by `init()` because they are read far more often
+   * than they are written and there is one of each per store or task. A session
+   * is the opposite on both counts: it is written on every button tap, and there
+   * is one per chat that has ever spoken to the bot — an array that would grow
+   * without bound and be almost entirely cold.
+   *
+   * THROWS ON FAILURE, ALSO DELIBERATELY. The other read helpers return an empty
+   * result so a transient database problem degrades a list rather than breaking
+   * a page. Here an empty result is indistinguishable from "this chat has no
+   * session", and the bot would respond by silently starting the flow over —
+   * asking a merchandiser standing in a shop to type their store code again
+   * because the database hiccuped. Failing loudly is the only answer that does
+   * not lose the person's work while pretending nothing happened.
+   */
+  public async readBotSession(chatId: string | number): Promise<pg.BotSessionRow | null> {
+    if (!this.pool) return null;
+    return await pg.readBotSession(this.pool, String(chatId), this.botSessionTtlSeconds);
+  }
+
+  /** Writes a chat's whole session. Throws for the same reason the read does. */
+  public async saveBotSession(session: {
+    chatId: string | number;
+    userId?: string | null;
+    step: string;
+    storeId?: string | null;
+    storeCode?: string | null;
+    storeName?: string | null;
+    activeTaskId?: string | null;
+    activeTaskTitle?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    checklistQuestions?: unknown[];
+    checklistAnswers?: unknown[];
+    checklistIndex?: number | null;
+    pendingPhoto?: Record<string, unknown> | null;
+  }): Promise<pg.BotSessionRow | null> {
+    if (!this.pool) return null;
+    return await pg.upsertBotSession(
+      this.pool,
+      { ...session, chatId: String(session.chatId) },
+      this.botSessionTtlSeconds,
+    );
+  }
+
+  /** Forgets a chat. Called when the flow finishes or the person starts over. */
+  public async clearBotSession(chatId: string | number): Promise<boolean> {
+    if (!this.pool) return false;
+    return await pg.deleteBotSession(this.pool, String(chatId));
+  }
+
+  /**
+   * Removes sessions that expired long enough ago to stop being useful.
+   *
+   * Never throws: this runs on a timer nobody awaits, and a failed sweep is a
+   * few rows that will be swept next time. Throwing would take down the timer.
+   */
+  public async sweepBotSessions(graceSeconds = 3600): Promise<number> {
+    if (!this.pool) return 0;
+    try {
+      return await pg.sweepBotSessions(this.pool, graceSeconds);
+    } catch (error) {
+      console.warn(
+        '⚠️  [oneTeam DB] Could not sweep expired bot sessions: ' + describeError(error),
+      );
+      return 0;
     }
   }
 

@@ -228,3 +228,43 @@ export function checkStoreGeofence(
       : `⚠️ Anti-fraud bloklama: Siz mağaza ərazisində deyilsiniz (Məsafə: ${distance}m). Maksimum icazə verilən məsafə ${maxMeters}m-dir.`,
   };
 }
+
+/**
+ * Where a chat is in the guided field flow.
+ *
+ * WHY THIS IS HERE AND NOT IN THE BOT
+ * -----------------------------------
+ * It was declared in `src/bot/types.ts`, which was fine while only the bot knew
+ * about it. It is not fine now: the API validates the step it is asked to store,
+ * so the list has to exist somewhere both can see. Two copies of a state enum
+ * drift the first time one of them gains a state, and the symptom is a step the
+ * bot happily enters and the API refuses to save — which presents to the
+ * merchandiser as "the bot stopped working halfway through".
+ *
+ * The steps are named for what the bot is *waiting for*, not for what it just
+ * did, because that is what decides which incoming message belongs to the flow.
+ * `awaiting_checklist` covers every question in the checklist rather than one
+ * step per question: which question is current is a cursor (`checklistIndex`),
+ * not a state.
+ */
+export const BOT_STEPS = [
+  'idle',
+  'awaiting_store_code',
+  'awaiting_location',
+  'awaiting_checklist',
+  'awaiting_photo',
+  /**
+   * The photo has arrived and the bot is showing what it captured, waiting for
+   * the merchandiser to accept it. The file is not downloaded until they do, so
+   * a bad shot costs a re-shoot rather than a wrong audit in a supervisor's
+   * queue.
+   */
+  'awaiting_confirm',
+] as const;
+
+export type BotStep = (typeof BOT_STEPS)[number];
+
+/** True when `value` is a step this system knows how to be in. */
+export function isBotStep(value: unknown): value is BotStep {
+  return typeof value === 'string' && (BOT_STEPS as readonly string[]).includes(value);
+}

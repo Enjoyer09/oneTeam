@@ -221,6 +221,30 @@ export const EXPECTED_SCHEMA: Record<string, string[]> = {
     'last_seen_at',
     'revoked_at',
   ],
+  // Checked for the same reason as the two above: a missing `bot_sessions` does
+  // not announce itself either. The bot reads it, gets an error, and tells the
+  // merchandiser their work could not be loaded — which is at least honest — but
+  // the *cause* would be invisible from the outside, and every audit in the
+  // field would fail at the first button tap with nothing in the logs saying
+  // why the table is not there.
+  bot_sessions: [
+    'chat_id',
+    'user_id',
+    'step',
+    'store_id',
+    'store_code',
+    'store_name',
+    'active_task_id',
+    'active_task_title',
+    'latitude',
+    'longitude',
+    'checklist_questions',
+    'checklist_answers',
+    'checklist_index',
+    'pending_photo',
+    'updated_at',
+    'expires_at',
+  ],
 };
 
 /**

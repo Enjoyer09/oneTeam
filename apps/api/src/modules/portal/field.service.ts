@@ -32,8 +32,17 @@
  */
 
 import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
-import { TaskState, UserRole } from '@oneteam/types';
-import { db } from '@oneteam/database';
+import {
+  TaskState,
+  UserRole,
+  BOT_STEPS,
+  BotStep,
+  isBotStep,
+  ChecklistAnswer,
+  ChecklistQuestion,
+  FieldFlowPayload,
+} from '@oneteam/types';
+import { db, type BotSessionRow } from '@oneteam/database';
 import { PortalService, PanelStore, PanelTask, PanelSubmission } from './portal.service';
 import { EvidenceService } from '../evidences/evidence.service';
 import { TaskStateService } from '../tasks/task-state.service';
@@ -260,6 +269,210 @@ export class FieldService {
         fullName: user.fullName,
         role: user.role,
       },
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // The guided flow's position — see `bot_sessions`
+  // -------------------------------------------------------------------------
+
+  /**
+   * Reads a chat's place in the guided flow, or null when there is none to
+   * resume.
+   *
+   * WHY THIS IS SEPARATE FROM `session()` ABOVE
+   * -------------------------------------------
+   * `session()` answers "who is this chat" out of the `users` table, and the bot
+   * calls it on start-up to find out whether the chat is already bound. This
+   * answers "where were we in the audit". One is an identity, the other is a
+   * position; they have different lifetimes (a person lasts for years, a
+   * half-finished checklist lasts fifteen minutes) and merging them would mean
+   * expiring the binding along with the flow.
+   *
+   * The read also refreshes the expiry — see `readBotSession`. That is why a
+   * merchandiser who is using the bot never loses their store, while one who
+   * walked away an hour ago does.
+   */
+  async readFlow(key: FieldActorKey) {
+    const chatId = String(key.chatId);
+
+    try {
+      const row = await db.readBotSession(chatId);
+      return { success: true, data: row ? this.toFlowPayload(row) : null };
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.error(`⛔ [FLOW] Could not read the flow for chat ${chatId}: ${detail}`);
+      // 503 rather than an empty session, on purpose. An empty session tells the
+      // bot "this chat has never started", and the bot would answer by asking a
+      // merchandiser standing in a shop to type their store code again — losing
+      // work that is still in the database. A temporary failure has to look like
+      // one.
+      throw new HttpException(
+        {
+          error: 'FLOW_UNAVAILABLE',
+          message:
+            'Tapşırıq axını oxuna bilmədi. Zəhmət olmasa bir az sonra yenidən cəhd edin — ' +
+            'davam edən işiniz itməyib.',
+        },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+  }
+
+  /**
+   * Writes a chat's whole place in the flow.
+   *
+   * Validated here rather than trusted, because this is the one endpoint the bot
+   * writes on every button tap and a malformed session is not a visible error —
+   * it is a flow that resumes in a state the bot cannot act on, which reads to
+   * the merchandiser as the bot having lost their work.
+   *
+   * `user_id` is resolved here from the chat rather than taken from the body.
+   * The bot is not the authority on who a chat belongs to; `users.telegram_chat_id`
+   * is, and deriving it keeps that true even if a caller gets it wrong.
+   */
+  async saveFlow(key: FieldActorKey, body: unknown) {
+    const chatId = String(key.chatId);
+    const payload = this.validateFlowPayload(body);
+    const user = db.getUserByTelegramChatId(chatId);
+
+    try {
+      const row = await db.saveBotSession({
+        chatId,
+        userId: user?.id ?? null,
+        step: payload.step,
+        storeId: payload.storeId ?? null,
+        storeCode: payload.storeCode ?? null,
+        storeName: payload.storeName ?? null,
+        activeTaskId: payload.activeTaskId ?? null,
+        activeTaskTitle: payload.activeTaskTitle ?? null,
+        latitude: payload.location?.latitude ?? null,
+        longitude: payload.location?.longitude ?? null,
+        checklistQuestions: payload.checklistQuestions ?? [],
+        checklistAnswers: payload.checklistAnswers ?? [],
+        checklistIndex: payload.checklistIndex ?? null,
+        pendingPhoto: payload.pendingPhoto ?? null,
+      });
+
+      return { success: true, data: row ? this.toFlowPayload(row) : null };
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.error(`⛔ [FLOW] Could not save the flow for chat ${chatId}: ${detail}`);
+      throw new HttpException(
+        {
+          error: 'FLOW_NOT_STORED',
+          message:
+            'Davam edən işiniz yadda saxlanıla bilmədi. Heç nə dəyişmədi — yenidən cəhd edin.',
+        },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+  }
+
+  /** Forgets a chat's flow. Called when the audit is filed or the person starts over. */
+  async clearFlow(key: FieldActorKey) {
+    const chatId = String(key.chatId);
+    const cleared = await db.clearBotSession(chatId);
+    return { success: true, data: { cleared, chatId } };
+  }
+
+  /**
+   * Refuses anything that would be stored and then be unreadable.
+   *
+   * Field-by-field, and only the fields that decide whether the flow can
+   * continue. The checklist answers, for instance, are *not* validated against
+   * the template here: `EvidenceService` already owns that check and does it at
+   * submission time, against the authoritative schema. Doing it twice would mean
+   * two places to update and a session that can be saved but not submitted.
+   */
+  private validateFlowPayload(body: unknown): FieldFlowPayload {
+    const payload = (body ?? {}) as Partial<FieldFlowPayload>;
+
+    if (!isBotStep(payload.step)) {
+      throw new HttpException(
+        {
+          error: 'INVALID_FLOW_STEP',
+          message: `Axının addımı yanlışdır: ${String(payload.step)}. Qəbul edilən addımlar: ${BOT_STEPS.join(', ')}`,
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (payload.checklistQuestions !== undefined && !Array.isArray(payload.checklistQuestions)) {
+      throw new HttpException(
+        { error: 'INVALID_CHECKLIST_QUESTIONS', message: 'Çeklist sualları siyahı olmalıdır.' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (payload.checklistAnswers !== undefined && !Array.isArray(payload.checklistAnswers)) {
+      throw new HttpException(
+        { error: 'INVALID_CHECKLIST_ANSWERS', message: 'Çeklist cavabları siyahı olmalıdır.' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (payload.checklistIndex !== undefined && payload.checklistIndex !== null) {
+      if (!Number.isInteger(payload.checklistIndex) || payload.checklistIndex < 0) {
+        throw new HttpException(
+          {
+            error: 'INVALID_CHECKLIST_INDEX',
+            message: 'Çeklist göstəricisi mənfi olmayan tam ədəd olmalıdır.',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+
+    // A half-written location is worse than none: the geofence would run against
+    // a latitude with no longitude, or against `NaN`, and the audit would be
+    // filed as verified when nothing was verified.
+    if (payload.location !== undefined && payload.location !== null) {
+      const { latitude, longitude } = payload.location;
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        throw new HttpException(
+          {
+            error: 'INVALID_FLOW_LOCATION',
+            message: 'Lokasiya həm en, həm də uzunluq dərəcəsi tələb edir.',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+
+    if (payload.pendingPhoto !== undefined && payload.pendingPhoto !== null) {
+      if (!payload.pendingPhoto.fileId) {
+        throw new HttpException(
+          {
+            error: 'INVALID_PENDING_PHOTO',
+            message: 'Gözləyən şəkil üçün fayl identifikatoru tələb olunur.',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+
+    return payload as FieldFlowPayload;
+  }
+
+  /** Database row → the shape the bot reads back. */
+  private toFlowPayload(row: BotSessionRow): FieldFlowPayload {
+    return {
+      step: row.step as BotStep,
+      userId: row.userId,
+      storeId: row.storeId,
+      storeCode: row.storeCode,
+      storeName: row.storeName,
+      activeTaskId: row.activeTaskId,
+      activeTaskTitle: row.activeTaskTitle,
+      location:
+        row.latitude !== null && row.longitude !== null
+          ? { latitude: row.latitude, longitude: row.longitude }
+          : null,
+      checklistQuestions: (row.checklistQuestions ?? []) as ChecklistQuestion[],
+      checklistAnswers: (row.checklistAnswers ?? []) as ChecklistAnswer[],
+      checklistIndex: row.checklistIndex,
+      pendingPhoto: (row.pendingPhoto ?? null) as FieldFlowPayload['pendingPhoto'],
     };
   }
 

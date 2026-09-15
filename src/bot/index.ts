@@ -1,6 +1,7 @@
 import { Bot, session } from 'grammy';
 import dotenv from 'dotenv';
 import { BotContext, SessionData } from './types';
+import { ApiSessionStorage, FlowStorageError } from './sessionStorage';
 import { handleStart, handleStoreCodeInput } from './handlers/start';
 import { handleTasks, handleTaskSelectCallback } from './handlers/tasks';
 import {
@@ -25,12 +26,29 @@ export function createBot(token?: string): Bot<BotContext> {
 
   const bot = new Bot<BotContext>(botToken);
 
-  // Session Middleware
+  // Session middleware — backed by the API, not by this process's memory.
+  //
+  // The default store is a `Map` inside this process, and this process is
+  // replaced on every deploy. That is not a theoretical worry: a merchandiser who
+  // had answered two of three checklist questions would come back to a bot
+  // asking for their store code again, with no error and no way to tell whether
+  // they had done something wrong. See `sessionStorage.ts` for the whole story.
   bot.use(
     session({
-      initial: (): SessionData => ({
-        step: 'idle',
-      }),
+      initial: (): SessionData => ({ step: 'idle' }),
+
+      // Keyed by CHAT. Every other chat-facing call this bot makes addresses a
+      // chat — `bindTelegramUser({ telegramChatId })`, the field flow routes,
+      // and `users.telegram_chat_id` in the database — so the session key has to
+      // be that same value, or the bot would be writing its state under one
+      // identity and reading it back under another.
+      //
+      // grammy's default is the chat id too. It is stated here anyway: a default
+      // that happens to agree today is not an agreement, and this is the one line
+      // where disagreeing would lose a merchandiser's work.
+      getSessionKey: (ctx) => (ctx.chat ? String(ctx.chat.id) : undefined),
+
+      storage: new ApiSessionStorage(),
     }),
   );
 
@@ -73,8 +91,41 @@ export function createBot(token?: string): Bot<BotContext> {
   });
 
   // Global error handler
-  bot.catch((err) => {
+  bot.catch(async (err) => {
     console.error(`[oneTeam Bot Error] (Update ID: ${err.ctx.update.update_id}):`, err.error);
+
+    // The one failure worth interrupting the chat for.
+    //
+    // Every other error this bot can hit is already answered in the handlers'
+    // own words — a store code that does not exist, a photo that is too large,
+    // an API that is down when a task list is asked for. Repeating those here
+    // would only add noise.
+    //
+    // A storage failure has no other voice. The session could not be read or
+    // written, which means the flow either did not run or did not get saved, and
+    // the person is about to notice something is wrong. Saying so is what stops
+    // them from concluding that their work was filed when it was not.
+    if (err.error instanceof FlowStorageError) {
+      const message =
+        err.error.operation === 'read'
+          ? '⚠️ *Davam edən işinizi yükləmək alınmadı.*\n\n' +
+            'Sistem hazırda cavab vermir. *Heç nə itməyib* — bir az sonra yenidən ' +
+            'yazın, işiniz qaldığı yerdən davam edəcək.'
+          : '⚠️ *Davam edən işiniz yadda saxlanıla bilmədi.*\n\n' +
+            'Sistem hazırda cavab vermir. Son cavabınız qeydə alınmamış ola bilər — ' +
+            'zəhmət olmasa bir az sonra yoxlayın.';
+
+      try {
+        await err.ctx.reply(message, { parse_mode: 'Markdown' });
+      } catch (replyError) {
+        // There is nothing left to try: the chat could not be told. Logged so the
+        // failure is at least visible to whoever reads the logs.
+        console.error(
+          '[oneTeam Bot] Could not warn the chat about a flow storage failure:',
+          replyError,
+        );
+      }
+    }
   });
 
   return bot;

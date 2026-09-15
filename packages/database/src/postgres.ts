@@ -1142,3 +1142,205 @@ export async function readDataVersion(pool: Pool): Promise<number | null> {
     return null;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Bot sessions — where a Telegram chat is in the guided field flow
+// ---------------------------------------------------------------------------
+
+/**
+ * A chat's position in the flow, as stored.
+ *
+ * Field names are camelCase here and snake_case in the table, converted in one
+ * place (`toBotSession`) so no caller has to remember which side it is on.
+ */
+export interface BotSessionRow {
+  chatId: string;
+  userId: string | null;
+  step: string;
+  storeId: string | null;
+  storeCode: string | null;
+  storeName: string | null;
+  activeTaskId: string | null;
+  activeTaskTitle: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  checklistQuestions: unknown[];
+  checklistAnswers: unknown[];
+  checklistIndex: number | null;
+  pendingPhoto: Record<string, unknown> | null;
+  updatedAt: Date;
+  expiresAt: Date;
+}
+
+function toBotSession(row: any): BotSessionRow {
+  return {
+    chatId: String(row.chat_id),
+    userId: row.user_id ?? null,
+    step: String(row.step ?? 'idle'),
+    storeId: row.store_id ?? null,
+    storeCode: row.store_code ?? null,
+    storeName: row.store_name ?? null,
+    activeTaskId: row.active_task_id ?? null,
+    activeTaskTitle: row.active_task_title ?? null,
+    latitude: row.latitude === null || row.latitude === undefined ? null : Number(row.latitude),
+    longitude: row.longitude === null || row.longitude === undefined ? null : Number(row.longitude),
+    checklistQuestions: Array.isArray(row.checklist_questions) ? row.checklist_questions : [],
+    checklistAnswers: Array.isArray(row.checklist_answers) ? row.checklist_answers : [],
+    checklistIndex:
+      row.checklist_index === null || row.checklist_index === undefined
+        ? null
+        : Number(row.checklist_index),
+    pendingPhoto: row.pending_photo ?? null,
+    updatedAt: new Date(row.updated_at),
+    expiresAt: new Date(row.expires_at),
+  };
+}
+
+/**
+ * Loads a chat's session, and pushes its expiry forward in the same statement.
+ *
+ * WHY THE READ WRITES
+ * -------------------
+ * The expiry is sliding, not absolute. A merchandiser who is working — opening
+ * the task list, tapping through questions — must not lose the store they are
+ * bound to because fifteen minutes passed since their last *mutation*. A
+ * `SELECT` followed by a separate `UPDATE` would be two round trips and two
+ * chances to interleave; one statement that only returns the row when it was
+ * still live is both cheaper and impossible to get wrong.
+ *
+ * An expired row is returned as `null` rather than deleted. Two concurrent reads
+ * of the same expired row would otherwise race, and one of them would delete a
+ * row the other had just refreshed.
+ */
+export async function readBotSession(
+  pool: Pool,
+  chatId: string,
+  ttlSeconds: number,
+): Promise<BotSessionRow | null> {
+  const result = await pool.query(
+    `UPDATE bot_sessions
+        SET expires_at = now() + make_interval(secs => $2::double precision)
+      WHERE chat_id = $1
+        AND expires_at > now()
+      RETURNING *`,
+    [chatId, ttlSeconds],
+  );
+
+  const row = result.rows[0];
+  return row ? toBotSession(row) : null;
+}
+
+/**
+ * Writes a chat's whole session, creating it if this chat has none.
+ *
+ * The whole row rather than a patch, because the flow's state is small and
+ * self-consistent: a partial update would let a caller change `checklistIndex`
+ * without the matching answers and leave a session that cannot be resumed. The
+ * cost is one row's worth of bytes per button tap, which is the right trade for
+ * not having to reason about which fields a given step may touch.
+ *
+ * `expires_at` is recomputed here rather than passed in, so no caller can
+ * accidentally extend or shorten the window — the TTL is a property of the
+ * table's purpose, not of the request that happened to write it.
+ */
+export async function upsertBotSession(
+  pool: Pool,
+  session: {
+    chatId: string;
+    userId?: string | null;
+    step: string;
+    storeId?: string | null;
+    storeCode?: string | null;
+    storeName?: string | null;
+    activeTaskId?: string | null;
+    activeTaskTitle?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    checklistQuestions?: unknown[];
+    checklistAnswers?: unknown[];
+    checklistIndex?: number | null;
+    pendingPhoto?: Record<string, unknown> | null;
+  },
+  ttlSeconds: number,
+): Promise<BotSessionRow> {
+  const result = await pool.query(
+    `INSERT INTO bot_sessions (
+        chat_id, user_id, step,
+        store_id, store_code, store_name,
+        active_task_id, active_task_title,
+        latitude, longitude,
+        checklist_questions, checklist_answers, checklist_index,
+        pending_photo,
+        updated_at, expires_at
+     ) VALUES (
+        $1, $2, $3,
+        $4, $5, $6,
+        $7, $8,
+        $9, $10,
+        $11::jsonb, $12::jsonb, $13,
+        $14::jsonb,
+        now(), now() + make_interval(secs => $15::double precision)
+     )
+     ON CONFLICT (chat_id) DO UPDATE
+        SET user_id = EXCLUDED.user_id,
+            step = EXCLUDED.step,
+            store_id = EXCLUDED.store_id,
+            store_code = EXCLUDED.store_code,
+            store_name = EXCLUDED.store_name,
+            active_task_id = EXCLUDED.active_task_id,
+            active_task_title = EXCLUDED.active_task_title,
+            latitude = EXCLUDED.latitude,
+            longitude = EXCLUDED.longitude,
+            checklist_questions = EXCLUDED.checklist_questions,
+            checklist_answers = EXCLUDED.checklist_answers,
+            checklist_index = EXCLUDED.checklist_index,
+            pending_photo = EXCLUDED.pending_photo,
+            updated_at = now(),
+            expires_at = EXCLUDED.expires_at
+     RETURNING *`,
+    [
+      session.chatId,
+      session.userId ?? null,
+      session.step,
+      session.storeId ?? null,
+      session.storeCode ?? null,
+      session.storeName ?? null,
+      session.activeTaskId ?? null,
+      session.activeTaskTitle ?? null,
+      session.latitude ?? null,
+      session.longitude ?? null,
+      JSON.stringify(session.checklistQuestions ?? []),
+      JSON.stringify(session.checklistAnswers ?? []),
+      session.checklistIndex ?? null,
+      session.pendingPhoto ? JSON.stringify(session.pendingPhoto) : null,
+      ttlSeconds,
+    ],
+  );
+
+  return toBotSession(result.rows[0]);
+}
+
+/** Forgets a chat. Used when the flow finishes or the person asks to start over. */
+export async function deleteBotSession(pool: Pool, chatId: string): Promise<boolean> {
+  const result = await pool.query('DELETE FROM bot_sessions WHERE chat_id = $1', [chatId]);
+  return (result.rowCount ?? 0) > 0;
+}
+
+/**
+ * Forgets sessions that expired longer ago than the grace period.
+ *
+ * The grace period matters: a row that expired a second ago is still the answer
+ * to "what was this person doing", which is what somebody asks when a
+ * merchandiser reports that the bot forgot their answers. An hour of that is
+ * cheap and answers the question; keeping them forever is not.
+ *
+ * Run periodically rather than on read, so no request is ever responsible for
+ * the cleanup and a slow sweep cannot delay a person's button tap.
+ */
+export async function sweepBotSessions(pool: Pool, graceSeconds: number): Promise<number> {
+  const result = await pool.query(
+    'DELETE FROM bot_sessions WHERE expires_at < now() - make_interval(secs => $1::double precision)',
+    [graceSeconds],
+  );
+  return result.rowCount ?? 0;
+}

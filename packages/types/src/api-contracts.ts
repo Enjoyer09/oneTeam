@@ -3,7 +3,15 @@
  */
 
 import { TaskState } from './state-machine';
-import { TaskEvidence, StoreTask, Store, TaskTemplate } from './domain';
+import {
+  TaskEvidence,
+  StoreTask,
+  Store,
+  TaskTemplate,
+  BotStep,
+  ChecklistAnswer,
+  ChecklistQuestion,
+} from './domain';
 
 export interface StateTransitionRequestDto {
   targetState: TaskState;
@@ -137,4 +145,63 @@ export interface ApiResponse<T = any> {
   error?: string;
   message?: string;
   timestamp: string;
+}
+
+/**
+ * Where a chat is in the guided field flow, as it travels over the wire.
+ *
+ * WHY THIS IS A SHARED CONTRACT AND NOT TWO LOCAL SHAPES
+ * ------------------------------------------------------
+ * The bot stores this and the API validates and persists it. If each side had
+ * its own interface they would agree until one of them was edited, and the
+ * failure mode is not a compile error — it is a field the bot writes that the
+ * API silently drops, so a resumed flow is missing a piece of what it had.
+ *
+ * The shape is deliberately flat and primitive: it crosses a JSON boundary in
+ * both directions, so nothing here may depend on a class, a `Date`, or an
+ * undefined-versus-missing distinction.
+ */
+export interface FieldFlowPayload {
+  step: BotStep;
+
+  /** The person this chat is bound to, once it is bound. Null before that. */
+  userId?: string | null;
+
+  storeId?: string | null;
+  storeCode?: string | null;
+  storeName?: string | null;
+
+  activeTaskId?: string | null;
+  activeTaskTitle?: string | null;
+
+  /**
+   * The merchandiser's own fix, or null when they skipped the prompt.
+   *
+   * Null is a *statement*, not an absence: it means the audit will be recorded
+   * as location-unverified. The store's own coordinates must never be put here
+   * — see `createSubmission` for why.
+   */
+  location?: { latitude: number; longitude: number } | null;
+
+  /** The questions the flow started with, so a resumed flow asks the same ones. */
+  checklistQuestions?: ChecklistQuestion[];
+
+  checklistAnswers?: ChecklistAnswer[];
+  checklistIndex?: number | null;
+
+  /**
+   * A photo the merchandiser has sent and not yet confirmed.
+   *
+   * Only Telegram's `file_id` is held; the bytes are not fetched until the
+   * confirm button is pressed. A merchandiser who re-shoots costs a discarded
+   * id rather than a downloaded file and a wrong audit.
+   */
+  pendingPhoto?: {
+    fileId: string;
+    width?: number;
+    height?: number;
+    fileSize?: number;
+    /** The chat message carrying the photo, so the bot can act on it later. */
+    messageId?: number;
+  } | null;
 }

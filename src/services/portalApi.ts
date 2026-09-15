@@ -45,6 +45,7 @@
  */
 
 import dotenv from 'dotenv';
+import type { FieldFlowPayload } from '@oneteam/types';
 import { StoreRecord, TaskRecord, SubmissionRecord } from '../bot/types';
 
 dotenv.config();
@@ -74,6 +75,21 @@ const API_TOKEN = process.env.ONETEAM_API_TOKEN || 'oneteam-user:usr-admin-001';
 
 /** Long enough for a cold container, short enough that a chat is never left hanging. */
 const REQUEST_TIMEOUT_MS = 20_000;
+
+/**
+ * The guided flow's leash, and why it is much shorter than the one above.
+ *
+ * The flow is read before *every* update the bot handles and written after it,
+ * so this timeout sits on the critical path of every single message a field
+ * worker sends — including messages that have nothing to do with the flow. At
+ * twenty seconds, an API that is up but slow would make the bot look dead to
+ * someone standing in a shop with a phone in their hand.
+ *
+ * Five seconds is far longer than a round trip to the API over the private
+ * network takes, so a request that reaches this has already failed in a way that
+ * is worth telling the person about rather than making them wait.
+ */
+const FLOW_TIMEOUT_MS = 5_000;
 
 /**
  * Must not exceed `MAX_PHOTO_BYTES` in
@@ -117,8 +133,19 @@ type Envelope<T> = {
  * own handlers disagree about where the human-readable text goes: a
  * `HttpException` with an object body puts it in `message`, a plain one puts it
  * in `message` too, and this project's field endpoints use `error`.
+ *
+ * `timeoutMs` is a parameter rather than a constant because the calls this
+ * client makes are not alike. A photo upload carries up to 1.5 MB and deserves
+ * the full twenty seconds; the guided flow's state is a few hundred bytes and is
+ * read on *every* update, including ones that have nothing to do with the flow.
+ * Giving that call twenty seconds would mean a chat hanging for twenty seconds
+ * on "salam" whenever the API is unwell — see `FLOW_TIMEOUT_MS`.
  */
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function request<T>(
+  path: string,
+  init: RequestInit = {},
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): Promise<T> {
   const url = `${API_BASE_URL}${path}`;
   let response: Response;
 
@@ -130,7 +157,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
         Authorization: `Bearer ${API_TOKEN}`,
         ...(init.headers || {}),
       },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (cause) {
     const reason = cause instanceof Error ? cause.message : String(cause);
@@ -269,6 +296,78 @@ class PortalApiClient {
       `/api/portal/field/tasks/${encodeURIComponent(taskId)}/acknowledge`,
       { method: 'POST', body: JSON.stringify({ chatId }) },
     );
+  }
+
+  // -------------------------------------------------------------------------
+  // The guided flow's position
+  //
+  // WHY THE BOT DOES NOT KEEP THIS IN ITS OWN MEMORY
+  // ------------------------------------------------
+  // grammy's default session store is a `Map` inside the bot process, and the
+  // bot process is replaced on every deploy. A merchandiser who had answered two
+  // of three questions would come back to a bot asking for their store code
+  // again — no error, no explanation, and their answers apparently gone even
+  // though nothing had actually been at risk.
+  //
+  // So the position lives in the database and the bot reaches it here. The
+  // mechanics are in `src/bot/sessionStorage.ts`; this is only the wire.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Where this chat is in the guided flow, or null when there is nothing to
+   * resume.
+   *
+   * Null and "could not ask" are different answers and are kept different: an
+   * unreachable API throws. See `ApiSessionStorage.read` for why that distinction
+   * matters more than it looks — the alternative is a bot that silently starts
+   * the flow over.
+   */
+  async getFlow(chatId: number | string): Promise<FieldFlowPayload | null> {
+    return await request<FieldFlowPayload | null>(
+      `/api/portal/field/flow?chatId=${encodeURIComponent(String(chatId))}`,
+      {},
+      FLOW_TIMEOUT_MS,
+    );
+  }
+
+  /**
+   * Writes the whole position.
+   *
+   * The API validates it before storing, so a step this system does not know
+   * about is refused rather than saved and then found unreadable later.
+   *
+   * The API derives the person from the chat instead of taking one from here.
+   * The bot is not the authority on who a chat belongs to, and letting it assert
+   * one would be a way for a bug in the bot to write somebody else's flow.
+   */
+  async saveFlow(
+    chatId: number | string,
+    flow: FieldFlowPayload,
+  ): Promise<FieldFlowPayload | null> {
+    return await request<FieldFlowPayload | null>(
+      '/api/portal/field/flow',
+      { method: 'PUT', body: JSON.stringify({ chatId, ...flow }) },
+      FLOW_TIMEOUT_MS,
+    );
+  }
+
+  /**
+   * Forgets a chat's position.
+   *
+   * Called when the audit is filed, when the person starts over, and — through
+   * `ApiSessionStorage.write` — whenever the session has become empty, so a chat
+   * that only ever said "salam" does not leave a row behind.
+   *
+   * `false` is a normal answer, not a failure: it means there was nothing to
+   * forget, which is what the second call in a row gets.
+   */
+  async clearFlow(chatId: number | string): Promise<boolean> {
+    const result = await request<{ cleared: boolean }>(
+      `/api/portal/field/flow?chatId=${encodeURIComponent(String(chatId))}`,
+      { method: 'DELETE' },
+      FLOW_TIMEOUT_MS,
+    );
+    return Boolean(result?.cleared);
   }
 
   // -------------------------------------------------------------------------

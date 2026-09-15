@@ -35,6 +35,8 @@ import {
   Controller,
   Get,
   Post,
+  Put,
+  Delete,
   Param,
   Query,
   Body,
@@ -66,11 +68,36 @@ function actorKeyFromQuery(chatId?: string, deviceId?: string): FieldActorKey {
   return { chatId, deviceId };
 }
 
-/** Both endpoints need this, and both must reject the same malformed input. */
+/**
+ * Both endpoints need this, and both must reject the same malformed input.
+ */
 function requireActorKey(key: FieldActorKey): FieldActorKey {
   const hasChatId = key.chatId !== undefined && key.chatId !== null && key.chatId !== '';
   if (!hasChatId && !key.deviceId) {
     throw new BadRequestException('chatId və ya deviceId tələb olunur');
+  }
+  return key;
+}
+
+/**
+ * The flow routes need a chat specifically, not "either channel".
+ *
+ * `requireActorKey` accepts a device id because the mobile client legitimately
+ * identifies itself that way. The guided flow does not exist on that client: the
+ * app has its own screens, and the steps here (`awaiting_location`,
+ * `awaiting_photo`) are the ones a chat has to be walked through because it has
+ * no UI to navigate. Accepting a `deviceId` would store a second, parallel
+ * notion of "where the person is" that nothing reads — and a device credential
+ * is refused a `chatId` by `enforceActorScope` anyway, so there is no third
+ * option left to allow.
+ */
+function requireChatKey(key: FieldActorKey): FieldActorKey {
+  const hasChatId = key.chatId !== undefined && key.chatId !== null && key.chatId !== '';
+  if (!hasChatId) {
+    throw new BadRequestException({
+      error: 'CHAT_ID_REQUIRED',
+      message: 'Bu bölmə yalnız Telegram çatları üçündür — chatId tələb olunur.',
+    });
   }
   return key;
 }
@@ -169,6 +196,42 @@ export class FieldController {
   ) {
     const key = enforceActorScope(getPrincipal(request), requireActorKey(actorKeyFrom(body)));
     return this.fieldService.bind(key, body.fullName || 'Sahə işçisi', body.storeId);
+  }
+
+  /**
+   * Where this chat is in the guided flow — the bot's own working state.
+   *
+   * NOT `session` ABOVE. That one answers "who is this chat" and lives in the
+   * `users` table; this answers "which question were we on" and lives in
+   * `bot_sessions`, where it expires. The bot used to keep this in its process
+   * memory, which meant every deploy silently dropped a merchandiser's
+   * half-finished audit — the bot did not error, it just asked for the store code
+   * again.
+   *
+   * The read refreshes the expiry, so a flow that is being used does not time
+   * out under the person using it.
+   */
+  @Get('flow')
+  getFlow(@Request() request: AuthedRequest, @Query('chatId') chatId?: string) {
+    const key = enforceActorScope(getPrincipal(request), requireChatKey({ chatId }));
+    return this.fieldService.readFlow(key);
+  }
+
+  @Put('flow')
+  @HttpCode(HttpStatus.OK)
+  putFlow(
+    @Request() request: AuthedRequest,
+    @Body() body: { chatId?: string | number } & Record<string, unknown>,
+  ) {
+    const key = enforceActorScope(getPrincipal(request), requireChatKey(actorKeyFrom(body)));
+    return this.fieldService.saveFlow(key, body);
+  }
+
+  @Delete('flow')
+  @HttpCode(HttpStatus.OK)
+  deleteFlow(@Request() request: AuthedRequest, @Query('chatId') chatId?: string) {
+    const key = enforceActorScope(getPrincipal(request), requireChatKey({ chatId }));
+    return this.fieldService.clearFlow(key);
   }
 
   @Get('tasks')
