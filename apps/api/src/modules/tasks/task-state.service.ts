@@ -5,6 +5,8 @@ import {
   ALLOWED_STATE_TRANSITIONS,
   isValidTransition,
   StateTransitionResponseDto,
+  NotificationDispatchSummary,
+  NotificationOutcome,
   StoreTask,
   BulkDispatchDto,
   BulkDispatchResultDto,
@@ -15,6 +17,24 @@ import {
   isPrivilegedPrincipal,
 } from '../../common/auth/authenticated-principal';
 import { NotificationDispatcherService } from '../notifications/notification-dispatcher.service';
+
+/**
+ * The context a notification needs but the state machine does not carry.
+ *
+ * A rejection notice says "your photo was refused, and here is why", so it
+ * needs the submission it is about and the supervisor's words. Neither is part
+ * of a state transition, which is why they travel alongside one instead of
+ * being written into it.
+ *
+ * `evidenceId` doubles as the notification's dedupe key. A task can be rejected
+ * more than once — `REJECTED → IN_PROGRESS → SUBMITTED → REJECTED` is legal —
+ * so keying on the task would deliver the first refusal and swallow every later
+ * one.
+ */
+export interface TransitionNotificationContext {
+  evidenceId?: string;
+  feedback?: string;
+}
 
 @Injectable()
 export class TaskStateService {
@@ -77,8 +97,11 @@ export class TaskStateService {
 
     const createdTasks: InMemoryStoreTask[] = [];
     const failures: Array<{ storeId: string; storeName: string; reason: string }> = [];
-    let telegramCount = 0;
-    let pushCount = 0;
+    const notifications: NotificationDispatchSummary = {
+      queued: 0,
+      alreadyQueued: 0,
+      withoutRecipient: 0,
+    };
 
     for (const store of matchedStores) {
       const taskId = `task-bulk-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
@@ -127,12 +150,15 @@ export class TaskStateService {
         },
       });
 
-      // Dispatch Notifications
-      const dispatchRes = await this.notificationDispatcher.dispatchTaskPublished(
+      // Queue the notification. Awaited because a row that was never written is
+      // a merchandiser who was never told, and the counts below are the only
+      // place a supervisor can see that.
+      const outcome = await this.notificationDispatcher.dispatchTaskPublished(
         newTask as unknown as StoreTask,
       );
-      if (dispatchRes.telegram) telegramCount++;
-      if (dispatchRes.pushNotification) pushCount++;
+      if (outcome === 'queued') notifications.queued += 1;
+      else if (outcome === 'already-queued') notifications.alreadyQueued += 1;
+      else if (outcome === 'no-recipient') notifications.withoutRecipient += 1;
     }
 
     if (failures.length > 0) {
@@ -159,7 +185,13 @@ export class TaskStateService {
     }
 
     this.logger.log(
-      `✅ [BULK DISPATCH COMPLETE] Created ${createdTasks.length} tasks. Dispatched ${telegramCount} Telegram and ${pushCount} Push notifications.`,
+      `✅ [BULK DISPATCH COMPLETE] Created ${createdTasks.length} tasks. ` +
+        `Notifications queued: ${notifications.queued}` +
+        (notifications.alreadyQueued ? `, already queued: ${notifications.alreadyQueued}` : '') +
+        (notifications.withoutRecipient
+          ? `, with no destination: ${notifications.withoutRecipient} (assignee has never spoken to the bot)`
+          : '') +
+        '.',
     );
 
     return {
@@ -167,23 +199,50 @@ export class TaskStateService {
       totalStoresMatched: matchedStores.length,
       tasksCreated: createdTasks.length,
       taskIds: createdTasks.map((t) => t.id),
-      notificationsDispatched: {
-        telegram: telegramCount,
-        pushNotification: pushCount,
-      },
+      notificationsDispatched: notifications,
       failures: failures.length > 0 ? failures : undefined,
     };
   }
 
   /**
+   * Queues the "this task is yours" notice for a task that has just been
+   * published.
+   *
+   * WHY THIS IS PUBLIC
+   * ------------------
+   * `bulkDispatchTasks` and `transitionTask` both queue this themselves, because
+   * both of them are inside this service. The panel's create-task form is not:
+   * it dispatches to an explicit list of stores through
+   * `PortalService.dispatchToExplicitStores`, which writes its `store_tasks`
+   * rows directly.
+   *
+   * That path claimed in its own documentation to mirror `bulkDispatchTasks`
+   * "exactly" — and did not queue a notification at all. So the one route a
+   * supervisor actually uses from the panel was the one route that never told
+   * the merchandiser anything, which is the exact scenario Phase 2.3 exists to
+   * fix. Exposing the dispatcher through this method rather than injecting
+   * `NotificationDispatcherService` into `PortalService` keeps the notification
+   * vocabulary in one file.
+   */
+  async notifyTaskPublished(task: StoreTask): Promise<NotificationOutcome> {
+    return await this.notificationDispatcher.dispatchTaskPublished(task);
+  }
+
+  /**
    * Transitions a StoreTask to targetState according to strict state machine rules.
    * Throws 400 Bad Request on illegal transition.
+   *
+   * `notification` carries the two things a notification needs that the state
+   * machine does not have: which submission a verdict was about, and the text
+   * the supervisor wrote. It is optional, and only the REJECTED transition uses
+   * it.
    */
   async transitionTask(
     taskId: string,
     targetState: TaskState,
     principal: AuthenticatedPrincipal,
     notes?: string,
+    notification?: TransitionNotificationContext,
   ): Promise<StateTransitionResponseDto> {
     const task = db.getTask(taskId);
     if (!task) {
@@ -254,12 +313,40 @@ export class TaskStateService {
       `✅ [STATE TRANSITION] Task ${taskId}: ${previousState} -> ${targetState} (Actor: ${principal.userId})`,
     );
 
-    // 4. Multi-Channel Notification Trigger on PUBLISHED
-    let notificationResult: { telegram: boolean; pushNotification: boolean } | undefined;
+    // 4. Queue the notification the new state implies.
+    //
+    // Both triggers live here rather than in the callers, because every state
+    // change goes through this method and a notice that only one caller
+    // remembers to queue is a notice that goes missing the day a second caller
+    // appears. The lesson from the role gate in `createAndDispatch` is the same
+    // one: two doors to the same room need the same lock.
+    let notificationResult: { outcome: NotificationOutcome } | undefined;
+
     if (targetState === TaskState.PUBLISHED) {
-      notificationResult = await this.notificationDispatcher.dispatchTaskPublished(
-        updatedTask as unknown as StoreTask,
-      );
+      notificationResult = {
+        outcome: await this.notificationDispatcher.dispatchTaskPublished(
+          updatedTask as unknown as StoreTask,
+        ),
+      };
+    } else if (targetState === TaskState.REJECTED) {
+      if (notification?.evidenceId) {
+        notificationResult = {
+          outcome: await this.notificationDispatcher.dispatchTaskRejected(
+            updatedTask as unknown as StoreTask,
+            notification.evidenceId,
+            notification.feedback ?? notes ?? '',
+          ),
+        };
+      } else {
+        // The dedupe key for a rejection is the submission it is about. Without
+        // one there is no way to tell "the same rejection retried" from "the
+        // task was rejected a second time", so nothing is queued and the gap is
+        // stated rather than filled with a guess.
+        this.logger.warn(
+          `⚠️  [NOTIFY] Task ${taskId} moved to REJECTED with no submission attached, ` +
+            'so no rejection notice was queued. Pass `notification.evidenceId` to queue one.',
+        );
+      }
     }
 
     return {

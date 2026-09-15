@@ -149,6 +149,34 @@ export interface TaskRecord {
   requires_before_after_photo?: boolean;
 }
 
+/**
+ * A message the API has queued for a chat, leased to this bot process.
+ *
+ * WHAT THIS IS NOT
+ * ----------------
+ * Not a push notification. The bot polls for these and sends them with the
+ * ordinary Telegram API; there is no push channel in this deployment and the
+ * mobile client has no registration for one.
+ *
+ * `body` is plain text, not Markdown. It is assembled by the API from a
+ * supervisor's free text, and Telegram's legacy Markdown rejects a whole message
+ * over a single unmatched `*` — so the API sends none and the bot must not add
+ * `parse_mode`. See `NotificationDispatcherService`.
+ *
+ * `taskId` is what the "open" button needs. It is null when the message is not
+ * about one task, and the button is then left off rather than pointed at
+ * nothing.
+ */
+export interface PendingNotification {
+  id: string;
+  chatId: string;
+  kind: 'TASK_ASSIGNED' | 'TASK_REJECTED' | 'DEADLINE_SOON';
+  title: string;
+  body: string;
+  taskId: string | null;
+  createdAt: string;
+}
+
 export interface SubmissionRecord {
   id: string;
   task_id: string;

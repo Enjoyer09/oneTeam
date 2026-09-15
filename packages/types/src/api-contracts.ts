@@ -28,39 +28,53 @@ export interface StateTransitionResponseDto {
   updatedAt: string;
   auditLogId: string;
   notificationsDispatched?: {
-    telegram: boolean;
-    pushNotification: boolean;
+    outcome: NotificationOutcome;
   };
 }
 
-export interface TelegramInlineButton {
-  text: string;
-  callback_data?: string;
-  url?: string;
-}
+/**
+ * What the API managed to record for delivery — not what was delivered.
+ *
+ * WHY THIS REPLACED A BOOLEAN PAIR
+ * --------------------------------
+ * The field it replaces was `{ telegram: boolean; pushNotification: boolean }`,
+ * and both members were returned as `true` unconditionally, from a service that
+ * pushed a payload into an in-memory array and sent nothing. The array was
+ * emptied on every deploy. A caller reading `telegram: true` was told a message
+ * had gone out when no message existed anywhere.
+ *
+ * The names below describe what the API actually knows at the moment it
+ * answers: it wrote a row, or the row was already there, or it wrote a row that
+ * nothing can ever send, or there was no database to write to at all. Whether
+ * the message reached Telegram is decided later, by the bot, and is observable
+ * only from the outbox — see `GET /api/portal/field/notifications`.
+ */
+export type NotificationOutcome =
+  /** A row is in the outbox; the bot will pick it up. */
+  | 'queued'
+  /** The same event was already in the outbox. Nothing was written twice. */
+  | 'already-queued'
+  /**
+   * A row is in the outbox with no `chat_id`: the assignee has never spoken to
+   * the bot, so there is nowhere to send this. Kept rather than dropped so the
+   * gap is visible instead of looking like nothing happened.
+   */
+  | 'no-recipient'
+  /** The process has no database connection, so there is no outbox at all. */
+  | 'no-queue';
 
-export interface TelegramNotificationPayload {
-  chatId: string | number;
-  text: string;
-  parseMode?: 'MarkdownV2' | 'HTML' | 'Markdown';
-  replyMarkup?: {
-    inline_keyboard: TelegramInlineButton[][];
-  };
-}
-
-export interface PushNotificationPayload {
-  to: string; // Device token or user topic
-  title: string;
-  body: string;
-  badge?: number;
-  sound?: string;
-  data: {
-    taskId: string;
-    storeId: string;
-    type: 'TASK_PUBLISHED' | 'TASK_REMINDER' | 'AUDIT_REVIEWED';
-    deepLink: string;
-    [key: string]: any;
-  };
+/**
+ * Counts of what a bulk dispatch recorded. See `NotificationOutcome`.
+ *
+ * There is no `pushNotification` counterpart: the platform has no push path.
+ * The mobile client is a headless control layer with no notification permission
+ * and no device-token registration — the APNs payload this used to count was
+ * invented, and a number is a poor place to keep an invention.
+ */
+export interface NotificationDispatchSummary {
+  queued: number;
+  alreadyQueued: number;
+  withoutRecipient: number;
 }
 
 export interface TelegramWebhookCallbackQuery {
@@ -124,10 +138,7 @@ export interface BulkDispatchResultDto {
   totalStoresMatched: number;
   tasksCreated: number;
   taskIds: string[];
-  notificationsDispatched: {
-    telegram: number;
-    pushNotification: number;
-  };
+  notificationsDispatched: NotificationDispatchSummary;
   /**
    * Stores the briefing could not be dispatched to, and why.
    *

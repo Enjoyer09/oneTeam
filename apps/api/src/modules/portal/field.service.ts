@@ -42,7 +42,11 @@ import {
   ChecklistQuestion,
   FieldFlowPayload,
 } from '@oneteam/types';
-import { db, type BotSessionRow } from '@oneteam/database';
+import {
+  db,
+  type BotSessionRow,
+  type NotificationRow as BotNotificationRow,
+} from '@oneteam/database';
 import { PortalService, PanelStore, PanelTask, PanelSubmission } from './portal.service';
 import { EvidenceService } from '../evidences/evidence.service';
 import { TaskStateService } from '../tasks/task-state.service';
@@ -374,6 +378,100 @@ export class FieldService {
     const chatId = String(key.chatId);
     const cleared = await db.clearBotSession(chatId);
     return { success: true, data: { cleared, chatId } };
+  }
+
+  // -------------------------------------------------------------------------
+  // Notifications — the outbox the bot drains
+  // -------------------------------------------------------------------------
+
+  /**
+   * Leases the messages waiting to be sent, oldest first.
+   *
+   * WHY THE BOT ASKS THE API RATHER THAN READING THE TABLE
+   * -----------------------------------------------------
+   * The bot has no database connection, by design: it reaches data only through
+   * this API, which is what keeps one authorisation model instead of two. The
+   * outbox is not an exception to that.
+   *
+   * WHY A LEASE AND NOT JUST A READ
+   * -------------------------------
+   * Two bot instances overlap for a few seconds on every deploy. A plain read
+   * would hand both of them the same rows and the merchandiser would receive the
+   * same message twice. The claim writes `claimed_at`, and a row under an
+   * unexpired claim is invisible to the next caller — so the second instance
+   * walks past it and picks up the next ones. The claim expires, which is what
+   * makes delivery at-least-once: a bot killed between claiming and sending
+   * leaves the row available again instead of losing it.
+   *
+   * `chatId` is optional. The bot passes nothing and drains every chat, because
+   * it has no way to know which chats have anything waiting; a single chat can
+   * be asked for by name, which is what the tests do.
+   */
+  async claimPendingNotifications(options: {
+    chatId?: string;
+    limit?: number;
+    claimedBy?: string;
+  }) {
+    // Identifies the drain loop holding the lease, for the "who is holding this
+    // and why has it not been sent" question. Not an authorisation input: only a
+    // service credential reaches this route at all.
+    const claimedBy = options.claimedBy?.trim() || 'bot';
+
+    const rows = await db.claimNotifications({
+      chatId: options.chatId ?? null,
+      limit: options.limit ?? 20,
+      claimedBy,
+    });
+
+    return {
+      success: true,
+      data: rows.map((row) => this.toNotificationPayload(row)),
+      total: rows.length,
+      claimedBy,
+    };
+  }
+
+  /** Records that Telegram accepted the message. */
+  async markNotificationDelivered(id: string) {
+    const delivered = await db.markNotificationDelivered(id);
+    return { success: true, data: { id, delivered } };
+  }
+
+  /**
+   * Records that Telegram refused the message, terminally.
+   *
+   * A refusal that reaches here is one a retry cannot fix — the chat blocked the
+   * bot, or the chat no longer exists. A transient failure (Telegram
+   * unreachable) must NOT call this: leaving the claim to expire is what causes
+   * the row to be tried again, which is the whole point of the lease.
+   */
+  async markNotificationFailed(id: string, failure: string) {
+    const failed = await db.markNotificationFailed(id, failure);
+    return { success: true, data: { id, failed } };
+  }
+
+  /**
+   * The shape the bot needs, and nothing else.
+   *
+   * `taskId` is lifted out of `payload` because that is the one thing the bot
+   * turns into a button — `open:<taskId>` — and a client that has to reach into
+   * a JSON blob to find it is a client that will one day look for the wrong key.
+   * The whole payload is not returned: what the message says is `body`, and
+   * anything else is the API's business.
+   */
+  private toNotificationPayload(row: BotNotificationRow) {
+    const taskId = row.payload?.taskId;
+
+    return {
+      id: row.id,
+      chatId: row.chatId,
+      kind: row.kind,
+      title: row.title,
+      body: row.body,
+      taskId: typeof taskId === 'string' ? taskId : null,
+      createdAt:
+        row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+    };
   }
 
   /**

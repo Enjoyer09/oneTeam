@@ -167,7 +167,7 @@ açar oxuma / yazma / təsdiq yollarında **401** alır. Skriptlər: `scripts/li
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------- | -------- |
 | 2.1 | **Inline keyboard state machine:** `main → store-list → task-list → checklist → photo → confirm → done`. Hər düymə `callback_data` ilə `action:id` formatında. | Basılma dublikat heç bir səhv yaratmır (idempotent).                           | 1.5 gün | ✅       |
 | 2.2 | **Bot session store (Redis / in-memory TTL):** `chatId → {step, storeId, taskId, checklistAnswers[]}`. 15 dəq TTL, yenilənmə.                                  | Yenidən başlatma ilə state itmir; `chatId` yenidən yazanda əvvəlki davam edir. | 1 gün   | ✅       |
-| 2.3 | **Notification:** tapşırıq yaradılması / vaxt bitməsi / rədd 15 dəq əvvəl → `sendMessage` + inline `Open` düyməsi.                                             | Supervayzer panelində yaradanda bot bildiriş alır.                             | 0.5 gün | ⏳       |
+| 2.3 | **Notification:** tapşırıq yaradılması / vaxt bitməsi / rədd 15 dəq əvvəl → `sendMessage` + inline `Open` düyməsi.                                             | Supervayzer panelində yaradanda bot bildiriş alır.                             | 0.5 gün | ✅       |
 | 2.4 | **Fallback (text):** `/start`, `/help`, `/mystatus` — inline olmadıqda işləsin.                                                                                | `/help` → menyu göstərir.                                                      | 0.5 gün | ✅       |
 
 #### 2.1 — nə edildi, nə ilə sübut olundu
@@ -302,7 +302,120 @@ yaratmadığı hərəkəti" tapa bilməz — `menu:home` elə belə yaşayırdı
 yaratmır"-ı, digəri "yaradan qoşulmayıb"-ı tutur**. (Qeyd: ilk yazdığım `homeButton()` köməkçisi **heç
 haradan çağırılmırdı** — statik yoxlamanın tuta bilmədiyi elə həmin haldır.)
 
-**2.3-ə keçid üçün açıq qalan şey:** `NotificationDispatcherService` hələ də **heç nə göndərmir**.
+#### 2.3 — nə edildi, nə ilə sübut olundu
+
+**Əvvəlcə ən vacib tapıntı: `NotificationDispatcherService` HEÇ NƏ GÖNDƏRMİRDİ — sadəcə elə
+davranırdı ki, guya göndərir.**
+
+`dispatchTaskPublished` `TelegramNotificationPayload` qururdu, onu **ictimai massivə** atırdı
+(`dispatchedTelegramMessages`), push üçün APNs yükü düzəldirdi (**nə icazəsi, nə cihaz qeydiyyatı
+olan** mobil müştəri üçün), audit yazırdı, `[DISPATCH COMPLETE]` loglayırdı və
+`{ telegram: true, pushNotification: true }` qaytarırdı. **Prosesdən bayt çıxmırdı.** Massivlər hər
+deploy-da sıfırlanırdı. Çat id kimi **platforma istifadəçi id-si** işlədilirdi
+(`task.assignedUserId || '998877665'`). Mətn isə tapşırıqdan asılı olmayaraq hardcode idi
+("Coca-Cola Classic, Zero Sugar və Fanta"). **İki mövcud dəst bu uydurmanı təsdiqləyirdi və
+yaşıl keçirdi** (`phase2.spec.ts` → `telegram === 2`; `integration.spec.ts` → `telegram === true`).
+
+**Nə quruldu — outbox naxışı.** API Telegram-la danışmır: `TELEGRAM_BOT_TOKEN` tək servisdədir və
+tapşırıq yaratmaq Telegram-ın əlçatanlığından asılı olmamalıdır. Ona görə API **niyyəti**
+`notifications` cədvəlinə yazır, **bot onu boşaldır** — `bot_sessions` ilə eyni forma. Bot yenə də
+birbaşa bazaya qoşulmur, Core API-dən keçir.
+
+- **İdempotentliyi YOXLAMA deyil, BAZA təmin edir.** `dedupe_key` UNIQUE +
+  `ON CONFLICT (dedupe_key) DO NOTHING`. Vaxt bitmə siyahısı **hər tick** işlədiyi üçün eyni mesajı
+  iki dəfə növbəyə qoya bilməz. `SELECT`-sonra-`INSERT` eyni görünür və **yarışır**. Açarlar:
+  `TASK_ASSIGNED:<taskId>`, `DEADLINE_SOON:<taskId>`, `TASK_REJECTED:<evidenceId>`.
+- **Rədd açarı TAPŞIRIĞIN deyil, SÜBUTUN id-sidir.** `REJECTED → IN_PROGRESS → SUBMITTED → REJECTED`
+  qanuni yoldur və hər rədd **başqa foto** haqqındadır; tapşırıq üzrə açarsaq birinci rədd çatar,
+  sonrakılar **sükutla udulur**.
+- **Götürmə icarədir, oxu deyil.** `claimNotifications` `FOR UPDATE SKIP LOCKED` **və** vaxt möhürlü
+  icarə işlədir (`claimed_at` + `leaseSeconds`, default 120) — **tranzaksiya kilidi deyil**, çünki
+  göndərmə tranzaksiyadan kənardadır (Telegram-a çağırışdır). Deploy-da iki bot nüsxəsi üst-üstə
+  düşür; götürmə olmasa **ikisi də eyni mesajı göndərərdi**. Göndərmə ortasında ölən botun icarəsi
+  vaxtı keçir və sətir yenidən əlçatan olur. Təkrar xatırlatma kiçik narahatlıqdır; **itirilmiş**
+  xatırlatma isə cədvəlin mövcud olma səbəbidir.
+- **`chat_id` növbəyə yazılarkən həll olunur və NULL ola bilər.** NULL = "bu adam bota heç vaxt
+  yazmayıb, göndərəcək yer yoxdur". Atılmır, saxlanılır — sükutla silmək vəziyyəti "heç nə olmadı"
+  kimi göstərərdi. Belə sətir **heç vaxt götürülə bilməz** (`chat_id IS NOT NULL` tələbi), yəni
+  gözləyən mesaj deyil, **qeyddir**.
+- **Göndərmə uğursuzluğu iki növdür.** 403 (bot bloklanıb / hesab silinib) və 400 (çat yoxdur)
+  **qəti**dir → `markNotificationFailed`. Qalan hər şey — 429, 5xx, `error_code`-suz şəbəkə xətası —
+  **təxirə salınır**: heç nə işarələnmir, icarə vaxtı keçir, mesaj təkrar cəhd olunur. Qətisi
+  təkrar sayğacı deyil, çünki onları sonsuz təkrarlamaq **heç vaxt boşalmayan növbə** yaradardı.
+- **Təmizləmə üç saat işlədir.** `sweepNotifications` (1) çatdırılmış, (2) uğursuz və (3) **`chat_id`
+  NULL olan** çatdırılmamış sətirləri silir — üçüncüsü ona görə ki, onlar heç vaxt götürülə bilməz və
+  əbədi yığılardı. Çatı olub nə çatdırılmış, nə uğursuz olan sətir isə **heç vaxt** silinmir: o,
+  göndərilməmiş mesajdır.
+- **Mesaj mətnləri SADƏ MƏTNDİR və bot `parse_mode` göndərmir.** Şablon başlığı supervayzerin
+  yazdığı sərbəst mətndir və Telegram-ın köhnə Markdown-u bir uyğunsuz `*` və ya `_` üzündən
+  **bütün mesajı** rədd edir — "Zero_Sugar yoxlaması" adlı tapşırıq **heç vaxt çatmazdı**. Qaçış
+  (escaping) nə qədər diqqətli olsa da, problemi heç yaratmamaq qədər təhlükəsiz deyil.
+
+**Qəbul meyarı PANEL haqqındadır — və bu seçim əsl qüsur tapdı.** Meyar "supervayzer **panelində**
+yaradanda bot bildiriş alır" olduğu üçün dəst tapşırığı `POST /api/portal/tasks` ilə yaradır — yəni
+panelin formasının yazdığı yol ilə. Nəticə: **`dispatchToExplicitStores` ümumiyyətlə heç nə növbəyə
+qoymurdu.** Onun öz sənəd şərhi "`bulkDispatchTasks`-ı **eynilə** təkrarlayır" deyirdi — kod isə
+təkrarlamırdı. Yəni supervayzerin **həqiqətən getdiyi tək yol**, merçendayzerə heç nə deməyən tək yol
+idi. Düzəldildi və assertion-la bağlandı.
+
+**Bot tərəfi — `src/bot/notifications.ts`.** `NotificationDrain` növbəni boşaldır: götür → göndər →
+işarələ. `ONETEAM_NOTIFY_POLL_MS` (default 5 s, `0` söndürür). Sübut üçün `drainOnce()` **ictimaidir**,
+yəni dəst dövrü özü sürə bilir. Düymə yalnız `taskId` varsa qoşulur (`🔓 Tapşırığı aç` →
+`open:<taskId>`), çünki boşluğa işarə edən düymə düyməsizlikdən pisdir. Vaxt bitmə siyahısı API-dədir
+(`NotificationSchedulerService`, `ONETEAM_NOTIFY_SWEEP_MS`, default 60 s) — botda deyil, çünki bot
+bazaya yalnız API-dən çatır.
+
+**Sübut — `npm run test:notify` → 61/0.** Dəst **öz API prosesini qaldırır** (port 3141) və
+**real botu** sürür — yalnız `bot.api.config.use` ilə Telegram-ın HTTP API-si əvəzlənib, yəni
+`sendMessage` botun öz ara qatından keçir. Yoxlamalar **prosesdən uzun ömürlü** şeylər üzərindədir:
+outbox sətri birbaşa `pg` bağlantısı ilə oxunur, göndərmə isə botun özündən.
+
+**Detektoru sındırma — altı iş:**
+
+| Sındırılan şey                               | Nəticə          | Nə qırmızı oldu                              |
+| -------------------------------------------- | --------------- | -------------------------------------------- |
+| Panel yolu heç nə növbəyə qoymur             | **37/22**       | bütün bildiriş zənciri — və **başqa heç nə** |
+| Bot `parse_mode` göndərir                    | **58/1**        | yalnız "və `parse_mode` yoxdur"              |
+| Vaxt bitmə açarı hər çağırışda unikal edilir | **53/6**        | məhz altı vaxt bitmə yoxlaması               |
+| Götürmə icarəyə baxmır                       | **42/17**       | (assertion düzəlişindən sonra)               |
+| Hər göndərmə xətası qəti sayılır             | **56/3**        | məhz üç keçici uğursuzluq yoxlaması          |
+| Götürmə `chat_id IS NOT NULL`-ı atır         | **59/0 → 60/1** | **əvvəlcə HEÇ NƏ** — aşağıda                 |
+
+**Ən dəyərli nəticə: 2.3 öz testimdəki İKİ qüsuru üzə çıxardı.**
+
+1. **Beşinci sındırma (icarə) bir assertion-un yalançı yaşıl olduğunu göstərdi.** "İkinci götürmə
+   heç nə qaytarmır" yoxlaması `data.length === 0` oxuyurdu — bu isə **endpoint 500 qaytaranda da
+   doğrudur** (sadəcə `data` yoxdur). `emptyClaim()` köməkçisi əlavə olundu: `status === 200` **və**
+   massivdir **və** boşdur. Düzəlişdən sonra həmin iş **17 qırmızı** verdi — əvvəl sükutla keçən
+   yoxlama daxil olmaqla.
+2. **Altıncı sındırma TAM YAŞIL keçdi (59/0) — dəstin görə BİLMƏDİYİ bir qoruyucu.** Götürmə
+   sorğusundan `chat_id IS NOT NULL`-ı sildim: bot `"null"` çatına göndərməyə çalışardı və **heç nə
+   bunu görmədi**, çünki dəstdəki **bütün digər götürmələr çat üzrədir** və çat üzrə götürmə NULL-ı
+   bərabərliklə istisna edir. Ona görə son bölmə əlavə olundu — **"botun HƏQİQƏTƏN etdiyi götürmə"** —
+   və o, iki yarısını birlikdə yoxlayır: **çatı olan sətirlər gəlir** _və_ **çatsız sətirlər yerində
+   qalır**. Təkrar sındırmada **60/1**, qırmızı olan məhz yeni yoxlamadır. ("Heç nə qayıtmadı" birinci
+   yarını təkbaşına ödəyərdi — səbəb dəstin bu bölməsinin yazılmasıdır.)
+
+**Öz təmizliyi — və burada `bot:test`-in yeni bir qüsuru tapıldı.** 2.3 `notifications` cədvəlini
+gətirdi və o cədvəlin `store_task_id` sütununda **xarici açar qəsdən yoxdur** (`bot_sessions` ilə eyni
+səbəb: supervayzer tapşırığı silə bilməlidir). Nəticə: silmə **cascade etmir**, yəni
+`bot:test`-in təmizliyi tapşırığı və auditini silirdi, **elə tapşırıq üçün yazılmış bildiriş sətrini
+isə yox** — və "🧹 Removed the provisioned task" yazmağa davam edirdi.
+
+**Ölçüldü, güman edilmədi:** bir iş `notifications`-ı **3 sətirdən 4-ə** çıxardı və `audit_logs`-u
+**10-dan 12-yə**, halbuki uğur elan edirdi. Düzəlişdən sonra: **4 → 4**, təmiz bazada isə **0 → 0**.
+`bot:test` artıq "its queued notice" də silir.
+
+**Açıq qalan (2.3-dən KƏNAR, 2.1-dən bəri mövcud):** `bot:test` hər işdə **2** `TASK_SELF_ASSIGNED`
+auditi buraxır. Səbəb: həmin qeyd **mağazanın** id-si ilə yazılır (`entity_id = storeId`), tapşırığın
+yox — çünki mövzu "bu mağazanı kim götürdü"-dür. Təmizlik isə `entity_id = ANY([taskId, ...])` ilə
+silir, yəni **heç vaxt uyğun gələ bilməz**. İki qeyddən **yalnız ikincisi** `payload.taskIds`-də
+tapşırığı adlandırır; birincisi təkcə seed tapşırığını çəkir. Düzəliş "bu iş hansı mağazaya hansı
+istifadəçi kimi bağlandı"nı izləməyi tələb edir — **ayrı iş**, texniki borclar cədvəlindədir.
+
+**Regressiya (hamısı yaşıl):** `test:core` 24/24 · `test:phase2` 14/14 · `test:storage` 14/14 ·
+`test:ai` 19/19 · `test:flow` 47/0 · **`test:notify` 61/0** · `test:bot-storage` 14/0 ·
+`test:router` 67/0 · `bot:test` **real API-yə qarşı keçir** · `npx tsc --noEmit` təmiz.
 
 **Redis yoxdur, Postgres var.** Plan "Redis / in-memory TTL" yazmışdı. Bu deployment-də Redis yoxdur və
 bir neçə yüz baytlıq sessiya üçün botla öz vəziyyəti arasına üçüncü servis qoymaq düzgün olmazdı. Sessiya
@@ -384,20 +497,21 @@ botda deyil: bot bazaya yalnız API-dən çatır, ona görə təmizləmə orada 
 
 ## 4. Texniki borclar
 
-| Borc                                                                          | Hal-hazırkı vəziyyət                                                                                                                                                                                                                                      | Planlaşdırılan həll                                                                                                                                                                                                     |
-| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mobile/package.json: dependencies: {}`                                       | Expo config və native modullar yoxdur                                                                                                                                                                                                                     | Mərhələ 3.1-də `expo`, `expo-camera`, `expo-location`, `expo-secure-store`, `expo-router` quraşdırılır                                                                                                                  |
-| `yolov8n.pt` — generic COCO                                                   | SKU tanıma yoxdur                                                                                                                                                                                                                                         | Mərhələ 4.3-də ROI crop + Vision LLM ilə kompensasiya edilir (fine-tune yox)                                                                                                                                            |
-| ~~`/api/panel/*` → `oneteam-user:` token qəbul edirdi~~                       | Panel açarı yaradıldıqda belə qəbul edilirdi                                                                                                                                                                                                              | **Həll olundu** (1.1, `29aa4d3`)                                                                                                                                                                                        |
-| ~~Audit təsdiqində rol yoxlaması yox idi~~                                    | Fotonu göndərən işçi öz auditini təsdiqləyə bilirdi                                                                                                                                                                                                       | **Həll olundu** (1.5, `ed8f9b7`) — `requireReviewer`                                                                                                                                                                    |
-| ~~Yeni istifadəçi yaratmaq mümkün deyildi~~                                   | "Hər adama öz açarı" yalnız seed-dəki 3 nəfər üçün işləyirdi                                                                                                                                                                                              | **Həll olundu** (1.5, `ed8f9b7`) — `/api/panel/users` + panel ekranı                                                                                                                                                    |
-| ~~Bot state-machine yoxdur~~                                                  | `text` command + switch                                                                                                                                                                                                                                   | **Həll olundu** (2.1) — `callbacks.ts` (`action:id`) + `router.ts`. Həm də: axının **dörd handler-i heç çağırılmırdı** və `message:location` marşrutu yox idi → lokasiya+çeklist+foto axını canlıda çatılmaz idi        |
-| OpenRouter env yoxdur                                                         | `OPENROUTER_API_KEY` Railway-da yoxdur                                                                                                                                                                                                                    | Mərhələ 4.1-dən əvvəl qoyulmalıdır                                                                                                                                                                                      |
-| iOS Xcode scheme / signing yoxdur                                             | `mobile/` altında `.xcodeproj` yoxdur                                                                                                                                                                                                                     | `expo prebuild` yaradacaq                                                                                                                                                                                               |
-| `pnpm-workspace.yaml` var, amma `node_modules` `npm`-dədir                    | Lockfile uyğunsuzluğu (`npm install --dry-run` → 304 silinir)                                                                                                                                                                                             | `pnpm install --frozen-lockfile` və ya `package-lock.json` bərpası                                                                                                                                                      |
-| Geofence radiusu mağaza üzrə deyil                                            | `GEOFENCE_MAX_DISTANCE_METERS` sabiti (`packages/types`)                                                                                                                                                                                                  | Mərhələ 3-də mağaza üzrə sütun + mobil tərəfin uyğunlaşdırılması                                                                                                                                                        |
-| `/api/health` → `persistenceDetail` **gecikən etiketdir**                     | Yalnız replika poll-u yükləyəndə hesablanır → yazıdan sonra bir interval **köhnə** say göstərir (`ONETEAM_REFRESH_MS=0` olsa heç vaxt yenilənmir)                                                                                                         | Oxu anında hesablanmalı, ya da adı "son yükləmə" olduğunu deməli. **Kiçik, amma yanlış məlumat verir** — 1.5 canlı yoxlamasında saxta "silmə baş vermədi" nəticəsi verdi                                                |
-| Çeklist sual mətni **`label`** kimi saxlanılır, bot isə **`question`** oxuyur | **2.1-də körpü qoyuldu:** `questionText()` artıq `question ?? label` oxuyur, yəni merçendayzer həqiqi sualı görür və `bot:test` **yaşıldır**. Amma **müqavilə hələ də sınıqdır** — `ChecklistQuestion.question` tipdə `?` edildi ki, tip yalan danışmasın | Hansı ad kanonikdir: `label` → `question` adlandırılsın (backfill ilə), yoxsa `label` kanonikdir və tip düzəldilsin. **Qərar gözləyir (bahaI)** — tapşırıq #73. Körpü tək yerdədir: `handlers/taskFlow.ts:questionText` |
+| Borc                                                                          | Hal-hazırkı vəziyyət                                                                                                                                                                                                                                                                                                                                                                              | Planlaşdırılan həll                                                                                                                                                                                                     |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mobile/package.json: dependencies: {}`                                       | Expo config və native modullar yoxdur                                                                                                                                                                                                                                                                                                                                                             | Mərhələ 3.1-də `expo`, `expo-camera`, `expo-location`, `expo-secure-store`, `expo-router` quraşdırılır                                                                                                                  |
+| `yolov8n.pt` — generic COCO                                                   | SKU tanıma yoxdur                                                                                                                                                                                                                                                                                                                                                                                 | Mərhələ 4.3-də ROI crop + Vision LLM ilə kompensasiya edilir (fine-tune yox)                                                                                                                                            |
+| ~~`/api/panel/*` → `oneteam-user:` token qəbul edirdi~~                       | Panel açarı yaradıldıqda belə qəbul edilirdi                                                                                                                                                                                                                                                                                                                                                      | **Həll olundu** (1.1, `29aa4d3`)                                                                                                                                                                                        |
+| ~~Audit təsdiqində rol yoxlaması yox idi~~                                    | Fotonu göndərən işçi öz auditini təsdiqləyə bilirdi                                                                                                                                                                                                                                                                                                                                               | **Həll olundu** (1.5, `ed8f9b7`) — `requireReviewer`                                                                                                                                                                    |
+| ~~Yeni istifadəçi yaratmaq mümkün deyildi~~                                   | "Hər adama öz açarı" yalnız seed-dəki 3 nəfər üçün işləyirdi                                                                                                                                                                                                                                                                                                                                      | **Həll olundu** (1.5, `ed8f9b7`) — `/api/panel/users` + panel ekranı                                                                                                                                                    |
+| ~~Bot state-machine yoxdur~~                                                  | `text` command + switch                                                                                                                                                                                                                                                                                                                                                                           | **Həll olundu** (2.1) — `callbacks.ts` (`action:id`) + `router.ts`. Həm də: axının **dörd handler-i heç çağırılmırdı** və `message:location` marşrutu yox idi → lokasiya+çeklist+foto axını canlıda çatılmaz idi        |
+| OpenRouter env yoxdur                                                         | `OPENROUTER_API_KEY` Railway-da yoxdur                                                                                                                                                                                                                                                                                                                                                            | Mərhələ 4.1-dən əvvəl qoyulmalıdır                                                                                                                                                                                      |
+| iOS Xcode scheme / signing yoxdur                                             | `mobile/` altında `.xcodeproj` yoxdur                                                                                                                                                                                                                                                                                                                                                             | `expo prebuild` yaradacaq                                                                                                                                                                                               |
+| `pnpm-workspace.yaml` var, amma `node_modules` `npm`-dədir                    | Lockfile uyğunsuzluğu (`npm install --dry-run` → 304 silinir)                                                                                                                                                                                                                                                                                                                                     | `pnpm install --frozen-lockfile` və ya `package-lock.json` bərpası                                                                                                                                                      |
+| Geofence radiusu mağaza üzrə deyil                                            | `GEOFENCE_MAX_DISTANCE_METERS` sabiti (`packages/types`)                                                                                                                                                                                                                                                                                                                                          | Mərhələ 3-də mağaza üzrə sütun + mobil tərəfin uyğunlaşdırılması                                                                                                                                                        |
+| `/api/health` → `persistenceDetail` **gecikən etiketdir**                     | Yalnız replika poll-u yükləyəndə hesablanır → yazıdan sonra bir interval **köhnə** say göstərir (`ONETEAM_REFRESH_MS=0` olsa heç vaxt yenilənmir)                                                                                                                                                                                                                                                 | Oxu anında hesablanmalı, ya da adı "son yükləmə" olduğunu deməli. **Kiçik, amma yanlış məlumat verir** — 1.5 canlı yoxlamasında saxta "silmə baş vermədi" nəticəsi verdi                                                |
+| Çeklist sual mətni **`label`** kimi saxlanılır, bot isə **`question`** oxuyur | **2.1-də körpü qoyuldu:** `questionText()` artıq `question ?? label` oxuyur, yəni merçendayzer həqiqi sualı görür və `bot:test` **yaşıldır**. Amma **müqavilə hələ də sınıqdır** — `ChecklistQuestion.question` tipdə `?` edildi ki, tip yalan danışmasın                                                                                                                                         | Hansı ad kanonikdir: `label` → `question` adlandırılsın (backfill ilə), yoxsa `label` kanonikdir və tip düzəldilsin. **Qərar gözləyir (bahaI)** — tapşırıq #73. Körpü tək yerdədir: `handlers/taskFlow.ts:questionText` |
+| `bot:test` hər işdə **2** `TASK_SELF_ASSIGNED` audit sətri buraxır            | **2.3-də ölçüldü** (əvvəlcədən 2.1-dən bəri var idi): qeyd **mağazanın** id-si ilə yazılır (`entity_id = storeId`), təmizlik isə tapşırığın id-si ilə silir → **heç vaxt uyğun gəlmir**. İki qeyddən yalnız ikincisi `payload.taskIds`-də tapşırığı adlandırır. Yəni `bot:test` "hər şey təmizləndi" deyir, baza isə bir az sürüşür. **Bildiriş sətri 2.3-də düzəldildi** (3 → 4 idi, indi 0 → 0) | Təmizlik "bu iş hansı mağazaya hansı istifadəçi kimi bağlandı"nı izləməlidir. **Qəsdən 2.3-ə salınmadı:** bu, tapşırığın deyil, **bağlanmanın** qalığıdır və silmənin nə qədər geniş olacağı ayrı qərardır              |
 
 ---
 

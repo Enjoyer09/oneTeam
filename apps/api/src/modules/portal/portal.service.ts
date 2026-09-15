@@ -42,7 +42,7 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
-import { TaskState, UserRole } from '@oneteam/types';
+import { TaskState, UserRole, NotificationDispatchSummary, StoreTask } from '@oneteam/types';
 import { db, InMemoryEvidence, InMemoryStoreTask } from '@oneteam/database';
 import {
   AuthenticatedPrincipal,
@@ -751,6 +751,11 @@ export class PortalService {
         (decision.status === 'approved'
           ? 'Rəf auditi supervayzer tərəfindən təsdiqləndi'
           : 'Rəf auditi supervayzer tərəfindən imtina edildi'),
+      // Handed to the transition rather than sent from here, so the notice is
+      // queued by the one place every state change goes through. Only the
+      // REJECTED branch reads it: an approval needs no message, because the
+      // merchandiser has nothing left to do.
+      { evidenceId, feedback: decision.feedback },
     );
 
     db.updateEvidence(evidenceId, {
@@ -976,6 +981,7 @@ export class PortalService {
             totalStoresMatched: payload.assigned_stores.length,
             tasksCreated: result.created.length,
             taskIds: result.created.map((t) => t.id),
+            notificationsDispatched: result.notifications,
             failures: result.failures.length > 0 ? result.failures : undefined,
           },
         };
@@ -1190,9 +1196,15 @@ export class PortalService {
   ): Promise<{
     created: InMemoryStoreTask[];
     failures: Array<{ storeId: string; storeName: string; reason: string }>;
+    notifications: NotificationDispatchSummary;
   }> {
     const created: InMemoryStoreTask[] = [];
     const failures: Array<{ storeId: string; storeName: string; reason: string }> = [];
+    const notifications: NotificationDispatchSummary = {
+      queued: 0,
+      alreadyQueued: 0,
+      withoutRecipient: 0,
+    };
     const template: any = db.getTemplate(templateId);
 
     // De-duplicated: the picker sends whatever was ticked, and the same id twice
@@ -1242,9 +1254,18 @@ export class PortalService {
           assignedUserId: assigneeId,
         },
       });
+
+      // The comment above this method has always claimed its notification
+      // behaviour mirrors `bulkDispatchTasks`. It did not: nothing was queued
+      // here at all, so a task created in the panel — the acceptance criterion
+      // for Phase 2.3 — reached no one.
+      const outcome = await this.taskStateService.notifyTaskPublished(task as unknown as StoreTask);
+      if (outcome === 'queued') notifications.queued += 1;
+      else if (outcome === 'already-queued') notifications.alreadyQueued += 1;
+      else if (outcome === 'no-recipient') notifications.withoutRecipient += 1;
     }
 
-    return { created, failures };
+    return { created, failures, notifications };
   }
 
   /**

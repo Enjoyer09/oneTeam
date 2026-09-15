@@ -4,9 +4,12 @@
  *
  * Verifies:
  * 1. Strict Task State Machine (Valid path & Invalid transition rejection with 400 Bad Request).
- * 2. Multi-Channel Notification Dispatcher (Telegram interactive inline buttons & APNs push payload).
+ * 2. Notification Outbox (a transition reports what it queued, and never claims a send it did not make).
  * 3. Telegram Webhook Callback handling (Moving status to ACKNOWLEDGED & audit logging).
  * 4. Anti-Fraud Geofencing & Evidence Submission (Accepting <= 100m, Rejecting > 100m).
+ *
+ * Delivery of a queued notification is NOT covered here: this suite has no
+ * database and no bot. It is covered in `notifications.spec.ts`.
  */
 
 import 'reflect-metadata';
@@ -182,9 +185,32 @@ async function runTestSuite() {
   assert(rejectedTerminal, 'Test 1.9: Terminal state APPROVED cannot transition to DRAFT');
 
   // --------------------------------------------------------------------------
-  // SUITE 2: MULTI-CHANNEL NOTIFICATION DISPATCHER
+  // SUITE 2: THE NOTIFICATION OUTBOX
+  //
+  // WHAT THIS SUITE USED TO PROVE, AND WHY IT NO LONGER CAN
+  // ------------------------------------------------------
+  // Three assertions lived here, and all three passed against a service that
+  // sent nothing:
+  //
+  //   - `notificationsDispatched.telegram === true` — a boolean the dispatcher
+  //     returned as `true` unconditionally, after pushing a payload into an
+  //     array in its own process memory
+  //   - a `[✅ Qəbul Et]` button with `callback_data: ack_task_<id>` and an
+  //     `oneteam://` deep link — read back out of that array
+  //   - an APNs push payload, likewise, for a mobile client with no
+  //     registration and no push permission
+  //
+  // The array was the whole of the "dispatch". Nothing left the process, and
+  // the array was emptied by every deploy. So this suite asserted the shape of
+  // a fabrication, which is the one thing it could do — it has no database, and
+  // a notification now lives in one.
+  //
+  // What remains here is the honest half: the API must not claim to have sent
+  // anything. With no database there is no outbox at all, and it says so.
+  // Delivery itself is proven in `notifications.spec.ts`, which runs against a
+  // real database and the real bot.
   // --------------------------------------------------------------------------
-  console.log('\n--- [TEST SUITE 2] Multi-Channel Notification Dispatcher ---');
+  console.log('\n--- [TEST SUITE 2] Notification Outbox ---');
 
   const notifyTaskId = `notify-task-${Date.now()}`;
   db.storeTasks.push({
@@ -198,7 +224,7 @@ async function runTestSuite() {
     updatedAt: new Date(),
   });
 
-  // Transition to PUBLISHED triggers multi-channel dispatcher
+  // Transition to PUBLISHED is the trigger.
   const notifyTransitionRes = await taskStateService.transitionTask(
     notifyTaskId,
     TaskState.PUBLISHED,
@@ -206,26 +232,15 @@ async function runTestSuite() {
   );
 
   assert(
-    notifyTransitionRes.notificationsDispatched?.telegram === true &&
-      notifyTransitionRes.notificationsDispatched?.pushNotification === true,
-    'Test 2.1: Transition to PUBLISHED automatically triggers Telegram & APNs dispatch',
+    notifyTransitionRes.notificationsDispatched?.outcome === 'no-queue',
+    'Test 2.1: Transition to PUBLISHED reports no notification queued when there is no database',
+    `outcome was ${notifyTransitionRes.notificationsDispatched?.outcome}`,
   );
 
-  const lastTg = notificationService.dispatchedTelegramMessages.slice(-1)[0];
   assert(
-    lastTg &&
-      lastTg.replyMarkup?.inline_keyboard[0][0].text === '✅ Qəbul Et (Acknowledge)' &&
-      lastTg.replyMarkup?.inline_keyboard[0][0].callback_data === `ack_task_${notifyTaskId}` &&
-      lastTg.replyMarkup?.inline_keyboard[1][0].url === `oneteam://tasks/${notifyTaskId}`,
-    'Test 2.2: Telegram notification contains interactive [✅ Qəbul Et] button and mobile deep-link',
-  );
-
-  const lastPush = notificationService.dispatchedPushNotifications.slice(-1)[0];
-  assert(
-    lastPush &&
-      lastPush.title.includes('Yeni Rəf Tapşırığı') &&
-      lastPush.data.deepLink === `oneteam://tasks/${notifyTaskId}`,
-    'Test 2.3: Mobile APNs push notification contains structured payload and deep-link',
+    notifyTransitionRes.success === true &&
+      notifyTransitionRes.currentState === TaskState.PUBLISHED,
+    'Test 2.2: A missing outbox does not fail the transition itself',
   );
 
   // --------------------------------------------------------------------------

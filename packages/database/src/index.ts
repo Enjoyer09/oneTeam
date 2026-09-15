@@ -18,7 +18,7 @@ export * from './types';
  * bypasses the repository entirely and would leave the in-memory working set
  * disagreeing with the table.
  */
-export type { BotSessionRow, PanelTokenRow } from './postgres';
+export type { BotSessionRow, PanelTokenRow, NotificationRow, NotificationKind } from './postgres';
 import { SEED_DATA } from './seed';
 import { TaskState, UserRole } from '@oneteam/types';
 import type { InMemoryStoreTask, InMemoryEvidence, InMemoryAuditLog, InMemoryStore } from './types';
@@ -439,6 +439,11 @@ export class EnterpriseDatabase {
 
     this.sweepTimer = setInterval(() => {
       void this.sweepBotSessions();
+      // The notification retention sweep shares this timer rather than having
+      // one of its own. Both are the same kind of job — delete rows that stopped
+      // being useful — on the same unhurried cadence, and a second timer would
+      // be a second thing to unref, stop, and forget to stop.
+      void this.sweepNotifications();
     }, interval);
     // Same reason as the refresh loop: a maintenance timer must not be the thing
     // that keeps a process alive.
@@ -1301,6 +1306,95 @@ export class EnterpriseDatabase {
     } catch (error) {
       console.warn(
         '⚠️  [oneTeam DB] Could not sweep expired bot sessions: ' + describeError(error),
+      );
+      return 0;
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // notifications — the outbound queue the bot drains
+  // -------------------------------------------------------------------------
+
+  /**
+   * Whether this process has a database connection.
+   *
+   * Public because the notification outbox is the one write path where "no
+   * database" and "already recorded" are different answers that a caller must
+   * be able to tell apart: `enqueueNotification` returns null for both, since
+   * it cannot return a row it does not have. Without this a process running on
+   * seed data would report a notification as queued when there is no queue.
+   */
+  public get hasDatabase(): boolean {
+    return this.pool !== null;
+  }
+
+  /**
+   * Records that a message must reach a chat.
+   *
+   * NOT in an in-memory array, for the same reason `bot_sessions` is not: there
+   * is one row per event rather than one per store, it is written far more often
+   * than it is read in bulk, and — the deciding argument — the whole point of
+   * this table is that the message survives the process that recorded it. The
+   * array this replaces was emptied on every deploy, which is exactly when a
+   * notification is most likely to be needed.
+   *
+   * Returns null when the same event was already queued (see `dedupeKey`), which
+   * is a success for the caller: the message will be sent, it just was not
+   * enqueued twice.
+   *
+   * Throws on a real database failure. A task publish that could not record its
+   * notification is worth failing loudly for — the alternative is a supervisor
+   * who believes the merchandiser was told.
+   */
+  public async enqueueNotification(notification: {
+    kind: pg.NotificationKind;
+    chatId?: string | null;
+    userId?: string | null;
+    storeTaskId?: string | null;
+    title: string;
+    body: string;
+    payload?: Record<string, unknown>;
+    dedupeKey: string;
+  }): Promise<pg.NotificationRow | null> {
+    if (!this.pool) return null;
+    return await pg.insertNotification(this.pool, {
+      id: `ntf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      ...notification,
+    });
+  }
+
+  /** Leases the oldest undelivered messages to one caller. See `claimNotifications`. */
+  public async claimNotifications(options: {
+    chatId?: string | null;
+    limit?: number;
+    claimedBy: string;
+    leaseSeconds?: number;
+  }): Promise<pg.NotificationRow[]> {
+    if (!this.pool) return [];
+    return await pg.claimNotifications(this.pool, {
+      ...options,
+      leaseSeconds: options.leaseSeconds ?? 120,
+    });
+  }
+
+  public async markNotificationDelivered(id: string): Promise<boolean> {
+    if (!this.pool) return false;
+    return await pg.markNotificationDelivered(this.pool, id);
+  }
+
+  public async markNotificationFailed(id: string, failure: string): Promise<boolean> {
+    if (!this.pool) return false;
+    return await pg.markNotificationFailed(this.pool, id, failure);
+  }
+
+  /** Never throws: it runs on a timer nobody awaits. See `sweepBotSessions`. */
+  public async sweepNotifications(retentionSeconds = 7 * 24 * 3600): Promise<number> {
+    if (!this.pool) return 0;
+    try {
+      return await pg.sweepNotifications(this.pool, retentionSeconds);
+    } catch (error) {
+      console.warn(
+        '⚠️  [oneTeam DB] Could not sweep delivered notifications: ' + describeError(error),
       );
       return 0;
     }

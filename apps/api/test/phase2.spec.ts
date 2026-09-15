@@ -112,8 +112,14 @@ async function runPhase2TestSuite() {
     supermarketDispatch.success === true &&
       supermarketDispatch.totalStoresMatched === 2 &&
       supermarketDispatch.tasksCreated === 2 &&
-      supermarketDispatch.notificationsDispatched.telegram === 2,
-    'Test 1.4: Bulk dispatch filters by storeFormat ("supermarket" -> 2 stores matched, 2 tasks, 2 notifications)',
+      // Zero, and that is the assertion. This suite has no database, so there is
+      // no outbox to write to and the API says so instead of reporting a message
+      // it never queued. The number used to be 2 and meant nothing: it counted
+      // pushes onto an array inside the API process that nothing ever read and
+      // every deploy emptied.
+      supermarketDispatch.notificationsDispatched.queued === 0 &&
+      supermarketDispatch.notificationsDispatched.withoutRecipient === 0,
+    'Test 1.4: Bulk dispatch filters by storeFormat ("supermarket" -> 2 stores, 2 tasks, 0 notifications queued without a database)',
   );
 
   // 1.3 Dispatch with no matching criteria

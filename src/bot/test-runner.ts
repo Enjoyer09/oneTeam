@@ -76,6 +76,20 @@ let cleanupTemplateId: string | undefined;
  * audited cannot be removed over HTTP at all. A direct connection is used, as
  * the other suites do, and this runner already refuses to start with NODE_ENV
  * set to production.
+ *
+ * PHASE 2.3 RE-OPENED THIS, IN A NEW TABLE
+ * ----------------------------------------
+ * Creating a task now also writes a row to `notifications` — the outbox the bot
+ * drains. That column has no foreign key on purpose (the same reasoning as
+ * `bot_sessions`: a supervisor must be able to delete a task without the outbox
+ * refusing), and the price of that choice is that this deletion does NOT
+ * cascade. So the row announcing the provisioned task outlived the task, and
+ * this runner went back to printing "Removed the provisioned task" over a
+ * database it had not finished cleaning.
+ *
+ * Measured, not assumed: one run took `notifications` from 3 rows to 4 and
+ * `audit_logs` from 10 to 12, while reporting success. Every one of those
+ * notification rows named a task that no longer existed.
  */
 async function cleanupFixtures(): Promise<void> {
   if (!cleanupTaskId && !cleanupTemplateId) return;
@@ -97,8 +111,14 @@ async function cleanupFixtures(): Promise<void> {
       await db.query('DELETE FROM audit_logs WHERE entity_id = ANY($1::text[])', [
         [cleanupTaskId, ...evidenceIds],
       ]);
+      // No foreign key means no cascade, so this has to be said explicitly. The
+      // order matters only for readability — a row is removed by what it names,
+      // not by what it references.
+      await db.query('DELETE FROM notifications WHERE store_task_id = $1', [cleanupTaskId]);
       await db.query('DELETE FROM store_tasks WHERE id = $1', [cleanupTaskId]);
-      console.log(`  🧹 Removed the provisioned task ${cleanupTaskId} and its audit.`);
+      console.log(
+        `  🧹 Removed the provisioned task ${cleanupTaskId}, its audit and its queued notice.`,
+      );
     }
 
     if (cleanupTemplateId) {

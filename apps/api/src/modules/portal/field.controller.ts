@@ -292,6 +292,75 @@ export class FieldController {
   }
 
   /**
+   * Refuses a request that only the bot is entitled to make.
+   *
+   * The outbox is not a field-worker resource: it is the queue the bot drains,
+   * and it is addressed by chat rather than by person. A device credential
+   * resolving to one merchandiser has no business reading or clearing another
+   * chat's pending messages, and a panel key belongs to a person reviewing
+   * audits, not to a delivery loop.
+   *
+   * Expressed with `mayActAsAnotherUser` rather than a new rule, because that is
+   * exactly the same question — "may this caller speak for anyone?" — and a
+   * second implementation of it would be a second thing to keep in step.
+   */
+  private requireServiceActor(principal: AuthenticatedPrincipal): void {
+    if (!mayActAsAnotherUser(principal)) {
+      throw new ForbiddenException({
+        error: 'ACTOR_SCOPE_VIOLATION',
+        message: 'Bildiriş növbəsi yalnız botun servis kredensialı üçündür.',
+      });
+    }
+  }
+
+  /**
+   * Leases the pending notifications so the bot can send them.
+   *
+   * Returns them claimed, not merely read — see `claimPendingNotifications`.
+   * A caller that takes a message and never reports back does not lose it: the
+   * claim expires and the next poll picks it up again.
+   */
+  @Get('notifications')
+  getNotifications(
+    @Request() request: AuthedRequest,
+    @Query('chatId') chatId?: string,
+    @Query('limit') limit?: string,
+    @Query('claimedBy') claimedBy?: string,
+  ) {
+    this.requireServiceActor(getPrincipal(request));
+    return this.fieldService.claimPendingNotifications({
+      chatId,
+      limit: limit ? Number(limit) : undefined,
+      claimedBy,
+    });
+  }
+
+  @Post('notifications/:id/delivered')
+  @HttpCode(HttpStatus.OK)
+  markNotificationDelivered(@Request() request: AuthedRequest, @Param('id') id: string) {
+    this.requireServiceActor(getPrincipal(request));
+    return this.fieldService.markNotificationDelivered(id);
+  }
+
+  /**
+   * Records that Telegram refused the message.
+   *
+   * The body is the reason, and it is stored on the row. Only failures a retry
+   * cannot fix belong here; anything transient should be left alone so the lease
+   * expires and the message is tried again.
+   */
+  @Post('notifications/:id/failed')
+  @HttpCode(HttpStatus.OK)
+  markNotificationFailed(
+    @Request() request: AuthedRequest,
+    @Param('id') id: string,
+    @Body() body: { failure?: string },
+  ) {
+    this.requireServiceActor(getPrincipal(request));
+    return this.fieldService.markNotificationFailed(id, body?.failure || 'Göndərilə bilmədi');
+  }
+
+  /**
    * Optional direct upload.
    *
    * `POST submissions` already offloads a data URL by itself, so this is for a

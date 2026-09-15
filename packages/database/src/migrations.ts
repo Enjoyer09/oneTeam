@@ -245,6 +245,31 @@ export const EXPECTED_SCHEMA: Record<string, string[]> = {
     'updated_at',
     'expires_at',
   ],
+  // Checked for the same reason as the three above, and one more of its own:
+  // a missing `notifications` does not announce itself either. The API would
+  // record the intent to notify and fail on the INSERT, and the supervisor
+  // creating a task would see a 500 for a reason that has nothing to do with
+  // what they did. Worse, if only *some* columns were missing, the insert could
+  // succeed while the bot's drain query failed — and the merchandiser would
+  // simply never be told, with the row sitting there looking delivered.
+  notifications: [
+    'id',
+    'kind',
+    'chat_id',
+    'user_id',
+    'store_task_id',
+    'title',
+    'body',
+    'payload',
+    'dedupe_key',
+    'created_at',
+    'claimed_at',
+    'claimed_by',
+    'delivered_at',
+    'failed_at',
+    'failure',
+    'attempts',
+  ],
 };
 
 /**

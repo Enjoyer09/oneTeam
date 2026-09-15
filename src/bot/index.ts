@@ -2,6 +2,7 @@ import { Bot, session } from 'grammy';
 import dotenv from 'dotenv';
 import { BotContext, SessionData } from './types';
 import { ApiSessionStorage, FlowStorageError } from './sessionStorage';
+import { NotificationDrain } from './notifications';
 import { registerRoutes } from './router';
 
 dotenv.config();
@@ -172,14 +173,24 @@ if (process.env.NODE_ENV !== 'test') {
       const bot = createBot(token);
       console.log('🚀 Starting oneTeam Telegram Bot in Polling Mode...');
 
+      // The other half of the notification path. The API records what has to be
+      // sent; this sends it. It is started here rather than inside `createBot`
+      // because `createBot` is what the test suites build a bot with, and a
+      // suite that quietly starts a delivery loop is a suite that talks to
+      // Telegram while it runs.
+      const drain = new NotificationDrain(bot);
+      drain.start();
+
       startPollingWithRetry(bot).catch((error) => {
         console.error('⛔ [oneTeam Bot] Polling stopped:', error);
+        drain.stop();
         process.exit(1);
       });
 
       // Graceful shutdown
       const stop = () => {
         console.log('Stopping bot...');
+        drain.stop();
         bot.stop();
         process.exit(0);
       };

@@ -1344,3 +1344,236 @@ export async function sweepBotSessions(pool: Pool, graceSeconds: number): Promis
   );
   return result.rowCount ?? 0;
 }
+
+// ---------------------------------------------------------------------------
+// notifications — the outbound message queue the bot drains
+// ---------------------------------------------------------------------------
+
+/** What happened, which is what a reader filters on. The text is separate. */
+export type NotificationKind = 'TASK_ASSIGNED' | 'TASK_REJECTED' | 'DEADLINE_SOON';
+
+/**
+ * A message waiting to be delivered to a Telegram chat.
+ *
+ * camelCase here, snake_case in the table, converted in one place
+ * (`toNotification`) so no caller has to remember which side it is on.
+ */
+export interface NotificationRow {
+  id: string;
+  kind: NotificationKind;
+  chatId: string | null;
+  userId: string | null;
+  storeTaskId: string | null;
+  title: string;
+  body: string;
+  payload: Record<string, unknown>;
+  dedupeKey: string;
+  createdAt: Date;
+  claimedAt: Date | null;
+  claimedBy: string | null;
+  deliveredAt: Date | null;
+  failedAt: Date | null;
+  failure: string | null;
+  attempts: number;
+}
+
+function toNotification(row: any): NotificationRow {
+  return {
+    id: String(row.id),
+    kind: String(row.kind) as NotificationKind,
+    chatId: row.chat_id === null || row.chat_id === undefined ? null : String(row.chat_id),
+    userId: row.user_id ?? null,
+    storeTaskId: row.store_task_id ?? null,
+    title: String(row.title ?? ''),
+    body: String(row.body ?? ''),
+    payload: row.payload && typeof row.payload === 'object' ? row.payload : {},
+    dedupeKey: String(row.dedupe_key ?? ''),
+    createdAt: new Date(row.created_at),
+    claimedAt: row.claimed_at ? new Date(row.claimed_at) : null,
+    claimedBy: row.claimed_by ?? null,
+    deliveredAt: row.delivered_at ? new Date(row.delivered_at) : null,
+    failedAt: row.failed_at ? new Date(row.failed_at) : null,
+    failure: row.failure ?? null,
+    attempts: Number(row.attempts ?? 0),
+  };
+}
+
+/**
+ * Records the intent to notify. Returns null when this exact notification was
+ * already recorded.
+ *
+ * IDEMPOTENT BY THE DATABASE, NOT BY A CHECK
+ * ------------------------------------------
+ * `dedupe_key` is UNIQUE and the insert is `ON CONFLICT DO NOTHING`, so two
+ * callers racing on the same event cannot both enqueue it. A `SELECT` followed
+ * by an `INSERT` would look equivalent and would not be: the deadline sweep runs
+ * on a timer and a task publish can be retried by a supervisor, so the same
+ * event genuinely does arrive twice.
+ *
+ * `null` therefore means "already queued", which is not an error and must not be
+ * reported as one — the caller's job was to make sure this message would be
+ * sent, and it will be.
+ */
+export async function insertNotification(
+  pool: Pool,
+  notification: {
+    id: string;
+    kind: NotificationKind;
+    chatId?: string | null;
+    userId?: string | null;
+    storeTaskId?: string | null;
+    title: string;
+    body: string;
+    payload?: Record<string, unknown>;
+    dedupeKey: string;
+  },
+): Promise<NotificationRow | null> {
+  const result = await pool.query(
+    `INSERT INTO notifications (
+        id, kind, chat_id, user_id, store_task_id,
+        title, body, payload, dedupe_key
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
+     ON CONFLICT (dedupe_key) DO NOTHING
+     RETURNING *`,
+    [
+      notification.id,
+      notification.kind,
+      notification.chatId ?? null,
+      notification.userId ?? null,
+      notification.storeTaskId ?? null,
+      notification.title,
+      notification.body,
+      JSON.stringify(notification.payload ?? {}),
+      notification.dedupeKey,
+    ],
+  );
+
+  const row = result.rows[0];
+  return row ? toNotification(row) : null;
+}
+
+/**
+ * Takes the oldest undelivered messages and leases them to one caller.
+ *
+ * WHY `FOR UPDATE SKIP LOCKED` AND NOT A PLAIN SELECT
+ * ---------------------------------------------------
+ * Two bot instances overlap for a few seconds on every deploy. Without a claim,
+ * both would read the same pending rows and the merchandiser would get the same
+ * notification twice. `SKIP LOCKED` means the second instance walks past rows
+ * the first is already taking and picks up the next ones instead of waiting.
+ *
+ * The lease is a timestamp rather than a lock held for the duration of the
+ * request: the send happens outside the transaction (it is a call to Telegram),
+ * so the claim has to survive the transaction ending. A bot killed between
+ * claiming and sending leaves a claim that expires, and the row becomes
+ * available again — which is what makes this at-least-once instead of
+ * at-most-once. A lost notification is the bug this table exists to fix, so
+ * erring towards a duplicate is deliberate.
+ */
+export async function claimNotifications(
+  pool: Pool,
+  options: { chatId?: string | null; limit?: number; claimedBy: string; leaseSeconds: number },
+): Promise<NotificationRow[]> {
+  const result = await pool.query(
+    `UPDATE notifications
+        SET claimed_at = now(),
+            claimed_by = $3,
+            attempts = attempts + 1
+      WHERE id IN (
+              SELECT id
+                FROM notifications
+               WHERE delivered_at IS NULL
+                 AND failed_at IS NULL
+                 AND chat_id IS NOT NULL
+                 AND ($1::text IS NULL OR chat_id = $1)
+                 AND (claimed_at IS NULL
+                      OR claimed_at < now() - make_interval(secs => $4::double precision))
+               ORDER BY created_at
+               LIMIT $2
+               FOR UPDATE SKIP LOCKED
+            )
+      RETURNING *`,
+    [options.chatId ?? null, options.limit ?? 20, options.claimedBy, options.leaseSeconds],
+  );
+
+  return result.rows.map(toNotification);
+}
+
+/** Records that the message reached Telegram. */
+export async function markNotificationDelivered(pool: Pool, id: string): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE notifications
+        SET delivered_at = now(), failure = NULL
+      WHERE id = $1 AND delivered_at IS NULL
+      RETURNING id`,
+    [id],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/**
+ * Records that Telegram refused it.
+ *
+ * `failed_at` is terminal rather than a retry counter, because the failures that
+ * reach here are the ones a retry cannot fix: the chat blocked the bot, the chat
+ * id no longer exists, the message was rejected as malformed. Retrying those
+ * forever would be a queue that never drains and a log nobody reads. A transient
+ * failure never arrives here at all — the bot does not mark it, so the lease
+ * expires and the row is picked up again.
+ */
+export async function markNotificationFailed(
+  pool: Pool,
+  id: string,
+  failure: string,
+): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE notifications
+        SET failed_at = now(), failure = $2
+      WHERE id = $1 AND delivered_at IS NULL AND failed_at IS NULL
+      RETURNING id`,
+    [id, failure.slice(0, 500)],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/**
+ * Drops rows that have stopped being useful, on three separate clocks.
+ *
+ * Same shape and same reasoning as the bot-session sweep: a maintenance job on a
+ * timer rather than work attached to a request, so no merchandiser's button tap
+ * is ever responsible for a table scan.
+ *
+ * WHY THREE CASES AND NOT ONE
+ * ---------------------------
+ * `created_at` alone is the wrong clock for a delivered row — a message created
+ * eight days ago and delivered today would be deleted the moment it arrived.
+ * Each case therefore measures from the moment that made the row dead:
+ *
+ *   1. delivered — the message was sent, so the row is a receipt
+ *   2. failed    — the message will never be sent; the reason is in `failure`
+ *   3. no destination — `chat_id IS NULL`, which means the assignee had never
+ *      spoken to the bot. `claimNotifications` will never take it, so without
+ *      this case those rows would accumulate forever. They are kept for the
+ *      retention window because that is how long "this person was never told"
+ *      is worth being able to see.
+ *
+ * A row with a chat id that is neither delivered nor failed is deliberately
+ * NEVER deleted, however old it is: it is an unsent message, and deleting it
+ * would be the exact loss this table was created to prevent. The lease makes it
+ * claimable again the moment a bot process comes back.
+ */
+export async function sweepNotifications(pool: Pool, retentionSeconds: number): Promise<number> {
+  const result = await pool.query(
+    `DELETE FROM notifications
+      WHERE (delivered_at IS NOT NULL
+             AND delivered_at < now() - make_interval(secs => $1::double precision))
+         OR (failed_at IS NOT NULL
+             AND failed_at < now() - make_interval(secs => $1::double precision))
+         OR (delivered_at IS NULL
+             AND failed_at IS NULL
+             AND chat_id IS NULL
+             AND created_at < now() - make_interval(secs => $1::double precision))`,
+    [retentionSeconds],
+  );
+  return result.rowCount ?? 0;
+}

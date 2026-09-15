@@ -46,7 +46,7 @@
 
 import dotenv from 'dotenv';
 import type { FieldFlowPayload } from '@oneteam/types';
-import { StoreRecord, TaskRecord, SubmissionRecord } from '../bot/types';
+import { StoreRecord, TaskRecord, SubmissionRecord, PendingNotification } from '../bot/types';
 
 dotenv.config();
 
@@ -368,6 +368,77 @@ class PortalApiClient {
       FLOW_TIMEOUT_MS,
     );
     return Boolean(result?.cleared);
+  }
+
+  // -------------------------------------------------------------------------
+  // The outbox
+  //
+  // WHY THE BOT POLLS THE API FOR THESE INSTEAD OF RECEIVING A PUSH
+  // ---------------------------------------------------------------
+  // The API is the only process that can write to the database, and the bot is
+  // the only process holding the bot token, so a notification has to cross
+  // between them. The API records the intent; the bot asks for what is waiting.
+  //
+  // A webhook from the API to the bot was the alternative and is worse: it needs
+  // a second inbound surface with its own authentication, and it fails silently
+  // whenever the bot is restarting. Polling a table that survives both processes
+  // cannot lose a message.
+  //
+  // The GET is a *claim*, not a read: the API leases the rows it returns, so two
+  // bot instances overlapping on a deploy cannot both send the same message. A
+  // message this client takes and never reports back is not lost — the lease
+  // expires and the next poll returns it again.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Leases the messages waiting to be sent.
+   *
+   * `chatId` is normally omitted: the bot drains every chat, because it has no
+   * way to know which chats have anything waiting. It is accepted so a test can
+   * take exactly one chat's queue.
+   */
+  async claimNotifications(
+    options: { chatId?: number | string; limit?: number; claimedBy?: string } = {},
+  ): Promise<PendingNotification[]> {
+    const query = new URLSearchParams();
+    if (options.chatId !== undefined) query.set('chatId', String(options.chatId));
+    if (options.limit !== undefined) query.set('limit', String(options.limit));
+    if (options.claimedBy) query.set('claimedBy', options.claimedBy);
+
+    const suffix = query.toString() ? `?${query}` : '';
+    const rows = await request<PendingNotification[]>(
+      `/api/portal/field/notifications${suffix}`,
+      {},
+      FLOW_TIMEOUT_MS,
+    );
+    return rows ?? [];
+  }
+
+  /** Records that Telegram accepted the message. */
+  async markNotificationDelivered(id: string): Promise<boolean> {
+    const result = await request<{ delivered: boolean }>(
+      `/api/portal/field/notifications/${encodeURIComponent(id)}/delivered`,
+      { method: 'POST' },
+      FLOW_TIMEOUT_MS,
+    );
+    return Boolean(result?.delivered);
+  }
+
+  /**
+   * Records that Telegram refused the message for a reason a retry cannot fix.
+   *
+   * Only terminal refusals belong here — a blocked bot, a deleted chat. A
+   * network failure must NOT be reported: leaving it alone lets the lease expire
+   * so the message is tried again, which is the difference between a delayed
+   * notification and a lost one.
+   */
+  async markNotificationFailed(id: string, failure: string): Promise<boolean> {
+    const result = await request<{ failed: boolean }>(
+      `/api/portal/field/notifications/${encodeURIComponent(id)}/failed`,
+      { method: 'POST', body: JSON.stringify({ failure }) },
+      FLOW_TIMEOUT_MS,
+    );
+    return Boolean(result?.failed);
   }
 
   // -------------------------------------------------------------------------
