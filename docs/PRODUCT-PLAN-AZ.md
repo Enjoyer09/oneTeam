@@ -48,10 +48,22 @@
 | 1.1 | **Panel təhlükəsizliyi:** `/api/panel/*` üçün `mayUseRoute` yoxlamasını `/api/portal/` şərtindən azad et, `oneteam-user:` tokenini paneldə rədd et.                                                                                                                                          | `curl -H "Authorization: Bearer oneteam-user:usr-admin-001" /api/panel/me` → 403              | 0.5 gün | ✅ `29aa4d3`           |
 | 1.2 | **Logout sonuncu açarı silə bilməsin** — _premisa yoxlanıldı və yanlış çıxdı_: heç bir administrativ ləğv yolu paneli boşalda bilmir (`CANNOT_REVOKE_OWN_SESSION`, `CANNOT_REVOKE_OWN_KEYS`). Əvəzində **əsl** problem tapıldı: `logout` sonuncu açarı ləğv edəndə panel yenidən **açılır**. | Qərar gözləyir — §8-ə bax                                                                     | 0.5 gün | ⚠️ qərar               |
 | 1.3 | **Mağaza CRUD (Web):** yarat / redaktə et / sil + React forması.                                                                                                                                                                                                                             | Yeni mağaza yaradılır → siyahıda görünür → kod unikal → silinə bilir                          | 1.5 gün | ✅ `e17941e`,`8302945` |
-| 1.4 | **Tapşırıq CRUD (Web):** mağaza, başlıq, növ (`CHECKLIST`, `PHOTO`, `AUDIT`), planlı tarix, müddət, çeklist sxemi (JSON). Ələ keçirmə yalnız sahibinə.                                                                                                                                       | Tapşırıq yaradılır → ələ keçirilir → mobil/botda görünür → başqa istifadəçi ələ keçirə bilmir | 1.5 gün | ⏳ növbəti             |
+| 1.4 | **Tapşırıq CRUD (Web):** mağaza, başlıq, növ (`CHECKLIST`, `PHOTO`, `AUDIT`), planlı tarix, müddət, çeklist sxemi (JSON). Ələ keçirmə yalnız sahibinə.                                                                                                                                       | Tapşırıq yaradılır → ələ keçirilir → mobil/botda görünür → başqa istifadəçi ələ keçirə bilmir | 1.5 gün | ✅ `31bc886` \*        |
 | 1.5 | **İstifadəçi rolları:** `SUPERVISOR` (mağaza/tapşırıq yaradır), `MERCHANDISER` (icra edir), `ADMIN` (açarlar, rollar). `mayActAsAnotherUser` yoxlamasını `SUPERVISOR`-a genişləndir.                                                                                                         | Supervayzer yaradanda `SUPERVISOR` roluna düşür → ələ keçirir; ADMIN panelə girir             | 1 gün   | ⏳                     |
 
 **Mərhələ 1 nəticəsi:** Web panel **tam idarəetmə mərkəzi** olur; təhlükəsizlik boşluqları bağlanır.
+
+**\* 1.4 qeydi — bir addım hələ açıqdır.** Kod yazıldı, yerli suite yaşıl (**69/0/0**), commit
+`31bc886` deploy olundu və yeni endpoint-lərin canlıda **həqiqətən mövcud olduğu** sübut edildi
+(`PATCH /api/portal/tasks/:id` → **401**, mövcud olmayan oxşar yol → **404**). Amma **create / redaktə /
+sil real məlumatla canlı yoxlanılmadı**, çünki panel tam kilidlidir (`required: true`, `liveKeys: 1`) və
+yoxlama üçün panel açarı lazımdır. Servis və cihaz kredensialları bu yollarda qəbul olunmur.
+Bu, layihənin öz qaydasıdır: **mağaza funksiyası da lokal suite-i keçmişdi, real buqu isə yalnız ilk
+canlı create tutdu.** Yoxlama tamamlanana qədər 1.4-ü bağlanmış saymaq olmaz.
+
+**Həmçinin 1.4-də aydınlaşdı:** plandaki `CHECKLIST` / `PHOTO` / `AUDIT` **saxlanan sütun deyil** —
+`task_type` sütunu yoxdur. Növlər mövcud sahələrdən **törədilir** (`deriveTaskKind`), yəni etiket
+məlumatdan sürüşə bilməz. Plan mətnini buna uyğun oxumaq lazımdır.
 
 ---
 
