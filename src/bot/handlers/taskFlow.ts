@@ -18,6 +18,7 @@
  *     1. location   — one tap, taken while they are still at the shelf
  *     2. checklist  — the template's own questions, one at a time
  *     3. photo      — accepted last, now carrying both
+ *     4. confirm    — the merchandiser sees what was captured before it is filed
  *
  * WHY LOCATION COMES FIRST
  * ------------------------
@@ -45,15 +46,26 @@
  * so offering a skip button would only produce a submission that fails at the
  * end of the flow. A merchandiser who cannot answer can go back with /tasks and
  * choose a different task.
+ *
+ * PHASE 2.1 — THE ROUTES THIS FILE'S FUNCTIONS ARE REACHED BY
+ * -----------------------------------------------------------
+ * These functions were all written and none of them was wired up. `index.ts`
+ * imported four of them and called none: there was no `message:location`
+ * handler, the text router never reached the checklist, and the single callback
+ * handler understood only `submit_`. `src/bot/router.test.ts` now drives the
+ * real bot through `bot.handleUpdate` and fails if a route goes missing again.
  */
 
 import { InlineKeyboard } from 'grammy';
 import { ChecklistAnswer, ChecklistQuestion } from '@oneteam/types';
-import { BotContext } from '../types';
-import { LOCATION_SKIP_LABEL, locationRequestKeyboard, mainMenuKeyboard } from '../keyboards';
-
-/** Prefix for checklist callback data: `chk_<index>_<kind>_<value>`. */
-export const CHECKLIST_CALLBACK_PREFIX = 'chk';
+import { AnswerCallback, BotContext } from '../types';
+import { decodeChecklistAnswer, encodeCallback, encodeChecklistAnswer } from '../callbacks';
+import {
+  LOCATION_SKIP_LABEL,
+  locationRequestKeyboard,
+  mainMenuInline,
+  mainMenuKeyboard,
+} from '../keyboards';
 
 /**
  * Escapes the characters Telegram's legacy Markdown treats as formatting.
@@ -64,6 +76,35 @@ export const CHECKLIST_CALLBACK_PREFIX = 'chk';
  */
 function escapeMarkdown(text: string): string {
   return text.replace(/[_*`[\]]/g, (char) => `\\${char}`);
+}
+
+/**
+ * The text of a checklist question.
+ *
+ * A TEMPORARY BRIDGE OVER A BROKEN CONTRACT — TASK #73
+ * ---------------------------------------------------
+ * The panel writes a question under `label`, the API stores it under `label`
+ * (`PortalService.readChecklistSchema`), and `packages/types` declares the field
+ * as `question`. Reading only `question.question` therefore returns `undefined`
+ * for every question authored in the panel, and a merchandiser sees the word
+ * "undefined" where the question should be — on every question, in every
+ * checklist task.
+ *
+ * This reads both names so that the chat works today. It does NOT settle the
+ * contract: whether the stored field should be renamed to `question` (with a
+ * backfill) or whether `label` is the canonical name and the TYPE is wrong is
+ * still open, and it is still the product owner's call — #73.
+ *
+ * Why the bridge is here and not left out: this file is being rewritten for
+ * Phase 2.1, and writing `question.question` into new code while knowing it
+ * returns `undefined` is not "keeping the change small", it is shipping a
+ * defect on purpose. The symptom is now covered by a check in
+ * `router.test.ts`, so it cannot come back quietly.
+ *
+ * WHEN #73 IS DECIDED, THIS IS THE ONLY LINE THAT CHANGES.
+ */
+function questionText(question: ChecklistQuestion): string {
+  return question.question ?? question.label ?? '';
 }
 
 /** Human-readable bounds for a number question, when the template sets them. */
@@ -79,6 +120,19 @@ function numberHint(question: ChecklistQuestion): string {
     return `\n\nℹ️ Maksimum: *${question.maxValue}${unit}*`;
   }
   return '';
+}
+
+/**
+ * The "start this task over" button.
+ *
+ * Only offered where an inline keyboard already exists, because an inline
+ * keyboard cannot be sent alongside the reply keyboard the location step needs.
+ * The location step does not miss it: tapping the task again from `/tasks` is
+ * the same request, and at that point there is nothing to lose.
+ */
+function restartButton(taskId: string | undefined): InlineKeyboard | undefined {
+  if (!taskId) return undefined;
+  return new InlineKeyboard().text('🔄 Yenidən başla', encodeCallback('restart', taskId));
 }
 
 // ---------------------------------------------------------------------------
@@ -102,15 +156,20 @@ function numberHint(question: ChecklistQuestion): string {
 export async function beginTaskFlow(
   ctx: BotContext,
   questions: ChecklistQuestion[] = [],
+  options: { restarted?: boolean } = {},
 ): Promise<void> {
   ctx.session.step = 'awaiting_location';
   ctx.session.location = undefined;
   ctx.session.checklistQuestions = questions;
   ctx.session.checklistAnswers = undefined;
   ctx.session.checklistIndex = undefined;
+  ctx.session.pendingPhoto = undefined;
+
+  const lead = options.restarted ? `🔄 *Yenidən başlanır.* Əvvəlki cavablar silindi.\n\n` : '';
 
   await ctx.reply(
-    `📍 *Addım 1/3 — Lokasiya*\n\n` +
+    lead +
+      `📍 *Addım 1/3 — Lokasiya*\n\n` +
       `Zəhmət olmasa aşağıdaki *"📍 Lokasiyamı göndər"* düyməsinə basıb olduğunuz yeri paylaşın.\n\n` +
       `Bu, auditin həqiqətən mağazada çəkildiyini təsdiqləyir. Paylaşmasanız şəkil yenə qəbul ediləcək, ` +
       `amma audit *lokasiya təsdiqlənməmiş* kimi qeyd olunacaq və nəzarətçi bunu görəcək.`,
@@ -132,7 +191,7 @@ export async function handleLocationMessage(ctx: BotContext): Promise<boolean> {
   if (ctx.session.step !== 'awaiting_location') {
     await ctx.reply(
       `ℹ️ Lokasiya qeydə alındı, amma hazırda seçilmiş tapşırıq yoxdur.\n\n` +
-        `Zəhmət olmasa əvvəlcə /tasks əmri ilə tapşırığı seçin.`,
+        `Zəhmət olmasa əvvəlcə tapşırığı seçin.`,
       { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard() },
     );
     return true;
@@ -208,15 +267,17 @@ export async function askNextChecklistQuestion(ctx: BotContext): Promise<void> {
 
   const header =
     `📋 *Addım 2/3 — Çeklist* (${index + 1}/${questions.length})\n\n` +
-    `*${escapeMarkdown(question.question)}*` +
+    `*${escapeMarkdown(questionText(question))}*` +
     (question.unit ? ` _(${escapeMarkdown(question.unit)})_` : '');
 
   if (question.type === 'boolean') {
     await ctx.reply(header, {
       parse_mode: 'Markdown',
       reply_markup: new InlineKeyboard()
-        .text('✅ Bəli', `${CHECKLIST_CALLBACK_PREFIX}_${index}_bool_true`)
-        .text('❌ Xeyr', `${CHECKLIST_CALLBACK_PREFIX}_${index}_bool_false`),
+        .text('✅ Bəli', encodeCallback('chk', encodeChecklistAnswer(index, true)))
+        .text('❌ Xeyr', encodeCallback('chk', encodeChecklistAnswer(index, false)))
+        .row()
+        .append(restartButton(ctx.session.activeTaskId) ?? new InlineKeyboard()),
     });
     return;
   }
@@ -224,8 +285,9 @@ export async function askNextChecklistQuestion(ctx: BotContext): Promise<void> {
   if (question.type === 'single_choice' && question.options?.length) {
     const keyboard = new InlineKeyboard();
     question.options.forEach((option, optionIndex) => {
-      keyboard.text(option, `${CHECKLIST_CALLBACK_PREFIX}_${index}_opt_${optionIndex}`).row();
+      keyboard.text(option, encodeCallback('chk', encodeChecklistAnswer(index, optionIndex))).row();
     });
+    keyboard.append(restartButton(ctx.session.activeTaskId) ?? new InlineKeyboard());
     await ctx.reply(header, { parse_mode: 'Markdown', reply_markup: keyboard });
     return;
   }
@@ -234,55 +296,68 @@ export async function askNextChecklistQuestion(ctx: BotContext): Promise<void> {
   // `handleChecklistText` exists and why the session stays in this step.
   await ctx.reply(`${header}${numberHint(question)}\n\n✍️ Cavabı rəqəmlə yazıb göndərin.`, {
     parse_mode: 'Markdown',
+    reply_markup: restartButton(ctx.session.activeTaskId),
   });
 }
 
 /**
  * Handles a tap on a checklist answer button.
  *
- * Returns false when the callback is not ours, so the router can pass it on.
+ * THE GUARD IS THE IDEMPOTENCY
+ * ----------------------------
+ * A duplicate tap arrives as a second update carrying the same `callback_data`.
+ * By then the first tap has advanced `checklistIndex`, so the index in the
+ * second tap no longer matches the question being asked and it is refused with
+ * a toast. Nothing is written twice and nothing throws.
+ *
+ * This works because grammY handles updates sequentially and writes the session
+ * between them — see the header of `router.test.ts` for the two line
+ * references. The same reasoning protects every guard in this file.
  */
-export async function handleChecklistCallback(ctx: BotContext): Promise<boolean> {
-  const data = ctx.callbackQuery?.data;
-  if (!data || !data.startsWith(`${CHECKLIST_CALLBACK_PREFIX}_`)) return false;
+export async function handleChecklistAnswer(
+  ctx: BotContext,
+  id: string,
+  answer: AnswerCallback,
+): Promise<void> {
+  const decoded = decodeChecklistAnswer(id);
+  if (!decoded) {
+    await answer('Cavab tanınmadı, yenidən cəhd edin.');
+    return;
+  }
 
-  const [prefix, rawIndex, kind, ...rest] = data.split('_');
-  const index = Number(rawIndex);
-  const rawValue = rest.join('_');
-
+  const { index } = decoded;
   const questions = ctx.session.checklistQuestions ?? [];
   const question = questions[index];
 
-  if (!question || Number.isNaN(index)) {
-    await ctx.answerCallbackQuery({ text: 'Sual tapılmadı. /tasks ilə yenidən başlayın.' });
-    return true;
+  if (!question) {
+    await answer('Sual tapılmadı. Tapşırıqlar siyahısından yenidən başlayın.');
+    return;
   }
 
   // A tap on an older message would otherwise overwrite a newer answer, or file
   // an answer for a task the merchandiser has since moved away from.
   if (ctx.session.checklistIndex !== index) {
-    await ctx.answerCallbackQuery({ text: 'Bu sual artıq cavablandırılıb.' });
-    return true;
+    await answer('Bu sual artıq cavablandırılıb.');
+    return;
   }
 
   let value: boolean | number | string | undefined;
 
-  if (kind === 'bool') {
-    value = rawValue === 'true';
-  } else if (kind === 'opt') {
+  if (typeof decoded.value === 'boolean') {
+    value = decoded.value;
+  } else {
     // The API validates the value against `options` and refuses anything else,
     // so an out-of-range index is caught here where it can be explained.
-    value = question.options?.[Number(rawValue)];
+    value = question.options?.[decoded.value];
   }
 
   if (value === undefined) {
-    await ctx.answerCallbackQuery({ text: 'Cavab tanınmadı, yenidən cəhd edin.' });
-    return true;
+    await answer('Cavab tanınmadı, yenidən cəhd edin.');
+    return;
   }
 
-  await ctx.answerCallbackQuery();
+  await answer();
   await recordChecklistAnswer(ctx, question, value);
-  return true;
 }
 
 /**
@@ -381,7 +456,65 @@ export async function requestShelfPhoto(ctx: BotContext): Promise<void> {
       checklistLine +
       locationLine +
       `\nİndi yoxlanılan rəfin / soyuducunun aydın fotosunu çəkib bu çatda göndərin.\n\n` +
-      `💡 *Məsləhət:* Bütün brend etiketlərinin və qiymət kağızlarının kadra düşdüyündən əmin olun.`,
+      `💡 *Məsləhət:* Bütün brend etiketlərinin və qiymət kağızlarının kadra düşdüyündən əmin olun.\n\n` +
+      `Şəkli göndərdikdən sonra onu *təsdiqləməyiniz* xahiş olunur — səhv çıxsa, yenidən çəkə bilərsiniz.`,
     { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard() },
   );
+}
+
+// ---------------------------------------------------------------------------
+// Restarting
+// ---------------------------------------------------------------------------
+
+/**
+ * Throws the current answers away and starts the task over.
+ *
+ * The only destructive action in the flow, and the only place answers are
+ * discarded. It is offered on an explicit button that says what it does,
+ * precisely so that no other action has to guess whether a second tap meant
+ * "again" or "start over".
+ */
+export async function handleRestartTask(
+  ctx: BotContext,
+  taskId: string,
+  answer: AnswerCallback,
+): Promise<void> {
+  if (ctx.session.activeTaskId !== taskId) {
+    await answer('Bu tapşırıq artıq aktiv deyil.');
+    return;
+  }
+
+  await answer();
+
+  const questions = ctx.session.checklistQuestions ?? [];
+  await beginTaskFlow(ctx, questions, { restarted: true });
+}
+
+/** Re-sends the prompt for the step the chat is currently on. */
+export async function resumeCurrentStep(ctx: BotContext): Promise<void> {
+  switch (ctx.session.step) {
+    case 'awaiting_location':
+      await beginTaskFlow(ctx, ctx.session.checklistQuestions ?? []);
+      return;
+    case 'awaiting_checklist':
+      await askNextChecklistQuestion(ctx);
+      return;
+    case 'awaiting_photo':
+      await requestShelfPhoto(ctx);
+      return;
+    case 'awaiting_confirm':
+      // The photo is still held, so the confirm prompt can simply be repeated.
+      await ctx.reply(
+        `📸 *Təsdiq gözləyən şəkil var.*\n\n` +
+          `Aşağıdaki düymələrdən istifadə edin: *✅ Təsdiqlə* göndərmək üçün, ` +
+          `*🔄 Yenidən çək* isə yeni şəkil üçün.`,
+        { parse_mode: 'Markdown', reply_markup: mainMenuInline() },
+      );
+      return;
+    default:
+      await ctx.reply(
+        `ℹ️ *Hazırda davam edən iş yoxdur.*\n\nTapşırıqları görmək üçün aşağıdaki düyməyə basın.`,
+        { parse_mode: 'Markdown', reply_markup: mainMenuInline() },
+      );
+  }
 }

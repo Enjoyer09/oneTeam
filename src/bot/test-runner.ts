@@ -24,17 +24,94 @@
  * what the notification webhook does in production.
  */
 
+import { Client } from 'pg';
 import { portalApi } from '../services/portalApi';
 import { handleStart, handleStoreCodeInput } from './handlers/start';
-import { handleTasks, handleTaskSelectCallback } from './handlers/tasks';
+import { handleTasks, handleOpenTask } from './handlers/tasks';
 import {
-  handleChecklistCallback,
+  handleChecklistAnswer,
   handleChecklistText,
   handleLocationMessage,
 } from './handlers/taskFlow';
-import { handlePhotoUpload } from './handlers/submission';
+import { handleConfirmPhoto, handlePhotoArrival } from './handlers/submission';
 import { handleMyStatus } from './handlers/status';
-import { BotContext, SessionData } from './types';
+import { AnswerCallback, BotContext, SessionData } from './types';
+
+/**
+ * A stand-in for the router's callback answerer.
+ *
+ * The router owns answering a callback query — once, and never twice. This
+ * runner calls the handlers directly, so there is no query to answer and this
+ * is what takes its place.
+ */
+const noopAnswer: AnswerCallback = async () => {};
+
+const DATABASE_URL =
+  process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres';
+
+/**
+ * What this run created, so it can be removed again.
+ *
+ * Held at module scope because the cleanup has to run on the failure path too —
+ * a run that dies halfway is exactly the run that leaves the most behind.
+ */
+let cleanupTaskId: string | undefined;
+let cleanupTemplateId: string | undefined;
+
+/**
+ * Removes the task, template and audit this run provisioned.
+ *
+ * WHY THIS DID NOT EXIST, AND WHY IT DOES NOW
+ * -------------------------------------------
+ * The header of this file has always claimed the runner provisions its own task
+ * "which keeps it repeatable". It did provision one, and it never removed it:
+ * every run left a store task, its template and a filed audit in the database.
+ * Nothing noticed for several phases, because the leftovers are valid rows in a
+ * seeded store — a later suite's "rows before" simply read higher than the
+ * truth. That is the kind of slow drift that quietly makes measurements
+ * untrustworthy, which is the one thing a test suite must not do.
+ *
+ * The API cannot do this deletion. `task_evidences.store_task_id` is RESTRICT
+ * and there is no endpoint that deletes a submission, so a task that has been
+ * audited cannot be removed over HTTP at all. A direct connection is used, as
+ * the other suites do, and this runner already refuses to start with NODE_ENV
+ * set to production.
+ */
+async function cleanupFixtures(): Promise<void> {
+  if (!cleanupTaskId && !cleanupTemplateId) return;
+
+  const db = new Client({ connectionString: DATABASE_URL });
+  try {
+    await db.connect();
+
+    if (cleanupTaskId) {
+      // The audit trail's evidence rows name the EVIDENCE, not the task, so
+      // their ids have to be read before the rows they describe are deleted.
+      const evidenceRows = await db.query(
+        'SELECT id FROM task_evidences WHERE store_task_id = $1',
+        [cleanupTaskId],
+      );
+      const evidenceIds = evidenceRows.rows.map((row: { id: string }) => row.id);
+
+      await db.query('DELETE FROM task_evidences WHERE store_task_id = $1', [cleanupTaskId]);
+      await db.query('DELETE FROM audit_logs WHERE entity_id = ANY($1::text[])', [
+        [cleanupTaskId, ...evidenceIds],
+      ]);
+      await db.query('DELETE FROM store_tasks WHERE id = $1', [cleanupTaskId]);
+      console.log(`  🧹 Removed the provisioned task ${cleanupTaskId} and its audit.`);
+    }
+
+    if (cleanupTemplateId) {
+      await db.query('DELETE FROM task_templates WHERE id = $1', [cleanupTemplateId]);
+    }
+  } catch (error) {
+    // A cleanup failure must not turn a passing run into a failing one — but it
+    // must be said out loud, because the next run's baseline depends on it.
+    console.warn(`  ⚠ Cleanup did not complete: ${(error as Error).message}`);
+  } finally {
+    await db.end().catch(() => undefined);
+  }
+}
 
 // ANSI Colors for test output
 const colors = {
@@ -296,39 +373,53 @@ async function runTestSuite() {
   logStep(3, 'Supervisor dispatches a briefing that has a required checklist');
   const title = `E2E test — Cooler auditi ${new Date().toISOString()}`;
 
-  const dispatched = await supervisorApi<{ taskIds?: string[] }>('/api/portal/tasks', {
-    method: 'POST',
-    body: JSON.stringify({
-      title,
-      description: 'Avtomatik end-to-end test tərəfindən yaradılmış tapşırıq.',
-      reference_image_url: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97',
-      priority: 'HIGH',
-      deadline: new Date(Date.now() + 3 * 24 * 3600 * 1000).toISOString(),
-      assigned_stores: [storeId],
-      checklist_schema: [
-        {
-          id: 'q-temp',
-          question: 'Soyuducu temperaturu neçə dərəcədir?',
-          type: 'number',
-          unit: '°C',
-          required: true,
-          minValue: -5,
-          maxValue: 15,
-        },
-        {
-          id: 'q-clean',
-          question: 'Soyuducu şüşəsi və rəflər təmizdirmi?',
-          type: 'boolean',
-          required: true,
-        },
-      ],
-    }),
-  });
+  const dispatched = await supervisorApi<{ taskIds?: string[]; templateId?: string }>(
+    '/api/portal/tasks',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        title,
+        description: 'Avtomatik end-to-end test tərəfindən yaradılmış tapşırıq.',
+        reference_image_url: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97',
+        priority: 'HIGH',
+        deadline: new Date(Date.now() + 3 * 24 * 3600 * 1000).toISOString(),
+        assigned_stores: [storeId],
+        // `label`, not `question`. This fixture used to send `question`, which is
+        // the name the bot's own type uses — but the API accepts `label`
+        // (`PortalService.readChecklistSchema`) and answered the old fixture with
+        // a 400, so this runner died before it could test anything. It now sends
+        // the shape the panel actually sends.
+        //
+        // See #73: which of the two names is canonical is still open, and the bot
+        // reads both until it is settled.
+        checklist_schema: [
+          {
+            id: 'q-temp',
+            label: 'Soyuducu temperaturu neçə dərəcədir?',
+            type: 'number',
+            unit: '°C',
+            required: true,
+            minValue: -5,
+            maxValue: 15,
+          },
+          {
+            id: 'q-clean',
+            label: 'Soyuducu şüşəsi və rəflər təmizdirmi?',
+            type: 'boolean',
+            required: true,
+          },
+        ],
+      }),
+    },
+  );
 
   const provisionedTaskId = dispatched?.taskIds?.[0];
   if (!provisionedTaskId) {
     throw new Error('Dispatch returned no task id');
   }
+  // Recorded so the cleanup at the end of this file can remove them again.
+  cleanupTaskId = provisionedTaskId;
+  cleanupTemplateId = dispatched?.templateId;
   logSuccess(`Task created: ${provisionedTaskId}`);
 
   // The chat can only claim open work, so the merchandiser binds again now that
@@ -360,13 +451,13 @@ async function runTestSuite() {
   logStep(5, 'Merchandiser clicks "📸 Rəf Şəklini Göndər"');
   (ctx as any).callbackQuery = {
     id: 'cb-1',
-    data: `submit_${sampleTask.id}`,
+    data: `open:${sampleTask.id}`,
     from: ctx.from,
     message: ctx.message,
     chat_instance: 'ci-1',
   };
 
-  await handleTaskSelectCallback(ctx);
+  await handleOpenTask(ctx, sampleTask.id, noopAnswer);
   if (ctx.session.activeTaskId !== sampleTask.id) {
     throw new Error('Expected activeTaskId to be set in session');
   }
@@ -401,7 +492,7 @@ async function runTestSuite() {
     ],
   };
 
-  await handlePhotoUpload(ctx);
+  await handlePhotoArrival(ctx);
 
   if ((ctx.session.step as string) !== 'awaiting_location') {
     throw new Error(`Expected the flow to stay at awaiting_location, got ${ctx.session.step}`);
@@ -514,12 +605,12 @@ async function runTestSuite() {
 
   (ctx as any).callbackQuery = {
     id: 'cb-chk-1',
-    data: 'chk_1_bool_true',
+    data: 'chk:1:true',
     from: ctx.from,
     message: ctx.message,
     chat_instance: 'ci-1',
   };
-  await handleChecklistCallback(ctx);
+  await handleChecklistAnswer(ctx, '1:true', noopAnswer);
 
   if ((ctx.session.step as string) !== 'awaiting_photo') {
     throw new Error(`Expected awaiting_photo after the last answer, got ${ctx.session.step}`);
@@ -551,12 +642,55 @@ async function runTestSuite() {
     ],
   };
 
-  await handlePhotoUpload(ctx);
+  await handlePhotoArrival(ctx);
+
+  // Phase 2.1: the photo is HELD, not filed. The merchandiser sees it back and
+  // has to accept it, so the first thing to assert is that nothing was filed
+  // yet — an assertion that would have passed for the wrong reason before, when
+  // the flow refused the photo outright.
+  if ((ctx.session.step as string) !== 'awaiting_confirm') {
+    throw new Error(`Expected the photo to be held at awaiting_confirm, got ${ctx.session.step}`);
+  }
+  if (ctx.session.pendingPhoto?.fileId !== 'full_hd_cooler_photo_id') {
+    throw new Error(
+      `Expected the highest-resolution file id to be held, got ` +
+        JSON.stringify(ctx.session.pendingPhoto),
+    );
+  }
+  const heldLabels = lastKeyboardLabels();
+  if (
+    !heldLabels.some((label) => label.includes('Təsdiqlə')) ||
+    !heldLabels.some((label) => label.includes('Yenidən çək'))
+  ) {
+    throw new Error(`Expected a confirm/retake keyboard, got: ${JSON.stringify(heldLabels)}`);
+  }
+  const beforeConfirm = await portalApi.getSubmissionsByChatId(CHAT_ID, 50);
+  if (beforeConfirm.some((s) => s.task_id === sampleTask.id)) {
+    throw new Error('The photo was filed before the confirm button was tapped');
+  }
+  logSuccess('Photo held for confirmation; nothing filed yet.');
+
+  logStep(11.5, 'Merchandiser taps "✅ Təsdiqlə və göndər"');
+  await handleConfirmPhoto(ctx, sampleTask.id, noopAnswer);
 
   if ((ctx.session.step as string) !== 'idle') {
-    throw new Error('Expected session step to reset to idle after upload');
+    throw new Error('Expected session step to reset to idle after the confirm');
   }
   assertLastReplyContains('Təsdiqləndi', 'The confirmation must report a verified location');
+
+  // A duplicate tap is a second update carrying the same callback data. The
+  // session is already reset, so the guard must find nothing to file — the
+  // acceptance criterion for Phase 2.1, checked here as well as in
+  // `router.test.ts`, because this is the run that touches the real API.
+  const afterFirstConfirm = await portalApi.getSubmissionsByChatId(CHAT_ID, 50);
+  await handleConfirmPhoto(ctx, sampleTask.id, noopAnswer);
+  const afterDuplicate = await portalApi.getSubmissionsByChatId(CHAT_ID, 50);
+  if (afterDuplicate.length !== afterFirstConfirm.length) {
+    throw new Error(
+      `A duplicate confirm filed a second audit: ${afterFirstConfirm.length} -> ${afterDuplicate.length}`,
+    );
+  }
+  logSuccess('A duplicate confirm tap filed nothing and raised nothing.');
 
   const submissions = await portalApi.getSubmissionsByChatId(CHAT_ID, 5);
   const created = submissions.find((s) => s.task_id === sampleTask.id);
@@ -651,10 +785,24 @@ async function runTestSuite() {
   );
 }
 
-runTestSuite().catch((err) => {
-  console.error(`\n${colors.red}❌ TEST RUNNER FAILED:${colors.reset}`, err?.message || err);
-  console.error(
-    `\n   This test needs the Core API running. Start it with:\n     npm run api:dev\n`,
-  );
-  process.exit(1);
-});
+async function main(): Promise<void> {
+  let failed = false;
+
+  try {
+    await runTestSuite();
+  } catch (err: any) {
+    failed = true;
+    console.error(`\n${colors.red}❌ TEST RUNNER FAILED:${colors.reset}`, err?.message || err);
+    console.error(
+      `\n   This test needs the Core API running. Start it with:\n     npm run api:dev\n`,
+    );
+  }
+
+  // Always, on both paths: a run that died halfway is the run that would
+  // otherwise leave the most behind.
+  await cleanupFixtures();
+
+  process.exit(failed ? 1 : 0);
+}
+
+main();

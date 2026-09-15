@@ -2,16 +2,7 @@ import { Bot, session } from 'grammy';
 import dotenv from 'dotenv';
 import { BotContext, SessionData } from './types';
 import { ApiSessionStorage, FlowStorageError } from './sessionStorage';
-import { handleStart, handleStoreCodeInput } from './handlers/start';
-import { handleTasks, handleTaskSelectCallback } from './handlers/tasks';
-import {
-  handleChecklistCallback,
-  handleChecklistText,
-  handleLocationMessage,
-  handleLocationSkip,
-} from './handlers/taskFlow';
-import { handlePhotoUpload } from './handlers/submission';
-import { handleMyStatus } from './handlers/status';
+import { registerRoutes } from './router';
 
 dotenv.config();
 
@@ -52,43 +43,18 @@ export function createBot(token?: string): Bot<BotContext> {
     }),
   );
 
-  // Command handlers
-  bot.command('start', handleStart);
-  bot.command('tasks', handleTasks);
-  bot.command('mystatus', handleMyStatus);
-
-  // Keyboard button text handlers
-  bot.hears('📋 Tapşırıqlar', handleTasks);
-  bot.hears('📊 Statusum', handleMyStatus);
-
-  // Callback query handler (e.g. "📸 Rəf Şəklini Göndər")
-  bot.on('callback_query:data', handleTaskSelectCallback);
-
-  // Photo submission handler
-  bot.on('message:photo', handlePhotoUpload);
-
-  // General text message routing (store code input)
-  bot.on('message:text', async (ctx) => {
-    if (ctx.session.step === 'awaiting_store_code') {
-      await handleStoreCodeInput(ctx);
-      return;
-    }
-
-    const text = ctx.message.text.trim();
-    // Auto-detect store codes if user sends e.g. "BRAVO_28MAY_01" anytime
-    if (/^[A-Z0-9_]{4,30}$/i.test(text) && text.includes('_')) {
-      await handleStoreCodeInput(ctx);
-      return;
-    }
-
-    await ctx.reply(
-      `🤖 *oneTeam Köməkçi:*\n\n` +
-        `• /start — Yenidən başlamaq və mağazanı dəyişmək\n` +
-        `• /tasks — Aktiv rəf və planogram tapşırıqları\n` +
-        `• /mystatus — Göndərilən şəkillərin audit statusu`,
-      { parse_mode: 'Markdown' },
-    );
-  });
+  // ROUTES
+  //
+  // They used to be registered here, inline, and four of the handlers they
+  // named were imported and never reached: there was no `message:location`
+  // route, the text route never got past the store-code branch, and the single
+  // callback route accepted only `submit_`. The guided flow was therefore
+  // unreachable in Telegram even though every handler worked — see
+  // `router.ts` for the whole account.
+  //
+  // They live in `registerRoutes` now so that the surface can be read in one
+  // place and driven by `router.test.ts`.
+  registerRoutes(bot);
 
   // Global error handler
   bot.catch(async (err) => {

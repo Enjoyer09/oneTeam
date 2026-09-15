@@ -1,7 +1,9 @@
 import { InlineKeyboard } from 'grammy';
-import { BotContext, TaskRecord } from '../types';
+import { AnswerCallback, BotContext, TaskRecord } from '../types';
 import { portalApi, PortalApiError } from '../../services/portalApi';
-import { beginTaskFlow } from './taskFlow';
+import { encodeCallback } from '../callbacks';
+import { mainMenuInline } from '../keyboards';
+import { beginTaskFlow, resumeCurrentStep } from './taskFlow';
 
 export async function handleTasks(ctx: BotContext) {
   if (!ctx.session.storeId) {
@@ -28,7 +30,7 @@ export async function handleTasks(ctx: BotContext) {
   if (tasks.length === 0) {
     await ctx.reply(
       `ℹ️ *${ctx.session.storeName}* mağazası üçün hazırda aktiv rəf tapşırığı yoxdur.`,
-      { parse_mode: 'Markdown' },
+      { parse_mode: 'Markdown', reply_markup: mainMenuInline() },
     );
     return;
   }
@@ -74,7 +76,10 @@ export async function sendTaskDetails(ctx: BotContext, task: TaskRecord) {
     checklistLine +
     `\n📝 *Təlimat:*\n${task.description}`;
 
-  const keyboard = new InlineKeyboard().text('📸 Rəf Şəklini Göndər', `submit_${task.id}`);
+  const keyboard = new InlineKeyboard().text(
+    '📸 Rəf Şəklini Göndər',
+    encodeCallback('open', task.id),
+  );
 
   // If task has reference planogram image, send photo with caption
   if (task.reference_image_url) {
@@ -96,11 +101,35 @@ export async function sendTaskDetails(ctx: BotContext, task: TaskRecord) {
   });
 }
 
-export async function handleTaskSelectCallback(ctx: BotContext) {
-  const data = ctx.callbackQuery?.data;
-  if (!data || !data.startsWith('submit_')) return;
-
-  const taskId = data.replace('submit_', '');
+/**
+ * Opens a task and starts the guided flow.
+ *
+ * IDEMPOTENT BY CONSTRUCTION, NOT BY A TIMESTAMP
+ * ----------------------------------------------
+ * A duplicate tap arrives as a second update with the same `callback_data`, and
+ * nothing in the data distinguishes it from a deliberate second tap. So this
+ * does not try to guess: if the flow for this task is already running, the
+ * current step's prompt is simply sent again and the state is left alone.
+ *
+ * The reading that would be wrong — "a second tap means start over" — is not
+ * available here, because starting over throws away answers. That reading lives
+ * behind its own button (`restart:<taskId>`), which says what it does.
+ *
+ * The one case where state *is* cleared is opening a task while a different
+ * task's flow is running, and that is a real switch rather than a repeat. It
+ * still says so out loud when answers would be lost, because silently discarding
+ * a merchandiser's work is the failure this bot is meant to avoid.
+ */
+export async function handleOpenTask(
+  ctx: BotContext,
+  taskId: string,
+  answer: AnswerCallback,
+): Promise<void> {
+  if (ctx.session.activeTaskId === taskId && ctx.session.step && ctx.session.step !== 'idle') {
+    await answer();
+    await resumeCurrentStep(ctx);
+    return;
+  }
 
   let task;
   try {
@@ -108,14 +137,20 @@ export async function handleTaskSelectCallback(ctx: BotContext) {
   } catch (error) {
     const detail = error instanceof PortalApiError ? error.message : String(error);
     console.error(`[oneTeam Bot] Task fetch failed for ${taskId}:`, detail);
-    await ctx.answerCallbackQuery({ text: 'Tapşırıq yüklənmədi, yenidən cəhd edin.' });
+    await answer('Tapşırıq yüklənmədi, yenidən cəhd edin.');
     return;
   }
 
   if (!task) {
-    await ctx.answerCallbackQuery({ text: 'Tapşırıq tapılmadı!' });
+    await answer('Tapşırıq tapılmadı!');
     return;
   }
+
+  const answered = ctx.session.checklistAnswers?.length ?? 0;
+  const switchingFromAnotherTask =
+    Boolean(ctx.session.activeTaskId) && ctx.session.activeTaskId !== taskId;
+
+  await answer();
 
   // Opening the task is the chat's equivalent of tapping "Acknowledge" on the
   // notification. The lifecycle only lets a supervisor review a SUBMITTED task,
@@ -137,7 +172,13 @@ export async function handleTaskSelectCallback(ctx: BotContext) {
   ctx.session.activeTaskId = task.id;
   ctx.session.activeTaskTitle = task.title;
 
-  await ctx.answerCallbackQuery();
+  if (switchingFromAnotherTask && answered > 0) {
+    await ctx.reply(
+      `⚠️ *Diqqət:* əvvəlki tapşırıq üçün verdiyiniz *${answered}* cavab silindi, ` +
+        `çünki yeni tapşırıq açdınız.`,
+      { parse_mode: 'Markdown' },
+    );
+  }
 
   await ctx.reply(`📌 *Seçilmiş tapşırıq:* ${task.title}`, { parse_mode: 'Markdown' });
 

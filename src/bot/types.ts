@@ -106,6 +106,18 @@ export interface SessionData {
 
 export type BotContext = Context & SessionFlavor<SessionData>;
 
+/**
+ * Answers the callback query that triggered the current update, at most once.
+ *
+ * Telegram shows the button spinning until its query is answered, and answering
+ * the same query twice is a 400. Both of those are the router's problem, not a
+ * handler's, so the router hands each handler a function that closes over the
+ * "already answered" flag and swallows the error if the query expired. A handler
+ * calls `answer()` when the tap worked and `answer('...')` when it needs to say
+ * why nothing happened; it never has to know whether it was the first caller.
+ */
+export type AnswerCallback = (toast?: string) => Promise<void>;
+
 export interface StoreRecord {
   id: string;
   store_code: string;

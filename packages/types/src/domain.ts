@@ -75,7 +75,28 @@ export type ChecklistQuestionType = 'boolean' | 'number' | 'single_choice';
 
 export interface ChecklistQuestion {
   id: string;
-  question: string;
+
+  /**
+   * The question's text.
+   *
+   * OPEN CONTRACT DEFECT — TASK #73
+   * -------------------------------
+   * The API stores and returns a question under `label` and never sets
+   * `question`, so at runtime this field is absent for every question authored
+   * in the panel. It is declared OPTIONAL because that is the truth: a required
+   * field that is never present is a type that hides a defect instead of
+   * catching one, and this one hid it for two phases.
+   *
+   * Whether `label` is renamed to `question` (with a backfill) or `label` is
+   * canonical and this field is deleted is still undecided — see #73. Until
+   * then, readers must accept both; `handlers/taskFlow.ts:questionText` is the
+   * single place that does.
+   */
+  question?: string;
+
+  /** The name the API uses today. See `question` and #73. */
+  label?: string;
+
   type: ChecklistQuestionType;
   required: boolean;
   options?: string[];
