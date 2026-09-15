@@ -43,7 +43,7 @@ import { InlineKeyboard } from 'grammy';
 import { AnswerCallback, BotContext } from '../types';
 import { portalApi, PortalApiError } from '../../services/portalApi';
 import { encodeCallback } from '../callbacks';
-import { mainMenuInline } from '../keyboards';
+import { MENU_HOME_LABEL, mainMenuKeyboard } from '../keyboards';
 
 /** What is held between the photo arriving and the merchandiser confirming it. */
 type PendingPhoto = NonNullable<BotContext['session']['pendingPhoto']>;
@@ -63,7 +63,7 @@ export async function handlePhotoArrival(ctx: BotContext): Promise<void> {
     await ctx.reply(
       `⚠️ *Hansı tapşırıq üçün şəkil göndərdiyiniz seçilməyib!*\n\n` +
         `Zəhmət olmasa əvvəlcə tapşırıqlar siyahısından müvafiq tapşırığı seçin.`,
-      { parse_mode: 'Markdown', reply_markup: mainMenuInline() },
+      { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard() },
     );
     return;
   }
@@ -128,10 +128,15 @@ export async function handlePhotoArrival(ctx: BotContext): Promise<void> {
       `Əgər bulanıqdır, brend etiketləri görünmür və ya yanlış rəfdirsə — *🔄 Yenidən çək* düyməsinə basın.\n\n` +
       `Təsdiqləməyincə heç nə göndərilmir.`,
     parse_mode: 'Markdown',
+    // The buttons belong to this photo, so they are inline — but `🏠 Menyu` is
+    // on the row as well, because this is the last message of the flow and a
+    // merchandiser who is unsure what to do next should not have to type
+    // anything to find out.
     reply_markup: new InlineKeyboard()
       .text('✅ Təsdiqlə və göndər', encodeCallback('confirm', taskId))
       .row()
-      .text('🔄 Yenidən çək', encodeCallback('retake', taskId)),
+      .text('🔄 Yenidən çək', encodeCallback('retake', taskId))
+      .text(MENU_HOME_LABEL, encodeCallback('menu', 'home')),
   });
 }
 
@@ -356,10 +361,14 @@ async function filePhoto(
     `📦 *Status:* ⏳ Yoxlama gözləyir\n` +
     locationLine +
     checklistLine +
-    `\nStatusunuzu yoxlamaq üçün istənilən vaxt aşağıdaki düymədən istifadə edə bilərsiniz.`;
+    `\nStatusunuzu yoxlamaq üçün istənilən vaxt aşağıdaki menyudan istifadə edə bilərsiniz.`;
 
+  // The reply keyboard, not the inline one: this message ends the flow, and the
+  // flow is what dismissed the reply keyboard in the first place (the location
+  // step's `oneTime()` keyboard). Ending by handing the buttons back is what
+  // makes the next task reachable without typing.
   await ctx.reply(confirmationText, {
     parse_mode: 'Markdown',
-    reply_markup: mainMenuInline(),
+    reply_markup: mainMenuKeyboard(),
   });
 }

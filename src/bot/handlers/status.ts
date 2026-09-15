@@ -1,6 +1,16 @@
 import { BotContext } from '../types';
 import { portalApi, PortalApiError } from '../../services/portalApi';
+import { mainMenuKeyboard } from '../keyboards';
 
+/**
+ * `/mystatus`, and the "📊 Statusum" button.
+ *
+ * Every reply carries the reply keyboard, because Phase 2.4's text path has to
+ * be a way back to the buttons: the location step dismisses the reply keyboard
+ * (`oneTime()`), and this command is one a merchandiser reaches for when they
+ * are unsure whether anything was sent — exactly the moment they are most
+ * likely to have lost the menu.
+ */
 export async function handleMyStatus(ctx: BotContext) {
   const chatId = ctx.chat?.id;
   if (!chatId) return;
@@ -13,7 +23,7 @@ export async function handleMyStatus(ctx: BotContext) {
     console.error(`[oneTeam Bot] Status lookup failed for chat ${chatId}:`, detail);
     await ctx.reply(
       `❌ *Status məlumatını yükləmək mümkün olmadı.*\n\nZəhmət olmasa bir az sonra yenidən cəhd edin.`,
-      { parse_mode: 'Markdown' },
+      { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard() },
     );
     return;
   }
@@ -21,8 +31,8 @@ export async function handleMyStatus(ctx: BotContext) {
   if (submissions.length === 0) {
     await ctx.reply(
       `ℹ️ *Hələ heç bir rəf fotosu göndərilməyib.*\n\n` +
-        `Aktiv tapşırıqlara baxmaq və foto göndərmək üçün /tasks əmrindən istifadə edin.`,
-      { parse_mode: 'Markdown' },
+        `Aktiv tapşırıqlara baxmaq və foto göndərmək üçün aşağıdaki *📋 Tapşırıqlar* düyməsindən istifadə edin.`,
+      { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard() },
     );
     return;
   }
@@ -75,5 +85,6 @@ export async function handleMyStatus(ctx: BotContext) {
   await ctx.reply(statusText, {
     parse_mode: 'Markdown',
     link_preview_options: { is_disabled: true },
+    reply_markup: mainMenuKeyboard(),
   });
 }

@@ -22,6 +22,26 @@
  * Both are kept because Phase 2.4 requires the text commands to keep working
  * when inline is unavailable. Removing the reply keyboard would remove the
  * location button with it.
+ *
+ * ONE `reply_markup` PER MESSAGE, SO EVERY MESSAGE MAKES A CHOICE
+ * --------------------------------------------------------------
+ * Telegram carries exactly one `reply_markup`, and it is either a reply
+ * keyboard or an inline keyboard — never both. So "attach the menu" is not a
+ * thing a message can do twice, and each message has to pick.
+ *
+ * The rule this file exists to keep:
+ *
+ *   - A message that answers a TYPED command, or ends the flow, carries the
+ *     REPLY keyboard. It is the durable one, it is the one that survives being
+ *     scrolled past, and — the reason Phase 2.4 needs it — it is the only one
+ *     that can be brought back by typing. `locationRequestKeyboard()` is
+ *     `oneTime()`, so the location step dismisses the reply keyboard and
+ *     nothing else ever puts it back; before 2.4 a merchandiser who had shared
+ *     a location and scrolled away had no buttons at all.
+ *   - A message that IS a step carries an INLINE keyboard, because its buttons
+ *     belong to that step: the checklist answer buttons for that question, the
+ *     confirm/retake buttons for that photo. A reply keyboard cannot express
+ *     "answer to this message".
  */
 
 import { InlineKeyboard, Keyboard } from 'grammy';
@@ -63,6 +83,25 @@ export function mainMenuInline(): InlineKeyboard {
     .row()
     .text('❓ Kömək', encodeCallback('help', 'show'));
 }
+
+/**
+ * The label on the "back to the menu" button.
+ *
+ * It exists because `menu:home` used to be a dead action: the router handled it
+ * and `handleMenuHome` was written for it, but no button anywhere produced
+ * `menu:home`, so the action could not be reached. That is the same defect
+ * Phase 2.1 found one level up (four handlers imported into `index.ts` and
+ * called by nothing), and it is invisible to a test that drives the bot —
+ * driving can only reach actions that are already reachable.
+ *
+ * The label is exported and the button is built at each site rather than
+ * returned as a keyboard, because the two sites want it in different rows: the
+ * flow puts it beside "🔄 Yenidən başla", the photo step puts it beside
+ * "🔄 Yenidən çək". What must not drift is what the merchandiser reads, and
+ * that is this string. The `callback_data` format is already centralised in
+ * `callbacks.ts`, which is where 2.1 put it.
+ */
+export const MENU_HOME_LABEL = '🏠 Menyu';
 
 /**
  * Asks for the device's location.

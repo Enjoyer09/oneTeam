@@ -2,7 +2,7 @@ import { InlineKeyboard } from 'grammy';
 import { AnswerCallback, BotContext, TaskRecord } from '../types';
 import { portalApi, PortalApiError } from '../../services/portalApi';
 import { encodeCallback } from '../callbacks';
-import { mainMenuInline } from '../keyboards';
+import { mainMenuKeyboard } from '../keyboards';
 import { beginTaskFlow, resumeCurrentStep } from './taskFlow';
 
 export async function handleTasks(ctx: BotContext) {
@@ -30,13 +30,18 @@ export async function handleTasks(ctx: BotContext) {
   if (tasks.length === 0) {
     await ctx.reply(
       `ℹ️ *${ctx.session.storeName}* mağazası üçün hazırda aktiv rəf tapşırığı yoxdur.`,
-      { parse_mode: 'Markdown', reply_markup: mainMenuInline() },
+      { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard() },
     );
     return;
   }
 
+  // The header carries the durable reply keyboard, so that a merchandiser who
+  // arrived here by typing `/tasks` has the buttons back under the message box.
+  // The task cards below carry their own inline `open:` buttons, which belong
+  // to the card they are on.
   await ctx.reply(`📋 *${ctx.session.storeName}* üçün aktiv tapşırıqlar (${tasks.length}):`, {
     parse_mode: 'Markdown',
+    reply_markup: mainMenuKeyboard(),
   });
 
   for (const task of tasks) {

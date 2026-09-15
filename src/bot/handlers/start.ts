@@ -1,8 +1,33 @@
 import { BotContext } from '../types';
 import { portalApi, PortalApiError } from '../../services/portalApi';
 import { mainMenuKeyboard } from '../keyboards';
+import { handleMenuHome } from './help';
 
+/**
+ * `/start` — enrolment, or the home screen.
+ *
+ * `/start` IS NOT ALWAYS A NEW USER
+ * ---------------------------------
+ * It is the most-typed command in Telegram: the client sends it when the chat
+ * is opened from the chat list, the "START" button sends it, and people type it
+ * when they are lost. Before Phase 2.4 this handler answered every one of those
+ * with the store-code prompt and wrote `step = 'awaiting_store_code'` — so a
+ * merchandiser who was already enrolled and half way through a checklist who
+ * typed `/start` was asked for a code the bot already had, and their running
+ * flow was derailed. Nothing was lost (the store binding lives in the session),
+ * but the bot looked like it had forgotten them.
+ *
+ * So the question this handler asks is not "what did they type?" but "is this
+ * chat enrolled?". If it is, `/start` means "take me home" and that is what it
+ * does — the same screen the `🏠 Menyu` button produces. If it is not, the code
+ * prompt is the only thing that can help and it is what they get.
+ */
 export async function handleStart(ctx: BotContext) {
+  if (ctx.session.storeId) {
+    await handleMenuHome(ctx);
+    return;
+  }
+
   ctx.session.step = 'awaiting_store_code';
 
   // The examples are real store codes from the seeded catalogue. A made-up one
@@ -13,6 +38,9 @@ export async function handleStart(ctx: BotContext) {
     `Platformadan istifadə etmək üçün zəhmət olmasa təmsil etdiyiniz *Mağaza Kodunu* göndərin.\n\n` +
     `💡 *Nümunə:* \`BRAVO_YASAMAL_01\` və ya \`ARAZ_GENJLIK_02\``;
 
+  // No keyboard on purpose: at this point the only useful action is to type a
+  // store code, and a "📋 Tapşırıqlar" button that answers "no store
+  // registration" teaches a new user that the buttons here do not work.
   await ctx.reply(welcomeMessage, { parse_mode: 'Markdown' });
 }
 

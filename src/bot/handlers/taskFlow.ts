@@ -62,6 +62,7 @@ import { AnswerCallback, BotContext } from '../types';
 import { decodeChecklistAnswer, encodeCallback, encodeChecklistAnswer } from '../callbacks';
 import {
   LOCATION_SKIP_LABEL,
+  MENU_HOME_LABEL,
   locationRequestKeyboard,
   mainMenuInline,
   mainMenuKeyboard,
@@ -123,16 +124,24 @@ function numberHint(question: ChecklistQuestion): string {
 }
 
 /**
- * The "start this task over" button.
+ * The navigation row offered under every step message: "start over" and "home".
+ *
+ * Both are on the step messages rather than on the menu messages because that
+ * is where they are needed — a merchandiser part way through a checklist is the
+ * one who might want out.
  *
  * Only offered where an inline keyboard already exists, because an inline
  * keyboard cannot be sent alongside the reply keyboard the location step needs.
- * The location step does not miss it: tapping the task again from `/tasks` is
+ * The location step does not miss them: tapping the task again from `/tasks` is
  * the same request, and at that point there is nothing to lose.
+ *
+ * `🏠 Menyu` is what makes the `menu:home` action reachable. Before Phase 2.4
+ * the router answered it and no button produced it.
  */
-function restartButton(taskId: string | undefined): InlineKeyboard | undefined {
-  if (!taskId) return undefined;
-  return new InlineKeyboard().text('🔄 Yenidən başla', encodeCallback('restart', taskId));
+function flowNavKeyboard(taskId: string | undefined): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  if (taskId) keyboard.text('🔄 Yenidən başla', encodeCallback('restart', taskId));
+  return keyboard.text(MENU_HOME_LABEL, encodeCallback('menu', 'home'));
 }
 
 // ---------------------------------------------------------------------------
@@ -277,7 +286,7 @@ export async function askNextChecklistQuestion(ctx: BotContext): Promise<void> {
         .text('✅ Bəli', encodeCallback('chk', encodeChecklistAnswer(index, true)))
         .text('❌ Xeyr', encodeCallback('chk', encodeChecklistAnswer(index, false)))
         .row()
-        .append(restartButton(ctx.session.activeTaskId) ?? new InlineKeyboard()),
+        .append(flowNavKeyboard(ctx.session.activeTaskId)),
     });
     return;
   }
@@ -287,7 +296,7 @@ export async function askNextChecklistQuestion(ctx: BotContext): Promise<void> {
     question.options.forEach((option, optionIndex) => {
       keyboard.text(option, encodeCallback('chk', encodeChecklistAnswer(index, optionIndex))).row();
     });
-    keyboard.append(restartButton(ctx.session.activeTaskId) ?? new InlineKeyboard());
+    keyboard.append(flowNavKeyboard(ctx.session.activeTaskId));
     await ctx.reply(header, { parse_mode: 'Markdown', reply_markup: keyboard });
     return;
   }
@@ -296,7 +305,7 @@ export async function askNextChecklistQuestion(ctx: BotContext): Promise<void> {
   // `handleChecklistText` exists and why the session stays in this step.
   await ctx.reply(`${header}${numberHint(question)}\n\n✍️ Cavabı rəqəmlə yazıb göndərin.`, {
     parse_mode: 'Markdown',
-    reply_markup: restartButton(ctx.session.activeTaskId),
+    reply_markup: flowNavKeyboard(ctx.session.activeTaskId),
   });
 }
 

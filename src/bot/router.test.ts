@@ -52,6 +52,19 @@
  *   2. The photo is NOT filed until the confirm button is tapped.
  *   3. A duplicate tap produces no error and no second audit.
  *
+ * and the one property Phase 2.4 is accepted on:
+ *
+ *   4. `/help` shows the menu, and every text command is a way back to it.
+ *
+ * ONE CHECK DOES NOT DRIVE THE BOT, ON PURPOSE
+ * --------------------------------------------
+ * "no callback action is unreachable" reads the source instead. Driving can
+ * only reach actions that are already reachable, so no amount of walking can
+ * find an action that nothing emits — which is how `menu:home` sat in the
+ * router with no button anywhere producing it, exactly the way four handlers
+ * sat in `index.ts` with nothing calling them in 2.1. A test that executes the
+ * code cannot find unreachable code; only a static reading can.
+ *
  * WHY A DUPLICATE TAP CAN BE GUARDED BY SESSION STATE ALONE
  * --------------------------------------------------------
  * The guard is "has the effect already happened?", read from the session. That
@@ -95,9 +108,10 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { Client } from 'pg';
+import { CALLBACK_ACTIONS } from './callbacks';
 
 /** Its own port, so the suites that own 3111/3121 are not disturbed. */
 const PORT = Number(process.env.ONETEAM_TEST_ROUTER_PORT || 3131);
@@ -108,6 +122,12 @@ const SERVICE_TOKEN = process.env.ONETEAM_TEST_ADMIN_TOKEN || 'oneteam-user:usr-
 
 const REPO_ROOT = process.cwd();
 const API_ENTRY = path.join(REPO_ROOT, 'apps/api/dist/main.js');
+
+/**
+ * The bot's own source, read at the end of the suite by the one check that
+ * cannot drive the bot. See "no callback action is unreachable" below.
+ */
+const BOT_SOURCE_DIR = path.join(REPO_ROOT, 'src/bot');
 
 /** Unique per run, so two runs against one database do not collide. */
 const RUN = Date.now().toString(36).toUpperCase();
@@ -751,6 +771,18 @@ async function main(): Promise<void> {
     const yesData = buttonDataWithText('Bəli');
     check('the boolean question offers answer buttons', Boolean(yesData), inlineButtons());
 
+    // The home button has to be SENT, not merely produced somewhere in the
+    // source. The static check at the end of this suite can only see that
+    // `encodeCallback('menu'` appears in a file, which is equally true of a
+    // helper that nothing calls — and an unused helper is precisely how
+    // `menu:home` came to be unreachable in the first place. This is the check
+    // that fails if the flow stops attaching it.
+    check(
+      'and the flow offers a way back to the menu',
+      Boolean(buttonDataStartingWith('menu:')),
+      inlineButtons(),
+    );
+
     if (!yesData) {
       skip('the rest of the checklist', 'the boolean question had no buttons');
     } else {
@@ -793,6 +825,11 @@ async function main(): Promise<void> {
     const retakeData = buttonDataStartingWith('retake:');
     check('and a confirm button is offered', confirmData === `confirm:${taskId}`, inlineButtons());
     check('and a re-shoot button is offered', retakeData === `retake:${taskId}`, inlineButtons());
+    check(
+      'and the home button is offered here too',
+      Boolean(buttonDataStartingWith('menu:')),
+      inlineButtons(),
+    );
 
     // -----------------------------------------------------------------------
     console.log('\nre-shooting');
@@ -895,6 +932,141 @@ async function main(): Promise<void> {
         'and the unconfirmed photo is gone',
         sessionRow.rows[0]?.pending_photo === null,
         sessionRow.rows[0],
+      );
+    }
+
+    // -----------------------------------------------------------------------
+    console.log('\nthe text fallback — phase 2.4');
+    // -----------------------------------------------------------------------
+
+    // 2.4 is accepted on "/help shows the menu". Which menu is the whole
+    // question, because a message carries one `reply_markup` and never both: a
+    // reply keyboard and an inline keyboard cannot be sent together. For a
+    // message that answers a TYPED command the reply keyboard is the one that
+    // helps — it survives being scrolled past, and it is the only kind that can
+    // be brought back by typing. That last part is the actual requirement: the
+    // location step sends a `oneTime()` reply keyboard, so using it dismisses
+    // the menu, and before 2.4 nothing in the bot put it back.
+    const menuLabels = (): string[] => replyButtons().map((button) => button.text);
+    const menuIsOffered = (): boolean =>
+      menuLabels().some((label) => label.includes('Tapşırıqlar')) &&
+      menuLabels().some((label) => label.includes('Statusum'));
+
+    await feed(textUpdate('/help'));
+    check(
+      '/help answers',
+      texts().some((text) => text.includes('Köməkçi')),
+      texts(),
+    );
+    check('and shows the menu', menuIsOffered(), menuLabels());
+    check(
+      'and explains the six steps before it lists any command',
+      texts().some((text) => text.includes('6 addım')),
+      texts(),
+    );
+
+    await feed(textUpdate('/mystatus'));
+    check('/mystatus answers', texts().length > 0, texts());
+    check('and restores the menu too', menuIsOffered(), menuLabels());
+
+    await feed(textUpdate('/tasks'));
+    check('/tasks restores the menu as well', menuIsOffered(), menuLabels());
+
+    // `/start` is the most-typed command in Telegram — the client sends it when
+    // the chat is opened from the chat list, and people type it when they are
+    // lost. For a chat that is already enrolled it must mean "take me home".
+    await feed(textUpdate('/start'));
+    // Matched on the welcome line, not on the phrase "mağaza kodunu göndərin".
+    // That phrase was the first attempt and it could never match: the real text
+    // is "təmsil etdiyiniz *Mağaza Kodunu* göndərin", with capitals and a `*`
+    // between the words. The check passed while the behaviour was broken, which
+    // is what break-the-detector caught — an assertion that cannot fail is
+    // worse than no assertion, because it is counted as evidence.
+    check(
+      '/start on an enrolled chat does not send the enrolment prompt again',
+      !texts().some((text) => /Xoş Gəlmisiniz/i.test(text)),
+      texts(),
+    );
+    check(
+      'and it answers with the home screen, naming the store',
+      texts().some((text) => text.includes('Router Test Mağazası')),
+      texts(),
+    );
+    check('and offers the menu', menuIsOffered(), menuLabels());
+
+    const afterStart = await db.query('SELECT step FROM bot_sessions WHERE chat_id = $1', [
+      String(CHAT_ID),
+    ]);
+    check(
+      'and it did not write `awaiting_store_code` over the session',
+      afterStart.rows[0]?.step !== 'awaiting_store_code',
+      afterStart.rows[0],
+    );
+
+    // The same command mid-flow. This is the derailment 2.4 fixes: `/start`
+    // used to overwrite `step`, so a merchandiser half way through a checklist
+    // who typed it was sent back to enrolment with their flow broken.
+    await feed(textUpdate('/tasks'));
+    const reopen = openTaskButton();
+    if (!reopen) {
+      skip('the mid-flow /start check', 'the task list offered no button that opens a task');
+    } else {
+      await feed(callbackUpdate(reopen.data, nextMessageId - 1));
+      const midFlow = await db.query('SELECT step FROM bot_sessions WHERE chat_id = $1', [
+        String(CHAT_ID),
+      ]);
+      check(
+        're-opening the task puts the flow back on the location step',
+        midFlow.rows[0]?.step === 'awaiting_location',
+        midFlow.rows[0],
+      );
+
+      await feed(textUpdate('/start'));
+      const stillThere = await db.query('SELECT step FROM bot_sessions WHERE chat_id = $1', [
+        String(CHAT_ID),
+      ]);
+      check(
+        'and /start mid-flow leaves the step alone',
+        stillThere.rows[0]?.step === 'awaiting_location',
+        stillThere.rows[0],
+      );
+    }
+
+    // -----------------------------------------------------------------------
+    console.log('\nno callback action is unreachable');
+    // -----------------------------------------------------------------------
+
+    // THE ONE CHECK IN THIS SUITE THAT DOES NOT DRIVE THE BOT, and that is the
+    // point of it. Driving can only reach actions that are already reachable,
+    // so no amount of walking can find an action that nothing emits. That is
+    // exactly how `menu:home` sat in the router — handled, implemented in
+    // `handleMenuHome`, and produced by no button anywhere. It is the same
+    // defect Phase 2.1 found one level up (four handlers imported into
+    // `index.ts` and called by nothing), but the 2.1 fix does not work here:
+    // there the route was missing and the caller existed; here the caller is
+    // what is missing, and only a static reading can see that.
+    // WHAT THIS CHECK CAN AND CANNOT SEE
+    // -----------------------------------
+    // It sees that a file produces the action name. It does NOT see whether the
+    // helper producing it is ever called — `encodeCallback('menu', 'home')` in
+    // an unused helper would satisfy it. That gap is covered from the other
+    // side by the driven checks ("and the flow offers a way back to the menu",
+    // "and the home button is offered here too"), which assert the button is
+    // actually SENT. One check for "nothing produces it", one for "the producer
+    // is not wired".
+    const emittedActions = new Set<string>();
+    for (const file of readdirSync(BOT_SOURCE_DIR, { recursive: true, encoding: 'utf8' })) {
+      if (!file.endsWith('.ts') || file.endsWith('.test.ts')) continue;
+      const source = readFileSync(path.join(BOT_SOURCE_DIR, file), 'utf8');
+      for (const match of source.matchAll(/encodeCallback\(\s*'([a-z_]+)'/g)) {
+        emittedActions.add(match[1]);
+      }
+    }
+    for (const action of CALLBACK_ACTIONS) {
+      check(
+        `\`${action}:\` is produced by a button somewhere`,
+        emittedActions.has(action),
+        [...emittedActions].sort(),
       );
     }
 

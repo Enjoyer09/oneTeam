@@ -168,7 +168,7 @@ açar oxuma / yazma / təsdiq yollarında **401** alır. Skriptlər: `scripts/li
 | 2.1 | **Inline keyboard state machine:** `main → store-list → task-list → checklist → photo → confirm → done`. Hər düymə `callback_data` ilə `action:id` formatında. | Basılma dublikat heç bir səhv yaratmır (idempotent).                           | 1.5 gün | ✅       |
 | 2.2 | **Bot session store (Redis / in-memory TTL):** `chatId → {step, storeId, taskId, checklistAnswers[]}`. 15 dəq TTL, yenilənmə.                                  | Yenidən başlatma ilə state itmir; `chatId` yenidən yazanda əvvəlki davam edir. | 1 gün   | ✅       |
 | 2.3 | **Notification:** tapşırıq yaradılması / vaxt bitməsi / rədd 15 dəq əvvəl → `sendMessage` + inline `Open` düyməsi.                                             | Supervayzer panelində yaradanda bot bildiriş alır.                             | 0.5 gün | ⏳       |
-| 2.4 | **Fallback (text):** `/start`, `/help`, `/mystatus` — inline olmadıqda işləsin.                                                                                | `/help` → menyu göstərir.                                                      | 0.5 gün | ⏳       |
+| 2.4 | **Fallback (text):** `/start`, `/help`, `/mystatus` — inline olmadıqda işləsin.                                                                                | `/help` → menyu göstərir.                                                      | 0.5 gün | ✅       |
 
 #### 2.1 — nə edildi, nə ilə sübut olundu
 
@@ -239,6 +239,70 @@ yəni merçendayzer "undefined" yerinə həqiqi sualı görür. Bu, **müqavilə
 olduğu və köhnə sətirlərin necə doldurulacağı açıqdır. Səbəb: bu fayl 2.1 üçün yenidən yazılırdı və
 `question.question`-i **bilmə-yə-bilmə** yeni koda yazmaq "dəyişikliyi kiçik saxlamaq" deyil, qüsuru qəsdən
 göndərməkdir. Simptom indi testlə qorunur.
+
+#### 2.4 — nə edildi, nə ilə sübut olundu
+
+**Bir texniki fakt bütün 2.4-ü müəyyən edir: Telegram mesajında `reply_markup` TƏKDİR.** Ya reply keyboard,
+ya inline — **ikisi bir mesajda göndərilə bilmir**. Yəni "menyunu əlavə et" hər mesajda **seçimdir**.
+
+Bu seçimin qaydası indi `keyboards.ts`-in başlığında yazılıb:
+
+- **Yazılmış əmri cavablandıran** və ya axını bitirən mesaj → **reply keyboard**. O, davamlıdır, yuxarı sürüşüb
+  itmir, və — 2.4-ün əsl tələbi — **yazmaqla geri qaytarıla bilən yeganə növdür**.
+- **Addımın özü olan** mesaj → **inline**, çünki düymələr o mesaja aiddir (bu sualın cavabları, bu fotonun
+  təsdiqi).
+
+**Əsl problem bu idi:** lokasiya addımı `locationRequestKeyboard()` göndərir və o, `oneTime()`-dır — yəni
+istifadə olunan anda **yox olur**. Ondan sonra botun heç bir yeri reply keyboard-u geri qoymurdusa,
+merçendayzerin əlində **heç bir düymə qalmır**; yeganə çıxış yolu `/tasks` yazmaqdır — faza hədəfi isə
+"sahə işçisi heç bir `/komanda` yazmır". `/help`, `/tasks`, `/mystatus` isə **heç bir klaviatura**
+əlavə etmirdi, yəni yazmaq da kömək etmirdi.
+
+**Üç tapıntı:**
+
+1. **`menu:home` ölü hərəkət idi.** `CALLBACK_ACTIONS`-da var, router cavablandırır, `handleMenuHome` yazılıb
+   — və **heç bir düymə onu yaratmırdı**. Bu, 2.1-in tapdığı qüsurun **eyni sinfidir** (dörd handler import
+   olunub çağırılmırdı), bir səviyyə aşağıda.
+2. **`/start` qeydiyyatdan keçmiş merçendayzeri yenidən qapıya göndərirdi.** `/start` Telegram-da ən çox
+   yazılan əmrdir (çat siyahıdan açılarkən klient özü göndərir). Handler isə **şərtsiz** mağaza kodu
+   soruşurdu və `step`-i yazırdı — yəni çeklistin ortasında `/start` yazan adam həm artıq cavabı bilinən
+   sualla qarşılaşırdı, həm də **axını pozulurdu**. İndi: çat qeydiyyatdadırsa `/start` = "məni evə apar",
+   yəni `handleMenuHome`.
+3. **`/help` qəbul meyarı özü bir qüsuru gizlədirdi** — aşağıda "detektoru sındırma" bölməsində.
+
+**Nə quruldu:** `MENU_HOME_LABEL` + `menu:home` düyməsi axının hər addımında və foto təsdiqində; `/start`,
+`/help`, `/tasks`, `/mystatus` və axının son qəbzi hamısı **reply keyboard** qaytarır; `handleMenuHome`
+mağazanı dəyişməyin yolunu **deyir** (yeni kodu yazmaq — ayrı `/store` əmri qəsdən yoxdur, çünki yadda
+saxlanacaq şey bir deyil, iki olardı).
+
+**Sübut — `npm run test:router` → 67/0** (2.1-də 44 idi; +23 yeni yoxlama). 2.4 üçün xüsusi olaraq: `/help`
+menyunu göstərir, hər mətn əmri menyunu geri qaytarır, qeydiyyatlı çatda `/start` qapını təkrarlamır və
+sessiyaya `awaiting_store_code` yazmır, axının ortasında `/start` addımı **dəyişmir**.
+
+**Detektoru sındırma — dörd iş:**
+
+| Sındırılan şey                               | Nəticə   | Nə qırmızı oldu                                                          |
+| -------------------------------------------- | -------- | ------------------------------------------------------------------------ |
+| `/start` yenidən şərtsiz mağaza kodu soruşur | **62/5** | məhz beş `/start` yoxlaması                                              |
+| `/help` inline menyu göndərir                | **66/1** | yalnız "menyunu göstərir" (digər əmrlər yaşıl qaldı — çöküş əmra xasdır) |
+| Çeklist menyu düyməsini itirir               | **66/1** | yalnız çeklistin "menyuya qayıtma" yoxlaması                             |
+| Menyu düyməsi hər yerdən silinir             | **64/3** | iki sürülən yoxlama **+ statik** yoxlama                                 |
+
+**Ən dəyərli nəticə: 2.4 öz testimdəki bir qüsuru üzə çıxardı.** `/start` yoxlaması əvvəl
+`/mağaza kodunu göndərin/i` mətnini axtarırdı — **heç vaxt uyğun gələ bilməzdi**, çünki həqiqi mətn
+"təmsil etdiyiniz `*Mağaza Kodunu*` göndərin"dir (böyük hərflər və arada `*`). Yəni davranış sınıq ikən
+yoxlama **yaşıl** keçirdi. Detektoru sındırma bunu tutdu. İndi qeydiyyat mesajı "Xoş Gəlmisiniz" ilə
+tanınır. **Dərsi:** **heç vaxt uğursuz ola bilməyən yoxlama yoxlamadan pisdir** — çünki sübut kimi sayılır.
+
+**Bir yoxlama qəsdən botu SÜRMÜR.** "heç bir callback hərəkəti çatılmaz deyil" yoxlaması mənbə faylları
+oxuyur. Səbəb: sürmə yalnız **artıq çatıla bilən** hərəkətlərə çatır, ona görə heç bir gəzinti "heç kimin
+yaratmadığı hərəkəti" tapa bilməz — `menu:home` elə belə yaşayırdı. Amma bu statik yoxlama **natamamdır**:
+`encodeCallback('menu', …)` **çağırılmayan** bir köməkçidə də olarsa, o, keçər. Ona görə iki sürülən yoxlama
+əlavə olundu ("axın menyuya qayıtma yolu təklif edir", "burada da menyu düyməsi var") — **biri "heç kim
+yaratmır"-ı, digəri "yaradan qoşulmayıb"-ı tutur**. (Qeyd: ilk yazdığım `homeButton()` köməkçisi **heç
+haradan çağırılmırdı** — statik yoxlamanın tuta bilmədiyi elə həmin haldır.)
+
+**2.3-ə keçid üçün açıq qalan şey:** `NotificationDispatcherService` hələ də **heç nə göndərmir**.
 
 **Redis yoxdur, Postgres var.** Plan "Redis / in-memory TTL" yazmışdı. Bu deployment-də Redis yoxdur və
 bir neçə yüz baytlıq sessiya üçün botla öz vəziyyəti arasına üçüncü servis qoymaq düzgün olmazdı. Sessiya
