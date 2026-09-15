@@ -532,16 +532,32 @@ function main() {
     // Prefer git's view of the tree, but fall back to a filesystem walk when
     // git knows nothing about these files (untracked tree). Silently scanning
     // zero files and reporting success would be the worst failure mode.
+    //
+    // UNTRACKED FILES ARE INCLUDED, and that is not a detail. `git ls-files`
+    // lists only what has been staged or committed, so a file that has just
+    // been written but not yet `git add`-ed is INVISIBLE to this scan. That is
+    // how this scanner's own test corpus reached CI unfound: the local check
+    // ran before the file was staged, reported "clean over 180 files", and the
+    // next commit turned it into 11 CRITICAL findings in CI. A verification
+    // tool whose coverage silently depends on staging state will eventually
+    // certify something it never looked at.
     try {
-      files = trackedFiles();
+      const tracked = trackedFiles();
+      const untracked = git(['ls-files', '--others', '--exclude-standard', '-z'])
+        .split('\0')
+        .filter(Boolean);
+      files = [...new Set([...tracked, ...untracked])];
+      if (files.length === 0) {
+        files = walkFiles('.');
+        mode = 'filesystem walk (git reports no files)';
+      } else if (untracked.length > 0) {
+        mode = `git tracked + ${untracked.length} untracked file(s)`;
+      } else {
+        mode = 'git tracked files';
+      }
     } catch {
-      files = [];
-    }
-    if (files.length === 0) {
       files = walkFiles('.');
-      mode = 'filesystem walk (git reports no tracked files)';
-    } else {
-      mode = 'git tracked files';
+      mode = 'filesystem walk (git unavailable)';
     }
   } else {
     try {
