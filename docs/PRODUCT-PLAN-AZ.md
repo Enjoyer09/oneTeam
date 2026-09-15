@@ -43,13 +43,13 @@
 
 ### MƏRHƏLƏ 1 — Əsas boşluqlar və təhlükəsizlik (Həftə 1–2)
 
-| #   | İş paketi                                                                                                                                                                                                                                                                                                                                                              | Qəbul meyarı                                                                                                                  | Müddət  | Vəziyyət               |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------- |
-| 1.1 | **Panel təhlükəsizliyi:** `/api/panel/*` üçün `mayUseRoute` yoxlamasını `/api/portal/` şərtindən azad et, `oneteam-user:` tokenini paneldə rədd et.                                                                                                                                                                                                                    | `curl -H "Authorization: Bearer oneteam-user:usr-admin-001" /api/panel/me` → 403                                              | 0.5 gün | ✅ `29aa4d3`           |
-| 1.2 | **Logout sonuncu açarı silə bilməsin** — _premisa yoxlanıldı və yanlış çıxdı_: heç bir administrativ ləğv yolu paneli boşalda bilmir (`CANNOT_REVOKE_OWN_SESSION`, `CANNOT_REVOKE_OWN_KEYS`). Əvəzində **əsl** problem tapıldı: `logout` sonuncu açarı ləğv edəndə panel yenidən **açılır**.                                                                           | Qərar gözləyir — §8-ə bax                                                                                                     | 0.5 gün | ⚠️ qərar               |
-| 1.3 | **Mağaza CRUD (Web):** yarat / redaktə et / sil + React forması.                                                                                                                                                                                                                                                                                                       | Yeni mağaza yaradılır → siyahıda görünür → kod unikal → silinə bilir                                                          | 1.5 gün | ✅ `e17941e`,`8302945` |
-| 1.4 | **Tapşırıq CRUD (Web):** mağaza, başlıq, növ (`CHECKLIST`, `PHOTO`, `AUDIT`), planlı tarix, müddət, çeklist sxemi (JSON). Ələ keçirmə yalnız sahibinə.                                                                                                                                                                                                                 | Tapşırıq yaradılır → ələ keçirilir → mobil/botda görünür → başqa istifadəçi ələ keçirə bilmir                                 | 1.5 gün | ✅ `31bc886` \*        |
-| 1.5 | **İstifadəçi rolları və istifadəçi idarəetməsi:** `SUPERVISOR` (mağaza/tapşırıq yaradır, auditi təsdiqləyir), `MERCHANDISER` (icra edir, öz işini təsdiqləyə bilmir), `ADMIN` (açarlar, rollar, istifadəçilər). İki boşluq bağlandı: audit təsdiqində **rol yoxlaması yox idi**, və **yeni adam yaratmaq mümkün deyildi** (sistemdə yalnız seed-dəki 3 nəfər var idi). | Sahədən foto göndərən işçi öz işini **təsdiqləyə bilmir**; ADMIN yeni adam yaradır → ona açar verir → açar onun adına işləyir | 1 gün   | ✅ `ed8f9b7` \*\*      |
+| #   | İş paketi                                                                                                                                                                                                                                                                                                                                                              | Qəbul meyarı                                                                                                                  | Müddət  | Vəziyyət                            |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------- | ----------------------------------- |
+| 1.1 | **Panel təhlükəsizliyi:** `/api/panel/*` üçün `mayUseRoute` yoxlamasını `/api/portal/` şərtindən azad et, `oneteam-user:` tokenini paneldə rədd et.                                                                                                                                                                                                                    | `curl -H "Authorization: Bearer oneteam-user:usr-admin-001" /api/panel/me` → 403                                              | 0.5 gün | ✅ `29aa4d3`                        |
+| 1.2 | **Logout sonuncu açarı silə bilməsin** — _premisa yoxlanıldı və yanlış çıxdı_: heç bir administrativ ləğv yolu paneli boşalda bilmir (`CANNOT_REVOKE_OWN_SESSION`, `CANNOT_REVOKE_OWN_KEYS`). Əvəzində **əsl** problem tapıldı: `logout` sonuncu açarı ləğv edəndə panel yenidən **açılır**.                                                                           | Qərar gözləyir — §8-ə bax                                                                                                     | 0.5 gün | ⚠️ qərar                            |
+| 1.3 | **Mağaza CRUD (Web):** yarat / redaktə et / sil + React forması.                                                                                                                                                                                                                                                                                                       | Yeni mağaza yaradılır → siyahıda görünür → kod unikal → silinə bilir                                                          | 1.5 gün | ✅ `e17941e`,`8302945`              |
+| 1.4 | **Tapşırıq CRUD (Web):** mağaza, başlıq, növ (`CHECKLIST`, `PHOTO`, `AUDIT`), planlı tarix, müddət, çeklist sxemi (JSON). Ələ keçirmə yalnız sahibinə.                                                                                                                                                                                                                 | Tapşırıq yaradılır → ələ keçirilir → mobil/botda görünür → başqa istifadəçi ələ keçirə bilmir                                 | 1.5 gün | ✅ `31bc886` \*                     |
+| 1.5 | **İstifadəçi rolları və istifadəçi idarəetməsi:** `SUPERVISOR` (mağaza/tapşırıq yaradır, auditi təsdiqləyir), `MERCHANDISER` (icra edir, öz işini təsdiqləyə bilmir), `ADMIN` (açarlar, rollar, istifadəçilər). İki boşluq bağlandı: audit təsdiqində **rol yoxlaması yox idi**, və **yeni adam yaratmaq mümkün deyildi** (sistemdə yalnız seed-dəki 3 nəfər var idi). | Sahədən foto göndərən işçi öz işini **təsdiqləyə bilmir**; ADMIN yeni adam yaradır → ona açar verir → açar onun adına işləyir | 1 gün   | ✅ `ed8f9b7` · canlı `4f4a238` \*\* |
 
 **Mərhələ 1 nəticəsi:** Web panel **tam idarəetmə mərkəzi** olur; təhlükəsizlik boşluqları bağlanır.
 
@@ -122,6 +122,43 @@ administrator **endirilə və silinə bilməz** (istifadəçi və açar idarəet
 deployment bir daha idarə oluna bilməz); öz rolunu dəyişmək və öz hesabını silmək **qadağandır**
 (rolu dəyişən administrator işləyən açarı saxlayır, amma həmin açarın açdığı bütün ekranları itirir).
 
+**Canlı yoxlama tamamlandı** — kod deploy olundu, sonra **istehsalatda** bütün yollar yoxlanıldı (1.4-də
+olduğu kimi). Yeni resurs əlavə olunduğu üçün bu, doktrina ilə **məcburidir**:
+
+| Yoxlama                                                                            | Nəticə                 |
+| ---------------------------------------------------------------------------------- | ---------------------- |
+| Bütün yollar: yaratma, redaktə, silmə, 11 rədd halı, rol qapısı, **təsdiq qapısı** | **60 keçdi / 0 düşdü** |
+| Yenidən başlatmadan sonra sağ qalma + təmizlik                                     | **29 keçdi / 0 düşdü** |
+
+**Təsdiq qapısının canlı sübutu rol fərqi ilə alınır:** eyni (mövcud olmayan) təqdimat id-si ilə
+MERCHANDISER **403 `REVIEW_FORBIDDEN`** alır, ADMIN isə **404** alır. Fərq **roldur, id deyil** — yəni
+qapı axtarışdan **əvvəl** işləyir. Bu, təzə başlamış prosesdə də təkrarlanır.
+
+**Yazının bazaya düşdüyü üç şeylə sübut olundu:** (1) yaradılan adam yenidən başlatmadan sonra da var;
+(2) **redaktə** də sağ qaldı (ad **və** telefon ayrı-ayrı) — "sətir yazıldı" ilə "sətir düzgün
+yazıldı"-nı bu ayırır; (3) təzə prosesdə həmin adama **yeni açar mint olundu** — `panel_tokens.user_id`
+xarici açarı sətri bazada tapmasa, bu `KEY_NOT_STORED` ilə düşərdi. Yəni zəncir sübut olunur, təkcə son
+halqa deyil.
+
+**`LAST_ADMIN` budağı HTTP ilə ÇATILMAZ — konstruksiyaya görə.** Yol administrator tələb edir, qoruyucu
+isə yalnız hədəf **tək** administrator olanda işə düşür — bu halda çağıran elə həmin adamdır, ona görə
+`CANNOT_CHANGE_OWN_ROLE` / `CANNOT_DELETE_SELF` **əvvəl** cavab verir. Qoruyucu iki administratorun eyni
+anda bir-birini endirməsinə qarşıdır və bir HTTP müştərisi ilə səhnələşdirilə bilməz. Yerli test onu
+yaddaş ilə bazanı qəsdən uyğunsuzlaşdıraraq açır.
+
+**Yoxlama zamanı üç "buq" göründü, üçü də skriptin öz səhvi idi.** `submissions` təqdimatı olmayan adam
+üçün **`0`-dır, `null` deyil** (`countEvidencesByUser` LEFT JOIN edir; `null` yalnız baza olmayanda
+"naməlum" deməkdir). `/api/panel/me` **`userId`** qaytarır, `/api/panel/users` sətirləri isə **`id`** —
+eyni principal, iki forma. Və `/api/health`-in `persistenceDetail` sətri **canlı sayğac deyil, GECİKƏN
+ETİKETDİR**: yalnız replika poll-u massivləri yenidən yükləyəndə hesablanır, ona görə yazıdan dərhal
+sonra oxunanda **əvvəlki** vəziyyəti göstərir və saxta "silmə baş vermədi" nəticəsi verdi. Skript indi
+onun oturmasını gözləyir, canlı cavab kimi isə resurs endpointini götürür.
+
+**İstehsalat yoxlama əvvəlki vəziyyətdə buraxıldı:** 3 istifadəçi, 3 mağaza, 4 tapşırıq, 0 sübut.
+Müvəqqəti giriş kredensialı silindi, konteyner yenidən başladıldı ki, köhnə mühit qalmasın, və həmin
+açar oxuma / yazma / təsdiq yollarında **401** alır. Skriptlər: `scripts/live-users-crud.cjs` +
+`scripts/live-users-crud-after-restart.cjs`.
+
 ---
 
 ### MƏRHƏLƏ 2 — Telegram bot peşəkar menyu (Həftə 3)
@@ -179,18 +216,19 @@ deployment bir daha idarə oluna bilməz); öz rolunu dəyişmək və öz hesab�
 
 ## 4. Texniki borclar
 
-| Borc                                                       | Hal-hazırkı vəziyyət                                          | Planlaşdırılan həll                                                                                    |
-| ---------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `mobile/package.json: dependencies: {}`                    | Expo config və native modullar yoxdur                         | Mərhələ 3.1-də `expo`, `expo-camera`, `expo-location`, `expo-secure-store`, `expo-router` quraşdırılır |
-| `yolov8n.pt` — generic COCO                                | SKU tanıma yoxdur                                             | Mərhələ 4.3-də ROI crop + Vision LLM ilə kompensasiya edilir (fine-tune yox)                           |
-| ~~`/api/panel/*` → `oneteam-user:` token qəbul edirdi~~    | Panel açarı yaradıldıqda belə qəbul edilirdi                  | **Həll olundu** (1.1, `29aa4d3`)                                                                       |
-| ~~Audit təsdiqində rol yoxlaması yox idi~~                 | Fotonu göndərən işçi öz auditini təsdiqləyə bilirdi           | **Həll olundu** (1.5, `ed8f9b7`) — `requireReviewer`                                                   |
-| ~~Yeni istifadəçi yaratmaq mümkün deyildi~~                | "Hər adama öz açarı" yalnız seed-dəki 3 nəfər üçün işləyirdi  | **Həll olundu** (1.5, `ed8f9b7`) — `/api/panel/users` + panel ekranı                                   |
-| Bot state-machine yoxdur                                   | `text` command + switch                                       | Mərhələ 2.1-də inline keyboard                                                                         |
-| OpenRouter env yoxdur                                      | `OPENROUTER_API_KEY` Railway-da yoxdur                        | Mərhələ 4.1-dən əvvəl qoyulmalıdır                                                                     |
-| iOS Xcode scheme / signing yoxdur                          | `mobile/` altında `.xcodeproj` yoxdur                         | `expo prebuild` yaradacaq                                                                              |
-| `pnpm-workspace.yaml` var, amma `node_modules` `npm`-dədir | Lockfile uyğunsuzluğu (`npm install --dry-run` → 304 silinir) | `pnpm install --frozen-lockfile` və ya `package-lock.json` bərpası                                     |
-| Geofence radiusu mağaza üzrə deyil                         | `GEOFENCE_MAX_DISTANCE_METERS` sabiti (`packages/types`)      | Mərhələ 3-də mağaza üzrə sütun + mobil tərəfin uyğunlaşdırılması                                       |
+| Borc                                                       | Hal-hazırkı vəziyyət                                                                                                                              | Planlaşdırılan həll                                                                                                                                                      |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mobile/package.json: dependencies: {}`                    | Expo config və native modullar yoxdur                                                                                                             | Mərhələ 3.1-də `expo`, `expo-camera`, `expo-location`, `expo-secure-store`, `expo-router` quraşdırılır                                                                   |
+| `yolov8n.pt` — generic COCO                                | SKU tanıma yoxdur                                                                                                                                 | Mərhələ 4.3-də ROI crop + Vision LLM ilə kompensasiya edilir (fine-tune yox)                                                                                             |
+| ~~`/api/panel/*` → `oneteam-user:` token qəbul edirdi~~    | Panel açarı yaradıldıqda belə qəbul edilirdi                                                                                                      | **Həll olundu** (1.1, `29aa4d3`)                                                                                                                                         |
+| ~~Audit təsdiqində rol yoxlaması yox idi~~                 | Fotonu göndərən işçi öz auditini təsdiqləyə bilirdi                                                                                               | **Həll olundu** (1.5, `ed8f9b7`) — `requireReviewer`                                                                                                                     |
+| ~~Yeni istifadəçi yaratmaq mümkün deyildi~~                | "Hər adama öz açarı" yalnız seed-dəki 3 nəfər üçün işləyirdi                                                                                      | **Həll olundu** (1.5, `ed8f9b7`) — `/api/panel/users` + panel ekranı                                                                                                     |
+| Bot state-machine yoxdur                                   | `text` command + switch                                                                                                                           | Mərhələ 2.1-də inline keyboard                                                                                                                                           |
+| OpenRouter env yoxdur                                      | `OPENROUTER_API_KEY` Railway-da yoxdur                                                                                                            | Mərhələ 4.1-dən əvvəl qoyulmalıdır                                                                                                                                       |
+| iOS Xcode scheme / signing yoxdur                          | `mobile/` altında `.xcodeproj` yoxdur                                                                                                             | `expo prebuild` yaradacaq                                                                                                                                                |
+| `pnpm-workspace.yaml` var, amma `node_modules` `npm`-dədir | Lockfile uyğunsuzluğu (`npm install --dry-run` → 304 silinir)                                                                                     | `pnpm install --frozen-lockfile` və ya `package-lock.json` bərpası                                                                                                       |
+| Geofence radiusu mağaza üzrə deyil                         | `GEOFENCE_MAX_DISTANCE_METERS` sabiti (`packages/types`)                                                                                          | Mərhələ 3-də mağaza üzrə sütun + mobil tərəfin uyğunlaşdırılması                                                                                                         |
+| `/api/health` → `persistenceDetail` **gecikən etiketdir**  | Yalnız replika poll-u yükləyəndə hesablanır → yazıdan sonra bir interval **köhnə** say göstərir (`ONETEAM_REFRESH_MS=0` olsa heç vaxt yenilənmir) | Oxu anında hesablanmalı, ya da adı "son yükləmə" olduğunu deməli. **Kiçik, amma yanlış məlumat verir** — 1.5 canlı yoxlamasında saxta "silmə baş vermədi" nəticəsi verdi |
 
 ---
 
