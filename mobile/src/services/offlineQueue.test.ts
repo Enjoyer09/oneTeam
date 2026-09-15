@@ -168,7 +168,7 @@ async function enqueue(
   taskId: string,
   photoBase64?: string,
 ): Promise<QueueItem> {
-  return await manager.enqueueSubmission({
+  return manager.enqueueSubmission({
     taskId,
     storeId: 'store-1',
     photoUri: `file:///tmp/${taskId}.jpg`,

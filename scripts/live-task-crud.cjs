@@ -60,7 +60,7 @@ async function call(method, path, body) {
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-  let payload = null;
+  let payload;
   const text = await response.text();
   try {
     payload = text ? JSON.parse(text) : null;

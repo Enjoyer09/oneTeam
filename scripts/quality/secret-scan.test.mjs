@@ -62,6 +62,11 @@ import { fileURLToPath } from 'node:url';
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SCANNER = join(REPO, 'scripts/quality/secret-scan.mjs');
 
+// The scanner under test prints colour codes, so its output has to be stripped
+// before it can be asserted on. Matching the escape character is the entire
+// purpose of this pattern — without `\x1b` in it there is nothing to strip — so
+// the rule is wrong here rather than the code. Silenced for this line only.
+// eslint-disable-next-line no-control-regex
 const ANSI = /\x1b\[[0-9;]*m/g;
 
 let passed = 0;

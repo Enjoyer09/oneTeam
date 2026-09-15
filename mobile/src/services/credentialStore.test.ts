@@ -89,7 +89,7 @@ class CountingStore implements SecureKeyValueStore {
 
   async get(key: string): Promise<string | null> {
     this.reads++;
-    return await this.inner.get(key);
+    return this.inner.get(key);
   }
 
   async set(key: string, value: string): Promise<void> {
@@ -112,7 +112,7 @@ class FlakyStore implements SecureKeyValueStore {
       this.failuresLeft--;
       throw new Error('keychain unavailable');
     }
-    return await this.inner.get(key);
+    return this.inner.get(key);
   }
 
   async set(key: string, value: string): Promise<void> {

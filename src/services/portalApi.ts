@@ -260,9 +260,7 @@ class PortalApiClient {
    * cannot drift apart.
    */
   async getTaskById(taskId: string): Promise<TaskRecord | null> {
-    return await request<TaskRecord | null>(
-      `/api/portal/field/tasks/${encodeURIComponent(taskId)}`,
-    );
+    return request<TaskRecord | null>(`/api/portal/field/tasks/${encodeURIComponent(taskId)}`);
   }
 
   async getSubmissionsByChatId(chatId: number | string, limit = 5): Promise<SubmissionRecord[]> {
@@ -292,7 +290,7 @@ class PortalApiClient {
     taskId: string,
     chatId: number | string,
   ): Promise<{ taskId: string; currentState: string; advanced: boolean }> {
-    return await request<{ taskId: string; currentState: string; advanced: boolean }>(
+    return request<{ taskId: string; currentState: string; advanced: boolean }>(
       `/api/portal/field/tasks/${encodeURIComponent(taskId)}/acknowledge`,
       { method: 'POST', body: JSON.stringify({ chatId }) },
     );
@@ -323,7 +321,7 @@ class PortalApiClient {
    * the flow over.
    */
   async getFlow(chatId: number | string): Promise<FieldFlowPayload | null> {
-    return await request<FieldFlowPayload | null>(
+    return request<FieldFlowPayload | null>(
       `/api/portal/field/flow?chatId=${encodeURIComponent(String(chatId))}`,
       {},
       FLOW_TIMEOUT_MS,
@@ -344,7 +342,7 @@ class PortalApiClient {
     chatId: number | string,
     flow: FieldFlowPayload,
   ): Promise<FieldFlowPayload | null> {
-    return await request<FieldFlowPayload | null>(
+    return request<FieldFlowPayload | null>(
       '/api/portal/field/flow',
       { method: 'PUT', body: JSON.stringify({ chatId, ...flow }) },
       FLOW_TIMEOUT_MS,

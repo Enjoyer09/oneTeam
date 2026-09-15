@@ -109,7 +109,7 @@ async function call(
   });
 
   const text = await response.text();
-  let body: any = null;
+  let body: any;
   try {
     body = text ? JSON.parse(text) : null;
   } catch {
@@ -784,7 +784,6 @@ async function main(): Promise<void> {
     // this suite just asserted.
     if (db && fixtureEvidenceId) {
       await db.query('DELETE FROM task_evidences WHERE id = $1', [fixtureEvidenceId]);
-      fixtureEvidenceId = undefined;
     }
 
     for (const id of taskIds) {

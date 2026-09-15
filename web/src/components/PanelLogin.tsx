@@ -69,7 +69,12 @@ export const PanelLogin: React.FC<PanelLoginProps> = ({ status, onSignedIn }) =>
       </div>
 
       <div className="relative z-10 w-full max-w-[420px]">
-        <form onSubmit={submit} className="glass-panel rounded-[20px] p-6 sm:p-7">
+        {/* `submit` is async and calls `preventDefault` itself, so the event has
+            to be forwarded; `void` only detaches the promise React ignores. */}
+        <form
+          onSubmit={(event) => void submit(event)}
+          className="glass-panel rounded-[20px] p-6 sm:p-7"
+        >
           <div className="mb-5 flex items-center gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[rgba(10,16,32,.06)]">
               <KeyRound className="h-[18px] w-[18px] text-ink" strokeWidth={2} />

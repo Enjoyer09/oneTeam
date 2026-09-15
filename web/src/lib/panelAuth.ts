@@ -139,7 +139,7 @@ async function panelRequest<T>(path: string, init: RequestInit = {}): Promise<T>
   }
 
   const text = await response.text();
-  let payload: any = null;
+  let payload: any;
   try {
     payload = text ? JSON.parse(text) : null;
   } catch {

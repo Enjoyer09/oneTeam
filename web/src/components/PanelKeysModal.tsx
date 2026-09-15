@@ -72,7 +72,7 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   /** Escape closes, unless there is an unacknowledged key on screen. */
@@ -182,7 +182,11 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
               <code className="min-w-0 flex-1 truncate rounded-[10px] bg-[rgba(255,255,255,.8)] px-3 py-2 font-mono text-[12px]">
                 {freshKey.token}
               </code>
-              <button type="button" onClick={copyFreshKey} className="btn-g flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => void copyFreshKey()}
+                className="btn-g flex-shrink-0"
+              >
                 {copied ? (
                   <Check className="h-4 w-4" strokeWidth={2.2} />
                 ) : (
@@ -219,7 +223,7 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
             </select>
             <button
               type="button"
-              onClick={handleMint}
+              onClick={() => void handleMint()}
               disabled={busy || !selectedUser}
               className="btn-g btn-g-primary flex-shrink-0 justify-center disabled:opacity-60"
             >
@@ -238,7 +242,7 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
           <h3 className="text-[12px] font-extrabold tracking-[-.02em]">
             Aktiv açarlar ({liveKeys.length})
           </h3>
-          <button type="button" onClick={load} className="btn-g" disabled={loading}>
+          <button type="button" onClick={() => void load()} className="btn-g" disabled={loading}>
             {loading ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2.1} />
             ) : (
@@ -285,7 +289,7 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
                     <td className="py-2 text-right">
                       <button
                         type="button"
-                        onClick={() => handleRevoke(row)}
+                        onClick={() => void handleRevoke(row)}
                         disabled={busy || row.current}
                         title={
                           row.current
@@ -320,7 +324,7 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
                   <button
                     key={user.id}
                     type="button"
-                    onClick={() => handleRevokeUser(user)}
+                    onClick={() => void handleRevokeUser(user)}
                     disabled={busy}
                     className="btn-g disabled:opacity-50"
                   >

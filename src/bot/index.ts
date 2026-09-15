@@ -187,15 +187,26 @@ if (process.env.NODE_ENV !== 'test') {
         process.exit(1);
       });
 
-      // Graceful shutdown
-      const stop = () => {
+      // Graceful shutdown — which this was not.
+      //
+      // `bot.stop()` returns a promise and it was called and abandoned, with
+      // `process.exit(0)` on the very next line. So the process died before the
+      // polling loop had been asked to stop: the comment promised a graceful
+      // shutdown and the code did an abrupt one. Awaiting it is what makes the
+      // word true.
+      const stop = async (): Promise<void> => {
         console.log('Stopping bot...');
         drain.stop();
-        bot.stop();
+        // A failure to stop cleanly must not stop the process from exiting.
+        await bot.stop().catch((error) => {
+          console.error('⛔ [oneTeam Bot] Could not stop polling cleanly:', error);
+        });
         process.exit(0);
       };
-      process.once('SIGINT', stop);
-      process.once('SIGTERM', stop);
+      // `process.once` takes a void callback, so the promise is deliberately
+      // detached here — this is the one place where not awaiting is correct.
+      process.once('SIGINT', () => void stop());
+      process.once('SIGTERM', () => void stop());
     }
   }
 }

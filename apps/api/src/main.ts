@@ -119,7 +119,19 @@ async function bootstrap() {
 }
 
 if (require.main === module) {
-  bootstrap();
+  // A failed bootstrap must be loud and must set a non-zero exit code.
+  //
+  // This used to be a bare `bootstrap();`. A rejection inside it — the port
+  // already in use, a crash in `NestFactory.create` — then became an unhandled
+  // rejection: Node prints the stack and exits 1, which in a hosting platform
+  // log is indistinguishable from any other crash. Naming the failure here
+  // means the platform shows "the API failed to start" and why.
+  void bootstrap().catch((error: unknown) => {
+    new Logger('oneTeam-API').error(
+      `⛔ The API failed to start: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    process.exitCode = 1;
+  });
 }
 
 export { bootstrap };

@@ -569,7 +569,7 @@ export class AIVisionService {
     }
 
     // Build Azerbaijani summary string
-    let aiSummary = '';
+    let aiSummary: string;
     if (autoStatus === 'approved') {
       aiSummary =
         `✅ Planogram Uyğunluğu: ${complianceScore}%. ` +

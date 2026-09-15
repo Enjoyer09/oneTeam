@@ -325,6 +325,14 @@ const CASES = [
   },
 ];
 
+// npm writes ANSI colour codes into its output, so a suite's own result line has
+// to be stripped before it can be compared as text. Matching the escape
+// character is the entire purpose of this pattern: without `\x1b` in it there is
+// nothing to strip. That is the one thing `no-control-regex` exists to prevent —
+// a control character smuggled into a pattern by accident — so this is the rule
+// being wrong rather than the code, and it is silenced here rather than for the
+// whole file.
+// eslint-disable-next-line no-control-regex
 const ANSI = /\x1b\[[0-9;]*m/g;
 
 /**

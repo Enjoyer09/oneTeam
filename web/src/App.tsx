@@ -178,13 +178,13 @@ export function App() {
   };
 
   useEffect(() => {
-    checkAuth();
+    void checkAuth();
   }, [checkAuth]);
 
   // Loaded only once the shell is allowed to render. Fetching before the gate
   // opens would fire requests that are certain to be refused.
   useEffect(() => {
-    if (auth.phase === 'ready') loadData();
+    if (auth.phase === 'ready') void loadData();
   }, [auth.phase]);
 
   /**
@@ -444,7 +444,9 @@ export function App() {
   }
 
   if (auth.phase === 'login') {
-    return <PanelLogin status={auth.status} onSignedIn={checkAuth} />;
+    // The prop is typed `() => void`; `checkAuth` is async, so the promise is
+    // detached explicitly rather than handed on as a return value nobody reads.
+    return <PanelLogin status={auth.status} onSignedIn={() => void checkAuth()} />;
   }
 
   /**
@@ -491,8 +493,12 @@ export function App() {
         </div>
       )}
 
-      {keysOpen && <PanelKeysModal onClose={() => setKeysOpen(false)} onChanged={checkAuth} />}
-      {usersOpen && <PanelUsersModal onClose={() => setUsersOpen(false)} onChanged={checkAuth} />}
+      {keysOpen && (
+        <PanelKeysModal onClose={() => setKeysOpen(false)} onChanged={() => void checkAuth()} />
+      )}
+      {usersOpen && (
+        <PanelUsersModal onClose={() => setUsersOpen(false)} onChanged={() => void checkAuth()} />
+      )}
 
       {/* Yan panel */}
       <Sidebar
@@ -511,7 +517,7 @@ export function App() {
           onOpenDrawer={() => setDrawerOpen(true)}
           scrolled={scrolled}
           identity={auth.identity}
-          onSignOut={handleSignOut}
+          onSignOut={() => void handleSignOut()}
           onOpenKeys={() => setKeysOpen(true)}
           onOpenUsers={() => setUsersOpen(true)}
         />

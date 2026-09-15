@@ -218,7 +218,9 @@ export const SEED_DATA: SeedData = {
   ],
 };
 
-export async function runDatabaseSeed(prismaClient?: any): Promise<SeedData> {
+// `_prismaClient` is accepted for call-site compatibility and deliberately not
+// used: this seed writes through the repository, not through Prisma directly.
+export async function runDatabaseSeed(_prismaClient?: any): Promise<SeedData> {
   console.log('🌱 [oneTeam SEED] Starting enterprise data seeding...');
   console.log(`   - 1 Campaign: "${SEED_DATA.campaign.name}"`);
   console.log(`   - 2 Templates: ${SEED_DATA.templates.map((t) => t.title).join(', ')}`);

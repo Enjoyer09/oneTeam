@@ -168,7 +168,7 @@ async function notificationByKey(dedupeKey: string): Promise<any | null> {
 }
 
 async function notificationsForTask(taskId: string): Promise<any[]> {
-  return await query('SELECT * FROM notifications WHERE store_task_id = $1 ORDER BY created_at', [
+  return query('SELECT * FROM notifications WHERE store_task_id = $1 ORDER BY created_at', [
     taskId,
   ]);
 }
@@ -273,7 +273,7 @@ async function call(
   });
 
   const text = await response.text();
-  let body: any = null;
+  let body: any;
   try {
     body = text ? JSON.parse(text) : null;
   } catch {

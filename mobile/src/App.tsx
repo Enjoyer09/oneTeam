@@ -23,7 +23,7 @@ export class MobileAppCoordinator {
    * which made them revoke each other's credentials. See `credentialStore.ts`.
    */
   async initializeCredentials() {
-    return await restoreCredential();
+    return restoreCredential();
   }
 
   /**

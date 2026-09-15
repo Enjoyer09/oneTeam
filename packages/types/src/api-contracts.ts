@@ -3,15 +3,7 @@
  */
 
 import { TaskState } from './state-machine';
-import {
-  TaskEvidence,
-  StoreTask,
-  Store,
-  TaskTemplate,
-  BotStep,
-  ChecklistAnswer,
-  ChecklistQuestion,
-} from './domain';
+import { BotStep, ChecklistAnswer, ChecklistQuestion } from './domain';
 
 export interface StateTransitionRequestDto {
   targetState: TaskState;

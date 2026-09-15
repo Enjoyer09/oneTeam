@@ -42,7 +42,7 @@ export function verifyStoreGeofence(
 
   const isWithin = distance <= thresholdMeters;
 
-  let message = '';
+  let message: string;
   if (isWithin) {
     message = `✅ Məkân təsdiqləndi: Mağaza ərazisindəsiniz (${roundedDist}m)`;
   } else {

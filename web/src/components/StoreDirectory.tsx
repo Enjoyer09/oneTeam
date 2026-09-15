@@ -475,7 +475,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-3.5 p-5">
+              <form onSubmit={(event) => void handleSubmit(event)} className="space-y-3.5 p-5">
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className={labelClass}>Mağaza Kodu *</label>
@@ -687,7 +687,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={handleConfirmDelete}
+                  onClick={() => void handleConfirmDelete()}
                   disabled={deleting}
                   className="rounded-[11px] px-4 py-2 text-xs font-extrabold text-white
                              transition-opacity hover:opacity-90 disabled:opacity-50"

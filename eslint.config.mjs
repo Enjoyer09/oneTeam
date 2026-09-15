@@ -95,9 +95,47 @@ export default tseslint.config(
     files: ['**/*.ts', '**/*.tsx', '**/*.mts', '**/*.cts'],
     languageOptions: {
       parserOptions: {
-        // Uses the nearest tsconfig.json for each file, so linting stays
-        // correct across the workspace without hand-maintaining project lists.
-        projectService: true,
+        // The type-aware rules above need the TypeScript type checker. This
+        // asks for the nearest tsconfig.json per file, so linting stays correct
+        // across the workspace without hand-maintaining project lists.
+        //
+        // WHY `allowDefaultProject` EXISTS — a file that is in no tsconfig is
+        // not linted at all. typescript-eslint does not skip it quietly; it
+        // reports `Parsing error: <file> was not found by the project service`,
+        // which is an ERROR. The first run that got this far found five:
+        //
+        //   mobile/Root.tsx, mobile/index.ts        — outside `include`, which
+        //                                             is `src/**/*`
+        //   mobile/src/services/keychain.ts         — deliberately EXCLUDED from
+        //   mobile/src/services/queueStorage.ts       mobile/tsconfig.json
+        //   web/vite.config.ts                      — outside `include`, which
+        //                                             is `src`
+        //
+        // The two mobile services are excluded on purpose and the reason is
+        // written down in mobile/tsconfig.json: they import `expo-secure-store`
+        // and `@react-native-async-storage/async-storage`, neither of which is
+        // installed, so they cannot be type-checked. `mobile:config` guards that
+        // exclusion list. They still have to be LINTED, though, and this is the
+        // documented way to lint a file that belongs to no project.
+        //
+        // WHAT THIS COSTS, STATED PLAINLY: a file listed here is parsed and
+        // checked with the SYNTACTIC rules only. The type-aware rules — the
+        // floating-promise and misused-promise ones — are skipped, because there
+        // is no type information to run them on. So `Root.tsx` is linted, but
+        // less thoroughly than `src/App.tsx`. That is strictly better than the
+        // alternative it replaces, which was not being linted at all, and it is
+        // why the list is kept to five files and commented rather than left to
+        // grow. Delete the two mobile entries the moment `cd mobile && npm
+        // install` succeeds and the exclusions in mobile/tsconfig.json go away.
+        projectService: {
+          allowDefaultProject: [
+            'mobile/index.ts',
+            'mobile/Root.tsx',
+            'mobile/src/services/keychain.ts',
+            'mobile/src/services/queueStorage.ts',
+            'web/vite.config.ts',
+          ],
+        },
         tsconfigRootDir: import.meta.dirname,
       },
       globals: {
@@ -166,7 +204,30 @@ export default tseslint.config(
       'no-var': 'error',
       'prefer-const': 'error',
       'no-param-reassign': ['warn', { props: false }],
-      'no-return-await': 'error',
+
+      // WHY THIS IS THE TYPESCRIPT-ESLINT RULE AND NOT THE ESLINT ONE
+      // ------------------------------------------------------------
+      // This was `'no-return-await': 'error'` — the ESLint core rule. ESLint
+      // deprecated it in 8.46 and says so on its own page: "Without type
+      // information, the only situations that could be flagged by
+      // `no-return-await` were of neutral-to-negative value, which eventually
+      // led to its deprecation." The deprecation is not cosmetic. The core rule
+      // flags `return await promise` EVERYWHERE, including inside a `try` block
+      // — where the `await` is not redundant but REQUIRED, because without it a
+      // rejection escapes the `catch` that was written to handle it. So the old
+      // rule's advice was, in the one case that matters, actively wrong.
+      //
+      // `in-try-catch` is the option typescript-eslint documents as "the
+      // closest behavior to the `no-return-await` rule", with that one case
+      // corrected: `return await` is required in an error-handling context and
+      // banned outside one. It needs the type checker, which is already
+      // configured above.
+      //
+      // Switching the rule is not a way of making the findings disappear. All
+      // 18 sites it reported were in ordinary contexts, so all 18 were still
+      // reported after the switch and all 18 were fixed in the code.
+      '@typescript-eslint/return-await': ['error', 'in-try-catch'],
+
       'require-await': 'off', // superseded by the type-aware variant below
       '@typescript-eslint/require-await': 'warn',
       '@typescript-eslint/no-array-delete': 'error',
@@ -230,6 +291,17 @@ export default tseslint.config(
     files: [
       'scripts/**/*.mjs',
       'scripts/**/*.js',
+      // WHY `.cjs` IS LISTED HERE — the second time lint ran, it reported 120
+      // `no-undef` errors, every one of them in the four `scripts/live-*.cjs`
+      // probes, for `process`, `console`, `fetch`, `setTimeout` and `module`.
+      // None of those was a bug: the files were simply never given an
+      // environment, so every Node global in them looked undefined. The same
+      // run reported `require()` as a forbidden import in all four — in a
+      // CommonJS file, where `require` is not a workaround but the module
+      // system itself.
+      //
+      // One glob was missing. `.mjs` and `.js` were covered, `.cjs` was not.
+      'scripts/**/*.cjs',
       '**/*.config.js',
       '**/*.config.mjs',
       'postcss.config.js',
@@ -241,6 +313,11 @@ export default tseslint.config(
     rules: {
       // CLI tools legitimately print to stdout; that is their interface.
       'no-console': 'off',
+      // A `.cjs` file is CommonJS by extension. `require()` is the correct way
+      // to import in it, so the rule that bans `require` in favour of ESM has
+      // nothing to say here — it was flagging four files for being the kind of
+      // file they are.
+      '@typescript-eslint/no-require-imports': 'off',
     },
   },
 

@@ -9,12 +9,10 @@ import {
   Store as StoreIcon,
   Send,
   Filter,
-  Check,
   Layers,
   Sparkles,
   Camera,
   Upload,
-  Image as ImageIcon,
   Pencil,
   Trash2,
   AlertTriangle,
@@ -595,7 +593,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
               </div>
 
               {/* Form */}
-              <form onSubmit={handleBulkSubmit} className="p-6 space-y-5">
+              <form onSubmit={(e) => void handleBulkSubmit(e)} className="p-6 space-y-5">
                 {/* SECTION 1: Store Segmentation Filters */}
                 <div className="p-4 bg-[var(--g-panel)] rounded-xl border border-hair space-y-3">
                   <div className="flex items-center justify-between">
@@ -856,7 +854,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
               </div>
 
               {/* Form */}
-              <form onSubmit={handleSubmit} className="p-5 space-y-3.5">
+              <form onSubmit={(e) => void handleSubmit(e)} className="p-5 space-y-3.5">
                 {/* Title */}
                 <div>
                   <label className="block text-xs font-bold text-ink-2 mb-1">
@@ -1066,7 +1064,10 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 </button>
               </div>
 
-              <form onSubmit={submitEdit} className="p-5 space-y-4 max-h-[65vh] overflow-y-auto">
+              <form
+                onSubmit={(e) => void submitEdit(e)}
+                className="p-5 space-y-4 max-h-[65vh] overflow-y-auto"
+              >
                 {/*
                   The single most important sentence on this screen. The panel
                   shows one card per store, so a supervisor reasonably expects
@@ -1322,7 +1323,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={submitDelete}
+                    onClick={() => void submitDelete()}
                     disabled={isDeleting}
                     className="px-5 py-1.5 rounded-lg bg-[#b23b3b] text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
                   >

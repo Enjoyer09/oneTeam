@@ -19,7 +19,7 @@
  * `DEFAULT_YOLO_TIMEOUT_MS` is measured in minutes rather than seconds.
  */
 
-import { aiVisionService, CocaColaSKU, PlanogramRequirement } from './aiVision';
+import { aiVisionService } from './aiVision';
 
 function runTestSuite() {
   console.log('========================================================================');

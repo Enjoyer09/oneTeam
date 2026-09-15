@@ -139,7 +139,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   /** Escape closes, unless a freshly minted key is still on screen. */
@@ -303,7 +303,11 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
               <code className="min-w-0 flex-1 truncate rounded-[10px] bg-[rgba(255,255,255,.8)] px-3 py-2 font-mono text-[12px]">
                 {freshKey.token}
               </code>
-              <button type="button" onClick={copyFreshKey} className="btn-g flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => void copyFreshKey()}
+                className="btn-g flex-shrink-0"
+              >
                 <KeyRound className="h-4 w-4" strokeWidth={2.1} />
                 Kopyala
               </button>
@@ -391,7 +395,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
               <div className="mt-2.5 flex gap-2">
                 <button
                   type="button"
-                  onClick={handleCreate}
+                  onClick={() => void handleCreate()}
                   disabled={busy}
                   className="btn-g btn-g-primary disabled:opacity-60"
                 >
@@ -422,7 +426,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
           <h3 className="text-[12px] font-extrabold tracking-[-.02em]">
             İstifadəçilər ({users.length})
           </h3>
-          <button type="button" onClick={load} className="btn-g" disabled={loading}>
+          <button type="button" onClick={() => void load()} className="btn-g" disabled={loading}>
             {loading ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2.1} />
             ) : (
@@ -483,7 +487,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                     <div className="mt-2 flex gap-2">
                       <button
                         type="button"
-                        onClick={() => handleSaveEdit(user)}
+                        onClick={() => void handleSaveEdit(user)}
                         disabled={busy}
                         className="btn-g btn-g-primary disabled:opacity-60"
                       >
@@ -532,7 +536,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                     <div className="flex flex-shrink-0 flex-wrap gap-1.5">
                       <button
                         type="button"
-                        onClick={() => handleMint(user)}
+                        onClick={() => void handleMint(user)}
                         disabled={busy}
                         className="btn-g disabled:opacity-50"
                         title="Bu adam üçün yeni panel girişi açarı yarat"
@@ -543,7 +547,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                       {user.liveKeys > 0 && (
                         <button
                           type="button"
-                          onClick={() => handleRevokeKeys(user)}
+                          onClick={() => void handleRevokeKeys(user)}
                           disabled={busy || user.isSelf}
                           className="btn-g disabled:opacity-40"
                           title={
@@ -568,7 +572,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDelete(user)}
+                        onClick={() => void handleDelete(user)}
                         disabled={busy || !user.deletable}
                         className="btn-g disabled:opacity-40"
                         title={

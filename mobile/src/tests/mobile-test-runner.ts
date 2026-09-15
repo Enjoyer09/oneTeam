@@ -28,7 +28,7 @@
  * does outside production.
  */
 
-import { calculateDistanceMeters, verifyStoreGeofence } from '../utils/geofence';
+import { verifyStoreGeofence } from '../utils/geofence';
 import { offlineQueueService } from '../services/offlineQueue';
 import {
   mobileApi,

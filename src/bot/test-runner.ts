@@ -271,7 +271,7 @@ function createMockContext(overrides: Partial<BotContext> = {}): BotContext {
       );
       return { message_id: Math.floor(Math.random() * 10000) };
     },
-    answerCallbackQuery: async (options?: any) => {
+    answerCallbackQuery: async (_options?: any) => {
       return true;
     },
     api: {

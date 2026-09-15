@@ -109,7 +109,7 @@ async function call(
   });
 
   const text = await response.text();
-  let body: any = null;
+  let body: any;
   try {
     body = text ? JSON.parse(text) : null;
   } catch {

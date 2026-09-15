@@ -51,7 +51,7 @@
 
 import { existsSync, readdirSync, readFileSync } from 'fs';
 import { createHash } from 'crypto';
-import { dirname, join, resolve } from 'path';
+import { join, resolve } from 'path';
 import type { Pool, PoolClient } from 'pg';
 
 /**

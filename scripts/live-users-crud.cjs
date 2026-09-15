@@ -76,7 +76,7 @@ async function call(method, path, body, token) {
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-  let payload = null;
+  let payload;
   const text = await response.text();
   try {
     payload = text ? JSON.parse(text) : null;
@@ -274,7 +274,6 @@ async function main() {
     `${duplicate.status} ${duplicate.body?.error}`,
   );
 
-  const dupRow = await rowOf(duplicateOwnerId);
   check(
     'rədd olunan adam siyahıya DÜŞMƏYİB (yaddaşda qalmayıb)',
     (await call('GET', '/api/panel/users')).body?.data?.users?.length ===

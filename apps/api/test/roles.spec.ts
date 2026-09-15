@@ -86,10 +86,8 @@ const DATABASE_URL = process.env.DATABASE_URL || '';
 
 /** A panel login key, when the panel is locked. */
 const PANEL_KEY = process.env.ONETEAM_TEST_PANEL_KEY || '';
-/** The service credentials, usable only while the panel has no keys at all. */
+/** The administrator service credential, usable only while the panel has no keys at all. */
 const ADMIN_TOKEN = process.env.ONETEAM_TEST_ADMIN_TOKEN || 'oneteam-user:usr-admin-001';
-const SUPER_TOKEN = process.env.ONETEAM_TEST_SUPER_TOKEN || 'oneteam-user:usr-super-002';
-const MERCH_TOKEN = process.env.ONETEAM_TEST_MERCH_TOKEN || 'oneteam-user:usr-merch-003';
 
 /** Unique per run, so two runs against one database do not collide. */
 const RUN = Date.now().toString(36).toUpperCase();
@@ -135,7 +133,7 @@ async function call(
   });
 
   const text = await response.text();
-  let body: any = null;
+  let body: any;
   try {
     body = text ? JSON.parse(text) : null;
   } catch {
@@ -269,8 +267,8 @@ async function main(): Promise<void> {
     return minted.body?.data?.token ?? '';
   };
 
-  let superToken = '';
-  let merchToken = '';
+  let superToken: string;
+  let merchToken: string;
 
   if (!PANEL_KEY) {
     // The panel is open and the credential in hand is the service one, which

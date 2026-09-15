@@ -13,11 +13,10 @@ import {
   EyeOff,
   Zap,
   Bot,
-  AlertTriangle,
   Camera,
   CheckSquare,
 } from 'lucide-react';
-import { Submission, SubmissionStatus, DetectionItem } from '../types';
+import { Submission, SubmissionStatus } from '../types';
 import { useModalA11y } from '../lib/useModalA11y';
 
 interface AuditReviewCenterProps {
@@ -413,7 +412,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                       selectedSubmission.status === 'pending_review' && (
                         <button
                           disabled={isProcessing}
-                          onClick={() => handleAIApproveClick(selectedSubmission.id)}
+                          onClick={() => void handleAIApproveClick(selectedSubmission.id)}
                           className="w-full md:w-auto px-4 py-2.5 rounded-xl btn-coke text-white font-extrabold text-xs shadow-md shadow-coke-500/20 flex items-center justify-center space-x-1.5 transition-all cursor-pointer whitespace-nowrap"
                         >
                           <Zap className="w-4 h-4 fill-white" />
@@ -728,7 +727,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                       {selectedSubmission.ai_score && selectedSubmission.ai_score >= 80 && (
                         <button
                           disabled={isProcessing}
-                          onClick={() => handleAIApproveClick(selectedSubmission.id)}
+                          onClick={() => void handleAIApproveClick(selectedSubmission.id)}
                           className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-4 py-2 rounded-lg btn-coke text-white font-bold text-xs transition-all cursor-pointer"
                         >
                           <Zap className="w-4 h-4 fill-white" />
@@ -738,7 +737,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
 
                       <button
                         disabled={isProcessing}
-                        onClick={() => handleApproveClick(selectedSubmission.id)}
+                        onClick={() => void handleApproveClick(selectedSubmission.id)}
                         className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-5 py-2 rounded-lg btn-ok text-white font-bold text-xs transition-all cursor-pointer"
                       >
                         <CheckCircle2 className="w-4 h-4" />
@@ -755,7 +754,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                       </button>
                       <button
                         disabled={isProcessing}
-                        onClick={() => handleRejectSubmit(selectedSubmission.id)}
+                        onClick={() => void handleRejectSubmit(selectedSubmission.id)}
                         className="px-5 py-2 rounded-lg btn-danger text-white text-xs font-bold transition-all cursor-pointer"
                       >
                         İmtina Qərarını Göndər

@@ -739,7 +739,7 @@ class MobilePortalApi {
   async acknowledgeTask(
     taskId: string,
   ): Promise<{ taskId: string; currentState: string; advanced: boolean }> {
-    return await request<{ taskId: string; currentState: string; advanced: boolean }>(
+    return request<{ taskId: string; currentState: string; advanced: boolean }>(
       `/api/portal/field/tasks/${encodeURIComponent(taskId)}/acknowledge`,
       { method: 'POST', body: JSON.stringify({ deviceId: deviceId() }) },
     );

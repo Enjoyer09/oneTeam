@@ -53,14 +53,11 @@ import { Client } from 'pg';
 
 const API_BASE = (process.env.ONETEAM_API_URL || 'http://localhost:3001').replace(/\/+$/, '');
 const DATABASE_URL = process.env.DATABASE_URL || '';
-const STORE_CODE = process.env.ONETEAM_TEST_STORE_CODE || 'ARAZ_GENJLIK_02';
 
 /** An administrator service credential — needed to mint the very first key. */
 const ADMIN_TOKEN = process.env.ONETEAM_TEST_ADMIN_TOKEN || 'oneteam-user:usr-admin-001';
 /** A supervisor, to prove that reading the panel is not the same as running it. */
 const SUPERVISOR_USER = process.env.ONETEAM_TEST_SUPERVISOR_USER || 'usr-super-002';
-
-const ENROLLMENT_SECRET = process.env.ONETEAM_ENROLLMENT_SECRET || '';
 
 let pass = 0;
 let fail = 0;
@@ -103,7 +100,7 @@ async function call(
   });
 
   const text = await response.text();
-  let body: any = null;
+  let body: any;
   try {
     body = text ? JSON.parse(text) : null;
   } catch {

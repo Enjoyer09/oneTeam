@@ -73,8 +73,16 @@ export class PortalApiError extends Error {
   constructor(
     message: string,
     public readonly status?: number,
+    // WHY THE CAUSE IS CARRIED
+    // ------------------------
+    // A network-level failure — DNS, offline, a refused CORS preflight — is the
+    // only thing that says WHICH of those it was. The message cannot: it has to
+    // stay in Azerbaijani and tell the user what to do about it. So the original
+    // error travels as `cause`, which is where the console and any error
+    // reporter look. It used to be caught and dropped.
+    cause?: unknown,
   ) {
-    super(message);
+    super(message, { cause });
     this.name = 'PortalApiError';
   }
 }
@@ -103,11 +111,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new PortalApiError(
       `API-yə qoşulmaq mümkün olmadı (${url}). Şəbəkəni yoxlayın.`,
       undefined,
+      cause,
     );
   }
 
   const text = await response.text();
-  let payload: any = null;
+  let payload: any;
   try {
     payload = text ? JSON.parse(text) : null;
   } catch {

@@ -603,7 +603,11 @@ export class EnterpriseDatabase {
    * The rule is about *dependencies*, not about writes in general: if a write
    * can only succeed once another write has landed, it goes through here.
    */
-  private enqueue(op: (pool: Pool) => Promise<unknown>, label: string): Promise<unknown> {
+  // `_label` is not read here. It is accepted so that every write names what it
+  // is writing at the call site — `task ${task.id} edit`, `store ${store.id}` —
+  // and `persist` is the one that uses it, in its failure log. `enqueue` cannot
+  // log it as well without reporting the same failure twice.
+  private enqueue(op: (pool: Pool) => Promise<unknown>, _label: string): Promise<unknown> {
     // Captured rather than read inside the thunk: `close()` sets `this.pool` to
     // null, and a write already queued should still go to the pool it was
     // queued against rather than throw a TypeError.
@@ -1259,7 +1263,7 @@ export class EnterpriseDatabase {
    */
   public async readBotSession(chatId: string | number): Promise<pg.BotSessionRow | null> {
     if (!this.pool) return null;
-    return await pg.readBotSession(this.pool, String(chatId), this.botSessionTtlSeconds);
+    return pg.readBotSession(this.pool, String(chatId), this.botSessionTtlSeconds);
   }
 
   /** Writes a chat's whole session. Throws for the same reason the read does. */
@@ -1280,7 +1284,7 @@ export class EnterpriseDatabase {
     pendingPhoto?: Record<string, unknown> | null;
   }): Promise<pg.BotSessionRow | null> {
     if (!this.pool) return null;
-    return await pg.upsertBotSession(
+    return pg.upsertBotSession(
       this.pool,
       { ...session, chatId: String(session.chatId) },
       this.botSessionTtlSeconds,
@@ -1290,7 +1294,7 @@ export class EnterpriseDatabase {
   /** Forgets a chat. Called when the flow finishes or the person starts over. */
   public async clearBotSession(chatId: string | number): Promise<boolean> {
     if (!this.pool) return false;
-    return await pg.deleteBotSession(this.pool, String(chatId));
+    return pg.deleteBotSession(this.pool, String(chatId));
   }
 
   /**
@@ -1357,7 +1361,7 @@ export class EnterpriseDatabase {
     dedupeKey: string;
   }): Promise<pg.NotificationRow | null> {
     if (!this.pool) return null;
-    return await pg.insertNotification(this.pool, {
+    return pg.insertNotification(this.pool, {
       id: `ntf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       ...notification,
     });
@@ -1371,7 +1375,7 @@ export class EnterpriseDatabase {
     leaseSeconds?: number;
   }): Promise<pg.NotificationRow[]> {
     if (!this.pool) return [];
-    return await pg.claimNotifications(this.pool, {
+    return pg.claimNotifications(this.pool, {
       ...options,
       leaseSeconds: options.leaseSeconds ?? 120,
     });
@@ -1379,12 +1383,12 @@ export class EnterpriseDatabase {
 
   public async markNotificationDelivered(id: string): Promise<boolean> {
     if (!this.pool) return false;
-    return await pg.markNotificationDelivered(this.pool, id);
+    return pg.markNotificationDelivered(this.pool, id);
   }
 
   public async markNotificationFailed(id: string, failure: string): Promise<boolean> {
     if (!this.pool) return false;
-    return await pg.markNotificationFailed(this.pool, id, failure);
+    return pg.markNotificationFailed(this.pool, id, failure);
   }
 
   /** Never throws: it runs on a timer nobody awaits. See `sweepBotSessions`. */
@@ -1924,7 +1928,7 @@ export class EnterpriseDatabase {
       return { required: bootstrapConfigured, liveKeys: 0, bootstrapConfigured, bootstrapProblem };
     }
 
-    let liveKeys = 0;
+    let liveKeys: number;
     try {
       liveKeys = await pg.countLivePanelTokens(this.pool);
     } catch (error) {

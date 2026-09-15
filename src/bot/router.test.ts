@@ -251,7 +251,7 @@ async function supervisor(
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await response.text();
-  let parsed: any = null;
+  let parsed: any;
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
@@ -318,12 +318,6 @@ function texts(): string[] {
   return sent
     .filter((call) => call.method === 'sendMessage')
     .map((call) => String(call.payload.text ?? ''));
-}
-
-function captions(): string[] {
-  return sent
-    .filter((call) => call.method === 'sendPhoto')
-    .map((call) => String(call.payload.caption ?? ''));
 }
 
 /** Every inline button the bot offered, across every message it sent. */

@@ -116,7 +116,6 @@ const ALL_CHATS = [
 
 let pass = 0;
 let fail = 0;
-let skipped = 0;
 
 function check(name: string, ok: boolean, detail?: unknown): void {
   if (ok) {
@@ -129,10 +128,13 @@ function check(name: string, ok: boolean, detail?: unknown): void {
   }
 }
 
-function skip(name: string, why: string): void {
-  skipped += 1;
-  console.log(`  \u25CB ${name} — SKIPPED: ${why}`);
-}
+// WHY THERE IS NO `skip` HELPER IN THIS FILE, UNLIKE EVERY OTHER SUITE
+// ------------------------------------------------------------------
+// The other suites skip when an optional tier is absent — no DATABASE_URL, no
+// S3 endpoint — because the rest of their checks still mean something. This
+// suite has no such tier: the database and the API it spawns ARE the subject,
+// so an absent precondition is a crash, not a skip. A `skip` nothing could
+// ever call is a counter that could only ever read zero, and this file had one.
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -160,7 +162,7 @@ async function call(
   });
 
   const text = await response.text();
-  let body: any = null;
+  let body: any;
   try {
     body = text ? JSON.parse(text) : null;
   } catch {
@@ -734,7 +736,7 @@ async function main(): Promise<void> {
     }
   }
 
-  console.log(`\n${pass} passed, ${fail} failed, ${skipped} skipped\n`);
+  console.log(`\n${pass} passed, ${fail} failed\n`);
   if (fail > 0) process.exitCode = 1;
 }
 

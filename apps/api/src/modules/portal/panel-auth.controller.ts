@@ -175,7 +175,11 @@ export class PanelAuthController {
   @Get('keys')
   @UseGuards(AuthGuard)
   async listKeys(@Request() request: AuthedRequest) {
-    const principal = requireAdmin(request);
+    // The guard IS the point of this call: `requireAdmin` throws 403 for
+    // anyone who is not an administrator. The identity it returns is not used
+    // here, because the row the caller is signed in with is identified by the
+    // token hash below — so the call is made for its refusal, not its value.
+    requireAdmin(request);
     const rows = await db.listPanelTokens(true);
     const currentHash = request.panelToken ? hashPanelToken(request.panelToken) : null;
 

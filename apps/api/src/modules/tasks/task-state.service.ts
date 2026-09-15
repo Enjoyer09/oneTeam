@@ -225,7 +225,7 @@ export class TaskStateService {
    * vocabulary in one file.
    */
   async notifyTaskPublished(task: StoreTask): Promise<NotificationOutcome> {
-    return await this.notificationDispatcher.dispatchTaskPublished(task);
+    return this.notificationDispatcher.dispatchTaskPublished(task);
   }
 
   /**

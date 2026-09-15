@@ -23,7 +23,7 @@
 
 import { mkdirSync, rmSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { join, dirname } from 'node:path';
+import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 const ROOT = '/Users/macbookair/GitHub/oneTeam';

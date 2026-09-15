@@ -126,7 +126,7 @@ async function call(
   });
 
   const text = await response.text();
-  let body: any = null;
+  let body: any;
   try {
     body = text ? JSON.parse(text) : null;
   } catch {
@@ -176,10 +176,15 @@ async function main(): Promise<void> {
     const health = await call('GET', '/api/health');
     check('the API answers', health.status === 200, health);
   } catch (error) {
+    // `cause` is what preserves the original failure. The message below is for a
+    // person reading the terminal; the cause is for whoever has to find out
+    // whether the API was down, listening on another port, or refusing the
+    // connection — three problems with three different fixes.
     throw new Error(
       `The API at ${API_BASE} is not answering (${
         error instanceof Error ? error.message : String(error)
       }).\n       Start it with: npm run api:dev`,
+      { cause: error },
     );
   }
 
