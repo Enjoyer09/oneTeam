@@ -1781,6 +1781,39 @@ export class EnterpriseDatabase {
     return pg.revokeDeviceToken(this.pool, hashDeviceToken(token));
   }
 
+  /**
+   * Every device credential, for the panel's device list.
+   *
+   * Read from the database rather than from a working set, for the reason
+   * `verifyDeviceToken` gives: there is no in-memory copy of this table, and a
+   * list built from anything else would keep showing a phone as live after it
+   * had been cut off.
+   */
+  public async listDeviceTokens(includeRevoked = false): Promise<pg.DeviceTokenRow[]> {
+    if (!this.pool) return [];
+    return pg.listDeviceTokens(this.pool, { includeRevoked });
+  }
+
+  /**
+   * Cuts one installation off, by its `deviceId`. Returns how many live
+   * credentials it revoked.
+   *
+   * Awaited, and straight to the pool rather than through the write queue.
+   * `device_tokens` is a leaf: there is no parent row to wait for and no
+   * in-memory array to roll back, which is what the queue is for. What matters
+   * instead is that the caller learns the real count *before* it answers —
+   * "cut off" and "there was nothing live" are different sentences and the
+   * operator is owed the right one.
+   *
+   * Returns 0 rather than throwing when there is no database. The caller
+   * already treats 0 as "not done", so a revocation that could not be recorded
+   * is never reported as done.
+   */
+  public async revokeDeviceTokensForDevice(deviceId: string): Promise<number> {
+    if (!this.pool) return 0;
+    return pg.revokeDeviceTokensForDevice(this.pool, deviceId);
+  }
+
   // -------------------------------------------------------------------------
   // Panel credentials
   // -------------------------------------------------------------------------

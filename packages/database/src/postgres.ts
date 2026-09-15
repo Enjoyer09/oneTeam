@@ -1004,6 +1004,79 @@ export async function revokeDeviceToken(pool: Pool, tokenHash: string): Promise<
   return (result.rowCount ?? 0) > 0;
 }
 
+export interface DeviceTokenRow {
+  tokenHash: string;
+  userId: string;
+  deviceId: string;
+  label: string | null;
+  createdAt: Date;
+  lastSeenAt: Date | null;
+  revokedAt: Date | null;
+}
+
+/**
+ * Lists device credentials, live ones first.
+ *
+ * The panel needs this to be able to revoke anything at all: a device is
+ * identified by its `deviceId`, and nothing else in the panel reports one. The
+ * users list says only that somebody joined from a phone.
+ *
+ * Revoked rows are included when asked for, because "which phone was cut off,
+ * and when" is the question asked after a phone goes missing — and a list that
+ * drops the answer as soon as it is acted on cannot answer it.
+ */
+export async function listDeviceTokens(
+  pool: Pool,
+  options: { includeRevoked?: boolean } = {},
+): Promise<DeviceTokenRow[]> {
+  const result = await pool.query(
+    `SELECT token_hash, user_id, device_id, label, created_at, last_seen_at, revoked_at
+       FROM device_tokens
+      ${options.includeRevoked ? '' : 'WHERE revoked_at IS NULL'}
+      ORDER BY revoked_at IS NULL DESC, created_at DESC`,
+  );
+
+  return result.rows.map((row) => ({
+    tokenHash: row.token_hash,
+    userId: row.user_id,
+    deviceId: row.device_id,
+    label: row.label ?? null,
+    createdAt: new Date(row.created_at),
+    lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at) : null,
+    revokedAt: row.revoked_at ? new Date(row.revoked_at) : null,
+  }));
+}
+
+/**
+ * Cuts off every live credential belonging to one installation.
+ *
+ * By `device_id` rather than by token hash, because this is the panel acting on
+ * a phone it has never held: the hash is the device's business, and the panel
+ * only ever knows which installation it wants gone.
+ *
+ * `revoked_at IS NULL` on `device_id`, rather than on the one row the caller
+ * happens to know about. Today `device_tokens_active_device_idx` is a UNIQUE
+ * partial index on exactly that predicate, so there can only ever be one live
+ * row per device — but the statement is written against the invariant, not
+ * against the index. A version that cut off "the newest live row" would stop
+ * cutting the device off the day that index changed, and would go on reporting
+ * success.
+ *
+ * Returns how many rows it revoked, so the caller can tell "cut off" apart from
+ * "there was nothing live to cut off". Those are different answers and the
+ * operator needs the right one.
+ */
+export async function revokeDeviceTokensForDevice(pool: Pool, deviceId: string): Promise<number> {
+  const result = await pool.query(
+    `UPDATE device_tokens
+        SET revoked_at = now()
+      WHERE device_id = $1
+        AND revoked_at IS NULL`,
+    [deviceId],
+  );
+  return result.rowCount ?? 0;
+}
+
 // ---------------------------------------------------------------------------
 // Panel credentials
 // ---------------------------------------------------------------------------

@@ -396,6 +396,129 @@ export class PanelAuthController {
   }
 
   // -------------------------------------------------------------------------
+  // Devices — supervisors and above
+  // -------------------------------------------------------------------------
+  //
+  // WHY THIS EXISTS AT ALL
+  // ----------------------
+  // A device credential is the only thing between a lost phone and the store's
+  // data, and until this route existed there was no way to cut one off from the
+  // panel. Both paths that did exist need the phone itself: the device can
+  // re-enrol (which needs the phone), or the person can be deleted — and
+  // deletion is refused with `409 USER_HAS_SUBMISSIONS` for exactly the
+  // merchandisers who file audits, which is all of them. So a phone left in a
+  // taxi stayed a working credential. On iOS the keychain is not removed on
+  // uninstall, so the next person to hold that phone carries the previous
+  // worker's identity, and the panel could not take it back.
+  //
+  // WHY A SUPERVISOR, AND NOT ONLY AN ADMIN
+  // ---------------------------------------
+  // `requireAdmin` guards minting a key, on the reasoning that the power to
+  // grant access should not travel with the power to approve a shelf photo.
+  // Revoking is the inverse act, and the urgency runs the other way: the person
+  // who learns that a phone is missing is the supervisor standing in the store,
+  // and a credential that stays live until an administrator reads a message is
+  // a credential that stays live. `requireSupervisor` admits SUPERVISOR and
+  // ADMIN, and the audit entry names which of them did it.
+  //
+  // WHAT THIS DOES NOT DO
+  // ---------------------
+  // It does not scope by store. Nothing in this codebase gives a supervisor a
+  // set of stores they are responsible for — they already create briefings for
+  // any store — so a supervisor can cut off any device. Scoping this one route
+  // would be a rule the rest of the panel does not share, and a rule only one
+  // route enforces is a rule that reads as enforced everywhere. Written down
+  // here rather than left to be discovered.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Every device credential, live ones first.
+   *
+   * The panel needs this before it can revoke anything: a device is identified
+   * by `deviceId`, and no other route reports one. The users list says only
+   * that somebody joined from a phone.
+   */
+  @Get('devices')
+  @UseGuards(AuthGuard)
+  async listDevices(@Request() request: AuthedRequest) {
+    requireSupervisor(request);
+
+    const rows = await db.listDeviceTokens(true);
+
+    const nameOf = new Map<string, string>(
+      db.users.map((user: any) => [user.id, String(user.fullName ?? user.id)]),
+    );
+
+    return {
+      success: true,
+      data: {
+        devices: rows.map((row) => ({
+          deviceId: row.deviceId,
+          userId: row.userId,
+          // A device whose user has been deleted still has rows — the
+          // credential is not cascaded away. Reported as null rather than
+          // hidden, because "this credential points at nobody" is exactly the
+          // kind of thing an operator should be able to see and cut off.
+          fullName: nameOf.get(row.userId) ?? null,
+          label: row.label,
+          createdAt: row.createdAt.toISOString(),
+          lastSeenAt: row.lastSeenAt?.toISOString() ?? null,
+          revokedAt: row.revokedAt?.toISOString() ?? null,
+          live: !row.revokedAt,
+        })),
+        // The count that matters: a device that was cut off and re-enrolled has
+        // two rows, and only one of them works.
+        live: rows.filter((row) => !row.revokedAt).length,
+      },
+    };
+  }
+
+  /**
+   * Cuts one installation off.
+   *
+   * By `deviceId` rather than by token or by person. "The phone was lost" is a
+   * fact about a device: the same merchandiser may hold a working second phone,
+   * and revoking everything they own would take that one with it.
+   */
+  @Post('devices/:deviceId/revoke')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async revokeDevice(@Param('deviceId') deviceId: string, @Request() request: AuthedRequest) {
+    const principal = requireSupervisor(request);
+    const target = String(deviceId ?? '').trim();
+
+    if (!target) {
+      throw new BadRequestException({
+        error: 'DEVICE_REQUIRED',
+        message: 'Cihaz göstərilməyib.',
+      });
+    }
+
+    const revoked = await db.revokeDeviceTokensForDevice(target);
+
+    // Zero is answered as "nothing was live", not as success. Reporting "cut
+    // off" when there was nothing to cut off would leave an operator believing
+    // a lost phone had been dealt with — which is the one outcome this route
+    // exists to prevent. The message says which of the two happened.
+    if (revoked === 0) {
+      throw new NotFoundException({
+        error: 'DEVICE_NOT_FOUND',
+        message: 'Bu cihaz üçün canlı kredensial yoxdur — ola bilsin artıq ləğv edilib.',
+      });
+    }
+
+    db.logAuditEvent({
+      entityType: 'device_token',
+      entityId: target,
+      action: 'DEVICE_CREDENTIAL_REVOKED',
+      actorId: principal.userId,
+      payload: { deviceId: target, revoked },
+    });
+
+    return { success: true, data: { revoked, deviceId: target } };
+  }
+
+  // -------------------------------------------------------------------------
   // People — administrators only
   // -------------------------------------------------------------------------
   //
@@ -775,6 +898,30 @@ function requireAdmin(request: AuthedRequest): AuthenticatedPrincipal {
     throw new ForbiddenException({
       error: 'ADMIN_REQUIRED',
       message: 'Bu əməliyyat üçün administrator səlahiyyəti lazımdır.',
+    });
+  }
+  return principal;
+}
+
+/**
+ * Refuses anything below supervisor.
+ *
+ * For the one class of action that is urgent rather than administrative: taking
+ * a credential back out of the wrong hands. It is not a relaxation of
+ * `requireAdmin` — nothing that *grants* access uses this, only the device
+ * revocation below, where waiting for an administrator means the lost phone
+ * keeps working.
+ *
+ * It is a role check, not a credential check. A device credential never reaches
+ * here: `mayUseRoute` keeps device credentials off `/api/panel/*` before any
+ * handler runs, which is asserted by `test:panel`.
+ */
+function requireSupervisor(request: AuthedRequest): AuthenticatedPrincipal {
+  const principal = getPrincipal(request);
+  if (principal.role !== UserRole.ADMIN && principal.role !== UserRole.SUPERVISOR) {
+    throw new ForbiddenException({
+      error: 'SUPERVISOR_REQUIRED',
+      message: 'Bu əməliyyat üçün supervayzer səlahiyyəti lazımdır.',
     });
   }
   return principal;
