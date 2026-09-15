@@ -4,19 +4,18 @@
     "slug": "oneteam-field-audit",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "../logo.jpg",
+    "icon": "./assets/icon.png",
+    "scheme": "oneteam",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "../logo.jpg",
-      "resizeMode": "contain",
-      "backgroundColor": "#F40009"
-    },
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "az.oneteam.cocacola.fieldaudit",
+      "buildNumber": "1",
       "infoPlist": {
+        "CFBundleDevelopmentRegion": "az",
         "NSCameraUsageDescription": "Coca-Cola rəf və soyuducu planogram auditini həyata keçirmək üçün kameradan istifadə tələb olunur.",
-        "NSLocationWhenInUseUsageDescription": "Mağazada olduğunuzu təsdiqləmək və saxta auditlərin qarşısını almaq üçün GPS məkân icazəsi tələb olunur."
+        "NSLocationWhenInUseUsageDescription": "Mağazada olduğunuzu təsdiqləmək və saxta auditlərin qarşısını almaq üçün GPS məkân icazəsi tələb olunur.",
+        "UIRequiredDeviceCapabilities": ["arm64", "location-services", "gps"]
       }
     },
     "plugins": [
@@ -30,6 +29,15 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "Mağaza geofencing yoxlanışı üçün GPS icazəsi verin."
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#F0F0F0"
         }
       ]
     ]

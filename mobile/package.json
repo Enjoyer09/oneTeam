@@ -1,15 +1,30 @@
 {
   "name": "oneteam-mobile",
   "version": "1.0.0",
+  "private": true,
   "description": "oneTeam iOS Field Shelf Audit App for Coca-Cola In-Store Merchandisers",
-  "main": "src/App.tsx",
+  "main": "index.ts",
   "scripts": {
+    "start": "expo start",
+    "ios": "expo run:ios",
+    "prebuild": "expo prebuild --platform ios",
     "test": "node ../node_modules/tsx/dist/cli.mjs src/tests/mobile-test-runner.ts",
     "type-check": "node ../node_modules/typescript/bin/tsc --noEmit"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "expo": "~57.0.22",
+    "expo-camera": "~57.0.5",
+    "expo-location": "~57.0.17",
+    "expo-secure-store": "~57.0.4",
+    "expo-splash-screen": "~57.0.9",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-native": "0.86.3"
+  },
   "devDependencies": {
     "@types/node": "^22.13.9",
+    "@types/react": "~19.2.18",
     "typescript": "^5.8.2"
   }
 }

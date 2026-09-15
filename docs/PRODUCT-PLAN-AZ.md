@@ -487,11 +487,117 @@ botda deyil: bot bazaya yalnız API-dən çatır, ona görə təmizləmə orada 
 
 | #   | İş paketi                                                                                                                                                                                               | Qəbul meyarı                                                                                        | Müddət  | Vəziyyət |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ------- | -------- |
-| 3.1 | **Expo config:** `app.json` / `app.config.ts` — `bundleIdentifier`, `name`, `icon`, `splash`, `ios: {supportsTablet: false}`, `plugins: ["expo-camera", "expo-location", "expo-secure-store"]`.         | `npx expo prebuild --platform ios` → `ios/` qovluğu yaranır, heç bir xəta yoxdur.                   | 1 gün   | ⏳       |
+| 3.1 | **Expo config:** `app.json` / `app.config.ts` — `bundleIdentifier`, `name`, `icon`, `splash`, `ios: {supportsTablet: false}`, `plugins: ["expo-camera", "expo-location", "expo-secure-store"]`.         | `npx expo prebuild --platform ios` → `ios/` qovluğu yaranır, heç bir xəta yoxdur.                   | 1 gün   | 🔶       |
 | 3.2 | **Native camera + secure storage:** `expo-camera` → icazə izahı; `expo-secure-store` → `deviceToken`, `enrollmentSecret` yaz/oxu. Silinmədə `deviceToken` qalır.                                        | Kamera açılır → şəkil çəkilir → base64 API-yə gedir. Yenidən açılışda enrolment **avtomatik** olur. | 1.5 gün | ⏳       |
 | 3.3 | **Offline queue (AsyncStorage):** şəkil + metadata lokal növbəyə → onlayn olanda göndərilir. 50 MB limit, avtomatik təkrar cəhd.                                                                        | Avia-rejimdə 3 şəkil çək → onlayn ol → 3 upload (sıralı).                                           | 1 gün   | ⏳       |
 | 3.4 | **Xcode test:** `xcodebuild -workspace oneTeam.xcworkspace -scheme oneTeam -destination 'platform=iOS Simulator,name=iPhone 16' build test` → **UI testləri** (Login → Enroll → Task → Photo → Submit). | CI (GitHub Actions) hər PR-da `xcodebuild test` keçir.                                              | 1 gün   | ⏳       |
 | 3.5 | **Mövcud React Native UI saxlanılır:** `mobile/src/screens/*` faylları **yenidən yazılmadan** `expo-router` / `React Navigation` ilə quraşdırılır. Dizayn dəyişmir.                                     | Mövcud ekranlar (Login, TaskList, TaskDetail, Checklist, Camera) birebir görünür.                   | 1 gün   | ⏳       |
+
+#### 3.1 — nə edildi, nə ilə sübut olundu (🔶 QİSMƏN)
+
+**Nəticə əvvəlcə:** `mobile/app.json` və `mobile/package.json` planın tələb etdiyi hər açarı daşıyır və
+bu, **ölçmə ilə** təsdiqləndi. Amma qəbul meyarının özü — `npx expo prebuild --platform ios` — **bu
+mühitdə icra oluna bilmədi**, çünki ~470 paketlik asılılıq ağacı quraşdırıla bilmir. Səbəb təxmin
+deyil; ölçüldü.
+
+**Ölçmə: fayl yaratma qaynağı tükənir və bərpa olunmur.**
+
+| Sınaq                                          | Nəticə                                                  |
+| ---------------------------------------------- | ------------------------------------------------------- |
+| 400 **ardıcıl** `mkdir` (Node, repo daxilində) | ✅ hamısı keçdi                                         |
+| 50 **paralel** `mkdir`                         | ✅ keçdi                                                |
+| 200 / 500 / 1000 **paralel** `mkdir`           | ❌ `CODEBUDDY_BROKER_DENY`                              |
+| Eyni 200 yolu 4 dəfə təkrar                    | ❌ hər dəfə rədd — **qaynaq bərpa olunmur**             |
+| Kiçik quraşdırma (`left-pad`, 1 paket)         | ✅ keçdi                                                |
+| `npm install` (`mobile/`)                      | ❌ `reify:createSparse` → `mkdir` rədd                  |
+| `pnpm install` (`mobile/`)                     | ❌ 458/468 paket endi, `linkNewPackages` → `mkdir` rədd |
+
+npm bütün ağacı **bir** `Promise.all` ilə qurur; pnpm də `linkNewPackages`-də eyni şeyi edir. Kiçik
+quraşdırmanın keçməsi **səbəbi görünməz edirdi**: problem paket sayı deyil, **eyni anda göndərilən
+əməliyyat sayıdır**. Diaqnostika zamanı qaynaq tam tükəndi — sonra 40-lıq partiyalar da, **təzə
+prosesdə də** rədd olundu.
+
+**CocoaPods da quraşdırıla bilmədi.** `brew install cocoapods` →
+`sandbox-exec: sandbox_apply: Operation not permitted`. brew öz quraşdırmasını `sandbox-exec` içində
+aparır, iç-içə sandbox isə qadağandır. `HOMEBREW_AVOID_NESTED_SANDBOXING=1` (brew-un bunun üçün
+nəzərdə tutduğu dəyişən) bu halda kömək etmədi.
+
+**Buna görə qəbul meyarının toolchain tələb etməyən hissəsi avtomatlaşdırıldı:**
+`scripts/dev/verify-mobile-config.mjs` — 26 yoxlama. O, `prebuild`-in keçəcəyini **demir**; konfiqurasiyada
+uğursuzluğa səbəb olacaq heç nə olmadığını deyir. **Dərhal bir real qüsur tapdı:** ikon RGB yazılmalı
+idi (iOS app ikonunda alpha kanalı **qadağandır**), skriptin düzəlişindən sonra yenidən yaradılmamışdı →
+`✗ icon has no alpha channel`. Yenidən yaradıldı, indi yaşıldır.
+
+**Yazılanlar:**
+
+- **`mobile/app.json`** — `bundleIdentifier: az.oneteam.cocacola.fieldaudit`; `ios.supportsTablet:
+**false**` (planda belədir, faylda `true` idi); `plugins`: `expo-camera`, `expo-location`,
+  **`expo-secure-store`** (əvvəl **yox idi**), `expo-splash-screen`. Kamera/lokasiya icazə mətnləri
+  saxlanıldı.
+- **`mobile/assets/icon.png`** (1024×1024, **RGB**) və **`splash-icon.png`** (1024×1024, RGBA) —
+  `scripts/dev/make-mobile-assets.py` ilə `logo.jpg`-dən düzəldildi.
+- **`mobile/package.json`** — SDK 57-nin **rəsmi** versiyaları ilə (aşağıda).
+- **`mobile/index.ts`** və **`mobile/Root.tsx`** — tətbiq qabığı.
+- **`.gitignore`** — `mobile/ios/` və `mobile/android/` **generasiya olunur**; commit edilmir.
+- **`mobile/ios/` git-dən çıxarıldı** — içindəki `Podfile` **sınıq idi** (`react-native-permissions`
+  yoluna istinad edirdi, o paket isə repoda yoxdur) və `Info.plist` mövcud olmayan bir Xcode
+  layihəsinə aid idi. İkisinin də dəyəri `app.json`-a köçürüldü.
+- **`README.md`** — "iOS Native Configuration" bölməsi köhnə vəziyyəti təsvir edirdi; düzəldildi.
+
+**Loqo kvadrat deyildi — ölçüldü, təxmin edilmədi.** `logo.jpg` **690×462**-dir. iOS app ikonunu
+kvadrat kətan üzərində maskalayır, ona görə uzanmış mənbə ya rədd olunur, ya da **markanın üzərindən
+kəsilir**. Həll loqonu dartmaq deyil: **ölçülmüş** fon rəngində kvadrat kətan düzəltməkdir. Altı kənar
+nöqtəsi ölçüldü → hamısı `rgb(240,240,240)`, kanal fərqi **0**. İlk yazdığım `app.json` splash fonu
+`#F40009` (Coca-Cola qırmızısı) idi — boz fonlu loqonu qırmızı sahəyə qoyub **görünən düzbucaqlı**
+yaradardı. Ölçmə bir əmrlə bunun qarşısını aldı.
+
+**SDK versiyaları təxmin edilmədi.** npm-də `react-native`-in ən sonu **0.87.1**-dir, SDK 57 isə
+**0.86.3** tələb edir. `expo@57.0.22`-nin öz `bundledNativeModules.json` faylı açıldı və versiyalar
+oradan götürüldü: `expo-camera ~57.0.5`, `expo-location ~57.0.17`, `expo-secure-store ~57.0.4`,
+`expo-splash-screen ~57.0.9`, `expo-status-bar ~57.0.1`, `react 19.2.3`, `react-native 0.86.3`,
+`@react-native-async-storage/async-storage 2.2.0` (3.3 üçün).
+
+**`main` sınıq idi.** `package.json` `"main": "src/App.tsx"` deyirdi, `src/App.tsx` isə komponent
+deyil, **`MobileAppCoordinator` sinfini** ixrac edir. Heç nə bu sahəni oxumurdu, ona görə heç nə
+şikayət etmirdi; Expo onu yüklədiyi anda React render edə bilməyəcəyi bir dəyər alır. `mobile/index.ts`
+
+- `mobile/Root.tsx` elə buna görə yazıldı.
+
+**bahaI-dən tələb olunan üç əmr** (agent mühitində sandbox bunları bloklayır, adi Terminalda
+bloklanmır):
+
+```bash
+brew install cocoapods                    # 3.4 üçün də lazımdır
+cd mobile && npm install                  # ~470 paket
+npx expo prebuild --platform ios          # 3.1-in qəbul meyarı
+```
+
+Sonra `node scripts/dev/verify-mobile-config.mjs` ilə konfiqurasiya yenidən yoxlanıla bilər.
+
+**Növbəti bəndlərə təsir edən tapıntılar (ölçüldü, düzəldilmədi):**
+
+1. **`EXPO_PUBLIC_` prefiksi yoxdur.** `mobile/src/services/portalApi.ts` `process.env.ONETEAM_API_URL`
+   oxuyur, Expo/Metro isə `process.env`-i **yalnız `EXPO_PUBLIC_*` adları üçün** build zamanı yerinə
+   qoyur. Nəticə: real build-da dəyər `undefined` olur və ünvan **sükutla `http://localhost:3001`**-ə
+   düşür. `const env = process.env` alias-ı vəziyyəti pisləşdirir — Metro yalnız `process.env.X`
+   şəklindəki ifadəni yerinə qoyur. **3.2-də düzəldilməlidir** (`EXPO_PUBLIC_ONETEAM_*` adları birbaşa
+   oxunmalıdır).
+2. **`OfflineQueueManager` yaddaşdadır, README isə əksini deyir.** `mobile/src/services/offlineQueue.ts`
+   `private queue: QueueItem[] = []` saxlayır — **heç bir saxlanc yoxdur**. `triggerAutoSync()` isə
+   **boş metoddur**: `setOnlineStatus(false→true)` onu çağırır, o isə heç nə etmir. README
+   ("Submissions are queued securely in local storage", "Automatically detects network reconnection and
+   triggers background uploads") hər iki halda **yanlışdır**. 50 MB limit də yoxdur. Yəni 3.3 "mövcud
+   queue-nu AsyncStorage-a köçürmək" deyil, **queue-nu yazmaqdır**.
+3. **3.5-in öz müqəddiməsi yanlışdır.** "Mövcud React Native UI saxlanılır" deyir, amma `mobile/src`
+   altında **bir sətir də RN kodu yoxdur**: `react-native` importu yox, JSX yox, `StyleSheet` yox. Bütün
+   "ekranlar" `*Controller` sinifləridir. Saxlanılacaq UI **yoxdur** — Login, TaskList, TaskDetail,
+   Checklist və Camera ekranları **yazılmalıdır**. Bu, 3.5-i "quraşdırma"dan "ekranları yazmaq"a
+   çevirir və **ölçüsünü böyüdür**.
+4. **`mobile/Root.tsx` tiplə yoxlanılmır.** `mobile/tsconfig.json` yalnız `src` ağacını əhatə edir;
+   `Root.tsx` isə `react-native` idxal edir, hansı ki quraşdırılmayıb. Onu `src/` altına qoysaydım,
+   `npm run mobile:check` **heç nə ilə əlaqəsi olmayan səbəbdən** qırmızı olardı. Ona görə fayl paket
+   kökündədir və **bu boşluq gizlədilmir: `npm install`-dan sonra `include`-a `index.ts` və `Root.tsx`
+   əlavə olunmalıdır.**
 
 **Mərhələ 3 nəticəsi:** Real iPhone-da / Simulyatorda **yaddaşda saxlanılan açarla**, kamerası və offline queue ilə işləyən tətbiq.
 
@@ -527,7 +633,13 @@ botda deyil: bot bazaya yalnız API-dən çatır, ona görə təmizləmə orada 
 
 | Borc                                                                                                                  | Hal-hazırkı vəziyyət                                                                                                                                                                                                                                                                                                                                                                              | Planlaşdırılan həll                                                                                                                                                                                                     |
 | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mobile/package.json: dependencies: {}`                                                                               | Expo config və native modullar yoxdur                                                                                                                                                                                                                                                                                                                                                             | Mərhələ 3.1-də `expo`, `expo-camera`, `expo-location`, `expo-secure-store`, `expo-router` quraşdırılır                                                                                                                  |
+| ~~`mobile/package.json: dependencies: {}`~~                                                                           | Expo config və native modullar yoxdur                                                                                                                                                                                                                                                                                                                                                             | **Həll olundu** (3.1) — SDK 57-in rəsmi versiyaları yazıldı. **Quraşdırma icra olunmadı**, səbəb aşağıda                                                                                                                |
+| **Agent mühiti ~470 paketlik quraşdırmanı bloklayır**                                                                 | **3.1-də ölçüldü:** fayl yaratma qaynağı paralel əməliyyatlarda tükənir və **bərpa olunmur** (ardıcıl 400 ✅, paralel 200 ❌). `npm install` və `pnpm install` ikisi də `reify`/`linkNewPackages` mərhələsində dayanır. `brew install cocoapods` isə iç-içə `sandbox-exec` səbəbindən keçmir. Nəticə: **`expo prebuild` agent tərəfindən icra oluna bilmir**                                      | bahaI adi Terminalda üç əmr işlədir: `brew install cocoapods`, `cd mobile && npm install`, `npx expo prebuild --platform ios`                                                                                           |
+| `mobile/Root.tsx` **tip yoxlamasından kənardır**                                                                      | `mobile/tsconfig.json` yalnız `src` ağacını əhatə edir; `Root.tsx` isə hələ quraşdırılmamış `react-native` idxal edir. `src/` altına qoyulsa `mobile:check` **əlaqəsiz səbəbdən** qırmızı olardı                                                                                                                                                                                                  | `npm install`-dan sonra `include`-a `index.ts` və `Root.tsx` əlavə olunmalıdır                                                                                                                                          |
+| `portalApi.ts` **`EXPO_PUBLIC_` prefiksini bilmir**                                                                   | Expo/Metro `process.env`-i yalnız `EXPO_PUBLIC_*` adları üçün yerinə qoyur; `ONETEAM_API_URL` real build-da `undefined` olur və ünvan **sükutla `http://localhost:3001`**-ə düşür. `const env = process.env` alias-ı kömək etmir — Metro yalnız birbaşa `process.env.X` ifadəsini yerinə qoyur. **3.1-də ölçüldü, düzəldilmədi**                                                                  | **3.2-də məcburidir:** `EXPO_PUBLIC_ONETEAM_API_URL` və yoldaşları birbaşa oxunmalıdır                                                                                                                                  |
+| `OfflineQueueManager` **yaddaşdadır**, README isə əksini deyir                                                        | **3.1-də ölçüldü:** `private queue: QueueItem[] = []` — heç bir saxlanc yoxdur. `triggerAutoSync()` **boş metoddur** (çağırılır, heç nə etmir). README-dəki "queued securely in local storage" və "automatically detects network reconnection" **yanlışdır**. 50 MB limit yoxdur                                                                                                                  | **3.3 "köçürmə" deyil, yazmadır.** README-dəki iki cümlə də düzəldilməlidir                                                                                                                                             |
+| `mobile/ios/` **sınıq köhnə karkas idi**                                                                              | `Podfile` mövcud olmayan `react-native-permissions` yoluna istinad edirdi; `Info.plist` isə mövcud olmayan Xcode layihəsinə aid idi. İkisi də commit olunmuşdu                                                                                                                                                                                                                                    | **Həll olundu** (3.1) — git-dən çıxarıldı, dəyəri `app.json`-a köçürüldü, `mobile/ios/` artıq **generasiya olunur** və `.gitignore`-dadır                                                                               |
+| npm keşində **6 fayl `root`-a məxsusdur**                                                                             | **3.1-də ölçüldü:** `~/.npm/_cacache` daxilində 2151 fayldan 6-sı `root`-undur (keçmişdə `sudo npm` işlədilib) → `npm install` `EACCES` verir. Agent sudo işlətmədi, ayrı keş qovluğu istifadə etdi                                                                                                                                                                                               | bahaI: `sudo chown -R $(whoami) ~/.npm` — bir dəfəlik                                                                                                                                                                   |
 | `yolov8n.pt` — generic COCO                                                                                           | SKU tanıma yoxdur                                                                                                                                                                                                                                                                                                                                                                                 | Mərhələ 4.3-də ROI crop + Vision LLM ilə kompensasiya edilir (fine-tune yox)                                                                                                                                            |
 | ~~`/api/panel/*` → `oneteam-user:` token qəbul edirdi~~                                                               | Panel açarı yaradıldıqda belə qəbul edilirdi                                                                                                                                                                                                                                                                                                                                                      | **Həll olundu** (1.1, `29aa4d3`)                                                                                                                                                                                        |
 | ~~Audit təsdiqində rol yoxlaması yox idi~~                                                                            | Fotonu göndərən işçi öz auditini təsdiqləyə bilirdi                                                                                                                                                                                                                                                                                                                                               | **Həll olundu** (1.5, `ed8f9b7`) — `requireReviewer`                                                                                                                                                                    |
@@ -594,4 +706,5 @@ Onda `required` yenidən `false` olur və panel URL-i bilən hər kəsə **açı
 
 ---
 
-_Plan versiyası: 0.2 — 15 sentyabr 2026 — TƏSDİQLƏNİB, icra davam edir._
+_Plan versiyası: 0.3 — 15 sentyabr 2026 — TƏSDİQLƏNİB, icra davam edir. 3.1 🔶: config hazırdır və
+yoxlanıldı, `expo prebuild` agent mühitində bloklandığı üçün bahaI-nin Terminalında icra olunmalıdır._

@@ -16,6 +16,8 @@
     "web:test": "VITE_API_BASE_URL=http://localhost:3001 ONETEAM_API_TOKEN=oneteam-user:usr-admin-001 node ./node_modules/tsx/dist/cli.mjs web/src/smoke-test.ts",
     "mobile:test": "node ./node_modules/tsx/dist/cli.mjs mobile/src/tests/mobile-test-runner.ts",
     "mobile:check": "node ./node_modules/typescript/bin/tsc --project mobile/tsconfig.json --noEmit",
+    "mobile:config": "node scripts/dev/verify-mobile-config.mjs",
+    "mobile:assets": "python3 scripts/dev/make-mobile-assets.py",
     "api:start": "node apps/api/dist/main.js",
     "api:build": "node ./node_modules/typescript/bin/tsc --build apps/api/tsconfig.json",
     "api:dev": "npm run api:build && node apps/api/dist/main.js",
@@ -42,7 +44,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "secrets:scan": "node scripts/quality/secret-scan.mjs",
-    "quality": "npm run format:check && npm run lint && npm run type-check && npm run test:all",
+    "quality": "npm run format:check && npm run mobile:config && npm run lint && npm run type-check && npm run test:all",
     "mobile:test:write": "ONETEAM_MOBILE_WRITES=1 node ./node_modules/tsx/dist/cli.mjs mobile/src/tests/mobile-test-runner.ts"
   },
   "keywords": [

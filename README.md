@@ -293,8 +293,9 @@ An iOS-ready mobile field application designed for Coca-Cola in-store merchandis
    - Automatically detects network reconnection and triggers background uploads to Supabase Storage (`shelf-images`) and database inserts.
 
 5. **iOS Native Configuration**:
-   - Clean CocoaPods [`mobile/ios/Podfile`](./mobile/ios/Podfile).
-   - Configured [`mobile/ios/oneTeam/Info.plist`](./mobile/ios/oneTeam/Info.plist) with required iOS privacy descriptions (`NSCameraUsageDescription`, `NSLocationWhenInUseUsageDescription`).
+   - [`mobile/app.json`](./mobile/app.json) is the single source of truth: bundle identifier, icon, splash, the three Expo config plugins (`expo-camera`, `expo-location`, `expo-secure-store`) and the Azerbaijani privacy strings (`NSCameraUsageDescription`, `NSLocationWhenInUseUsageDescription`).
+   - `mobile/ios/` is **generated**, not committed — `npx expo prebuild --platform ios` writes it from `app.json`. Regenerate it after any config change; do not hand-edit it, because the next prebuild overwrites it.
+   - The icon and splash mark are built from the repo's `logo.jpg` by [`scripts/dev/make-mobile-assets.py`](./scripts/dev/make-mobile-assets.py), which pads the non-square logo onto a square canvas of its own measured background colour.
 
 ---
 
