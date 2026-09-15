@@ -1100,6 +1100,70 @@ async function main(): Promise<void> {
         !unscopedRows.some((row: any) => row.id === orphanRow?.id || row.id === noChatReminder?.id),
       unscopedRows.map((row: any) => ({ id: row.id, chatId: row.chatId })),
     );
+
+    // -----------------------------------------------------------------------
+    console.log('\ndeleting a task takes its queued notice with it');
+    // -----------------------------------------------------------------------
+
+    /**
+     * WHY THIS IS A PRODUCT CHECK, NOT A TIDINESS CHECK
+     * -------------------------------------------------
+     * `notifications.store_task_id` has no foreign key, deliberately — the same
+     * reasoning as `bot_sessions`, so that a supervisor can delete a task
+     * without the outbox refusing. The cost is that nothing cascades, so the row
+     * has to be removed by the delete path itself.
+     *
+     * Without that, the sequence is: a supervisor dispatches a task, changes
+     * their mind and deletes it — and the bot, polling a moment later, sends the
+     * merchandiser "a task has been given to you" with an inline button reading
+     * "🔓 Tapşırığı aç" whose callback data is the id of a task the API no longer
+     * has. The one channel that is supposed to be authoritative would send
+     * someone to do work that does not exist, and the button would open nothing.
+     * A queued notice for a task being deleted is not late; it is wrong.
+     *
+     * The control is asserted first, and it is the point. "The row is gone after
+     * the delete" is worthless unless the row was demonstrably there before it:
+     * a task that never queued anything, or a delete that silently failed, would
+     * both satisfy it.
+     */
+    const doomed = await call('POST', '/api/portal/tasks', {
+      body: {
+        title: `Silinəcək tapşırıq ${RUN}`,
+        description: 'Silinmə bildirişi testi üçün müvəqqəti brifinq.',
+        priority: 'LOW',
+        deadline: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+        assigned_stores: [storeId],
+        assignedUserId: USER_BOUND,
+      },
+    });
+    const doomedId = track(doomed);
+    check(
+      'a task to delete is dispatched',
+      doomed.status === 201 && Boolean(doomedId),
+      doomed.body,
+    );
+
+    if (doomedId) {
+      const queuedBefore = await notificationByKey(`TASK_ASSIGNED:${doomedId}`);
+      check(
+        'its notice is in the outbox first — the control',
+        queuedBefore !== null && queuedBefore.store_task_id === doomedId,
+        queuedBefore,
+      );
+
+      const deleted = await call('DELETE', `/api/portal/tasks/${doomedId}`);
+      check('the supervisor deletes the task', deleted.status === 200, deleted.body);
+
+      const taskRows = await query('SELECT id FROM store_tasks WHERE id = $1', [doomedId]);
+      check('and it is really gone from the database', taskRows.length === 0, taskRows);
+
+      const queuedAfter = await notificationByKey(`TASK_ASSIGNED:${doomedId}`);
+      check(
+        'and its queued notice went with it, so the bot cannot announce work that is gone',
+        queuedAfter === null,
+        queuedAfter,
+      );
+    }
   } finally {
     // Audit entries are written with `persist` — fire-and-forget — so the row
     // for the very last transition can still be in flight when the cleanup

@@ -501,17 +501,50 @@ export async function deleteTemplateRow(pool: Pool, templateId: string): Promise
 }
 
 /**
- * Deletes one store task.
+ * Deletes one store task, together with everything queued about it.
  *
  * `task_evidences.store_task_id` is `ON DELETE CASCADE`, so this statement also
  * destroys every photo and checklist answer submitted against the task. That is
  * why the caller counts the evidence first and refuses rather than letting a
  * supervisor delete a briefing and lose the field work with it — see
  * `countEvidencesForTask`.
+ *
+ * `notifications.store_task_id` has NO foreign key — the same reasoning as
+ * `bot_sessions`, so that a supervisor can delete a task without the outbox
+ * refusing — which means nothing cascades to it and it has to be deleted here.
+ * Leaving those rows behind is not merely untidy. An undelivered
+ * `TASK_ASSIGNED` row describes work that no longer exists, and the bot would
+ * send it later, with an inline button reading "🔓 Tapşırığı aç" whose callback
+ * data is the id of a task the API no longer has. The merchandiser would be
+ * told about a briefing they cannot open, by the one channel that is supposed
+ * to be authoritative. A queued notice for a task being deleted is not a
+ * message that is merely late; it is a message that is wrong.
+ *
+ * The outbox is a queue, not a history — its own header says so — so the
+ * delivered rows go too rather than being kept as a record of who was told
+ * what. That history lives in `audit_logs`, and the retention sweep would
+ * remove the delivered rows within days anyway. One invariant, easy to check:
+ * the outbox holds nothing about a task that no longer exists.
+ *
+ * Both statements in one transaction. The delete is what makes the notice
+ * wrong, so a partial outcome is bad either way: notifications gone with the
+ * task still present loses a legitimate notice, and the task gone with the
+ * notice still queued ships a wrong one.
  */
 export async function deleteStoreTaskRow(pool: Pool, taskId: string): Promise<boolean> {
-  const result = await pool.query('DELETE FROM store_tasks WHERE id = $1', [taskId]);
-  return (result.rowCount ?? 0) > 0;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM notifications WHERE store_task_id = $1', [taskId]);
+    const result = await client.query('DELETE FROM store_tasks WHERE id = $1', [taskId]);
+    await client.query('COMMIT');
+    return (result.rowCount ?? 0) > 0;
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /** Counts the submitted evidence rows attached to a store task. */

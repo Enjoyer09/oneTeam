@@ -559,6 +559,7 @@ async function main(): Promise<void> {
     users: await countOf('users'),
     sessions: await countOf('bot_sessions'),
     audits: await countOf('audit_logs'),
+    notifications: await countOf('notifications'),
   };
 
   let storeId: string | undefined;
@@ -1133,6 +1134,15 @@ async function main(): Promise<void> {
       evidenceIds = evidenceRows.rows.map((row: { id: string }) => row.id);
 
       await attempt('audits', 'DELETE FROM task_evidences WHERE store_task_id = $1', [taskId]);
+      // The outbox is the third thing that names the task, and it is the one
+      // that does not cascade: `notifications.store_task_id` has no foreign key,
+      // deliberately, so that a supervisor can delete a task without the outbox
+      // refusing. The price is that this has to be said explicitly. Measured
+      // before this line existed: every run left exactly one `TASK_ASSIGNED` row
+      // whose task no longer existed, while the suite reported itself clean.
+      await attempt('the queued notice', 'DELETE FROM notifications WHERE store_task_id = $1', [
+        taskId,
+      ]);
       await attempt('the task', 'DELETE FROM store_tasks WHERE id = $1', [taskId]);
     }
     if (userId) {
@@ -1167,6 +1177,18 @@ async function main(): Promise<void> {
       );
     }
 
+    // The API is stopped BEFORE the final count, not after the assertion.
+    //
+    // It runs the deadline sweep on a timer, and that sweep reads the in-memory
+    // replica, which still holds a deleted fixture for up to one refresh
+    // interval. A tick landing between the cleanup and the count could therefore
+    // write one more row — and the "clean" check would go red for a reason that
+    // has nothing to do with this suite's cleanup, or worse, would have to be
+    // loosened to tolerate it. A writer that is still running cannot be used to
+    // prove that nothing more will be written. `stopApi` is idempotent, so the
+    // call in the `finally` stays as the safety net.
+    await stopApi();
+
     const after = {
       stores: await countOf('stores'),
       storeTasks: await countOf('store_tasks'),
@@ -1175,6 +1197,7 @@ async function main(): Promise<void> {
       users: await countOf('users'),
       sessions: await countOf('bot_sessions'),
       audits: await countOf('audit_logs'),
+      notifications: await countOf('notifications'),
     };
     console.log(`  · rows before: ${JSON.stringify(before)}`);
     console.log(`  · rows after:  ${JSON.stringify(after)}`);
