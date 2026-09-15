@@ -53,13 +53,25 @@
 
 **Mərhələ 1 nəticəsi:** Web panel **tam idarəetmə mərkəzi** olur; təhlükəsizlik boşluqları bağlanır.
 
-**\* 1.4 qeydi — bir addım hələ açıqdır.** Kod yazıldı, yerli suite yaşıl (**69/0/0**), commit
-`31bc886` deploy olundu və yeni endpoint-lərin canlıda **həqiqətən mövcud olduğu** sübut edildi
-(`PATCH /api/portal/tasks/:id` → **401**, mövcud olmayan oxşar yol → **404**). Amma **create / redaktə /
-sil real məlumatla canlı yoxlanılmadı**, çünki panel tam kilidlidir (`required: true`, `liveKeys: 1`) və
-yoxlama üçün panel açarı lazımdır. Servis və cihaz kredensialları bu yollarda qəbul olunmur.
-Bu, layihənin öz qaydasıdır: **mağaza funksiyası da lokal suite-i keçmişdi, real buqu isə yalnız ilk
-canlı create tutdu.** Yoxlama tamamlanana qədər 1.4-ü bağlanmış saymaq olmaz.
+**\* 1.4 qeydi — canlı yoxlama tamamlandı.** Kod `31bc886`-da deploy olundu, sonra **istehsalat
+serverində** bütün yollar yoxlanıldı:
+
+| Yoxlama                                                        | Nəticə                 |
+| -------------------------------------------------------------- | ---------------------- |
+| HTTP yolları (yaratma, paylama, redaktə, silmə, bütün rəddlər) | **36 keçdi / 0 düşdü** |
+| Yenidən başlatmadan sonra sağ qalma                            | **12 keçdi / 0 düşdü** |
+
+**Yazının həqiqətən bazaya düşdüyü necə sübut olundu:** server **yenidən başladıldı** və tapşırıq
+yenə orada idi. Təzə başlamış prosesin əvvəlki yaddaşı olmur — deməli, görünən sətir **PostgreSQL-dən**
+gəlib. Nəzarət olmadan bu sübut mənasız olardı, ona görə skript əvvəlcə `uptimeSeconds`-in
+həqiqətən sıfırlandığını yoxlayır. Yoxlama skriptləri: `scripts/live-task-crud.cjs` +
+`scripts/live-task-crud-after-restart.cjs`.
+
+**Yoxlama zamanı iki dəfə "buq" göründü, ikisi də skriptin öz səhvi idi** — və ikisi də dərsdir:
+(1) oxu yolu `priority: 'medium'` qaytarır, mən `'MEDIUM'` gözləyirdim — panelin öz tipi kiçik hərfdir,
+giriş isə registrə həssas deyil; (2) qardaş mağazanın tapşırığı _digər_ tapşırığa etdiyim tarix
+redaktəsini daşımalı sanmışdım — halbuki o, öz tarixini düzgün saxlamışdı. **Yoxlamanı təxmin
+edilmiş müqavilə üzərində yazmaq yalançı mənfi nəticə verir.**
 
 **Həmçinin 1.4-də aydınlaşdı:** plandaki `CHECKLIST` / `PHOTO` / `AUDIT` **saxlanan sütun deyil** —
 `task_type` sütunu yoxdur. Növlər mövcud sahələrdən **törədilir** (`deriveTaskKind`), yəni etiket
@@ -137,13 +149,13 @@ məlumatdan sürüşə bilməz. Plan mətnini buna uyğun oxumaq lazımdır.
 
 ## 5. Qəbul meyarı cədvəli (Definition of Done — hər mərhələ üçün)
 
-| Mərhələ | Avtomatik yoxlama                                              | Manual yoxlama                                         | Operator təsdiqi |
-| ------- | -------------------------------------------------------------- | ------------------------------------------------------ | ---------------- |
-| 1       | `npm run test:all` + `test:live` → green                       | Panelə gir → mağaza yarat → tapşırıq yarat → ələ keçir | ✅ (1.1, 1.3)    |
-| 2       | Bot unit test (state machine) → green                          | Botdan 3 mağaza, 5 tapşırıq icra et                    | ⏳               |
-| 3       | `xcodebuild test` CI → green                                   | Real iPhone-da Login → Enroll → Photo → Submit         | ⏳               |
-| 4       | 100 test şəkli → AI worker → JSON valid + `fallback` rate < 5% | 10 şəkil → paneldə skor + anomaliya görünür            | ⏳               |
-| 5       | `k6` load test nightly → green                                 | Demo video + executive summary                         | ⏳               |
+| Mərhələ | Avtomatik yoxlama                                              | Manual yoxlama                                         | Operator təsdiqi   |
+| ------- | -------------------------------------------------------------- | ------------------------------------------------------ | ------------------ |
+| 1       | `npm run test:all` + `test:live` → green                       | Panelə gir → mağaza yarat → tapşırıq yarat → ələ keçir | ✅ (1.1, 1.3, 1.4) |
+| 2       | Bot unit test (state machine) → green                          | Botdan 3 mağaza, 5 tapşırıq icra et                    | ⏳                 |
+| 3       | `xcodebuild test` CI → green                                   | Real iPhone-da Login → Enroll → Photo → Submit         | ⏳                 |
+| 4       | 100 test şəkli → AI worker → JSON valid + `fallback` rate < 5% | 10 şəkil → paneldə skor + anomaliya görünür            | ⏳                 |
+| 5       | `k6` load test nightly → green                                 | Demo video + executive summary                         | ⏳                 |
 
 ---
 
