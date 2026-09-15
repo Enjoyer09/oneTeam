@@ -1,6 +1,10 @@
 /**
  * ============================================================================
- *  oneTeam — ESLint configuration (flat config, ESLint 9)
+ *  oneTeam — ESLint configuration (flat config)
+ *
+ *  Written against ESLint 9 and now running on ESLint 10; the version that
+ *  matters is whatever `package.json` pins, and this header previously claimed
+ *  the wrong one because lint had never run to contradict it.
  * ============================================================================
  *
  * WHY THIS FILE EXISTS
@@ -127,12 +131,29 @@ export default tseslint.config(
       // `@ts-ignore` hides an error and also hides any NEW error that appears
       // on the same line later. `@ts-expect-error` fails loudly once the
       // underlying problem is fixed, so the suppression cannot rot.
+      //
+      // WHY THIS IS SHAPED LIKE THIS — the first time lint ever ran, it failed
+      // on THIS line, with `Value "Use @ts-expect-error with a written reason,
+      // or fix the type." should be boolean.` The values were written as custom
+      // MESSAGES, which was valid in typescript-eslint v7 and was removed in v8:
+      // every key now takes `boolean | 'allow-with-description'`. Because lint
+      // had never executed — CI died at the secret scan on every single push —
+      // nobody had ever seen the error. A config that cannot load is not a
+      // strict config, it is an absent one.
+      //
+      // The policy below is the one CONTRIBUTING.md and
+      // docs/ENGINEERING-STANDARDS.md already state: `@ts-expect-error` is
+      // acceptable WITH a written reason, `@ts-ignore` is not.
       '@typescript-eslint/ban-ts-comment': [
         'error',
         {
-          'ts-ignore': 'Use @ts-expect-error with a written reason, or fix the type.',
-          'ts-nocheck': 'Do not disable type checking for a whole file.',
+          'ts-expect-error': 'allow-with-description',
+          'ts-ignore': true,
+          'ts-nocheck': true,
+          // `@ts-check` turns checking ON, so there is nothing to ban.
           'ts-check': false,
+          // "A written reason" is not three characters.
+          minimumDescriptionLength: 10,
         },
       ],
 
