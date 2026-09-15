@@ -316,6 +316,26 @@ export function getPrincipal(
 const SUPERVISOR_ROUTE_PREFIX = '/api/portal/';
 
 /**
+ * The panel's own routes.
+ *
+ * They are mounted outside `/api/portal/` on purpose: nginx rewrites the portal
+ * prefix and leaves this one alone, which is what lets the browser present a key
+ * of its own instead of the one the edge injects (see panel-auth.controller.ts).
+ *
+ * They are still supervisor routes. The panel is the supervisor surface, and the
+ * credential that opens it is a panel key — so the rule that closes the portal
+ * once a key exists has to close these too.
+ *
+ * It did not, and the gap was on the most sensitive route in the system. Because
+ * `isSupervisorRoute` only looked at `/api/portal/`, `mayUseRoute` answered `true`
+ * for every `/api/panel/*` request before it ever read the credential. The
+ * service credential `oneteam-user:<id>` — which can name any user, and which the
+ * bot holds — could therefore mint and revoke panel keys while the panel was
+ * locked. A compromised bot was a way into the key-management endpoint.
+ */
+const PANEL_ROUTE_PREFIX = '/api/panel/';
+
+/**
  * The field API, which sits under the same `/api/portal/` prefix but belongs to
  * the bot and the mobile app.
  *
@@ -330,11 +350,15 @@ const FIELD_ROUTE_PREFIX = '/api/portal/field';
 /**
  * Whether a request path belongs to the supervisor panel.
  *
+ * Two prefixes, one rule. The panel's own routes have no field carve-out to
+ * apply — nothing under `/api/panel/` is a field route.
+ *
  * Exported because the test suite asserts the boundary directly, and a boundary
  * that is only expressed inside a private method is one nobody can test.
  */
 export function isSupervisorRoute(path: string | undefined): boolean {
   if (!path) return false;
+  if (path.startsWith(PANEL_ROUTE_PREFIX)) return true;
   if (!path.startsWith(SUPERVISOR_ROUTE_PREFIX)) return false;
   return !path.startsWith(FIELD_ROUTE_PREFIX);
 }

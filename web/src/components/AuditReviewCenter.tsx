@@ -725,17 +725,16 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                         <span>❌ İmtina Et</span>
                       </button>
 
-                      {selectedSubmission.ai_score &&
-                        selectedSubmission.ai_score >= 80 && (
-                          <button
-                            disabled={isProcessing}
-                            onClick={() => handleAIApproveClick(selectedSubmission.id)}
-                            className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-4 py-2 rounded-lg btn-coke text-white font-bold text-xs transition-all cursor-pointer"
-                          >
-                            <Zap className="w-4 h-4 fill-white" />
-                            <span>⚡ AI Təsdiqi</span>
-                          </button>
-                        )}
+                      {selectedSubmission.ai_score && selectedSubmission.ai_score >= 80 && (
+                        <button
+                          disabled={isProcessing}
+                          onClick={() => handleAIApproveClick(selectedSubmission.id)}
+                          className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-4 py-2 rounded-lg btn-coke text-white font-bold text-xs transition-all cursor-pointer"
+                        >
+                          <Zap className="w-4 h-4 fill-white" />
+                          <span>⚡ AI Təsdiqi</span>
+                        </button>
+                      )}
 
                       <button
                         disabled={isProcessing}

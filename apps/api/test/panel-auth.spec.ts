@@ -187,6 +187,60 @@ async function main(): Promise<void> {
   const noCredential = await call('GET', '/api/panel/me');
   check('/api/panel/me refuses a request with no credential', noCredential.status === 401);
 
+  // -------------------------------------------------------------------------
+  // A panel that is already locked: assert the boundary, then stop
+  // -------------------------------------------------------------------------
+  // Once a key exists, the service credential this suite holds is refused on the
+  // panel's own routes as well as the portal routes — so there is nothing left
+  // to mint with and the flow below cannot start.
+  //
+  // The refusal is the assertion worth making here, and it is a newer one. The
+  // guard used to treat `/api/panel/*` as neither supervisor nor field, so
+  // `mayUseRoute` returned true before it read the credential: a service
+  // credential could mint itself a panel key on a locked panel, and the bot
+  // holds exactly that credential. `/api/panel/keys` is the most sensitive route
+  // in the system, so it is checked first.
+  //
+  // The keys found here are NOT cleared. They belong to whoever locked the
+  // panel, and revoking them to make a suite pass would be a far worse failure
+  // than a skip.
+  if (liveKeysBefore > 0) {
+    const edgeMintsOnPanel = await call('POST', '/api/panel/keys', {
+      token: ADMIN_TOKEN,
+      body: { userId: 'usr-admin-001', label: 'the service credential must not mint' },
+    });
+    check('THE SERVICE CREDENTIAL IS REFUSED ON THE PANEL API', edgeMintsOnPanel.status === 403, {
+      status: edgeMintsOnPanel.status,
+      body: edgeMintsOnPanel.body,
+    });
+    check(
+      'and the refusal names the panel key',
+      edgeMintsOnPanel.body?.error === 'PANEL_KEY_REQUIRED',
+      edgeMintsOnPanel.body,
+    );
+
+    const edgeReadsOnPanel = await call('GET', '/api/panel/me', { token: ADMIN_TOKEN });
+    check('and on /api/panel/me', edgeReadsOnPanel.status === 403, edgeReadsOnPanel.status);
+
+    const edgeOnPortal = await call('GET', '/api/portal/metrics', { token: ADMIN_TOKEN });
+    check('and on the supervisor API', edgeOnPortal.status === 403, edgeOnPortal.status);
+
+    skip(
+      'the full mint-and-revoke flow',
+      `the panel is already locked by ${liveKeysBefore} key(s), so this suite holds no credential it could mint with`,
+    );
+    console.log(
+      '\n  To run the full suite: point it at a database with no live panel keys,\n' +
+        '  or set ONETEAM_PANEL_BOOTSTRAP_KEY and restart the API, mint a personal\n' +
+        '  key from the panel, then revoke the leftovers.\n',
+    );
+
+    if (db) await db.end();
+    console.log(`${pass} passed, ${fail} failed, ${skipped} skipped\n`);
+    if (fail > 0) process.exitCode = 1;
+    return;
+  }
+
   const asAdmin = await call('GET', '/api/panel/me', { token: ADMIN_TOKEN });
   check('an administrator service credential is identified', asAdmin.status === 200, asAdmin.body);
   check(
@@ -260,6 +314,24 @@ async function main(): Promise<void> {
     'and the refusal says why, in a code the panel can act on',
     edgeOnSupervisorRoute.body?.error === 'PANEL_KEY_REQUIRED',
     edgeOnSupervisorRoute.body,
+  );
+
+  // The same rule, on the panel's own routes. These matter most: `/api/panel/keys`
+  // is where keys are minted, so a credential that is refused everywhere else but
+  // accepted here would still be a way in — and a quieter one, because it would
+  // leave a key behind instead of reading data.
+  const edgeMintsOnPanel = await call('POST', '/api/panel/keys', {
+    token: ADMIN_TOKEN,
+    body: { userId: 'usr-admin-001', label: 'the service credential must not mint' },
+  });
+  check('THE SERVICE CREDENTIAL IS REFUSED ON THE PANEL API TOO', edgeMintsOnPanel.status === 403, {
+    status: edgeMintsOnPanel.status,
+    body: edgeMintsOnPanel.body,
+  });
+  check(
+    'and it is refused before the key is written',
+    edgeMintsOnPanel.body?.error === 'PANEL_KEY_REQUIRED',
+    edgeMintsOnPanel.body,
   );
 
   const panelOnSupervisorRoute = await call('GET', '/api/portal/metrics', { token: adminKey });

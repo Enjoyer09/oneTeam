@@ -477,9 +477,9 @@ Yekun gözlənti: **aylıq təxminən $5–15**. Dəqiq rəqəmi Railway panelin
 | API → real baza  | ✅ `/api/health` → `persistence: postgres`               |
 | Baza sxemi       | ✅ API işə düşəndə özü yaradır və tamamlayır (101 sütun) |
 | Giriş qoruması   | ✅ kənar kredensial `/api/portal/...`-da **401** alır    |
-| Enrolment açarı  | ✅ `ONETEAM_ENROLLMENT_SECRET` qoyulub və yoxlanılıb    |
-| Panel açarı      | ✅ yaradılıb, giriş ekranı qoşulub (`liveKeys: 1`)    |
-| Foto saxlancı     | ✅ Cloudflare R2 bucket `oneteam-photos` aktivdir    |
+| Enrolment açarı  | ✅ `ONETEAM_ENROLLMENT_SECRET` qoyulub və yoxlanılıb     |
+| Panel açarı      | ✅ yaradılıb, giriş ekranı qoşulub (`liveKeys: 1`)       |
+| Foto saxlancı    | ✅ Cloudflare R2 bucket `oneteam-photos` aktivdir        |
 | Ehtiyat nüsxə    | ✅ PITR aktiv + gündəlik cədvəl qurulub                  |
 | Bot              | ✅ işləyir — **@oneTeamCCIbot**                          |
 

@@ -751,7 +751,8 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                     )}
                   </div>
                   <p className="text-[10px] text-muted mt-1">
-                    Kompüterinizdən birbaşa şəkil seçə və ya URL daxil edə bilərsiniz (PNG, JPG, WebP).
+                    Kompüterinizdən birbaşa şəkil seçə və ya URL daxil edə bilərsiniz (PNG, JPG,
+                    WebP).
                   </p>
                 </div>
 
