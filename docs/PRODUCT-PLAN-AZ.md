@@ -43,13 +43,13 @@
 
 ### MƏRHƏLƏ 1 — Əsas boşluqlar və təhlükəsizlik (Həftə 1–2)
 
-| #   | İş paketi                                                                                                                                                                                                                                                                                    | Qəbul meyarı                                                                                  | Müddət  | Vəziyyət               |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------- | ---------------------- |
-| 1.1 | **Panel təhlükəsizliyi:** `/api/panel/*` üçün `mayUseRoute` yoxlamasını `/api/portal/` şərtindən azad et, `oneteam-user:` tokenini paneldə rədd et.                                                                                                                                          | `curl -H "Authorization: Bearer oneteam-user:usr-admin-001" /api/panel/me` → 403              | 0.5 gün | ✅ `29aa4d3`           |
-| 1.2 | **Logout sonuncu açarı silə bilməsin** — _premisa yoxlanıldı və yanlış çıxdı_: heç bir administrativ ləğv yolu paneli boşalda bilmir (`CANNOT_REVOKE_OWN_SESSION`, `CANNOT_REVOKE_OWN_KEYS`). Əvəzində **əsl** problem tapıldı: `logout` sonuncu açarı ləğv edəndə panel yenidən **açılır**. | Qərar gözləyir — §8-ə bax                                                                     | 0.5 gün | ⚠️ qərar               |
-| 1.3 | **Mağaza CRUD (Web):** yarat / redaktə et / sil + React forması.                                                                                                                                                                                                                             | Yeni mağaza yaradılır → siyahıda görünür → kod unikal → silinə bilir                          | 1.5 gün | ✅ `e17941e`,`8302945` |
-| 1.4 | **Tapşırıq CRUD (Web):** mağaza, başlıq, növ (`CHECKLIST`, `PHOTO`, `AUDIT`), planlı tarix, müddət, çeklist sxemi (JSON). Ələ keçirmə yalnız sahibinə.                                                                                                                                       | Tapşırıq yaradılır → ələ keçirilir → mobil/botda görünür → başqa istifadəçi ələ keçirə bilmir | 1.5 gün | ✅ `31bc886` \*        |
-| 1.5 | **İstifadəçi rolları:** `SUPERVISOR` (mağaza/tapşırıq yaradır), `MERCHANDISER` (icra edir), `ADMIN` (açarlar, rollar). `mayActAsAnotherUser` yoxlamasını `SUPERVISOR`-a genişləndir.                                                                                                         | Supervayzer yaradanda `SUPERVISOR` roluna düşür → ələ keçirir; ADMIN panelə girir             | 1 gün   | ⏳                     |
+| #   | İş paketi                                                                                                                                                                                                                                                                                                                                                              | Qəbul meyarı                                                                                                                  | Müddət  | Vəziyyət               |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------- |
+| 1.1 | **Panel təhlükəsizliyi:** `/api/panel/*` üçün `mayUseRoute` yoxlamasını `/api/portal/` şərtindən azad et, `oneteam-user:` tokenini paneldə rədd et.                                                                                                                                                                                                                    | `curl -H "Authorization: Bearer oneteam-user:usr-admin-001" /api/panel/me` → 403                                              | 0.5 gün | ✅ `29aa4d3`           |
+| 1.2 | **Logout sonuncu açarı silə bilməsin** — _premisa yoxlanıldı və yanlış çıxdı_: heç bir administrativ ləğv yolu paneli boşalda bilmir (`CANNOT_REVOKE_OWN_SESSION`, `CANNOT_REVOKE_OWN_KEYS`). Əvəzində **əsl** problem tapıldı: `logout` sonuncu açarı ləğv edəndə panel yenidən **açılır**.                                                                           | Qərar gözləyir — §8-ə bax                                                                                                     | 0.5 gün | ⚠️ qərar               |
+| 1.3 | **Mağaza CRUD (Web):** yarat / redaktə et / sil + React forması.                                                                                                                                                                                                                                                                                                       | Yeni mağaza yaradılır → siyahıda görünür → kod unikal → silinə bilir                                                          | 1.5 gün | ✅ `e17941e`,`8302945` |
+| 1.4 | **Tapşırıq CRUD (Web):** mağaza, başlıq, növ (`CHECKLIST`, `PHOTO`, `AUDIT`), planlı tarix, müddət, çeklist sxemi (JSON). Ələ keçirmə yalnız sahibinə.                                                                                                                                                                                                                 | Tapşırıq yaradılır → ələ keçirilir → mobil/botda görünür → başqa istifadəçi ələ keçirə bilmir                                 | 1.5 gün | ✅ `31bc886` \*        |
+| 1.5 | **İstifadəçi rolları və istifadəçi idarəetməsi:** `SUPERVISOR` (mağaza/tapşırıq yaradır, auditi təsdiqləyir), `MERCHANDISER` (icra edir, öz işini təsdiqləyə bilmir), `ADMIN` (açarlar, rollar, istifadəçilər). İki boşluq bağlandı: audit təsdiqində **rol yoxlaması yox idi**, və **yeni adam yaratmaq mümkün deyildi** (sistemdə yalnız seed-dəki 3 nəfər var idi). | Sahədən foto göndərən işçi öz işini **təsdiqləyə bilmir**; ADMIN yeni adam yaradır → ona açar verir → açar onun adına işləyir | 1 gün   | ✅ `ed8f9b7` \*\*      |
 
 **Mərhələ 1 nəticəsi:** Web panel **tam idarəetmə mərkəzi** olur; təhlükəsizlik boşluqları bağlanır.
 
@@ -76,6 +76,51 @@ edilmiş müqavilə üzərində yazmaq yalançı mənfi nəticə verir.**
 **Həmçinin 1.4-də aydınlaşdı:** plandaki `CHECKLIST` / `PHOTO` / `AUDIT` **saxlanan sütun deyil** —
 `task_type` sütunu yoxdur. Növlər mövcud sahələrdən **törədilir** (`deriveTaskKind`), yəni etiket
 məlumatdan sürüşə bilməz. Plan mətnini buna uyğun oxumaq lazımdır.
+
+**\*\* 1.5 qeydi — iki boşluq, ikisi də "görünməyən" növdən.** Bu cür səhvin nəticəsi **yoxluqdur**:
+çatışmayan yoxlama **200** qaytarır, 200 isə uğur kimi görünür.
+
+| #   | Boşluq                                                                        | Nəticə                                                           |
+| --- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| 1   | `reviewSubmission` / `autoApproveSubmission` **principal-ın rolunu oxumurdu** | Foto göndərən işçi öz auditini təsdiqləyə bilirdi                |
+| 2   | **Yeni istifadəçi yaratmaq mümkün deyildi**                                   | "Hər adama öz açarı" yalnız seed-dəki **3 nəfər** üçün işləyirdi |
+
+**1 nömrəli boşluq "istənilən merchandiser" deyildi — dəqiq bir adam idi.** İki qoruyucu bunu
+örtdüyü təsəvvürünü yaradırdı, ikisi də örtmürdü: `mayUseRoute` cihaz açarını bu yollardan kənar
+saxlayır, amma panel açarını administrator **hər kəsə** verə bilər; `canUserAccessTask` isə
+MERCHANDISER-ə yalnız **ona təyin edilmiş** tapşırığı açır. Və qeydiyyat yolu
+(`FieldService.bind` → `claimStoreTasks`) mağazanın açıq işini **mağaza kodu ilə qeydiyyatdan keçən
+adama** verir — yəni **təqdimatın müəllifi həmin tapşırığın icraçısıdır.** Deməli bu yola çata bilən
+tək merchandiser **elə qiymətləndirilən fotonun sahibi** idi. Yeni `requireReviewer` qapısı ADMIN və
+SUPERVISOR-dan başqasını rədd edir.
+
+**İkinci boşluq "hər adama öz açarı" qərarını yarımçıq qoyurdu:** `GET /api/panel/keys` artıq açar
+veriləcək şəxslərin siyahısını qaytarırdı, amma siyahıya **əlavə etmək** üçün heç bir yol yox idi.
+
+**Yoxlama və detektoru sındırma.** `npm run test:roles` → **78 keçdi / 0 düşdü**. Daşıyıcı yoxlamalar
+status kodları deyil: (a) fikstur tapşırığın həqiqətən **fotonu çəkən işçiyə təyin olunduğu**,
+(b) rədd edilmiş təsdiqin **tapşırığı tərpətmədiyi**, (c) yaradılmış adamın və açarının **ayrı
+bağlantı ilə PostgreSQL-dən oxunduğu**. Sonra iki dəfə sındırıldı:
+
+- **Qapı silindi** → **7 yoxlama qırmızı**, o cümlədən _"müəllif öz təqdimatını təsdiqləyə bilməz"_
+  **200** qaytardı (`status: approved`) və tapşırıq `published → completed` getdi.
+- **`createUser`-in baza yazısı silindi** → **8 yoxlama qırmızı**, o cümlədən **eyni e-poçt 201 ilə
+  qəbul olundu** — çünki unikallıq qaydası bazadadır, yaddaş yolunda isə heç bir yoxlama yoxdur.
+
+**Testin ilk versiyası yanlış səbəbdən yaşıl idi.** O, seed-dəki merchandiser-i işlədirdi — o adam
+həmin tapşırığın icraçısı deyil — deməli **qapı silinsə də yaşıl qalacaqdı**. Bunu detektoru sındırma
+mərhələsi üzə çıxardı; test indi **icraçının özü** kimi daxil olur və hücumun real olmasını təmin edən
+ilkin şərti ayrıca yoxlayır.
+
+**Qəsdən edilməyən dəyişiklik:** plan `mayActAsAnotherUser` yoxlamasını `SUPERVISOR`-a genişləndirməyi
+yazırdı. **Edilmədi** — həmin funksiya hazırda yalnız `via: 'service'` üçün `true` qaytarır, yəni
+genişləndirmək **supervayzerə başqa istifadəçi adından hərəkət etmək** hüququ verərdi. Planın
+premisası kod deyil; yoxlanıldı və rədd edildi.
+
+**Qorunan iki kilidlənmə (hər ikisi "narahatçılıq" deyil, "çıxılmaz vəziyyət" sinfindəndir):** son
+administrator **endirilə və silinə bilməz** (istifadəçi və açar idarəetməsi ADMIN-only-dir → adminsiz
+deployment bir daha idarə oluna bilməz); öz rolunu dəyişmək və öz hesabını silmək **qadağandır**
+(rolu dəyişən administrator işləyən açarı saxlayır, amma həmin açarın açdığı bütün ekranları itirir).
 
 ---
 
@@ -139,6 +184,8 @@ məlumatdan sürüşə bilməz. Plan mətnini buna uyğun oxumaq lazımdır.
 | `mobile/package.json: dependencies: {}`                    | Expo config və native modullar yoxdur                         | Mərhələ 3.1-də `expo`, `expo-camera`, `expo-location`, `expo-secure-store`, `expo-router` quraşdırılır |
 | `yolov8n.pt` — generic COCO                                | SKU tanıma yoxdur                                             | Mərhələ 4.3-də ROI crop + Vision LLM ilə kompensasiya edilir (fine-tune yox)                           |
 | ~~`/api/panel/*` → `oneteam-user:` token qəbul edirdi~~    | Panel açarı yaradıldıqda belə qəbul edilirdi                  | **Həll olundu** (1.1, `29aa4d3`)                                                                       |
+| ~~Audit təsdiqində rol yoxlaması yox idi~~                 | Fotonu göndərən işçi öz auditini təsdiqləyə bilirdi           | **Həll olundu** (1.5, `ed8f9b7`) — `requireReviewer`                                                   |
+| ~~Yeni istifadəçi yaratmaq mümkün deyildi~~                | "Hər adama öz açarı" yalnız seed-dəki 3 nəfər üçün işləyirdi  | **Həll olundu** (1.5, `ed8f9b7`) — `/api/panel/users` + panel ekranı                                   |
 | Bot state-machine yoxdur                                   | `text` command + switch                                       | Mərhələ 2.1-də inline keyboard                                                                         |
 | OpenRouter env yoxdur                                      | `OPENROUTER_API_KEY` Railway-da yoxdur                        | Mərhələ 4.1-dən əvvəl qoyulmalıdır                                                                     |
 | iOS Xcode scheme / signing yoxdur                          | `mobile/` altında `.xcodeproj` yoxdur                         | `expo prebuild` yaradacaq                                                                              |
@@ -149,13 +196,13 @@ məlumatdan sürüşə bilməz. Plan mətnini buna uyğun oxumaq lazımdır.
 
 ## 5. Qəbul meyarı cədvəli (Definition of Done — hər mərhələ üçün)
 
-| Mərhələ | Avtomatik yoxlama                                              | Manual yoxlama                                         | Operator təsdiqi   |
-| ------- | -------------------------------------------------------------- | ------------------------------------------------------ | ------------------ |
-| 1       | `npm run test:all` + `test:live` → green                       | Panelə gir → mağaza yarat → tapşırıq yarat → ələ keçir | ✅ (1.1, 1.3, 1.4) |
-| 2       | Bot unit test (state machine) → green                          | Botdan 3 mağaza, 5 tapşırıq icra et                    | ⏳                 |
-| 3       | `xcodebuild test` CI → green                                   | Real iPhone-da Login → Enroll → Photo → Submit         | ⏳                 |
-| 4       | 100 test şəkli → AI worker → JSON valid + `fallback` rate < 5% | 10 şəkil → paneldə skor + anomaliya görünür            | ⏳                 |
-| 5       | `k6` load test nightly → green                                 | Demo video + executive summary                         | ⏳                 |
+| Mərhələ | Avtomatik yoxlama                                              | Manual yoxlama                                         | Operator təsdiqi        |
+| ------- | -------------------------------------------------------------- | ------------------------------------------------------ | ----------------------- |
+| 1       | `npm run test:all` + `test:live` → green                       | Panelə gir → mağaza yarat → tapşırıq yarat → ələ keçir | ✅ (1.1, 1.3, 1.4, 1.5) |
+| 2       | Bot unit test (state machine) → green                          | Botdan 3 mağaza, 5 tapşırıq icra et                    | ⏳                      |
+| 3       | `xcodebuild test` CI → green                                   | Real iPhone-da Login → Enroll → Photo → Submit         | ⏳                      |
+| 4       | 100 test şəkli → AI worker → JSON valid + `fallback` rate < 5% | 10 şəkil → paneldə skor + anomaliya görünür            | ⏳                      |
+| 5       | `k6` load test nightly → green                                 | Demo video + executive summary                         | ⏳                      |
 
 ---
 
