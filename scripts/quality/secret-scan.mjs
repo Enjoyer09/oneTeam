@@ -68,6 +68,112 @@ function looksLikeTemplate(value) {
   );
 }
 
+/**
+ * Words that only ever appear in a value that is *telling you it is not real*.
+ *
+ * WHY THIS EXISTS
+ * ---------------
+ * CI was red on every single push because of three test fixtures that are
+ * obviously fake to a human and were invisible to the detector. The files are
+ * named here and the values are described rather than quoted: reproducing the
+ * literal text in this comment made the scanner flag its own source, which is
+ * the same trap as a marker that a doc comment can satisfy.
+ *
+ *     apps/api/test/panel-auth.spec.ts        a panel key whose value ends with
+ *                                             the words "definitely not a real
+ *                                             key at all", run together
+ *     apps/api/test/panel-auth.spec.ts        a device token whose value ends
+ *                                             with "not a real device token",
+ *                                             run together
+ *     apps/api/test/device-credential.spec.ts a header built by interpolating a
+ *                                             runtime token into a literal
+ *                                             service-credential prefix
+ *
+ * The previous test was ANCHORED to the start of the value (`/^(?:fake|dummy)/`)
+ * and every one of those has a real-looking prefix in FRONT of the giveaway, so
+ * none matched. Matching anywhere is what makes the giveaway visible — and the
+ * giveaway is written both with and without separators, so all three spellings
+ * are covered.
+ *
+ * The list is made of phrases a live credential cannot contain. Note that `test`
+ * is deliberately NOT here — a real key can legitimately contain that word, and
+ * exempting it would trade a false positive for a false negative.
+ */
+const SELF_DESCRIBING_FAKE =
+  /not[a-z_-]*real|definitelynot|dummy|placeholder|example|sample|bogus|invalid|redacted|fake/i;
+
+/**
+ * Hosts that cannot reach a remote system.
+ *
+ * A database URL pointing at loopback is a local development default, not a
+ * leaked credential: the password in it is useless against anything except the
+ * developer's own machine. Five localhost fallbacks in the test suites, plus one
+ * commented-out line in `.env.example`, are the whole reason the CRITICAL count
+ * was 6. The URL text itself is not quoted here, so that this file does not
+ * report itself.
+ *
+ * Deliberately loopback ONLY. A compose service name such as `postgres` or `db`
+ * is NOT exempt, because that same password is routinely reused against
+ * production — flagging it is the correct direction to be wrong in.
+ */
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]', '0.0.0.0']);
+
+/** The host of a `scheme://user:pass@host:port/...` URL, or '' if there is none. */
+function hostOf(value) {
+  const afterAt = value.split('@')[1];
+  if (!afterAt) return '';
+  const authority = afterAt.split('/')[0];
+  // Bracketed IPv6 (`[::1]:5432`) cannot be split on ':'.
+  if (authority.startsWith('[')) {
+    const close = authority.indexOf(']');
+    return close === -1 ? authority.toLowerCase() : authority.slice(0, close + 1).toLowerCase();
+  }
+  return authority.split(':')[0].toLowerCase();
+}
+
+/**
+ * A URL path, which is not a credential.
+ *
+ * `/api/portal/field/tasks/any-task/acknowledge` is 43 characters of varied
+ * punctuation, so it cleared the entropy threshold and was reported as a
+ * possible key.
+ *
+ * The discriminator is case: a path is written in lowercase, while base64 mixes
+ * case heavily. Requiring three or more lowercase-only segments is what keeps
+ * this from becoming a hole — `/9j/4AAQSkZJRgABAQ…` has uppercase in it and is
+ * therefore still scanned.
+ */
+const URL_PATH = /^\/[a-z0-9\-._~%]+(?:\/[a-z0-9\-._~%]+){2,}$/;
+
+/**
+ * Base64-encoded image payloads.
+ *
+ * `high-entropy-string` fires on any 40+ character base64 blob, and a photo
+ * encoded as base64 is exactly that — which is why the simulated capture in
+ * `portalApi.ts` and the 1x1 PNG fixture in `storage.spec.ts` were reported.
+ *
+ * Only the FIRST chunk of a multi-line concatenation carries the format
+ * signature, so matching the candidate on its own is not enough:
+ *
+ *     '/9j/4AAQSkZJRgABAQEAYABgAAD…' +     <- has the JPEG signature
+ *     'HBwgJC4nICIsIxwcKDcpLDAxNDQ0…' +     <- does not, but is the same image
+ *
+ * The signature is therefore looked for across the whole concatenation.
+ */
+const BASE64_IMAGE_PREFIX = /\/9j\/|iVBORw0KGgo|R0lGOD|UklGR|Qk0[A-Za-z0-9+/]/;
+
+/** True when `index` in `text` sits inside a concatenation carrying an image signature. */
+function insideImageLiteral(text, index) {
+  const lines = text.split('\n');
+  const lineNo = text.slice(0, index).split('\n').length - 1;
+  const continues = (line) => /[+]\s*$/.test((line ?? '').trimEnd());
+  let start = lineNo;
+  let end = lineNo;
+  while (start > 0 && continues(lines[start - 1])) start--;
+  while (end < lines.length - 1 && continues(lines[end])) end++;
+  return BASE64_IMAGE_PREFIX.test(lines.slice(start, end + 1).join('\n'));
+}
+
 const DETECTORS = [
   {
     id: 'private-key',
@@ -160,9 +266,18 @@ const DETECTORS = [
     re: /\bpostgres(?:ql)?:\/\/[^\s:@/]+:[^\s@/]+@[^\s/]+/g,
     severity: 'CRITICAL',
     why: 'Database URL containing an inline password.',
-    // `${POSTGRES_PASSWORD}` and `<password>` are slots to be filled in, not
-    // credentials. A live URL contains neither, so it is still caught.
-    allowIf: looksLikeTemplate,
+    // A slot to be filled in is a placeholder; a live password is not. The test
+    // is applied to the `user:password` part ONLY, never to the whole URL — and
+    // that distinction is load-bearing. `looksLikeTemplate` exempts the word
+    // "example", so testing the whole URL silently exempted
+    // `…@db.customer.example.com/…`, a remote host with a real password in it.
+    // The positive controls in `secret-scan.test.mjs` caught exactly that.
+    //
+    // A loopback host is a local default rather than a leak; see LOOPBACK_HOSTS.
+    allowIf: (value) => {
+      const credentials = value.split('@')[0].split('://')[1] ?? '';
+      return looksLikeTemplate(credentials) || LOOPBACK_HOSTS.has(hostOf(value));
+    },
   },
   {
     id: 'generic-assigned-secret',
@@ -174,9 +289,15 @@ const DETECTORS = [
     severity: 'HIGH',
     why: 'A credential-looking value assigned in source. Move it to an environment variable.',
     allowIf: (value) =>
-      /^(?:your[-_]|my[-_]|xxx|placeholder|example|dummy|fake|test|changeme|redacted|\*{3,}|<[^>]+>|\$\{|process\.env|import\.meta)/i.test(
+      SELF_DESCRIBING_FAKE.test(value) ||
+      // A template literal is built at runtime, so it cannot BE a secret — and
+      // `oneteam-user:${token}` is precisely that. Tested anywhere in the value,
+      // because the interpolation is rarely at the start.
+      value.includes('${') ||
+      /^(?:your[-_]|my[-_]|xxx|test|changeme|redacted|\*{3,}|<[^>]+>|process\.env|import\.meta)/i.test(
         value,
-      ) || /^[A-Z_]{4,}$/.test(value), // SCREAMING_CASE means it is a variable name, not a value
+      ) ||
+      /^[A-Z_]{4,}$/.test(value), // SCREAMING_CASE means it is a variable name, not a value
   },
   {
     id: 'high-entropy-string',
@@ -186,9 +307,11 @@ const DETECTORS = [
     re: /['"`]([A-Za-z0-9+/=_-]{40,})['"`]/g,
     severity: 'MEDIUM',
     why: 'High-entropy string that may be an encoded credential or key.',
-    allowIf: (value) => {
+    allowIf: (value, context) => {
       if (/^[0-9a-f]{40}$/i.test(value)) return true; // git SHA
       if (/^[0-9a-f]{64}$/i.test(value)) return true; // sha256
+      if (URL_PATH.test(value)) return true; // a route, not a key
+      if (context && insideImageLiteral(context.text, context.index)) return true; // base64 photo
       const uniq = new Set(value).size;
       return uniq / value.length < 0.35; // low diversity -> not a real secret
     },
@@ -363,7 +486,9 @@ function scanFile(path) {
       const raw = match[0];
       const candidate = match[1] ?? raw;
 
-      if (detector.allowIf && detector.allowIf(candidate)) continue;
+      // `context` lets a detector look at the surrounding source, which is the
+      // only way to tell a base64 photo from a base64 key. See insideImageLiteral.
+      if (detector.allowIf && detector.allowIf(candidate, { text, index: match.index })) continue;
 
       const lineNo = text.slice(0, match.index).split('\n').length;
       const lineText = (lines[lineNo - 1] ?? '').trim();

@@ -58,10 +58,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          # Full history so the secret scanner can inspect every commit, not
-          # just the tip. A credential added three commits ago is still live.
-          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -73,35 +69,46 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       # --- SECURITY -----------------------------------------------------------
-      - name: Scan entire history for committed credentials
+      # This step previously said "Scan entire history", and used
+      # `fetch-depth: 0` to make that possible. Both claims were false: the
+      # scanner reads `git ls-files`, i.e. the tracked files at this commit, and
+      # has no history mode at all. A security control that overstates its own
+      # reach is worse than a narrow one, because it stops people looking.
+      #
+      # NOT IMPLEMENTED, AND DELIBERATELY: history scanning. A value that was
+      # committed and later removed is still in the history, and this repository
+      # has exactly that — a real SSH private key was committed before this
+      # scanner existed. Turning on history scanning would make CI permanently
+      # red with no fix short of rewriting history or carrying a baseline of
+      # known-and-rotated findings. The honest position is to name the gap
+      # rather than paper over it: if you need history checked, run
+      # `git log -p --all | grep -i 'BEGIN.*PRIVATE KEY'` by hand.
+      - name: Scan tracked files for committed credentials
         run: node scripts/quality/secret-scan.mjs --all
 
       # --- CORRECTNESS --------------------------------------------------------
       - name: Type check
         run: npm run type-check
 
+      # The mobile tree has its own tsconfig and its own structural guard. Both
+      # were written to run WITHOUT the Expo dependency tree (that is why the
+      # native imports are isolated behind interfaces), so they belong here.
+      # They were not run by CI at all before, which is the same defect class as
+      # a test suite nothing invokes.
+      - name: Mobile type check
+        run: npm run mobile:check
+
+      - name: Mobile configuration guard
+        run: npm run mobile:config
+
       - name: Lint
         run: npm run lint
 
-      # -----------------------------------------------------------------------
-      # Formatting — ADVISORY FOR NOW, ON PURPOSE.
-      #
-      # 59 of the 69 first-party files predate any formatter, so a blocking
-      # check here would be red on the very first run and would be disabled
-      # within a day. Worse, the one-time reformat touches almost every file,
-      # and the project is not yet under version control — so that change could
-      # neither be reviewed nor reverted.
-      #
-      # TO MAKE THIS BLOCKING (do it as a standalone commit, immediately after
-      # `git init`, before any other work):
-      #
-      #     npm run format
-      #     git commit -m "chore: apply Prettier across the codebase"
-      #
-      # then delete `continue-on-error: true` below.
-      # -----------------------------------------------------------------------
+      # Formatting is blocking. It was `continue-on-error: true` while 59 of 69
+      # first-party files predated any formatter; that reformat has since
+      # happened and `format:check` passes, so the escape hatch now only serves
+      # to let unformatted code through.
       - name: Check formatting
-        continue-on-error: true
         run: npm run format:check
 
   # ---------------------------------------------------------------------------
