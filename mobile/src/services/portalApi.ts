@@ -19,7 +19,9 @@
  * ------------------------------------------------
  * The bot identifies the acting person by the Telegram chat an update came from.
  * A device has no chat, so it identifies them by the installation it was enrolled
- * on: `ONETEAM_DEVICE_ID`, plus a credential issued to that installation.
+ * on: an identity minted once and kept in the keychain, plus a credential issued
+ * to that installation. See `credentialStore.ts` for why both are needed and why
+ * the identity must never change.
  *
  * The credential is a device token, obtained once from
  * `POST /api/portal/field/enroll` by presenting the store's code, and it
@@ -30,9 +32,10 @@
  * every audit. A device token is worth one installation, and the API refuses a
  * device credential that tries to name a different one.
  *
- * There is no persistence layer in this harness, so the token lives in memory for
- * the life of the process and `enroll` runs again on each start. A real build
- * would keep it in the keychain; nothing about the API side changes either way.
+ * The credential is kept in the keychain by `credentialStore.ts`, and the app
+ * calls `restoreCredential()` once at startup to read it back. The Node harness
+ * has no keychain, so there the store falls back to memory and `enroll` runs
+ * again on each start; nothing about the API side changes either way.
  *
  * WHERE THE PHOTOS GO
  * -------------------
@@ -51,6 +54,7 @@ import {
   TaskPriority,
   TaskStatus,
 } from '../types';
+import { credentialStore } from './credentialStore';
 
 const env: Record<string, string | undefined> =
   typeof process !== 'undefined' && process.env ? process.env : {};
@@ -62,39 +66,85 @@ const API_BASE_URL = (env.ONETEAM_API_URL || env.API_BASE_URL || 'http://localho
 );
 
 /**
- * The credential this installation holds.
+ * The credential this installation holds, once `restoreCredential()` has run.
  *
- * Deliberately NOT a default. The value it replaced fell back to
+ * Deliberately NOT defaulted from a literal. The value it replaced fell back to
  * `oneteam-user:usr-admin-001`, which meant a build with no configuration
  * authenticated as an administrator — the worst possible default for a string
  * that ships inside a downloadable bundle. There is now no way to reach the API
  * without a token that was actually issued to this installation, and
  * `request()` refuses rather than trying.
  *
- * Held in memory because this harness has no storage layer. A real build reads
- * it from the keychain at launch and writes it once after enrolling.
+ * The environment variable is still read, and it is the LAST resort rather than
+ * the first: `restoreCredential()` prefers what the keychain holds, and this is
+ * what remains for the Node harness, which has no keychain. A shipping build
+ * never sets it.
  */
 let deviceToken: string | null = (env.ONETEAM_DEVICE_TOKEN || '').trim() || null;
+
+/**
+ * This installation's identity, once `restoreCredential()` has read it.
+ *
+ * Held here as well as in `credentialStore` because `deviceId()` is synchronous
+ * and is called from nine places, several of them inside template strings and
+ * query parameters. Making all of those await would be a large change for no
+ * benefit: the identity is fixed for the life of the process, so it is read once
+ * and then it is a plain string.
+ */
+let cachedDeviceId: string | null = null;
 
 /** Whether this installation can talk to the API yet. */
 export function hasDeviceToken(): boolean {
   return deviceToken !== null;
 }
 
-/** The current token, for a caller that needs to persist it. */
+/** The current token, for a caller that needs to inspect it. */
 export function currentDeviceToken(): string | null {
   return deviceToken;
 }
 
 /**
- * Drops the credential, for example after a 401.
+ * Reads the installation identity and credential out of storage.
  *
- * Revoking on the server is a separate act — see the `device_tokens` migration
- * — because a client that has been cut off should not be able to clear its own
- * record by simply forgetting the token.
+ * MUST be called once at startup, before any request. Before it runs,
+ * `deviceId()` throws and no token is attached, so the failure is immediate and
+ * legible rather than a request that silently goes out unidentified.
+ *
+ * It also mints the identity if this is the first launch. That write is the
+ * reason this is async and the reason it is called before the first render:
+ * every later call to `deviceId()` is then a cache hit.
+ *
+ * The value it returns is the identity that will actually be used, which is not
+ * always the one it cached: `ONETEAM_DEVICE_ID` is an overlay applied on top
+ * (see `currentDeviceId`). The installation's own identity is still read and
+ * minted underneath it, so that removing the variable does not leave the process
+ * with nothing.
  */
-export function clearDeviceToken(): void {
+export async function restoreCredential(): Promise<{ deviceId: string; hasToken: boolean }> {
+  cachedDeviceId = await credentialStore.deviceId();
+
+  const stored = await credentialStore.deviceToken();
+  if (stored) {
+    deviceToken = stored;
+  }
+
+  return { deviceId: currentDeviceId() ?? cachedDeviceId, hasToken: deviceToken !== null };
+}
+
+/**
+ * Drops the credential, from memory and from storage.
+ *
+ * For a 401 — the API refuses a credential that is unknown, revoked, or whose
+ * user was deleted, and all three mean the same thing to this client: enrol
+ * again. The identity is NOT dropped, so the next enrolment comes back as the
+ * same device and keeps its history; see `CredentialStore.clearDeviceToken`.
+ *
+ * Revoking on the server is a separate act, and it is not possible from the
+ * panel today — see the note in `keychain.ts`.
+ */
+export async function forgetCredential(): Promise<void> {
   deviceToken = null;
+  await credentialStore.clearDeviceToken();
 }
 
 export interface EnrollmentResult {
@@ -110,6 +160,19 @@ export interface EnrollmentResult {
   };
   claimedTaskIds: string[];
 }
+
+/**
+ * What `enroll` answers: the API's payload, plus whether this device kept the
+ * credential it was just given.
+ *
+ * `credentialPersisted` is not decoration. The API revokes this installation's
+ * previous live token as it issues the new one, so a device that fails to store
+ * the new value is holding a credential that has already stopped working — and
+ * it would only find out on its next request, after the worker had walked away
+ * believing the sign-in worked. Reporting it here lets the caller say so while
+ * the screen is still up.
+ */
+export type EnrollmentOutcome = EnrollmentResult & { credentialPersisted: boolean };
 
 /**
  * Registers this installation and stores the credential it is given.
@@ -128,7 +191,16 @@ export async function enroll(params: {
   storeCode: string;
   fullName: string;
   enrollmentSecret?: string;
-}): Promise<EnrollmentResult> {
+}): Promise<EnrollmentOutcome> {
+  // The order is deliberate. An explicit argument wins, then what an operator
+  // entered on this device, then the environment — which is the harness path and
+  // the weakest of the three, because it is the copy that ships in the bundle.
+  const secret =
+    params.enrollmentSecret ??
+    (await credentialStore.enrollmentSecret()) ??
+    env.ONETEAM_ENROLLMENT_SECRET ??
+    undefined;
+
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}/api/portal/field/enroll`, {
@@ -138,12 +210,10 @@ export async function enroll(params: {
         storeCode: params.storeCode,
         fullName: params.fullName,
         deviceId: deviceId(),
-        // Falls back to configuration so that a deployment which sets
-        // `ONETEAM_ENROLLMENT_SECRET` on the API can be enrolled against without
-        // a code change. Without this the second factor would be unpassable from
-        // the app, and an operator who turned it on would simply see enrolment
+        // See the resolution order above. Without a fallback at all, a
+        // deployment that turned the second factor on would simply see enrolment
         // stop working — the worst kind of security feature.
-        enrollmentSecret: params.enrollmentSecret ?? (env.ONETEAM_ENROLLMENT_SECRET || undefined),
+        enrollmentSecret: secret,
       }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
@@ -177,22 +247,94 @@ export async function enroll(params: {
   }
 
   deviceToken = payload.data.token as string;
-  return payload.data as EnrollmentResult;
+
+  // Persisted BEFORE returning, because the API has just revoked this
+  // installation's previous live token. Returning a token the device did not
+  // keep would mean the sign-in appears to work and the next request fails.
+  //
+  // A storage failure does not fail the enrolment: the server has already
+  // enrolled this device and revoked the old credential, so refusing now would
+  // leave the phone with nothing at all. It is reported instead, and the caller
+  // can say that this session works and the next launch will need to sign in
+  // again.
+  let credentialPersisted = true;
+  try {
+    await credentialStore.saveDeviceToken(deviceToken);
+  } catch (error) {
+    credentialPersisted = false;
+    const detail = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `⚠️ [oneTeam Mobile] Enrolment succeeded but the credential could not be ` +
+        `stored (${detail}). This session will work; the next launch will sign ` +
+        `in again.`,
+    );
+  }
+
+  return { ...(payload.data as EnrollmentResult), credentialPersisted };
 }
 
 /**
  * The identity of this installation.
  *
- * In a real React Native build this would come from persistent storage, minted
- * once on first launch. In this harness there is no storage layer, so it is
- * configuration — and it must be set, because two devices sharing a default id
- * would share one identity and one set of audits.
+ * WHERE IT COMES FROM, IN ORDER
+ * -----------------------------
+ *   1. `ONETEAM_DEVICE_ID`, when it is set. This cannot be set in a shipping
+ *      build: Metro inlines only `EXPO_PUBLIC_*`, and only as a direct member
+ *      expression — this module reads `process.env` through a local alias, which
+ *      defeats that inlining entirely, so the value is undefined in a bundle
+ *      (measured in plan item 3.1). It is therefore a harness hook, and the
+ *      harness has no keychain, which is why it has to be consulted first: the
+ *      Node runner names itself this way, and its write tier renames itself
+ *      mid-run.
+ *   2. What `restoreCredential()` read out of storage at startup — the normal
+ *      path, and the only one that is unique per installation.
  *
- * Read per call rather than captured once, so a test can point it at its own
- * identity without reimporting the module.
+ * The first is an OVERLAY on the second, not a replacement for it. The
+ * installation's own identity is read and minted underneath either way, so
+ * removing the variable falls back to the device's real identity instead of
+ * leaving the process with none.
+ *
+ * AND WHAT IT MUST NEVER BE AGAIN
+ * -------------------------------
+ * It used to fall back to the literal string `demo-device-01`. The doc comment
+ * even named the hazard — "two devices sharing a default id would share one
+ * identity and one set of audits" — and then shipped it anyway, because there
+ * was no storage to put a real one in.
+ *
+ * The hazard was worse than that sentence says. The API allows exactly one live
+ * token per `device_id` (`device_tokens_active_device_idx`) and
+ * `insertDeviceToken` revokes the previous one as it issues a new one. So every
+ * unconfigured phone in a deployment was the same device, and each enrolment
+ * **signed the others out**. Two merchandisers starting a shift together could
+ * not both stay signed in. They also shared one audit history, so "the audits
+ * this device has filed" returned everyone's.
+ *
+ * Throwing is the point. A caller that has not restored the credential has no
+ * identity, and the honest answer is to say so rather than to invent one and let
+ * the device act as somebody else.
  */
 export function deviceId(): string {
-  return (env.ONETEAM_DEVICE_ID || 'demo-device-01').trim();
+  const id = currentDeviceId();
+  if (id) return id;
+
+  throw new MobileApiError(
+    'Cihazın identifikatoru hələ oxunmayıb. Tətbiqin başlanğıcında ' +
+      '`restoreCredential()` çağırılmalıdır.',
+    null,
+    'DEVICE_ID_NOT_RESTORED',
+  );
+}
+
+/**
+ * The identity, or null before anything has produced one.
+ *
+ * For the call sites that need to describe the app rather than call the API —
+ * a startup log must not throw because the credential has not been read yet.
+ */
+export function currentDeviceId(): string | null {
+  const fromEnv = (env.ONETEAM_DEVICE_ID || '').trim();
+  if (fromEnv) return fromEnv;
+  return cachedDeviceId;
 }
 
 const REQUEST_TIMEOUT_MS = 20_000;
@@ -446,7 +588,9 @@ function toMobileSubmission(
 class MobilePortalApi {
   /** For startup logs. Never includes the token. */
   describeTarget(): string {
-    return `${API_BASE_URL} (device ${deviceId()})`;
+    // `currentDeviceId`, not `deviceId`: a log line must not throw because the
+    // credential has not been read yet. It says so instead.
+    return `${API_BASE_URL} (device ${currentDeviceId() ?? 'not restored yet'})`;
   }
 
   /** Confirms the API answers and the credential is accepted. */

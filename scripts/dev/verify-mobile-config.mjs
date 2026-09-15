@@ -18,7 +18,12 @@
  *   - every asset the config points at exists;
  *   - the icon is square and has no alpha channel, and the splash mark is
  *     square, because iOS rejects an app icon that is either;
- *   - the permission strings that iOS shows to the user are non-empty.
+ *   - the permission strings that iOS shows to the user are non-empty;
+ *   - the one file excluded from `mobile/tsconfig.json` is the only file that
+ *     needs to be, so the exclusion cannot quietly widen;
+ *   - the app entry still wires the keychain into the credential store and still
+ *     restores the credential at startup — two things nothing else would notice,
+ *     because the entry is outside the type-check.
  *
  * It is a substitute for the parts it can reach, not for the whole thing. It
  * cannot tell you that prebuild succeeds; it tells you that nothing obvious in
@@ -31,8 +36,8 @@
  * Exits non-zero if any check fails, so it can gate a commit.
  */
 
-import { readFileSync, existsSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -66,6 +71,34 @@ function readPngHeader(file) {
     colourType: buffer[25],
     hasAlpha: buffer[25] === 4 || buffer[25] === 6,
   };
+}
+
+/**
+ * Reads a tsconfig, which is JSON with comments.
+ *
+ * `tsc` and Prettier both accept `//` in a tsconfig, and the `exclude` in this
+ * repo's mobile config is explained with them, so a bare `JSON.parse` is not
+ * enough. Only WHOLE-LINE comments are stripped. That is all this repo's
+ * configs use, and it cannot corrupt a string that happens to contain `//` —
+ * a URL, a path, a glob.
+ */
+function readTsconfig(file) {
+  const stripped = readFileSync(file, 'utf8')
+    .split('\n')
+    .filter((line) => !/^\s*\/\//.test(line))
+    .join('\n');
+  return JSON.parse(stripped);
+}
+
+/** Every file under `dir`, recursively. Used to count importers. */
+function listFiles(dir) {
+  const found = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) found.push(...listFiles(full));
+    else found.push(full);
+  }
+  return found;
 }
 
 // ---------------------------------------------------------------------------
@@ -175,6 +208,67 @@ check('main is declared', typeof pkg.main === 'string', pkg.main ?? '<missing>')
 if (typeof pkg.main === 'string') {
   const entry = join(MOBILE, pkg.main);
   check(`main (${pkg.main}) exists`, existsSync(entry));
+}
+
+// ---------------------------------------------------------------------------
+// What the type-check actually sees.
+//
+// `keychain.ts` is excluded from `mobile/tsconfig.json`, because it imports
+// `expo-secure-store` and the package cannot be installed here. An exclusion is
+// only honest while it covers exactly the files it claims to and no more, and
+// nothing else in the repo would notice if that stopped being true — a second
+// file importing the same package would simply be reported as a missing module
+// by `mobile:check`, which reads like an install problem rather than a scope
+// problem. These checks make the exclusion say what it means.
+// ---------------------------------------------------------------------------
+console.log('\nType-check coverage');
+const tsconfigPath = join(MOBILE, 'tsconfig.json');
+check('mobile/tsconfig.json exists', existsSync(tsconfigPath));
+if (existsSync(tsconfigPath)) {
+  const tsconfig = readTsconfig(tsconfigPath);
+  const excluded = tsconfig.exclude ?? [];
+  check(
+    'keychain.ts is excluded from the type-check (expo-secure-store is not installed)',
+    excluded.includes('src/services/keychain.ts'),
+    excluded.join(', ') || '<nothing excluded>',
+  );
+
+  const nativeImporters = listFiles(join(MOBILE, 'src'))
+    .filter((file) => /from\s+['"]expo-secure-store['"]/.test(readFileSync(file, 'utf8')))
+    .map((file) => relative(MOBILE, file).split(sep).join('/'));
+
+  check(
+    'exactly one file under src/ imports expo-secure-store, and it is the excluded one',
+    nativeImporters.length === 1 && nativeImporters[0] === 'src/services/keychain.ts',
+    nativeImporters.join(', ') || '<no file imports it — remove the exclusion>',
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The startup wiring.
+//
+// `mobile/Root.tsx` is outside the type-check for the same reason `keychain.ts`
+// is — it imports `react-native` — so nothing else in this repo would notice if
+// the keychain stopped being connected to the credential store. The failure that
+// would cause is quiet and expensive: the store falls back to its in-memory
+// default, the app still works, and it re-enrols on every launch, spending the
+// store's new-device allowance each time. So the wiring is asserted here.
+// ---------------------------------------------------------------------------
+console.log('\nStartup wiring');
+const rootPath = join(MOBILE, 'Root.tsx');
+check('mobile/Root.tsx exists', existsSync(rootPath));
+if (existsSync(rootPath)) {
+  const root = readFileSync(rootPath, 'utf8');
+  check(
+    'Root.tsx points the credential store at the keychain',
+    /credentialStore\.useStorage\(\s*keychainStore\s*\)/.test(root),
+    'without this the store stays memory-only and the device re-enrols every launch',
+  );
+  check(
+    'Root.tsx restores the credential before anything can call the API',
+    /initializeCredentials\(\)/.test(root),
+    'without this deviceId() throws and every API call fails',
+  );
 }
 
 console.log(failures === 0 ? '\nAll config checks passed.' : `\n${failures} check(s) FAILED.`);

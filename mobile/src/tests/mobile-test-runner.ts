@@ -30,7 +30,14 @@
 
 import { calculateDistanceMeters, verifyStoreGeofence } from '../utils/geofence';
 import { offlineQueueService } from '../services/offlineQueue';
-import { mobileApi, deviceId, MobileApiError, enroll, hasDeviceToken } from '../services/portalApi';
+import {
+  mobileApi,
+  deviceId,
+  MobileApiError,
+  enroll,
+  hasDeviceToken,
+  restoreCredential,
+} from '../services/portalApi';
 import { CameraAuditController } from '../screens/CameraAuditScreen';
 import { assertLiveCameraCapture, UNKNOWN_DEVICE_FIELD } from '../components/SmartCameraOverlay';
 import { GPSCoordinates, MobileStore, MobileTask } from '../types';
@@ -63,6 +70,22 @@ const USER_LON = 49.8106;
 /** Far outside the geofence — Fountain Square, roughly 1.3 km away. */
 const FAR_LAT = 40.3705;
 const FAR_LON = 49.837;
+
+/**
+ * The identity this harness runs as, when nothing else names it.
+ *
+ * The device client now mints its identity once and keeps it in the keychain,
+ * and the keychain is exactly what a Node process does not have — so without a
+ * name here the runner would mint a FRESH identity on every run. That is not
+ * read-only by any reading of the phrase: each run would create another device
+ * user and another device token in the database, and the suite would slowly fill
+ * the store's device list with ghosts of itself.
+ *
+ * So the harness names itself, stably. `ONETEAM_DEVICE_ID` is the overlay the
+ * client consults first for exactly this reason; see `currentDeviceId()` in
+ * `portalApi.ts` for why putting it first is safe.
+ */
+const HARNESS_DEVICE_ID = process.env.ONETEAM_DEVICE_ID || 'test-device-mobile';
 
 const API_URL = (process.env.ONETEAM_API_URL || 'http://localhost:3001').replace(/\/+$/, '');
 
@@ -163,6 +186,15 @@ async function ensureCredential(): Promise<void> {
 }
 
 async function runMobileTests() {
+  // The device client reads its identity out of the keychain at startup, and a
+  // Node process has no keychain, so the harness names itself here — before
+  // anything can ask for the identity. `deviceId()` throws until this has run,
+  // deliberately: the default it used to fall back to was shared by every
+  // unconfigured installation, and the API allows one live credential per device
+  // id, so they used to sign each other out.
+  process.env.ONETEAM_DEVICE_ID ||= HARNESS_DEVICE_ID;
+  const restored = await restoreCredential();
+
   console.log(
     `${colors.bright}========================================================================${colors.reset}`,
   );
@@ -173,6 +205,9 @@ async function runMobileTests() {
     `${colors.bright}========================================================================${colors.reset}`,
   );
   console.log(`  Target: ${mobileApi.describeTarget()}`);
+  console.log(
+    `  Credential: ${restored.hasToken ? 'restored from this process' : 'none — the read tier will enrol'}`,
+  );
   console.log(
     `  Write tier: ${WRITE_TIER ? 'ENABLED (ONETEAM_MOBILE_WRITES=1)' : 'disabled (read-only)'}`,
   );

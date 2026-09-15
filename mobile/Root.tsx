@@ -5,7 +5,8 @@
  * WHAT THIS IS, AND WHAT IT IS NOT
  * --------------------------------
  * This is the app's root component: the thing Expo boots, that holds the status
- * bar and the safe area, and that later screens will be mounted inside.
+ * bar and the safe area, that starts the credential machinery, and that later
+ * screens will be mounted inside.
  *
  * It is NOT the field UI. The Login, TaskList, TaskDetail, Checklist and Camera
  * screens named in the Phase 3 plan do not exist yet — `mobile/src/screens/*`
@@ -15,10 +16,31 @@
  * yet; those screens have to be written.
  *
  * Rather than ship a screen that looks like a working login and is not one, this
- * shell reports the app's actual state: where it will send its requests, and
- * whether this installation holds a credential. Both are read from the same
- * module the real screens will use, so what is on screen cannot drift from what
- * the app would do.
+ * shell reports the app's actual state: where it will send its requests, which
+ * installation it is, whether it holds a credential, and whether that credential
+ * will survive the app being closed. Every value is read from the same modules
+ * the real screens will use, so what is on screen cannot drift from what the app
+ * would do.
+ *
+ * WHY THE STARTUP ORDER IS WHAT IT IS
+ * -----------------------------------
+ * Three steps, and the order matters:
+ *
+ *   1. Point the credential store at the keychain, if this device has one.
+ *      Skipping this leaves the store on its in-memory default, and the app then
+ *      re-enrols on every launch — which is not a crash, it is worse: it looks
+ *      like it works, and each launch spends the store's new-device allowance.
+ *   2. Read the identity and the credential back. This is what makes enrolment
+ *      automatic on every launch after the first.
+ *   3. Only then let anything call the API. `portalApi.deviceId()` throws until
+ *      step 2 has run, on purpose: the value it used to fall back to was shared
+ *      by every unconfigured installation, and the API allows one live credential
+ *      per device id, so those installations used to sign each other out. See
+ *      `src/services/credentialStore.ts`.
+ *
+ * This file is the ONLY place allowed to import `src/services/keychain.ts`. The
+ * policy under `src/services/` must stay free of native imports so it can run
+ * under Node; that is the whole reason the storage is an interface.
  *
  * It is deliberately plain. No brand colour is invented here — a guessed hex
  * would be a claim about the brand that nobody checked.
@@ -37,11 +59,20 @@
  * and `Root.tsx` to `include` in `mobile/tsconfig.json` so that it is.
  */
 
+import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { mobileApp } from './src/App';
-import { hasDeviceToken } from './src/services/portalApi';
+import { credentialStore } from './src/services/credentialStore';
+import { keychainAvailable, keychainStore } from './src/services/keychain';
+
+/** What the startup sequence learned, or null while it is still running. */
+type Startup = {
+  deviceId: string;
+  hasCredential: boolean;
+  storage: 'keychain' | 'memory';
+};
 
 /** One line of the status readout. */
 function Row({ label, value }: { label: string; value: string }) {
@@ -54,11 +85,36 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 export function Root() {
-  // Read once, at render. Both are module-level facts that do not change while
-  // this screen is open — a credential arrives through the login screen, which
-  // will remount this tree when it exists.
-  const apiTarget = mobileApp.describeApiTarget();
-  const enrolled = hasDeviceToken();
+  const [startup, setStartup] = useState<Startup | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const persistent = await keychainAvailable();
+      if (persistent) credentialStore.useStorage(keychainStore);
+
+      const restored = await mobileApp.initializeCredentials();
+
+      if (!cancelled) {
+        setStartup({
+          deviceId: restored.deviceId,
+          hasCredential: restored.hasToken,
+          storage: persistent ? 'keychain' : 'memory',
+        });
+      }
+    })().catch((error) => {
+      // Reported on screen rather than swallowed. A startup that fails silently
+      // and leaves the app looking ready is how a device ends up enrolling as
+      // somebody else.
+      if (!cancelled) setFailure(error instanceof Error ? error.message : String(error));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <View style={styles.screen}>
@@ -67,15 +123,40 @@ export function Root() {
         <Text style={styles.title}>oneTeam Field Audit</Text>
         <Text style={styles.subtitle}>Coca-Cola rəf monitorinqi — sahə tətbiqi</Text>
 
-        <View style={styles.card}>
-          <Row label="API ünvanı" value={apiTarget} />
-          <Row label="Cihaz qeydiyyatı" value={enrolled ? 'var' : 'yoxdur'} />
-        </View>
+        {failure ? (
+          <Text style={styles.failure}>Başlanğıc alınmadı: {failure}</Text>
+        ) : !startup ? (
+          <Text style={styles.note}>Başlanğıc yoxlanılır…</Text>
+        ) : (
+          <>
+            <View style={styles.card}>
+              <Row label="API ünvanı" value={mobileApp.describeApiTarget()} />
+              <Row label="Cihaz identifikatoru" value={startup.deviceId} />
+              <Row label="Cihaz qeydiyyatı" value={startup.hasCredential ? 'var' : 'yoxdur'} />
+              <Row
+                label="Açarın saxlandığı yer"
+                value={
+                  startup.storage === 'keychain'
+                    ? 'Açar saxlayıcı (keychain)'
+                    : 'Yalnız yaddaş — hər açılışda yenidən qeydiyyat'
+                }
+              />
+            </View>
 
-        <Text style={styles.note}>
-          Bu, tətbiqin karkasıdır. Sahə ekranları — giriş, tapşırıq siyahısı, çeklist və kamera —
-          hələ yazılmayıb. Onlar Faza 3.2 və 3.5-də bu qabığın içinə qurulacaq.
-        </Text>
+            <Text style={styles.note}>
+              Bu, tətbiqin karkasıdır. Sahə ekranları — giriş, tapşırıq siyahısı, çeklist və kamera
+              — hələ yazılmayıb.
+            </Text>
+
+            {startup.storage === 'memory' ? (
+              <Text style={styles.warning}>
+                Bu cihazda açar saxlayıcı əlçatan deyil, ona görə identifikator yalnız yaddaşdadır
+                və tətbiq hər açılışda yenidən qeydiyyatdan keçəcək. Bu, tətbiqi sındırmır, amma
+                mağazanın yeni cihaz limitini boş yerə xərcləyir.
+              </Text>
+            ) : null}
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -129,5 +210,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     color: '#444444',
+  },
+  warning: {
+    marginTop: 16,
+    fontSize: 14,
+    lineHeight: 21,
+    color: '#8A5A00',
+  },
+  failure: {
+    marginTop: 24,
+    fontSize: 14,
+    lineHeight: 21,
+    color: '#B00020',
   },
 });
