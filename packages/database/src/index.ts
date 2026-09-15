@@ -897,6 +897,254 @@ export class EnterpriseDatabase {
     return { id: record.id, role: record.role };
   }
 
+  // -------------------------------------------------------------------------
+  // People
+  // -------------------------------------------------------------------------
+  //
+  // WHY THESE AWAIT, LIKE THE STORE WRITES AND UNLIKE THE CHANNEL BINDS
+  // -------------------------------------------------------------------
+  // `bindTelegramUser` and `bindDeviceUser` fire and return, because they are
+  // the far end of a person pressing a button on a phone and a database hiccup
+  // must not be what stops them. These three are the operator filling in a form
+  // on the panel: an admin types a name, picks a role and expects the person to
+  // be there afterwards.
+  //
+  // There is also a concrete ordering dependency, which is what makes awaiting
+  // mandatory rather than merely polite: `panel_tokens.user_id` and
+  // `device_tokens.user_id` both reference `users(id)`. A key minted for a row
+  // that has not landed fails its foreign key — and because `issuePanelToken`
+  // reports that as `KEY_NOT_STORED`, the operator would see a failed key with
+  // no way to tell it apart from a database outage. Through `enqueue`, the user
+  // insert and the key insert are in one queue and in that order.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Creates a person the panel administers.
+   *
+   * `email` is optional to the caller but the column is `NOT NULL UNIQUE`, so
+   * an absent one is synthesised as `<id>@oneteam.local`. That is the same
+   * convention `bindTelegramUser` and `bindDeviceUser` already use, and the
+   * `.local` suffix is the point: it cannot be mistaken for a deliverable
+   * address, so nobody later reads it as a real mailbox. The panel shows
+   * "yoxdur" for it rather than the placeholder.
+   *
+   * Returns null-ish results rather than throwing, so the service can turn each
+   * into the right status: a taken email is a 409 the operator can act on, and
+   * a failed insert is a 503.
+   */
+  public async createUser(params: {
+    fullName: string;
+    email?: string;
+    role: string;
+    phone?: string;
+  }): Promise<{ user?: any; error?: 'DUPLICATE_EMAIL' | 'NOT_STORED' }> {
+    const now = new Date();
+    const id = `usr-${now.getTime().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+    const record = {
+      id,
+      email: params.email?.trim() || `${id}@oneteam.local`,
+      fullName: params.fullName,
+      role: params.role,
+      telegramChatId: undefined as string | undefined,
+      mobileDeviceId: undefined as string | undefined,
+      phone: params.phone,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.users.push(record as (typeof this.users)[number]);
+
+    if (this.pool) {
+      try {
+        await this.enqueue((pool) => pg.insertUser(pool, record), `user ${record.id}`);
+      } catch (error) {
+        // The in-memory push is undone. A person who is visible in the list but
+        // has no row would be given a key, and the key would then fail on the
+        // foreign key at the next restart — with the panel having said it
+        // worked.
+        this.users = this.users.filter((candidate: any) => candidate.id !== record.id);
+        const code = (error as { code?: string } | null)?.code;
+        if (code === EnterpriseDatabase.PG_UNIQUE_VIOLATION) {
+          return { error: 'DUPLICATE_EMAIL' };
+        }
+        console.error(
+          `⛔ [oneTeam DB] Could not store the new user ${record.id}: ` + describeError(error),
+        );
+        return { error: 'NOT_STORED' };
+      }
+    }
+
+    return { user: record };
+  }
+
+  /**
+   * Changes a person's name, role or phone.
+   *
+   * REFUSES TO DEMOTE THE LAST ADMINISTRATOR. User management and key
+   * management are both ADMIN-only, so a deployment whose only admin has just
+   * been made a merchandiser can never be administered again — no key can be
+   * minted, and nobody can be promoted back. The refusal is checked in the
+   * database rather than from the in-memory array because the count is the
+   * whole basis of the decision and the replica can be a second behind.
+   *
+   * The previous values are captured and restored on a failed write, so a
+   * demotion that did not reach the database does not leave the process showing
+   * an authority change it will lose at the next restart — which is the one
+   * case where "it looked like it worked" is a security problem rather than an
+   * inconvenience.
+   */
+  public async updateUser(
+    userId: string,
+    changes: Partial<{ fullName: string; role: string; phone: string }>,
+  ): Promise<{
+    user?: any;
+    error?: 'NOT_FOUND' | 'LAST_ADMIN' | 'NOT_STORED';
+  }> {
+    const user = this.getUser(userId) as any;
+    if (!user) return { error: 'NOT_FOUND' };
+
+    const before = { ...user };
+    const nextRole = changes.role ?? user.role;
+    const roleIsChanging = nextRole !== user.role;
+
+    if (roleIsChanging && user.role === UserRole.ADMIN && nextRole !== UserRole.ADMIN) {
+      const admins = await this.countUsersWithRoleInDatabase(UserRole.ADMIN);
+      if (admins !== null && admins <= 1) return { error: 'LAST_ADMIN' };
+    }
+
+    for (const [key, value] of Object.entries(changes)) {
+      if (value !== undefined) (user as any)[key] = value;
+    }
+    user.updatedAt = new Date();
+
+    if (this.pool) {
+      try {
+        await this.enqueue((pool) => pg.updateUserRow(pool, user), `user ${user.id} edit`);
+      } catch (error) {
+        Object.assign(user, before);
+        console.error(
+          `⛔ [oneTeam DB] Could not save the edit to user ${user.id}: ` + describeError(error),
+        );
+        return { error: 'NOT_STORED' };
+      }
+    }
+
+    return { user };
+  }
+
+  /**
+   * Removes a person.
+   *
+   * Two refusals, both of which the operator can act on:
+   *
+   *   HAS_SUBMISSIONS — `task_evidences.submitted_by_id` is `ON DELETE
+   *   RESTRICT`. Somebody who has photographed shelves is part of the audit
+   *   trail, and deleting them would either destroy the evidence or orphan it.
+   *   The honest answer is to revoke their keys instead, which is offered.
+   *
+   *   LAST_ADMIN — see `updateUser`.
+   *
+   * What a successful delete does NOT undo: `panel_tokens` and `device_tokens`
+   * CASCADE, so every key the person held disappears with them, and
+   * `audit_logs.actor_id` is SET NULL, so their past actions stay in the log
+   * without a name. Re-creating them produces a different person. That is worth
+   * knowing before pressing the button, so the panel says it.
+   */
+  public async deleteUser(userId: string): Promise<{
+    deleted: boolean;
+    reason?: 'NOT_FOUND' | 'HAS_SUBMISSIONS' | 'LAST_ADMIN' | 'NOT_DELETED';
+    submissions?: number;
+    /**
+     * The row as it was, so the caller can name the person in the audit entry.
+     * Returned rather than re-read by the caller because by then the row is
+     * gone, and "user usr-abc123 was deleted" is not something an operator can
+     * read.
+     */
+    user?: any;
+  }> {
+    const user = this.getUser(userId) as any;
+    if (!user) return { deleted: false, reason: 'NOT_FOUND' };
+
+    if (user.role === UserRole.ADMIN) {
+      const admins = await this.countUsersWithRoleInDatabase(UserRole.ADMIN);
+      if (admins !== null && admins <= 1) return { deleted: false, reason: 'LAST_ADMIN' };
+    }
+
+    // Counted in the database, not from `this.evidences`: the replica lags, and
+    // a submission from the last second would be invisible here — the delete
+    // would be reported as done and then refused by the constraint, leaving the
+    // panel and the database disagreeing about whether the person still exists.
+    if (this.pool) {
+      try {
+        const submissions = await pg.countEvidencesForUser(this.pool, userId);
+        if (submissions > 0) {
+          return { deleted: false, reason: 'HAS_SUBMISSIONS', submissions };
+        }
+      } catch (error) {
+        console.error(
+          `⛔ [oneTeam DB] Could not count submissions for user ${userId}: ` + describeError(error),
+        );
+        return { deleted: false, reason: 'NOT_DELETED' };
+      }
+    }
+
+    if (this.pool) {
+      try {
+        await this.enqueue((pool) => pg.deleteUserRow(pool, userId), `user ${userId} delete`);
+      } catch (error) {
+        console.error(`⛔ [oneTeam DB] Could not delete user ${userId}: ` + describeError(error));
+        return { deleted: false, reason: 'NOT_DELETED' };
+      }
+    }
+
+    this.users = this.users.filter((candidate: any) => candidate.id !== userId);
+    return { deleted: true, user };
+  }
+
+  /**
+   * Counts role holders straight from the database, or null with no connection.
+   *
+   * Null rather than a guess, and the callers treat null as "do not enforce".
+   * That is deliberate: with no database there is no authority record at all,
+   * so refusing every role change on that basis would make the panel unusable
+   * for a reason that has nothing to do with the rule. The rule exists to
+   * protect a real deployment, and a real deployment has a database.
+   */
+  private async countUsersWithRoleInDatabase(role: string): Promise<number | null> {
+    if (!this.pool) return null;
+    try {
+      return await pg.countUsersWithRole(this.pool, role);
+    } catch (error) {
+      console.error(
+        `⛔ [oneTeam DB] Could not count users with role ${role}: ` + describeError(error),
+      );
+      return null;
+    }
+  }
+
+  /**
+   * How many submissions each person has made, keyed by user id.
+   *
+   * Read from the database for the same reason `deleteUser` counts there: this
+   * is what the panel uses to decide whether the delete button is even offered,
+   * and an offer that the database then refuses is worse than no offer. With no
+   * connection an empty map is returned, which reads as "nothing known" — the
+   * panel treats a missing entry as unknown and says so rather than promising
+   * the delete will work.
+   */
+  public async submissionCountsByUser(): Promise<Map<string, number>> {
+    if (!this.pool) return new Map();
+    try {
+      return await pg.countEvidencesByUser(this.pool);
+    } catch (error) {
+      console.error(
+        '⛔ [oneTeam DB] Could not count submissions per user: ' + describeError(error),
+      );
+      return new Map();
+    }
+  }
+
   /**
    * Adds a task template authored from the web panel and waits for it to land.
    *

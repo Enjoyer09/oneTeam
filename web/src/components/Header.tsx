@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { PlusCircle, Clock, Menu, Sun, Moon, KeyRound, LogOut, ShieldAlert } from 'lucide-react';
+import {
+  PlusCircle,
+  Clock,
+  Menu,
+  Sun,
+  Moon,
+  KeyRound,
+  LogOut,
+  ShieldAlert,
+  Users,
+} from 'lucide-react';
 import { TabType } from './Sidebar';
 import type { PanelIdentity } from '../lib/panelAuth';
 
@@ -21,6 +31,8 @@ interface HeaderProps {
   identity: PanelIdentity | null;
   onSignOut: () => void;
   onOpenKeys: () => void;
+  /** People and roles — administrator only, next to the key button. */
+  onOpenUsers: () => void;
 }
 
 const THEME_KEY = 'oneteam-theme';
@@ -39,6 +51,7 @@ export const Header: React.FC<HeaderProps> = ({
   identity,
   onSignOut,
   onOpenKeys,
+  onOpenUsers,
 }) => {
   const [timeStr, setTimeStr] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -165,6 +178,20 @@ export const Header: React.FC<HeaderProps> = ({
             title="Panel giriş açarları"
           >
             <KeyRound className="w-[17px] h-[17px]" strokeWidth={1.9} />
+          </button>
+        )}
+
+        {/* İstifadəçilər — açar düyməsinin yanında, çünki ikisi bir qərarın iki
+            yarısıdır: əvvəl adamı yaradırsan, sonra ona açar verirsən. */}
+        {identity?.canManageKeys && (
+          <button
+            type="button"
+            onClick={onOpenUsers}
+            className="iconbtn-g"
+            aria-label="İstifadəçilər və rollar"
+            title="İstifadəçilər və rollar"
+          >
+            <Users className="w-[17px] h-[17px]" strokeWidth={1.9} />
           </button>
         )}
 

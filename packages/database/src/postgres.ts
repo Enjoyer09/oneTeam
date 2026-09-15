@@ -739,6 +739,141 @@ export async function upsertDeviceUser(
   );
 }
 
+/**
+ * Inserts a person the panel created.
+ *
+ * Distinct from the two `upsert*User` helpers above, which exist for a channel
+ * that is meeting someone for the first time and must be forgiving. This one is
+ * the operator filling in a form, so it is a plain insert: an id or an email
+ * that is already taken should be a refusal the panel can show, not a silent
+ * merge onto somebody else's row. The unique-violation code reaches the caller
+ * through `createUser` so "this email is already used" is sayable.
+ */
+export async function insertUser(
+  pool: Pool,
+  user: {
+    id: string;
+    email: string;
+    fullName: string;
+    role: string;
+    phone?: string | null;
+  },
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO users (id, email, full_name, role, phone, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5, now(), now())`,
+    [user.id, user.email, user.fullName, user.role, user.phone ?? null],
+  );
+}
+
+/**
+ * Writes a person's editable fields back.
+ *
+ * `id`, `email` and the channel identifiers are deliberately not updatable
+ * here. The id is the identity everything else references; the email is a
+ * unique key a mis-typed edit could collide with; and `telegram_chat_id` /
+ * `mobile_device_id` are established by the channel itself, not by a panel
+ * form. Changing a role or correcting a name is what this is for.
+ *
+ * `role` is cast explicitly because the column is the `user_role` enum, and a
+ * bare text parameter would be rejected rather than coerced.
+ */
+export async function updateUserRow(
+  pool: Pool,
+  user: {
+    id: string;
+    fullName: string;
+    role: string;
+    phone?: string | null;
+  },
+): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE users
+        SET full_name = $2,
+            role = $3::user_role,
+            phone = $4,
+            updated_at = now()
+      WHERE id = $1`,
+    [user.id, user.fullName, user.role, user.phone ?? null],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/**
+ * Removes a person.
+ *
+ * The caller has already checked the two conditions this cannot express — the
+ * submission count and the last-admin rule — so a failure here is a genuine
+ * surprise: `task_evidences.submitted_by_id` is `ON DELETE RESTRICT`, so a
+ * submission that arrived between the check and this statement trips it. That
+ * is exactly why the caller awaits instead of firing and forgetting.
+ *
+ * Everything else about the row is cleaned up by the schema rather than here,
+ * and the asymmetry is worth stating because it is a data-loss surface:
+ * `panel_tokens` and `device_tokens` CASCADE (the person's credentials go with
+ * them), `store_tasks.assigned_user_id` and `audit_logs.actor_id` are SET NULL
+ * (their work stays, unattributed). So a delete cannot be undone by re-creating
+ * the person: the keys are gone, and the audit trail no longer names them.
+ */
+export async function deleteUserRow(pool: Pool, userId: string): Promise<boolean> {
+  const result = await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+  return (result.rowCount ?? 0) > 0;
+}
+
+/**
+ * How many audit submissions name this person as their author.
+ *
+ * This is the delete guard, and it is counted in the database rather than from
+ * the in-memory array for the reason this project keeps re-learning: the
+ * replica lags, so a submission from the last second would not be seen, the
+ * delete would be allowed, and `ON DELETE RESTRICT` would then refuse it —
+ * except the caller would already have told the operator it succeeded.
+ */
+export async function countEvidencesForUser(pool: Pool, userId: string): Promise<number> {
+  const result = await pool.query<{ count: string }>(
+    'SELECT count(*)::text AS count FROM task_evidences WHERE submitted_by_id = $1',
+    [userId],
+  );
+  return Number(result.rows[0]?.count ?? 0);
+}
+
+/**
+ * How many people hold a given role.
+ *
+ * Used for one rule only: the last administrator may not be demoted or removed.
+ * That rule is not decoration. The panel's key management and user management
+ * are both ADMIN-only, so demoting the only admin leaves a deployment nobody
+ * can administer — no way to mint a key, no way to promote anyone back. It is
+ * the same shape of lockout as the logout-last-key problem, and it is cheaper
+ * to prevent than to explain.
+ */
+export async function countUsersWithRole(pool: Pool, role: string): Promise<number> {
+  const result = await pool.query<{ count: string }>(
+    'SELECT count(*)::text AS count FROM users WHERE role = $1::user_role',
+    [role],
+  );
+  return Number(result.rows[0]?.count ?? 0);
+}
+
+/**
+ * Submission counts for everybody, in one query.
+ *
+ * The user list needs this per row, and asking per row would be one round trip
+ * per person on a screen that is opened often. `LEFT JOIN` rather than a plain
+ * `GROUP BY` so that people with no submissions come back as `0` instead of
+ * being absent — an absent row would read as "unknown", and the panel would
+ * then have to guess whether the delete button should be enabled.
+ */
+export async function countEvidencesByUser(pool: Pool): Promise<Map<string, number>> {
+  const result = await pool.query<{ submitted_by_id: string; count: string }>(
+    `SELECT u.id AS submitted_by_id, count(e.id)::text AS count
+       FROM users u
+       LEFT JOIN task_evidences e ON e.submitted_by_id = u.id
+      GROUP BY u.id`,
+  );
+  return new Map(result.rows.map((row) => [row.submitted_by_id, Number(row.count)]));
+}
+
 // ---------------------------------------------------------------------------
 // Device credentials
 // ---------------------------------------------------------------------------

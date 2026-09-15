@@ -7,6 +7,7 @@ import { TaskManager, TaskEditValues } from './components/TaskManager';
 import { StoreDirectory, StoreFormValues } from './components/StoreDirectory';
 import { PanelLogin } from './components/PanelLogin';
 import { PanelKeysModal } from './components/PanelKeysModal';
+import { PanelUsersModal } from './components/PanelUsersModal';
 import { portalService, PortalApiError } from './lib/portalApi';
 import {
   fetchAuthStatus,
@@ -41,6 +42,7 @@ function isAuthFailure(error: unknown): boolean {
 export function App() {
   const [auth, setAuth] = useState<AuthState>({ phase: 'checking' });
   const [keysOpen, setKeysOpen] = useState(false);
+  const [usersOpen, setUsersOpen] = useState(false);
 
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [metrics, setMetrics] = useState<DashboardMetrics>({
@@ -490,6 +492,7 @@ export function App() {
       )}
 
       {keysOpen && <PanelKeysModal onClose={() => setKeysOpen(false)} onChanged={checkAuth} />}
+      {usersOpen && <PanelUsersModal onClose={() => setUsersOpen(false)} onChanged={checkAuth} />}
 
       {/* Yan panel */}
       <Sidebar
@@ -510,6 +513,7 @@ export function App() {
           identity={auth.identity}
           onSignOut={handleSignOut}
           onOpenKeys={() => setKeysOpen(true)}
+          onOpenUsers={() => setUsersOpen(true)}
         />
 
         {/* Açıq panel xəbərdarlığı — vəziyyəti gizlətmək onu təhlükəli edir */}

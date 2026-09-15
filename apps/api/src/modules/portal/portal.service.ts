@@ -718,6 +718,8 @@ export class PortalService {
     decision: { status: 'approved' | 'rejected'; feedback?: string },
     principal: AuthenticatedPrincipal,
   ) {
+    this.requireReviewer(principal);
+
     if (decision.status !== 'approved' && decision.status !== 'rejected') {
       throw new HttpException(
         "Qərar yalnız 'approved' və ya 'rejected' ola bilər",
@@ -785,6 +787,16 @@ export class PortalService {
    * skipped.
    */
   async autoApproveSubmission(evidenceId: string, principal: AuthenticatedPrincipal) {
+    /**
+     * Checked here as well as inside `reviewSubmission`, and before the scoring
+     * work rather than after it. `autoApproveSubmission` calls `reviewSubmission`
+     * with the same principal, so the refusal would happen anyway — but only
+     * after reading the evidence, the task, the template and building the
+     * reasons list. Refusing first keeps an unauthorised call from doing work
+     * whose result is thrown away.
+     */
+    this.requireReviewer(principal);
+
     const evidence = db.evidences.find((e) => e.id === evidenceId);
     if (!evidence) {
       throw new HttpException(`Audit qeydi tapılmadı: ${evidenceId}`, HttpStatus.NOT_FOUND);
@@ -1012,6 +1024,52 @@ export class PortalService {
       throw new ForbiddenException({
         error: 'TASK_EDIT_FORBIDDEN',
         message: 'Tapşırıqları yalnız administrator və supervayzer yarada və dəyişə bilər.',
+      });
+    }
+  }
+
+  /**
+   * Refuses a caller who may not judge a submitted audit.
+   *
+   * This is the third boundary and it is deliberately a separate method rather
+   * than a reuse of `requireTaskEditor`, because the two rules are the same
+   * today but are not the same rule. Authoring a briefing and signing off on
+   * somebody else's work are different powers, and the panel's role model
+   * (1.5) may well separate them. Sharing one guard would make that split a
+   * silent behaviour change later.
+   *
+   * WHY IT EXISTS, AND WHY THE HOLE WAS NOT "ANY MERCHANDISER"
+   * ---------------------------------------------------------
+   * `reviewSubmission` and `autoApproveSubmission` both took a principal and
+   * never read its role. Two other guards looked like they covered it:
+   *
+   *   - `mayUseRoute` keeps a *device* credential off these routes, so the
+   *     caller has to hold a panel key. An administrator can issue one to
+   *     anybody, and a merchandiser who also does panel work is a normal thing
+   *     to have — so this narrows the caller to a person, not to a role.
+   *
+   *   - `transitionTask` refuses a caller for a task they cannot reach, and
+   *     `canUserAccessTask` lets a MERCHANDISER reach exactly one kind of task:
+   *     the one assigned to them.
+   *
+   * That second point is what made the hole exact rather than general. The
+   * enrolment flow calls `claimStoreTasks`, which hands a store's open work to
+   * whoever enrolled with its code — so **the author of a submission is the
+   * assignee of its task**. The one merchandiser who could reach this route was
+   * therefore the author of the submission being judged, and could approve
+   * their own shelf photo. Verified by deleting this call and watching the
+   * roles suite report a 200 where it expects a 403.
+   *
+   * So this guard is not redundant with the task-access rule: it is the only
+   * one of the three that is about the *role* rather than about reachability.
+   */
+  private requireReviewer(principal: AuthenticatedPrincipal): void {
+    if (!isPrivilegedPrincipal(principal)) {
+      throw new ForbiddenException({
+        error: 'REVIEW_FORBIDDEN',
+        message:
+          'Auditi yalnız administrator və supervayzer təsdiqləyə və ya imtina edə bilər. ' +
+          'Öz işinizi özünüz təsdiqləyə bilməzsiniz.',
       });
     }
   }

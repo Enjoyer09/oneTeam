@@ -209,6 +209,27 @@ export interface PanelUserRow {
   liveKeys: number;
 }
 
+/** Why a person cannot be removed. `null` means the delete is expected to work. */
+export type UserBlockReason = 'SELF' | 'LAST_ADMIN' | 'HAS_SUBMISSIONS' | 'UNKNOWN';
+
+/** A person, as the user-management screen needs them. */
+export interface ManagedUserRow {
+  id: string;
+  fullName: string;
+  /** Null when the address was synthesised to satisfy `NOT NULL`. */
+  email: string | null;
+  role: string;
+  phone: string | null;
+  /** Which channel registered them, or null when the panel or the seed did. */
+  joinedVia: 'telegram' | 'mobile' | null;
+  liveKeys: number;
+  /** Null when the count could not be read — not the same as zero. */
+  submissions: number | null;
+  isSelf: boolean;
+  deletable: boolean;
+  blockedBy: UserBlockReason | null;
+}
+
 /**
  * Whether the panel is configured to require a key.
  *
@@ -272,4 +293,48 @@ export async function revokeUserKeys(userId: string): Promise<number> {
     { method: 'POST' },
   );
   return result.revoked;
+}
+
+/**
+ * Everybody, with what the screen needs to decide about them.
+ *
+ * `deletable` and `blockedBy` are computed by the API rather than here. The
+ * rule is `ON DELETE RESTRICT` on `task_evidences.submitted_by_id` plus the
+ * last-administrator rule, and a rule the browser re-implements is a rule that
+ * drifts from the one the server enforces.
+ */
+export async function fetchUsers(): Promise<{
+  users: ManagedUserRow[];
+  roles: string[];
+  adminCount: number;
+}> {
+  return panelRequest<{ users: ManagedUserRow[]; roles: string[]; adminCount: number }>(
+    '/api/panel/users',
+  );
+}
+
+export async function createUser(input: {
+  fullName: string;
+  email?: string;
+  role: string;
+  phone?: string;
+}): Promise<{ id: string; fullName: string; email: string | null; role: string }> {
+  return panelRequest('/api/panel/users', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateUser(
+  userId: string,
+  changes: { fullName?: string; role?: string; phone?: string },
+): Promise<{ id: string; fullName: string; role: string; phone: string | null }> {
+  return panelRequest(`/api/panel/users/${encodeURIComponent(userId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(changes),
+  });
+}
+
+export async function deleteUser(userId: string): Promise<void> {
+  await panelRequest(`/api/panel/users/${encodeURIComponent(userId)}`, { method: 'DELETE' });
 }

@@ -33,7 +33,9 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   HttpCode,
@@ -41,6 +43,7 @@ import {
   Logger,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Request,
   ServiceUnavailableException,
@@ -387,6 +390,372 @@ export class PanelAuthController {
 
     return { success: true, data: { revoked: count, userId: target } };
   }
+
+  // -------------------------------------------------------------------------
+  // People — administrators only
+  // -------------------------------------------------------------------------
+  //
+  // WHY THIS IS HERE AND NOT UNDER /api/portal
+  // ------------------------------------------
+  // A store and a briefing are business data, and their writes live under
+  // `/api/portal` for that reason. A person is not business data: they are who
+  // the deployment lets in. Creating one, changing what they may do and
+  // removing them are all access decisions, which is the same category as
+  // minting a key — so they belong next to the key routes, behind the same
+  // `requireAdmin`, rather than beside the store form.
+  //
+  // WHAT WAS MISSING BEFORE THIS
+  // ---------------------------
+  // `GET /api/panel/keys` already returned a `users` array, so the panel could
+  // show who a key might be issued to — but nothing could create a person. The
+  // three in `db/api-seed.sql` were the entire staff, and that seed is not
+  // applied by the migration runner. So "hər adama öz açarı" (a key per person)
+  // worked only for the three people who already existed, and the operator had
+  // no way to add the fourth.
+  //
+  // Merchandisers are a partial exception: the bot and the mobile client bind a
+  // user on first contact (`bindTelegramUser` / `bindDeviceUser`), so a field
+  // worker who enrols with a store code already exists by the time the panel
+  // sees them. They arrive as `MERCHANDISER` and cannot be created here as
+  // anything else by accident — what this adds for them is the ability to
+  // *promote* one, and to remove somebody who left.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Everybody, with what the panel needs to decide about them.
+   *
+   * `submissions` and `deletable` are computed here rather than left to the
+   * browser. The panel could work out that a person with submissions cannot be
+   * deleted, but it would have to know about `ON DELETE RESTRICT` to do it, and
+   * a rule that lives in the UI is a rule the next client gets wrong. The
+   * server says what is possible; the panel only has to render it.
+   */
+  @Get('users')
+  @UseGuards(AuthGuard)
+  async listUsers(@Request() request: AuthedRequest) {
+    const principal = requireAdmin(request);
+
+    const [submissions, keys] = await Promise.all([
+      db.submissionCountsByUser(),
+      db.listPanelTokens(true),
+    ]);
+
+    const liveKeyCount = new Map<string, number>();
+    for (const row of keys) {
+      if (row.revokedAt) continue;
+      liveKeyCount.set(row.userId, (liveKeyCount.get(row.userId) ?? 0) + 1);
+    }
+
+    const adminCount = db.users.filter((user: any) => user.role === UserRole.ADMIN).length;
+    const roles = Object.values(UserRole);
+
+    return {
+      success: true,
+      data: {
+        users: db.users.map((user: any) => {
+          const made = submissions.get(user.id);
+          const isSelf = user.id === principal.userId;
+          const isLastAdmin = user.role === UserRole.ADMIN && adminCount <= 1;
+
+          // Why this person cannot be removed, in the order the operator would
+          // hit the reasons. `null` means the delete is expected to work.
+          let blockedBy: string | null = null;
+          if (isSelf) blockedBy = 'SELF';
+          else if (isLastAdmin) blockedBy = 'LAST_ADMIN';
+          else if (made === undefined) blockedBy = 'UNKNOWN';
+          else if (made > 0) blockedBy = 'HAS_SUBMISSIONS';
+
+          return {
+            id: user.id,
+            fullName: user.fullName,
+            // A synthesised address is reported as absent rather than shown.
+            // The row carries `<id>@oneteam.local` only because the column is
+            // `NOT NULL`; displaying it would invite somebody to send mail to
+            // an address that cannot receive any.
+            email: user.email?.endsWith('@oneteam.local') ? null : (user.email ?? null),
+            role: user.role,
+            phone: user.phone ?? null,
+            // How they joined. `null` means the panel created them or the seed
+            // did; the other two are the channels that bind a user on first
+            // contact and therefore have their own identifier for them.
+            joinedVia: user.telegramChatId ? 'telegram' : user.mobileDeviceId ? 'mobile' : null,
+            liveKeys: liveKeyCount.get(user.id) ?? 0,
+            submissions: made ?? null,
+            isSelf,
+            deletable: blockedBy === null,
+            blockedBy,
+          };
+        }),
+        roles,
+        adminCount,
+      },
+    };
+  }
+
+  /**
+   * Adds a person.
+   *
+   * The id is minted by the database layer, not accepted from the browser: an
+   * id is what everything else references, and letting a client choose one
+   * invites a collision with a row it has not seen.
+   */
+  @Post('users')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.CREATED)
+  async createUser(
+    @Body() body: { fullName?: string; email?: string; role?: string; phone?: string },
+    @Request() request: AuthedRequest,
+  ) {
+    const principal = requireAdmin(request);
+
+    const fullName = String(body?.fullName ?? '').trim();
+    if (!fullName) {
+      throw new BadRequestException({
+        error: 'FULL_NAME_REQUIRED',
+        message: 'Ad və soyad tələb olunur.',
+      });
+    }
+
+    const role = requireRole(body?.role);
+    const email = String(body?.email ?? '').trim() || undefined;
+    const phone = String(body?.phone ?? '').trim() || undefined;
+
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new BadRequestException({
+        error: 'INVALID_EMAIL',
+        message: 'E-poçt ünvanı düzgün formatda deyil.',
+      });
+    }
+
+    const created = await db.createUser({ fullName, email, role, phone });
+
+    if (created.error === 'DUPLICATE_EMAIL') {
+      throw new ConflictException({
+        error: 'EMAIL_TAKEN',
+        message: `Bu e-poçt artıq başqa istifadəçidədir: ${email}`,
+      });
+    }
+    if (created.error === 'NOT_STORED') {
+      throw new ServiceUnavailableException({
+        error: 'USER_NOT_STORED',
+        message:
+          'İstifadəçi yaradıla bilmədi: verilənlər bazasına yazıla bilmədi. ' +
+          'Yenidən cəhd edin — heç bir dəyişiklik qeydə alınmadı.',
+      });
+    }
+
+    db.logAuditEvent({
+      entityType: 'panel_user',
+      entityId: created.user.id,
+      action: 'PANEL_USER_CREATED',
+      actorId: principal.userId,
+      payload: { fullName, role, email: email ?? null },
+    });
+
+    return {
+      success: true,
+      data: {
+        id: created.user.id,
+        fullName: created.user.fullName,
+        email: email ?? null,
+        role: created.user.role,
+      },
+    };
+  }
+
+  /**
+   * Changes a person's name, role or phone.
+   *
+   * REFUSES TO CHANGE THE CALLER'S OWN ROLE. Not because it is unsafe in the
+   * database — `updateUser` already refuses to demote the last administrator —
+   * but because of what it does to the session that is doing the changing: an
+   * admin who demotes themselves keeps a valid key and loses every screen that
+   * key was for, with no way back except another administrator. The same
+   * reasoning as `CANNOT_REVOKE_OWN_KEYS`, and the same answer: have somebody
+   * else do it.
+   */
+  @Patch('users/:userId')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async updateUser(
+    @Param('userId') userId: string,
+    @Body() body: { fullName?: string; role?: string; phone?: string },
+    @Request() request: AuthedRequest,
+  ) {
+    const principal = requireAdmin(request);
+    const target = String(userId ?? '').trim();
+
+    if (!db.getUser(target)) {
+      throw new NotFoundException({
+        error: 'USER_NOT_FOUND',
+        message: `İstifadəçi tapılmadı: ${target}`,
+      });
+    }
+
+    const changes: { fullName?: string; role?: string; phone?: string } = {};
+
+    if (body?.fullName !== undefined) {
+      const fullName = String(body.fullName).trim();
+      if (!fullName) {
+        throw new BadRequestException({
+          error: 'FULL_NAME_REQUIRED',
+          message: 'Ad və soyad boş ola bilməz.',
+        });
+      }
+      changes.fullName = fullName;
+    }
+
+    if (body?.role !== undefined) {
+      const role = requireRole(body.role);
+      if (target === principal.userId && role !== principal.role) {
+        throw new BadRequestException({
+          error: 'CANNOT_CHANGE_OWN_ROLE',
+          message:
+            'Öz rolunuzu özünüz dəyişə bilməzsiniz — bunu başqa administrator etməlidir. ' +
+            'Səbəb: rolu dəyişən kimi bu ekranlara girişinizi itirirsiniz.',
+        });
+      }
+      changes.role = role;
+    }
+
+    if (body?.phone !== undefined) {
+      changes.phone = String(body.phone).trim();
+    }
+
+    if (Object.keys(changes).length === 0) {
+      throw new BadRequestException({
+        error: 'NOTHING_TO_CHANGE',
+        message: 'Dəyişdiriləcək sahə göstərilməyib.',
+      });
+    }
+
+    const previousRole = db.getUser(target)!.role;
+    const result = await db.updateUser(target, changes);
+
+    if (result.error === 'NOT_FOUND') {
+      throw new NotFoundException({
+        error: 'USER_NOT_FOUND',
+        message: `İstifadəçi tapılmadı: ${target}`,
+      });
+    }
+    if (result.error === 'LAST_ADMIN') {
+      throw new ConflictException({
+        error: 'LAST_ADMIN',
+        message:
+          'Bu, sistemdəki son administrator­dur. Rolunu dəyişsəniz paneli idarə edən ' +
+          'heç kim qalmayacaq — əvvəlcə başqa bir administrator təyin edin.',
+      });
+    }
+    if (result.error === 'NOT_STORED') {
+      throw new ServiceUnavailableException({
+        error: 'USER_NOT_STORED',
+        message: 'Dəyişiklik yazıla bilmədi. Heç nə dəyişmədi — yenidən cəhd edin.',
+      });
+    }
+
+    db.logAuditEvent({
+      entityType: 'panel_user',
+      entityId: target,
+      action: changes.role ? 'PANEL_USER_ROLE_CHANGED' : 'PANEL_USER_UPDATED',
+      actorId: principal.userId,
+      payload: {
+        from: { role: previousRole },
+        to: changes,
+      },
+    });
+
+    return {
+      success: true,
+      data: {
+        id: result.user.id,
+        fullName: result.user.fullName,
+        role: result.user.role,
+        phone: result.user.phone ?? null,
+      },
+    };
+  }
+
+  /**
+   * Removes a person.
+   *
+   * Both refusals come back as 409 with the reason and the count, because each
+   * one has a different next step: somebody with submissions should have their
+   * keys revoked instead, and the last administrator needs a replacement
+   * appointed first. A bare "conflict" would leave the operator guessing.
+   */
+  @Delete('users/:userId')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async deleteUser(@Param('userId') userId: string, @Request() request: AuthedRequest) {
+    const principal = requireAdmin(request);
+    const target = String(userId ?? '').trim();
+
+    if (!db.getUser(target)) {
+      throw new NotFoundException({
+        error: 'USER_NOT_FOUND',
+        message: `İstifadəçi tapılmadı: ${target}`,
+      });
+    }
+
+    if (target === principal.userId) {
+      throw new BadRequestException({
+        error: 'CANNOT_DELETE_SELF',
+        message: 'Öz hesabınızı silə bilməzsiniz. Bunu başqa administrator etməlidir.',
+      });
+    }
+
+    const result = await db.deleteUser(target);
+
+    if (result.reason === 'HAS_SUBMISSIONS') {
+      throw new ConflictException({
+        error: 'USER_HAS_SUBMISSIONS',
+        message:
+          `Bu istifadəçinin ${result.submissions} audit təqdimatı var və onlar audit ` +
+          'izini təşkil edir. Hesabı silmək əvəzinə açarlarını ləğv edin — ' +
+          'belədə işi qeyd olaraq qalır, girişi isə kəsilir.',
+        submissions: result.submissions,
+      });
+    }
+    if (result.reason === 'LAST_ADMIN') {
+      throw new ConflictException({
+        error: 'LAST_ADMIN',
+        message:
+          'Bu, sistemdəki son administrator­dur və silinə bilməz — əvvəlcə başqa bir ' +
+          'administrator təyin edin.',
+      });
+    }
+    if (!result.deleted) {
+      throw new ServiceUnavailableException({
+        error: 'USER_NOT_DELETED',
+        message: 'İstifadəçi silinə bilmədi. Heç nə dəyişmədi — yenidən cəhd edin.',
+      });
+    }
+
+    db.logAuditEvent({
+      entityType: 'panel_user',
+      entityId: target,
+      action: 'PANEL_USER_DELETED',
+      actorId: principal.userId,
+      // Named because the row is gone: without the name the audit entry says
+      // only that some id was removed, and the id is not a person to a reader.
+      payload: { fullName: result.user?.fullName ?? null, role: result.user?.role ?? null },
+    });
+
+    return { success: true, data: { deleted: true, userId: target } };
+  }
+}
+
+/** The four roles a person may hold, refused with the list when it is not one. */
+function requireRole(raw: unknown): string {
+  const role = String(raw ?? '').trim();
+  const allowed = Object.values(UserRole) as string[];
+  if (!allowed.includes(role)) {
+    throw new BadRequestException({
+      error: 'INVALID_ROLE',
+      message: `Rol yanlışdır. Qəbul edilən rollar: ${allowed.join(', ')}`,
+    });
+  }
+  return role;
 }
 
 /**
