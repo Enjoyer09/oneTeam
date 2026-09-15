@@ -485,13 +485,13 @@ botda deyil: bot bazaya yalnız API-dən çatır, ona görə təmizləmə orada 
 
 ### MƏRHƏLƏ 3 — iOS tətbiqi (Expo prebuild + Xcode) (Həftə 4–5)
 
-| #   | İş paketi                                                                                                                                                                                               | Qəbul meyarı                                                                                        | Müddət  | Vəziyyət |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ------- | -------- |
-| 3.1 | **Expo config:** `app.json` / `app.config.ts` — `bundleIdentifier`, `name`, `icon`, `splash`, `ios: {supportsTablet: false}`, `plugins: ["expo-camera", "expo-location", "expo-secure-store"]`.         | `npx expo prebuild --platform ios` → `ios/` qovluğu yaranır, heç bir xəta yoxdur.                   | 1 gün   | 🔶       |
-| 3.2 | **Native camera + secure storage:** `expo-camera` → icazə izahı; `expo-secure-store` → `deviceToken`, `enrollmentSecret` yaz/oxu. Silinmədə `deviceToken` qalır.                                        | Kamera açılır → şəkil çəkilir → base64 API-yə gedir. Yenidən açılışda enrolment **avtomatik** olur. | 1.5 gün | 🔶       |
-| 3.3 | **Offline queue (AsyncStorage):** şəkil + metadata lokal növbəyə → onlayn olanda göndərilir. 50 MB limit, avtomatik təkrar cəhd.                                                                        | Avia-rejimdə 3 şəkil çək → onlayn ol → 3 upload (sıralı).                                           | 1 gün   | 🔶       |
-| 3.4 | **Xcode test:** `xcodebuild -workspace oneTeam.xcworkspace -scheme oneTeam -destination 'platform=iOS Simulator,name=iPhone 16' build test` → **UI testləri** (Login → Enroll → Task → Photo → Submit). | CI (GitHub Actions) hər PR-da `xcodebuild test` keçir.                                              | 1 gün   | ⏳       |
-| 3.5 | **Mövcud React Native UI saxlanılır:** `mobile/src/screens/*` faylları **yenidən yazılmadan** `expo-router` / `React Navigation` ilə quraşdırılır. Dizayn dəyişmir.                                     | Mövcud ekranlar (Login, TaskList, TaskDetail, Checklist, Camera) birebir görünür.                   | 1 gün   | ⏳       |
+| #   | İş paketi                                                                                                                                                                                               | Qəbul meyarı                                                                                        | Müddət  | Vəziyyət     |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ------- | ------------ |
+| 3.1 | **Expo config:** `app.json` / `app.config.ts` — `bundleIdentifier`, `name`, `icon`, `splash`, `ios: {supportsTablet: false}`, `plugins: ["expo-camera", "expo-location", "expo-secure-store"]`.         | `npx expo prebuild --platform ios` → `ios/` qovluğu yaranır, heç bir xəta yoxdur.                   | 1 gün   | 🔶           |
+| 3.2 | **Native camera + secure storage:** `expo-camera` → icazə izahı; `expo-secure-store` → `deviceToken`, `enrollmentSecret` yaz/oxu. Silinmədə `deviceToken` qalır.                                        | Kamera açılır → şəkil çəkilir → base64 API-yə gedir. Yenidən açılışda enrolment **avtomatik** olur. | 1.5 gün | 🔶           |
+| 3.3 | **Offline queue (AsyncStorage):** şəkil + metadata lokal növbəyə → onlayn olanda göndərilir. 50 MB limit, avtomatik təkrar cəhd.                                                                        | Avia-rejimdə 3 şəkil çək → onlayn ol → 3 upload (sıralı).                                           | 1 gün   | 🔶 `20a7140` |
+| 3.4 | **Xcode test:** `xcodebuild -workspace oneTeam.xcworkspace -scheme oneTeam -destination 'platform=iOS Simulator,name=iPhone 16' build test` → **UI testləri** (Login → Enroll → Task → Photo → Submit). | CI (GitHub Actions) hər PR-da `xcodebuild test` keçir.                                              | 1 gün   | ⏳           |
+| 3.5 | **Mövcud React Native UI saxlanılır:** `mobile/src/screens/*` faylları **yenidən yazılmadan** `expo-router` / `React Navigation` ilə quraşdırılır. Dizayn dəyişmir.                                     | Mövcud ekranlar (Login, TaskList, TaskDetail, Checklist, Camera) birebir görünür.                   | 1 gün   | ⏳           |
 
 #### 3.1 — nə edildi, nə ilə sübut olundu (🔶 QİSMƏN)
 
@@ -795,6 +795,13 @@ Harness bunu **deşik** kimi bildirdi; deşik yox idi. Ona görə harness indi h
 çatdığını** tələb edir (`N checks: M passed` / `All config checks passed.`), əks halda həmin halı
 **sübut saymır**. Bu, 3.2-də tapılan iki yalanın yanında **üçüncüsüdür** və `TESTING.md`-ə əlavə olundu.
 
+**Harness indi REPODADIR.** 3.2 və 3.3-ün harness-ları `/tmp`-də yazılmışdı — yəni sübut **yenidən icra
+oluna bilmirdi** və maşın təmizlənəndə **itəcəkdi**. 3.3-də bu bağlandı: `scripts/dev/break-detector-queue.mjs`
+
+- **`npm run test:break`** (yol faylın öz yerindən törədilir). `quality`-yə **salınmadı**, çünki qəsdən kodu
+  sındırır — nəzarətli əməliyyatdır. Commit: `20a7140`. **3.2-nin harness-ı hələ `/tmp`-dədir və zəifdir**
+  (hər hal üçün gözlənti yoxdur, `COMPLETION` yoxlaması yoxdur) → aşağıdaki borc cədvəlində açıq iş.
+
 **Hələ sübut olunmayanlar (gizlədilmir):** **AsyncStorage-ın özü** (`queueStorage.ts` native modul
 idxal edir, Node altında yüklənə bilmir — dəst onu **idxal etmir** və bunu çap edir) · növbənin **real
 cihazda** avia-rejimdə sınanması (üç şəkil → onlayn → üç sıralı upload) · `npx expo prebuild --platform
@@ -914,10 +921,11 @@ Onda `required` yenidən `false` olur və panel URL-i bilən hər kəsə **açı
 
 ---
 
-_Plan versiyası: 0.5 — 15 sentyabr 2026 — TƏSDİQLƏNİB, icra davam edir. 3.1 🔶: config hazırdır və
+_Plan versiyası: 0.6 — 15 sentyabr 2026 — TƏSDİQLƏNİB, icra davam edir. 3.1 🔶: config hazırdır və
 yoxlanıldı, `expo prebuild` agent mühitində bloklandığı üçün bahaI-nin Terminalında icra olunmalıdır.
 3.2 🔶: açarın saxlanması qatı yazıldı və 37 yoxlama + 13 pozma ilə sübut olundu; **kamera yarısı və
 əsl açar saxlayıcı hələ sübut olunmayıb**. Yeni API boşluğu: **cihaz açarını ləğv edən route yoxdur**.
-3.3 🔶: növbə **yazıldı** (köçürülmədi) və 83 yoxlama + 23 pozma ilə sübut olundu; `EXPO_PUBLIC_` borcu
-bağlandı; **AsyncStorage-ın özü və real cihazda avia-rejim sınağı sübut olunmayıb**. Üç qərar gözləyir:
-növbə faylının şifrələnməsi, API-də təkrar təqdimat qoruyucusu, pozma harness-ının repoya salınması._
+3.3 🔶 `20a7140`: növbə **yazıldı** (köçürülmədi) və 83 yoxlama + 23 pozma ilə sübut olundu; `EXPO_PUBLIC_`
+borcu bağlandı; pozma harness-ı repoya salındı (`npm run test:break`) — **`/tmp`-də saxlanılan sübut sübut
+deyil**. **AsyncStorage-ın özü və real cihazda avia-rejim sınağı sübut olunmayıb.** İki qərar gözləyir:
+növbə faylının şifrələnməsi və API-də təkrar təqdimat qoruyucusu._
