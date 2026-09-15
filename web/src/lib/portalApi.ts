@@ -161,6 +161,62 @@ class PortalDataService {
     return this.get<Store[]>('/api/portal/stores');
   }
 
+  /**
+   * The fields a supervisor fills in for a store.
+   *
+   * Snake case, matching the API and the `Store` shape the panel already
+   * renders. Keeping one spelling across the wire and the UI avoids a
+   * translation layer whose only job would be to be got wrong.
+   */
+  async createStore(data: {
+    store_code: string;
+    name: string;
+    address: string;
+    latitude: number;
+    longitude: number;
+    city?: string;
+    chain_name?: string;
+    store_format?: string;
+    is_active?: boolean;
+  }): Promise<Store> {
+    const body = await request<Envelope<Store>>('/api/portal/stores', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return body.data;
+  }
+
+  /**
+   * Applies a partial edit.
+   *
+   * Only the keys present are sent, and the API only touches what it receives —
+   * so deactivating a store and correcting its address are the same call with a
+   * different body, and neither can blank a field the form did not show.
+   */
+  async updateStore(id: string, changes: Partial<Store>): Promise<Store> {
+    const body = await request<Envelope<Store>>(`/api/portal/stores/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(changes),
+    });
+    return body.data;
+  }
+
+  /**
+   * Deletes a store.
+   *
+   * Rejects with a `PortalApiError` carrying the API's own sentence when the
+   * store still has tasks — the API answers `409 STORE_HAS_TASKS` with the
+   * count, and `request()` already turns that into the message the UI shows.
+   * There is deliberately no client-side pre-check: the panel's copy of the
+   * store list can be a refresh behind, and refusing on stale data would block
+   * a delete that would have succeeded.
+   */
+  async deleteStore(id: string): Promise<void> {
+    await request<Envelope<{ id: string }>>(`/api/portal/stores/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  }
+
   async getTasks(): Promise<Task[]> {
     return this.get<Task[]>('/api/portal/tasks');
   }

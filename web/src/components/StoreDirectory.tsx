@@ -1,14 +1,104 @@
-import React, { useState } from 'react';
-import { Store as StoreIcon, MapPin, Search, X, Inbox } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import {
+  Store as StoreIcon,
+  MapPin,
+  Search,
+  X,
+  Inbox,
+  Plus,
+  Pencil,
+  Trash2,
+  AlertTriangle,
+} from 'lucide-react';
 import { Store, Submission } from '../types';
+import { ModalPortal } from './ui/ModalPortal';
+import { useModalA11y } from '../lib/useModalA11y';
 
 interface StoreDirectoryProps {
   stores: Store[];
   submissions: Submission[];
+  /** Creates a store. Rejects with a message the caller shows. */
+  onCreate: (data: StoreFormValues) => Promise<unknown>;
+  onUpdate: (id: string, changes: Partial<Store>) => Promise<unknown>;
+  onDelete: (id: string) => Promise<unknown>;
+  /** False for a signed-in merchandiser — the API refuses them anyway. */
+  canEdit: boolean;
 }
 
-export const StoreDirectory: React.FC<StoreDirectoryProps> = ({ stores, submissions }) => {
+/**
+ * The form's own shape, in the panel's snake_case.
+ *
+ * Coordinates are strings here and numbers in the API: an empty number input
+ * reads as `''`, not as `0`, and converting at the edge of the form is what
+ * keeps "the user left it blank" distinguishable from "the user typed 0".
+ */
+export interface StoreFormValues {
+  store_code: string;
+  name: string;
+  chain_name: string;
+  store_format: string;
+  address: string;
+  city: string;
+  latitude: string;
+  longitude: string;
+  is_active: boolean;
+}
+
+const EMPTY_FORM: StoreFormValues = {
+  store_code: '',
+  name: '',
+  chain_name: 'Bravo',
+  store_format: 'supermarket',
+  address: '',
+  city: 'Bakı',
+  latitude: '',
+  longitude: '',
+  is_active: true,
+};
+
+const STORE_FORMAT_LABELS: Record<string, string> = {
+  hypermarket: 'Hipermarket',
+  supermarket: 'Supermarket',
+  express: 'Ekspres',
+  convenience: 'Kiçik mağaza',
+};
+
+function toFormValues(store: Store): StoreFormValues {
+  return {
+    store_code: store.store_code,
+    name: store.name,
+    chain_name: store.chain_name ?? 'Bravo',
+    store_format: store.store_format ?? 'supermarket',
+    address: store.address ?? '',
+    city: store.city ?? 'Bakı',
+    latitude: store.latitude === null ? '' : String(store.latitude),
+    longitude: store.longitude === null ? '' : String(store.longitude),
+    is_active: store.is_active,
+  };
+}
+
+export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
+  stores,
+  submissions,
+  onCreate,
+  onUpdate,
+  onDelete,
+  canEdit,
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
+
+  /** null = closed; otherwise the store being edited (or 'new'). */
+  const [editing, setEditing] = useState<Store | 'new' | null>(null);
+  const [form, setForm] = useState<StoreFormValues>(EMPTY_FORM);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const [pendingDelete, setPendingDelete] = useState<Store | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const modalRef = useModalA11y<HTMLDivElement>(editing !== null, () => closeForm());
+  const confirmRef = useModalA11y<HTMLDivElement>(pendingDelete !== null, () => closeConfirm());
 
   const query = searchTerm.trim().toLowerCase();
 
@@ -18,6 +108,102 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({ stores, submissi
       s.store_code.toLowerCase().includes(query) ||
       s.city.toLowerCase().includes(query),
   );
+
+  /**
+   * Audit counts per store, computed once per render of the list.
+   *
+   * This used to be a `submissions.filter(...)` inside the row loop, which is
+   * O(stores × submissions) — fine at three stores and four submissions, less
+   * fine at three hundred. The map is built from one pass and read per row.
+   */
+  const auditsByStore = useMemo(() => {
+    const map = new Map<string, { total: number; approved: number }>();
+    for (const submission of submissions) {
+      const entry = map.get(submission.store_id) ?? { total: 0, approved: 0 };
+      entry.total += 1;
+      if (submission.status === 'approved') entry.approved += 1;
+      map.set(submission.store_id, entry);
+    }
+    return map;
+  }, [submissions]);
+
+  function openCreate() {
+    setForm(EMPTY_FORM);
+    setFormError(null);
+    setEditing('new');
+  }
+
+  function openEdit(store: Store) {
+    setForm(toFormValues(store));
+    setFormError(null);
+    setEditing(store);
+  }
+
+  function closeForm() {
+    setEditing(null);
+    setFormError(null);
+    setSaving(false);
+  }
+
+  function closeConfirm() {
+    setPendingDelete(null);
+    setDeleteError(null);
+    setDeleting(false);
+  }
+
+  const set = <K extends keyof StoreFormValues>(key: K, value: StoreFormValues[K]) =>
+    setForm((previous) => ({ ...previous, [key]: value }));
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (saving) return;
+
+    setSaving(true);
+    setFormError(null);
+
+    try {
+      if (editing === 'new') {
+        await onCreate(form);
+      } else if (editing) {
+        await onUpdate(editing.id, {
+          store_code: form.store_code,
+          name: form.name,
+          chain_name: form.chain_name,
+          store_format: form.store_format,
+          address: form.address,
+          city: form.city,
+          latitude: Number(form.latitude),
+          longitude: Number(form.longitude),
+          is_active: form.is_active,
+        });
+      }
+      closeForm();
+    } catch (error) {
+      // Kept inside the modal rather than shown as a toast: the form is still
+      // open, and an error the user cannot see next to the field that caused it
+      // is an error they will fix by guessing.
+      setFormError(error instanceof Error ? error.message : String(error));
+      setSaving(false);
+    }
+  }
+
+  async function handleConfirmDelete() {
+    if (!pendingDelete || deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await onDelete(pendingDelete.id);
+      closeConfirm();
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : String(error));
+      setDeleting(false);
+    }
+  }
+
+  const inputClass =
+    'w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] ' +
+    'focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45';
+  const labelClass = 'block text-xs font-bold text-ink-2 mb-1';
 
   return (
     <div className="stagger-g flex flex-col gap-4 sm:gap-5">
@@ -32,32 +218,47 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({ stores, submissi
           </p>
         </div>
 
-        <div className="relative w-full md:w-[300px] md:flex-none">
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
-            strokeWidth={2}
-          />
-          <input
-            type="search"
-            aria-label="Mağaza axtarışı"
-            placeholder="Filial adı, kod və ya şəhər..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="h-[38px] w-full rounded-[11px] border border-hair bg-[var(--g-panel)]
-                       pl-9 pr-9 text-[12px] text-ink placeholder:text-muted
-                       transition-colors duration-150
-                       focus:border-coke/45 focus:bg-[var(--g-card)] focus:outline-none
-                       focus-visible:outline-none focus:ring-2 focus:ring-[var(--coke-ring)]"
-          />
-          {searchTerm && (
+        <div className="flex w-full items-center gap-2.5 md:w-auto md:flex-none">
+          <div className="relative min-w-0 flex-1 md:w-[260px]">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+              strokeWidth={2}
+            />
+            <input
+              type="search"
+              aria-label="Mağaza axtarışı"
+              placeholder="Filial adı, kod və ya şəhər..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="h-[38px] w-full rounded-[11px] border border-hair bg-[var(--g-panel)]
+                         pl-9 pr-9 text-[12px] text-ink placeholder:text-muted
+                         transition-colors duration-150
+                         focus:border-coke/45 focus:bg-[var(--g-card)] focus:outline-none
+                         focus-visible:outline-none focus:ring-2 focus:ring-[var(--coke-ring)]"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                aria-label="Axtarışı təmizlə"
+                className="absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center
+                           rounded-md text-muted transition-colors hover:bg-[var(--g-card)] hover:text-ink"
+              >
+                <X className="h-3.5 w-3.5" strokeWidth={2.2} />
+              </button>
+            )}
+          </div>
+
+          {canEdit && (
             <button
               type="button"
-              onClick={() => setSearchTerm('')}
-              aria-label="Axtarışı təmizlə"
-              className="absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center
-                         rounded-md text-muted transition-colors hover:bg-[var(--g-card)] hover:text-ink"
+              onClick={openCreate}
+              className="flex h-[38px] flex-none items-center gap-1.5 rounded-[11px] bg-coke px-3.5
+                         text-[12px] font-extrabold text-white transition-opacity hover:opacity-90
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--coke-ring)]"
             >
-              <X className="h-3.5 w-3.5" strokeWidth={2.2} />
+              <Plus className="h-4 w-4" strokeWidth={2.4} />
+              <span>Yeni mağaza</span>
             </button>
           )}
         </div>
@@ -79,34 +280,42 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({ stores, submissi
             <p className="max-w-[40ch] text-[11.5px] text-muted">
               {query
                 ? 'Axtarış sözünü qısaltmağı və ya filial kodunu yoxlamağı sınayın.'
-                : 'Mağazalar sistemə əlavə olunan kimi burada siyahılanacaq.'}
+                : 'Yuxarıdaki "Yeni mağaza" düyməsi ilə ilk retail nöqtəsini əlavə edin.'}
             </p>
-            {query && (
+            {query ? (
               <button type="button" onClick={() => setSearchTerm('')} className="btn-g mt-1">
                 Axtarışı təmizlə
               </button>
+            ) : (
+              canEdit && (
+                <button type="button" onClick={openCreate} className="btn-g mt-1">
+                  <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
+                  Yeni mağaza
+                </button>
+              )
             )}
           </div>
         ) : (
           <div className="reflow-scroll overflow-x-auto px-2 pb-2.5 sm:px-3">
-            <table className="tbl-g reflow reflow-stores lg:min-w-[760px]">
+            <table className="tbl-g reflow reflow-stores lg:min-w-[860px]">
               <thead>
                 <tr>
                   <th>Mağaza Kodu</th>
                   <th>Filial Adı</th>
                   <th>Ünvan / Şəhər</th>
+                  <th>Format</th>
                   <th>Cəmi Audit</th>
                   <th>Uyğunluq</th>
                   <th className="text-right">Status</th>
+                  {canEdit && <th className="text-right">Əməliyyat</th>}
                 </tr>
               </thead>
               <tbody>
                 {filteredStores.map((store) => {
-                  const storeSubs = submissions.filter((s) => s.store_id === store.id);
-                  const totalAudits = storeSubs.length;
-                  const approvedCount = storeSubs.filter((s) => s.status === 'approved').length;
+                  const audits = auditsByStore.get(store.id) ?? { total: 0, approved: 0 };
+                  const totalAudits = audits.total;
                   const compliancePercent =
-                    totalAudits > 0 ? Math.round((approvedCount / totalAudits) * 100) : 100;
+                    totalAudits > 0 ? Math.round((audits.approved / totalAudits) * 100) : 100;
 
                   const tone =
                     compliancePercent >= 80
@@ -135,6 +344,10 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({ stores, submissi
                           <MapPin className="h-3.5 w-3.5 flex-none text-muted" strokeWidth={1.9} />
                           <span className="truncate">{store.address || store.city}</span>
                         </div>
+                      </td>
+
+                      <td className="text-[11.5px] text-ink-2">
+                        {STORE_FORMAT_LABELS[store.store_format ?? ''] ?? store.store_format ?? '—'}
                       </td>
 
                       <td className="font-bold text-ink">
@@ -168,11 +381,50 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({ stores, submissi
                       </td>
 
                       <td className="text-right">
-                        <span className="st-g st-ok">
-                          <span className="dot" />
-                          Aktiv
-                        </span>
+                        {/* Read from the record. This badge used to be a hardcoded
+                            "Aktiv" for every row, so a deactivated store still
+                            showed as active — the panel was asserting something
+                            it had never checked. */}
+                        {store.is_active ? (
+                          <span className="st-g st-ok">
+                            <span className="dot" />
+                            Aktiv
+                          </span>
+                        ) : (
+                          <span className="st-g st-warn">
+                            <span className="dot" />
+                            Deaktiv
+                          </span>
+                        )}
                       </td>
+
+                      {canEdit && (
+                        <td className="text-right">
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openEdit(store)}
+                              aria-label={`${store.name} — redaktə et`}
+                              className="grid h-7 w-7 place-items-center rounded-md text-ink-2
+                                         transition-colors hover:bg-[var(--g-panel)] hover:text-ink"
+                            >
+                              <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDeleteError(null);
+                                setPendingDelete(store);
+                              }}
+                              aria-label={`${store.name} — sil`}
+                              className="grid h-7 w-7 place-items-center rounded-md text-ink-2
+                                         transition-colors hover:bg-[var(--g-panel)] hover:text-[var(--bad)]"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -189,6 +441,264 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({ stores, submissi
             ? `${filteredStores.length} / ${stores.length} mağaza göstərilir`
             : `${stores.length} mağaza`}
         </p>
+      )}
+
+      {/* ==================================================================== */}
+      {/* YARAT / REDAKTƏ ET MODALI                                             */}
+      {/* ==================================================================== */}
+      {editing !== null && (
+        <ModalPortal>
+          <div className="modal-veil fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4 sm:p-6">
+            <div
+              ref={modalRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label={editing === 'new' ? 'Yeni mağaza yarat' : 'Mağazanı redaktə et'}
+              className="glass-pop my-auto w-full max-w-2xl overflow-hidden rounded-card"
+            >
+              <div className="flex items-center justify-between border-b border-hair bg-[var(--g-panel)] p-5">
+                <div>
+                  <h3 className="text-sm font-extrabold text-ink sm:text-base">
+                    {editing === 'new' ? 'Yeni Mağaza Əlavə Et' : 'Mağaza Məlumatlarını Redaktə Et'}
+                  </h3>
+                  <p className="text-xs text-muted">
+                    Kod və koordinatlar sahə işçisinin fotosunun qəbul olunmasını müəyyən edir
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeForm}
+                  aria-label="Bağla"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--g-panel)] text-ink-2 transition-colors hover:bg-[var(--g-card)]"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-3.5 p-5">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className={labelClass}>Mağaza Kodu *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="BRAVO_YASAMAL_01"
+                      value={form.store_code}
+                      onChange={(e) => set('store_code', e.target.value.toUpperCase())}
+                      className={`${inputClass} font-mono`}
+                    />
+                    <p className="mt-1 text-[10.5px] text-muted">
+                      Boşluq olmaz; böyük hərflərlə yazılır.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Filial Adı *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Bravo Hypermarket - Yasamal"
+                      value={form.name}
+                      onChange={(e) => set('name', e.target.value)}
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Şəbəkə</label>
+                    <input
+                      type="text"
+                      placeholder="Bravo"
+                      value={form.chain_name}
+                      onChange={(e) => set('chain_name', e.target.value)}
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Mağaza Növü</label>
+                    <select
+                      value={form.store_format}
+                      onChange={(e) => set('store_format', e.target.value)}
+                      className={inputClass}
+                    >
+                      {Object.entries(STORE_FORMAT_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className={labelClass}>Ünvan *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Həsən bəy Zərdabi pr. 92, Yasamal"
+                    value={form.address}
+                    onChange={(e) => set('address', e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div>
+                    <label className={labelClass}>Şəhər</label>
+                    <input
+                      type="text"
+                      placeholder="Bakı"
+                      value={form.city}
+                      onChange={(e) => set('city', e.target.value)}
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Enlem (lat) *</label>
+                    <input
+                      type="number"
+                      step="any"
+                      required
+                      placeholder="40.385012"
+                      value={form.latitude}
+                      onChange={(e) => set('latitude', e.target.value)}
+                      className={`${inputClass} font-mono`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Uzunluq (lon) *</label>
+                    <input
+                      type="number"
+                      step="any"
+                      required
+                      placeholder="49.810541"
+                      value={form.longitude}
+                      onChange={(e) => set('longitude', e.target.value)}
+                      className={`${inputClass} font-mono`}
+                    />
+                  </div>
+                </div>
+
+                <p className="rounded-lg border border-hair bg-[var(--g-panel)] px-3 py-2 text-[10.5px] text-muted">
+                  Koordinatı Google Maps-də mağazanın üzərinə sağ klikləyib kopyalayın. Səhv onluq
+                  nöqtə geofence-i söndürür və həmin mağazadan heç bir foto qəbul olunmaz.
+                </p>
+
+                <label className="flex cursor-pointer items-center gap-2.5">
+                  <input
+                    type="checkbox"
+                    checked={form.is_active}
+                    onChange={(e) => set('is_active', e.target.checked)}
+                    className="h-4 w-4 accent-[var(--coke)]"
+                  />
+                  <span className="text-xs font-bold text-ink-2">
+                    Aktiv — sahə işçilərinə göndərilir
+                  </span>
+                </label>
+
+                {formError && (
+                  <p
+                    role="alert"
+                    className="rounded-lg border px-3 py-2 text-[11.5px] font-bold"
+                    style={{
+                      borderColor: 'var(--bad-dot)',
+                      color: 'var(--bad)',
+                      backgroundColor: 'var(--g-panel)',
+                    }}
+                  >
+                    {formError}
+                  </p>
+                )}
+
+                <div className="flex items-center justify-end gap-2.5 border-t border-hair pt-4">
+                  <button type="button" onClick={closeForm} className="btn-g">
+                    Ləğv et
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="rounded-[11px] bg-coke px-4 py-2 text-xs font-extrabold text-white
+                               transition-opacity hover:opacity-90 disabled:opacity-50"
+                  >
+                    {saving ? 'Yazılır…' : editing === 'new' ? 'Mağazanı yarat' : 'Yadda saxla'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+
+      {/* ==================================================================== */}
+      {/* SİLMƏ TƏSDİQİ                                                        */}
+      {/* ==================================================================== */}
+      {pendingDelete && (
+        <ModalPortal>
+          <div className="modal-veil fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4 sm:p-6">
+            <div
+              ref={confirmRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Mağazanı silməyi təsdiqlə"
+              className="glass-pop my-auto w-full max-w-md overflow-hidden rounded-card"
+            >
+              <div className="flex items-start gap-3 p-5">
+                <span
+                  className="grid h-9 w-9 flex-none place-items-center rounded-[11px]"
+                  style={{ backgroundColor: 'var(--g-panel)', color: 'var(--warn)' }}
+                >
+                  <AlertTriangle className="h-4 w-4" strokeWidth={2} />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-[13px] font-extrabold text-ink">
+                    "{pendingDelete.name}" silinsin?
+                  </h3>
+                  <p className="mt-1 text-[11.5px] text-muted">
+                    Mağaza kodu <span className="font-mono">{pendingDelete.store_code}</span>. Bu
+                    əməliyyat geri qaytarılmır.
+                  </p>
+                  <p className="mt-1.5 text-[11.5px] text-muted">
+                    Mağazanın tapşırıqları varsa, silinmə yerinə onu <b>deaktiv</b> etmək düzgün
+                    seçimdir — beləcə tarixçə qalır, yeni iş göndərilmir.
+                  </p>
+
+                  {deleteError && (
+                    <p
+                      role="alert"
+                      className="mt-3 rounded-lg border px-3 py-2 text-[11.5px] font-bold"
+                      style={{
+                        borderColor: 'var(--bad-dot)',
+                        color: 'var(--bad)',
+                        backgroundColor: 'var(--g-panel)',
+                      }}
+                    >
+                      {deleteError}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 border-t border-hair p-4">
+                <button type="button" onClick={closeConfirm} className="btn-g">
+                  Ləğv et
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  disabled={deleting}
+                  className="rounded-[11px] px-4 py-2 text-xs font-extrabold text-white
+                             transition-opacity hover:opacity-90 disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--bad-dot)' }}
+                >
+                  {deleting ? 'Silinir…' : 'Bəli, sil'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
       )}
     </div>
   );

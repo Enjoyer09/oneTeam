@@ -14,6 +14,8 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
+  Delete,
   Param,
   Body,
   HttpCode,
@@ -43,6 +45,35 @@ export class PortalController {
   getStores() {
     const data = this.portalService.getStores();
     return { success: true, data, total: data.length };
+  }
+
+  /**
+   * Store writes.
+   *
+   * These live on `/api/portal/` next to `GET stores` rather than under
+   * `/api/panel/` as the plan first sketched. The reason is that a store is
+   * business data, not panel administration: `/api/panel/*` answers "who am I
+   * and which keys may I hold", and splitting a store's read from its write
+   * across two controllers would put one resource behind two credentials with
+   * two sets of rules. Both prefixes are supervisor routes, so the security
+   * boundary is identical — see `isSupervisorRoute` in auth.guard.ts.
+   */
+  @Post('stores')
+  @HttpCode(HttpStatus.CREATED)
+  async createStore(@Body() body: any, @Request() request: AuthedRequest) {
+    return this.portalService.createStore(body, getPrincipal(request));
+  }
+
+  @Patch('stores/:id')
+  @HttpCode(HttpStatus.OK)
+  async updateStore(@Param('id') id: string, @Body() body: any, @Request() request: AuthedRequest) {
+    return this.portalService.updateStore(id, body, getPrincipal(request));
+  }
+
+  @Delete('stores/:id')
+  @HttpCode(HttpStatus.OK)
+  async deleteStore(@Param('id') id: string, @Request() request: AuthedRequest) {
+    return this.portalService.deleteStore(id, getPrincipal(request));
   }
 
   @Get('tasks')

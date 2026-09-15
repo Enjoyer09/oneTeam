@@ -4,7 +4,7 @@ import { Header } from './components/Header';
 import { DashboardOverview } from './components/DashboardOverview';
 import { AuditReviewCenter } from './components/AuditReviewCenter';
 import { TaskManager } from './components/TaskManager';
-import { StoreDirectory } from './components/StoreDirectory';
+import { StoreDirectory, StoreFormValues } from './components/StoreDirectory';
 import { PanelLogin } from './components/PanelLogin';
 import { PanelKeysModal } from './components/PanelKeysModal';
 import { portalService, PortalApiError } from './lib/portalApi';
@@ -209,6 +209,28 @@ export function App() {
     }
   };
 
+  /**
+   * `runAction`-ın modal içindəki formalar üçün variantı.
+   *
+   * Fərq təkdir: xəta **yenidən atılır**. `runAction` onu toast-a çevirib
+   * udur, bu isə formanın öz içinə ötürür — çünki "bu kod artıq istifadə
+   * olunur" kimi bir səbəb istifadəçinin baxdığı yerin yanında görünməlidir,
+   * 3 saniyə sonra yox olan bir zolaqda yox.
+   */
+  const runFormAction = async (action: () => Promise<unknown>, successMessage: string) => {
+    try {
+      await action();
+    } catch (error) {
+      if (isAuthFailure(error)) {
+        clearStoredKey();
+        await checkAuth();
+      }
+      throw error;
+    }
+    await loadData();
+    if (successMessage) showToast(successMessage);
+  };
+
   /* Escape çekmeceni bağlayır — istifadəçi həmişə çıxış yolu görür */
   useEffect(() => {
     if (!drawerOpen) return;
@@ -258,6 +280,35 @@ export function App() {
       () => portalService.updateSubmissionStatus(id, 'rejected', feedback),
       'İmtina qərarı və təlimat supervayzer tərəfindən qeydə alındı.',
     );
+
+  /**
+   * Mağaza yazma əməliyyatları.
+   *
+   * Koordinatlar formada mətn kimi saxlanılır (boş sahə `''` oxunur, `0` yox),
+   * API-yə isə rəqəm kimi gedir — çevirmə burada, sərhəddə edilir.
+   */
+  const handleCreateStore = (form: StoreFormValues) =>
+    runFormAction(
+      () =>
+        portalService.createStore({
+          store_code: form.store_code,
+          name: form.name,
+          address: form.address,
+          latitude: Number(form.latitude),
+          longitude: Number(form.longitude),
+          city: form.city,
+          chain_name: form.chain_name,
+          store_format: form.store_format,
+          is_active: form.is_active,
+        }),
+      'Yeni mağaza yaradıldı.',
+    );
+
+  const handleUpdateStore = (id: string, changes: Partial<Store>) =>
+    runFormAction(() => portalService.updateStore(id, changes), 'Mağaza məlumatları yeniləndi.');
+
+  const handleDeleteStore = (id: string) =>
+    runFormAction(() => portalService.deleteStore(id), 'Mağaza silindi.');
 
   const handleCreateTask = (taskData: {
     title: string;
@@ -311,6 +362,21 @@ export function App() {
     handleTabChange('tasks');
     setIsCreateModalOpen(true);
   };
+
+  /**
+   * Mağaza/tapşırıq yaratmaq hüququ olan istifadəçi.
+   *
+   * Bu, **yalnız UI** qərarıdır — düymələri göstərmək və ya gizlətmək üçün.
+   * Əsl qapı API-dədir (`STORE_EDIT_FORBIDDEN`, 403), çünki brauzerdəki bir
+   * şərt heç vaxt təhlükəsizlik sərhədi deyil.
+   *
+   * `identity` null ola bilər (şəxsiyyət sorğusu alınmadı). O halda rol
+   * bilinmir, ona görə imtiyazlı əməliyyat **təklif olunmur**: bilinməyəni
+   * "bəlkə admin" kimi oxumaq səhv tərəfə yıxılmaq olardı.
+   */
+  const canEditStores =
+    auth.phase === 'ready' &&
+    (auth.identity?.role === 'ADMIN' || auth.identity?.role === 'SUPERVISOR');
 
   // ---------------------------------------------------------------------------
   // Before the shell
@@ -469,7 +535,14 @@ export function App() {
               )}
 
               {activeTab === 'stores' && (
-                <StoreDirectory stores={stores} submissions={submissions} />
+                <StoreDirectory
+                  stores={stores}
+                  submissions={submissions}
+                  onCreate={handleCreateStore}
+                  onUpdate={handleUpdateStore}
+                  onDelete={handleDeleteStore}
+                  canEdit={canEditStores}
+                />
               )}
             </div>
           </div>

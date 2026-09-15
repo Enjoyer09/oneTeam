@@ -12,7 +12,7 @@ export * from './seed';
 export * from './types';
 import { SEED_DATA } from './seed';
 import { TaskState, UserRole } from '@oneteam/types';
-import type { InMemoryStoreTask, InMemoryEvidence, InMemoryAuditLog } from './types';
+import type { InMemoryStoreTask, InMemoryEvidence, InMemoryAuditLog, InMemoryStore } from './types';
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import * as pg from './postgres';
 import {
@@ -31,7 +31,7 @@ import type { Pool } from 'pg';
 export class EnterpriseDatabase {
   public users = [...SEED_DATA.users];
   public region = { ...SEED_DATA.region };
-  public stores = [...SEED_DATA.stores];
+  public stores: InMemoryStore[] = [...SEED_DATA.stores];
   public campaign = { ...SEED_DATA.campaign };
   public templates = [...SEED_DATA.templates];
   public storeTasks: InMemoryStoreTask[] = [
@@ -604,6 +604,194 @@ export class EnterpriseDatabase {
     if (this.pool)
       this.persist((pool) => pg.insertEvidence(pool, evidence), `evidence ${evidence.id}`);
     return evidence;
+  }
+
+  // -------------------------------------------------------------------------
+  // Stores
+  //
+  // These three are the only way the process's store list changes. Nothing
+  // pushes to `this.stores` directly any more, for the same reason the task and
+  // evidence helpers exist: an in-memory push that never reaches the database
+  // survives until the next restart and then quietly disappears.
+  //
+  // WHY THESE AWAIT, UNLIKE THE TASK AND EVIDENCE HELPERS
+  // -----------------------------------------------------
+  // `createStoreTask` and `createEvidence` fire the write and return, because a
+  // field worker's photo must not be refused for a database hiccup — it is
+  // already captured, and the audit trail is worth more than the round trip.
+  // A store is different in kind: a supervisor types a code, an address and
+  // coordinates, and expects to see the store in the list afterwards. Reporting
+  // "created" for a row that failed to insert produces a store that exists
+  // until the next deploy and then vanishes — the exact failure this project
+  // has paid for more than once. So these go through `enqueue()` and wait, and
+  // a failure is reported as a failure.
+  // -------------------------------------------------------------------------
+
+  /** PostgreSQL's unique-violation code. */
+  private static readonly PG_UNIQUE_VIOLATION = '23505';
+
+  /**
+   * Creates a store.
+   *
+   * The caller supplies the editable fields; the id and the two timestamps are
+   * minted here rather than accepted, so no caller can invent a colliding id or
+   * backdate a store's creation.
+   *
+   * Returns null when the store could not be persisted. The in-memory push is
+   * undone in that case: leaving the store visible in a list it will not
+   * survive is worse than not creating it, because the operator has no way to
+   * tell the difference until the data is gone.
+   */
+  public async createStore(params: {
+    storeCode: string;
+    name: string;
+    regionId?: string;
+    chainName?: string;
+    storeFormat?: InMemoryStore['storeFormat'];
+    address: string;
+    city?: string;
+    latitude: number;
+    longitude: number;
+    isActive?: boolean;
+  }): Promise<{ store?: InMemoryStore; error?: 'DUPLICATE_CODE' | 'NOT_STORED' }> {
+    const now = new Date();
+    const store: InMemoryStore = {
+      id: `str-${now.getTime().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      storeCode: params.storeCode,
+      name: params.name,
+      regionId: params.regionId ?? this.region.id,
+      chainName: params.chainName ?? 'Bravo',
+      storeFormat: params.storeFormat ?? 'supermarket',
+      address: params.address,
+      city: params.city ?? 'Bakı',
+      latitude: params.latitude,
+      longitude: params.longitude,
+      isActive: params.isActive ?? true,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.stores.push(store);
+
+    if (this.pool) {
+      try {
+        await this.enqueue((pool) => pg.insertStore(pool, store), `store ${store.id}`);
+      } catch (error) {
+        this.stores = this.stores.filter((candidate) => candidate.id !== store.id);
+        const code = (error as { code?: string } | null)?.code;
+        if (code === EnterpriseDatabase.PG_UNIQUE_VIOLATION) {
+          return { error: 'DUPLICATE_CODE' };
+        }
+        console.error(
+          `⛔ [oneTeam DB] Could not store the new store ${store.storeCode}: ` +
+            describeError(error),
+        );
+        return { error: 'NOT_STORED' };
+      }
+    }
+
+    return { store };
+  }
+
+  /**
+   * Applies an edit to an existing store.
+   *
+   * Returns the updated row, or null when no store has that id — the caller
+   * turns that into a 404 rather than reporting a successful no-op. Only the
+   * fields present in `changes` are touched, so "deactivate" and "rename" are
+   * the same call.
+   *
+   * The previous values are captured before the edit and restored if the write
+   * fails, so an edit that did not reach the database does not leave the
+   * process showing a change it will lose on restart.
+   */
+  public async updateStore(
+    storeId: string,
+    changes: Partial<
+      Pick<
+        InMemoryStore,
+        | 'storeCode'
+        | 'name'
+        | 'chainName'
+        | 'storeFormat'
+        | 'address'
+        | 'city'
+        | 'latitude'
+        | 'longitude'
+        | 'isActive'
+      >
+    >,
+  ): Promise<{ store?: InMemoryStore; error?: 'NOT_FOUND' | 'DUPLICATE_CODE' | 'NOT_STORED' }> {
+    const store = this.getStore(storeId);
+    if (!store) return { error: 'NOT_FOUND' };
+
+    const before: InMemoryStore = { ...store };
+
+    // Undefined means "not mentioned", which is not the same as "set to
+    // undefined". Spreading the changes directly would let a field the caller
+    // omitted overwrite a real value with nothing.
+    for (const [key, value] of Object.entries(changes)) {
+      if (value !== undefined) (store as any)[key] = value;
+    }
+    store.updatedAt = new Date();
+
+    if (this.pool) {
+      try {
+        await this.enqueue((pool) => pg.updateStoreRow(pool, store), `store ${store.id} edit`);
+      } catch (error) {
+        Object.assign(store, before);
+        const code = (error as { code?: string } | null)?.code;
+        if (code === EnterpriseDatabase.PG_UNIQUE_VIOLATION) {
+          return { error: 'DUPLICATE_CODE' };
+        }
+        console.error(
+          `⛔ [oneTeam DB] Could not save the edit to store ${store.storeCode}: ` +
+            describeError(error),
+        );
+        return { error: 'NOT_STORED' };
+      }
+    }
+
+    return { store };
+  }
+
+  /**
+   * Removes a store.
+   *
+   * Refuses when the store still has tasks, because `store_tasks.store_id` is
+   * `ON DELETE RESTRICT`. The count is returned so the caller can say how many,
+   * and offer deactivation instead of deletion — deleting a store is the wrong
+   * answer for one that has field work against it, and a bare foreign-key error
+   * does not explain that.
+   */
+  public async deleteStore(storeId: string): Promise<{
+    deleted: boolean;
+    reason?: 'NOT_FOUND' | 'HAS_TASKS' | 'NOT_DELETED';
+    tasks?: number;
+  }> {
+    const store = this.getStore(storeId);
+    if (!store) return { deleted: false, reason: 'NOT_FOUND' };
+
+    const taskCount = this.storeTasks.filter((task) => task.storeId === storeId).length;
+    if (taskCount > 0) return { deleted: false, reason: 'HAS_TASKS', tasks: taskCount };
+
+    if (this.pool) {
+      try {
+        await this.enqueue((pool) => pg.deleteStoreRow(pool, storeId), `store ${storeId} delete`);
+      } catch (error) {
+        // The count above is a pre-check and can go stale: a task dispatched
+        // between the two statements trips the RESTRICT here. Reporting that as
+        // "could not delete" rather than "deleted" is the whole point of
+        // awaiting, and the store is left in place to match the database.
+        console.error(
+          `⛔ [oneTeam DB] Could not delete store ${store.storeCode}: ` + describeError(error),
+        );
+        return { deleted: false, reason: 'NOT_DELETED' };
+      }
+    }
+
+    this.stores = this.stores.filter((candidate) => candidate.id !== storeId);
+    return { deleted: true };
   }
 
   /**

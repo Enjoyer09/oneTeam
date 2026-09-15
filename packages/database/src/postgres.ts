@@ -48,13 +48,13 @@
 
 import { Pool } from 'pg';
 import type { TaskState } from '@oneteam/types';
-import type { InMemoryStoreTask, InMemoryEvidence, InMemoryAuditLog } from './types';
+import type { InMemoryStoreTask, InMemoryEvidence, InMemoryAuditLog, InMemoryStore } from './types';
 
 /** Everything the in-memory repository needs to start from real data. */
 export interface HydratedState {
   users: any[];
   region: any;
-  stores: any[];
+  stores: InMemoryStore[];
   campaign: any;
   templates: any[];
   storeTasks: InMemoryStoreTask[];
@@ -409,6 +409,115 @@ export async function insertTemplate(
       template.updatedAt ?? new Date(),
     ],
   );
+}
+
+/**
+ * Inserts a retail point.
+ *
+ * `store_code` carries its own UNIQUE constraint, so a duplicate code raises a
+ * Postgres error rather than quietly creating a second row. That is deliberate
+ * and it is the behaviour the API depends on: the service does not pre-check
+ * the code with a SELECT, because a check-then-insert has a race window between
+ * the two statements, while the constraint has none. The service translates the
+ * resulting error into a readable conflict; it does not try to prevent it.
+ */
+export async function insertStore(pool: Pool, store: InMemoryStore): Promise<void> {
+  await pool.query(
+    `INSERT INTO stores
+       (id, store_code, name, region_id, chain_name, store_format, address, city,
+        latitude, longitude, is_active, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+    [
+      store.id,
+      store.storeCode,
+      store.name,
+      store.regionId,
+      store.chainName,
+      store.storeFormat,
+      store.address,
+      store.city,
+      store.latitude,
+      store.longitude,
+      store.isActive,
+      store.createdAt ?? new Date(),
+      store.updatedAt ?? new Date(),
+    ],
+  );
+}
+
+/**
+ * Writes back the editable columns of a store.
+ *
+ * Every column the panel can change is included, so a single statement covers
+ * both "edit the address" and "deactivate this store". `id` and `created_at`
+ * are not in the SET list: an edit must not be able to move a store's identity
+ * or rewrite when it was created, and leaving them out of the statement is a
+ * stronger guarantee than remembering not to pass them.
+ *
+ * Returns whether a row matched, so the caller can tell "updated" from
+ * "no such store" instead of reporting success for a no-op.
+ */
+export async function updateStoreRow(pool: Pool, store: InMemoryStore): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE stores
+        SET store_code = $2,
+            name = $3,
+            region_id = $4,
+            chain_name = $5,
+            store_format = $6,
+            address = $7,
+            city = $8,
+            latitude = $9,
+            longitude = $10,
+            is_active = $11,
+            updated_at = $12
+      WHERE id = $1`,
+    [
+      store.id,
+      store.storeCode,
+      store.name,
+      store.regionId,
+      store.chainName,
+      store.storeFormat,
+      store.address,
+      store.city,
+      store.latitude,
+      store.longitude,
+      store.isActive,
+      store.updatedAt ?? new Date(),
+    ],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/**
+ * Removes a store.
+ *
+ * `store_tasks.store_id` is `ON DELETE RESTRICT`, so this throws when the store
+ * still has work against it. The service counts the tasks first and refuses
+ * with a readable conflict; this function is the last line of defence for the
+ * race where a task is dispatched between that count and this delete. Returns
+ * whether a row was actually removed.
+ */
+export async function deleteStoreRow(pool: Pool, storeId: string): Promise<boolean> {
+  const result = await pool.query('DELETE FROM stores WHERE id = $1', [storeId]);
+  return (result.rowCount ?? 0) > 0;
+}
+
+/**
+ * How many store tasks point at a store.
+ *
+ * Used to refuse a delete before attempting it, so the operator gets "this
+ * store has 4 tasks" rather than a foreign-key violation. It is a pre-check and
+ * therefore advisory — see `deleteStoreRow` for what happens when the answer
+ * goes stale between the two statements.
+ */
+export async function countStoreTasksForStore(pool: Pool, storeId: string): Promise<number> {
+  const result = await pool.query<{ count: string }>(
+    'SELECT count(*)::text AS count FROM store_tasks WHERE store_id = $1',
+    [storeId],
+  );
+  return Number(result.rows[0]?.count ?? 0);
 }
 
 /**

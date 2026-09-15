@@ -33,7 +33,14 @@ export interface SeedData {
     id: string;
     storeCode: string;
     name: string;
-    regionId?: string;
+    /**
+     * Required, because `stores.region_id` is `NOT NULL REFERENCES regions(id)`
+     * and every seeded store carries one. It was optional here, which let the
+     * seed type drift from the column it feeds — the sort of gap that stays
+     * harmless until the day a store is inserted without one and fails on a
+     * constraint the type said was fine.
+     */
+    regionId: string;
     chainName: string;
     storeFormat: 'hypermarket' | 'supermarket' | 'express' | 'convenience';
     address: string;

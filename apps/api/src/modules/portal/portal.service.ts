@@ -33,10 +33,21 @@
  * has nowhere to record that store A was approved and store B rejected.
  */
 
-import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  HttpException,
+  HttpStatus,
+  Logger,
+  ForbiddenException,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { TaskState, UserRole } from '@oneteam/types';
 import { db, InMemoryEvidence, InMemoryStoreTask } from '@oneteam/database';
-import { AuthenticatedPrincipal } from '../../common/auth/authenticated-principal';
+import {
+  AuthenticatedPrincipal,
+  isPrivilegedPrincipal,
+} from '../../common/auth/authenticated-principal';
 import { TaskStateService } from '../tasks/task-state.service';
 
 /** Panel-side shapes. Mirrors web/src/types/index.ts. */
@@ -252,6 +263,313 @@ export class PortalService {
 
   getStores(): PanelStore[] {
     return db.stores.map((store) => this.toPanelStore(store));
+  }
+
+  // -------------------------------------------------------------------------
+  // Store writes
+  //
+  // Stores are created, edited and deleted in the panel and nowhere else. The
+  // bot and the mobile client read them and never write them: a store code, an
+  // address and a pair of coordinates decide whether a field worker's photo is
+  // accepted, so getting them wrong is not a cosmetic problem. See the plan's
+  // architecture table for why this is a supervisor's job rather than a
+  // field worker's.
+  // -------------------------------------------------------------------------
+
+  /**
+   * The shape both the create and the edit form send.
+   *
+   * Everything is optional on the wire because the edit form sends only what
+   * changed; the create path is what requires the fields, and it says so with
+   * its own messages rather than by making the type narrower.
+   */
+  private static readonly STORE_FORMATS = ['hypermarket', 'supermarket', 'express', 'convenience'];
+
+  /**
+   * The box the pilot operates in.
+   *
+   * This is a typo guard, not a policy: Azerbaijan is roughly 38–42°N and
+   * 44–52°E, and a missing decimal point turns 40.385 into 4.0385 — a valid
+   * coordinate that is four thousand kilometres away and would make the
+   * geofence refuse every photo from that store, with nothing in the panel to
+   * explain why. Widen this if the pilot ever leaves the country.
+   */
+  private static readonly PLAUSIBLE_BOUNDS = {
+    minLatitude: 38,
+    maxLatitude: 43,
+    minLongitude: 44,
+    maxLongitude: 52,
+  };
+
+  /**
+   * Refuses a caller who may not change master data.
+   *
+   * `ADMIN` and `SUPERVISOR` may; `MERCHANDISER` and `STORE_STAFF` may not. The
+   * panel's login key already narrows the caller to one person, so this is the
+   * second boundary rather than the first — and the one that keeps a
+   * merchandiser who is handed a login from redefining their own geofence.
+   */
+  private requireStoreEditor(principal: AuthenticatedPrincipal): void {
+    if (!isPrivilegedPrincipal(principal)) {
+      throw new ForbiddenException({
+        error: 'STORE_EDIT_FORBIDDEN',
+        message: 'Mağaza məlumatlarını yalnız administrator və supervayzer dəyişə bilər.',
+      });
+    }
+  }
+
+  /**
+   * Reads the store fields off a request body, refusing anything unusable.
+   *
+   * Returns only the fields that were actually present, so the same method
+   * serves both "create with everything" and "edit one field".
+   */
+  private readStoreFields(
+    body: Record<string, any>,
+    options: { requireAll: boolean },
+  ): {
+    storeCode?: string;
+    name?: string;
+    chainName?: string;
+    storeFormat?: any;
+    address?: string;
+    city?: string;
+    latitude?: number;
+    longitude?: number;
+    isActive?: boolean;
+  } {
+    const fields: Record<string, any> = {};
+
+    const text = (key: string, label: string): string | undefined => {
+      const raw = body[key];
+      if (raw === undefined || raw === null || String(raw).trim() === '') {
+        if (options.requireAll) {
+          throw new HttpException(`${label} tələb olunur`, HttpStatus.BAD_REQUEST);
+        }
+        return undefined;
+      }
+      return String(raw).trim();
+    };
+
+    const code = text('store_code', 'Mağaza kodu');
+    if (code !== undefined) {
+      // Uppercased rather than accepted as typed: the bot and the mobile client
+      // match a code case-insensitively today, and storing two rows that differ
+      // only in case would make that matching ambiguous.
+      const normalized = code.toUpperCase();
+      if (/\s/.test(normalized)) {
+        throw new HttpException(
+          'Mağaza kodu boşluq ehtiva edə bilməz (məsələn: BRAVO_YASAMAL_01)',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      fields.storeCode = normalized;
+    }
+
+    const name = text('name', 'Mağazanın adı');
+    if (name !== undefined) fields.name = name;
+
+    const address = text('address', 'Ünvan');
+    if (address !== undefined) fields.address = address;
+
+    const city = text('city', 'Şəhər');
+    if (city !== undefined) fields.city = city;
+
+    const chainName = text('chain_name', 'Şəbəkə adı');
+    if (chainName !== undefined) fields.chainName = chainName;
+
+    if (body.store_format !== undefined && body.store_format !== null) {
+      const format = String(body.store_format).trim().toLowerCase();
+      if (!PortalService.STORE_FORMATS.includes(format)) {
+        throw new HttpException(
+          `Mağaza növü bunlardan biri olmalıdır: ${PortalService.STORE_FORMATS.join(', ')}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      fields.storeFormat = format;
+    } else if (options.requireAll) {
+      fields.storeFormat = 'supermarket';
+    }
+
+    // Coordinates are validated as a pair and only when at least one was sent,
+    // because an edit that renames a store must not be refused for omitting
+    // them.
+    const hasLat = body.latitude !== undefined && body.latitude !== null;
+    const hasLon = body.longitude !== undefined && body.longitude !== null;
+
+    if (hasLat || hasLon || options.requireAll) {
+      if (!hasLat || !hasLon) {
+        throw new HttpException('Enlem və uzunluq birlikdə verilməlidir', HttpStatus.BAD_REQUEST);
+      }
+
+      const latitude = Number(body.latitude);
+      const longitude = Number(body.longitude);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        throw new HttpException(
+          'Enlem və uzunluq rəqəm olmalıdır (məsələn: 40.385012)',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+        throw new HttpException(
+          'Enlem -90..90, uzunluq -180..180 aralığında olmalıdır',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const bounds = PortalService.PLAUSIBLE_BOUNDS;
+      const inside =
+        latitude >= bounds.minLatitude &&
+        latitude <= bounds.maxLatitude &&
+        longitude >= bounds.minLongitude &&
+        longitude <= bounds.maxLongitude;
+
+      if (!inside) {
+        throw new HttpException(
+          `Koordinat gözlənilən ərazidən kənardadır (${latitude}, ${longitude}). ` +
+            'Onluq nöqtəni yoxlayın — səhv koordinat geofence-i söndürər.',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      fields.latitude = latitude;
+      fields.longitude = longitude;
+    }
+
+    if (body.is_active !== undefined && body.is_active !== null) {
+      fields.isActive = body.is_active === true || String(body.is_active) === 'true';
+    }
+
+    return fields;
+  }
+
+  /** Creates a store. See `EnterpriseDatabase.createStore` for the write rule. */
+  async createStore(body: Record<string, any>, principal: AuthenticatedPrincipal) {
+    this.requireStoreEditor(principal);
+
+    const fields = this.readStoreFields(body, { requireAll: true });
+
+    const result = await db.createStore({
+      storeCode: fields.storeCode!,
+      name: fields.name!,
+      address: fields.address!,
+      latitude: fields.latitude!,
+      longitude: fields.longitude!,
+      chainName: fields.chainName,
+      storeFormat: fields.storeFormat,
+      city: fields.city,
+      isActive: fields.isActive,
+    });
+
+    if (result.error === 'DUPLICATE_CODE') {
+      throw new ConflictException({
+        error: 'STORE_CODE_TAKEN',
+        message: `"${fields.storeCode}" kodu artıq başqa mağazada istifadə olunur.`,
+      });
+    }
+    if (result.error || !result.store) {
+      throw new HttpException(
+        'Mağaza yaradıla bilmədi — bazaya yazıla bilmədi, heç nə dəyişmədi.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    db.logAuditEvent({
+      entityType: 'store',
+      entityId: result.store.id,
+      action: 'STORE_CREATED',
+      actorId: principal.userId,
+      payload: { storeCode: result.store.storeCode, name: result.store.name },
+    });
+
+    return { success: true, data: this.toPanelStore(result.store) };
+  }
+
+  /** Applies an edit. Only the fields present in the body are touched. */
+  async updateStore(storeId: string, body: Record<string, any>, principal: AuthenticatedPrincipal) {
+    this.requireStoreEditor(principal);
+
+    const fields = this.readStoreFields(body, { requireAll: false });
+
+    if (Object.keys(fields).length === 0) {
+      throw new HttpException('Dəyişdiriləcək heç bir sahə göndərilmədi', HttpStatus.BAD_REQUEST);
+    }
+
+    const result = await db.updateStore(storeId, fields);
+
+    if (result.error === 'NOT_FOUND') {
+      throw new NotFoundException({
+        error: 'STORE_NOT_FOUND',
+        message: 'Bu identifikatorla mağaza tapılmadı.',
+      });
+    }
+    if (result.error === 'DUPLICATE_CODE') {
+      throw new ConflictException({
+        error: 'STORE_CODE_TAKEN',
+        message: `"${fields.storeCode}" kodu artıq başqa mağazada istifadə olunur.`,
+      });
+    }
+    if (result.error || !result.store) {
+      throw new HttpException(
+        'Dəyişiklik yazıla bilmədi — əvvəlki məlumatlar qüvvədə qaldı.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    db.logAuditEvent({
+      entityType: 'store',
+      entityId: storeId,
+      action: 'STORE_UPDATED',
+      actorId: principal.userId,
+      payload: { changed: Object.keys(fields) },
+    });
+
+    return { success: true, data: this.toPanelStore(result.store) };
+  }
+
+  /**
+   * Deletes a store, or explains why it cannot be deleted.
+   *
+   * A store with work against it is refused rather than removed, and the
+   * refusal names the count so the operator can decide between reassigning the
+   * tasks and deactivating the store instead. `409`, not `500`: this is a
+   * conflict with the data, not a fault.
+   */
+  async deleteStore(storeId: string, principal: AuthenticatedPrincipal) {
+    this.requireStoreEditor(principal);
+
+    const result = await db.deleteStore(storeId);
+
+    if (result.reason === 'NOT_FOUND') {
+      throw new NotFoundException({
+        error: 'STORE_NOT_FOUND',
+        message: 'Bu identifikatorla mağaza tapılmadı.',
+      });
+    }
+    if (result.reason === 'HAS_TASKS') {
+      throw new ConflictException({
+        error: 'STORE_HAS_TASKS',
+        message:
+          `Bu mağazanın ${result.tasks} tapşırığı var — silinə bilməz. ` +
+          'Tapşırıqları başqa mağazaya keçirin, ya da mağazanı "deaktiv" edin.',
+        tasks: result.tasks,
+      });
+    }
+    if (result.reason === 'NOT_DELETED') {
+      throw new HttpException(
+        'Mağaza silinə bilmədi — bazadan silinmədi, mağaza yerində qaldı.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    db.logAuditEvent({
+      entityType: 'store',
+      entityId: storeId,
+      action: 'STORE_DELETED',
+      actorId: principal.userId,
+    });
+
+    return { success: true, data: { id: storeId } };
   }
 
   getTasks(): PanelTask[] {

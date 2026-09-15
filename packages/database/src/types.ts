@@ -14,6 +14,43 @@
 
 import type { TaskState } from '@oneteam/types';
 
+/**
+ * A retail point, as the process holds it.
+ *
+ * This type did not exist while stores were read-only seed data — the shape
+ * lived only inside `SeedData.stores`. It has one now because stores became
+ * writable: the panel creates, edits and deletes them, and a write path without
+ * a declared shape is where a typo in a column name survives until someone
+ * wonders why the city is always "Bakı".
+ *
+ * `regionId` is required, matching `stores.region_id NOT NULL REFERENCES
+ * regions(id)`. The process holds exactly one region (`db.region`, singular),
+ * so new stores take that id — but the column is stated here so that adding a
+ * second region is a type error at every construction site rather than a
+ * silent NULL.
+ *
+ * The two timestamps are optional because the seeded stores genuinely have
+ * none: `SeedData.stores` never declared them. Every store that has been
+ * through the write path does have them, so the write path always sets them and
+ * only the read of legacy seed data can find them missing — which is the same
+ * situation `iso()` in the portal service already handles.
+ */
+export interface InMemoryStore {
+  id: string;
+  storeCode: string;
+  name: string;
+  regionId: string;
+  chainName: string;
+  storeFormat: 'hypermarket' | 'supermarket' | 'express' | 'convenience';
+  address: string;
+  city: string;
+  latitude: number;
+  longitude: number;
+  isActive: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 export interface InMemoryStoreTask {
   id: string;
   templateId: string;
