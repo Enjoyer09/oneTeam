@@ -267,9 +267,6 @@ async function main(): Promise<void> {
     return minted.body?.data?.token ?? '';
   };
 
-  let superToken: string;
-  let merchToken: string;
-
   if (!PANEL_KEY) {
     // The panel is open and the credential in hand is the service one, which
     // stops working the moment this call succeeds. It is therefore the last
@@ -288,8 +285,8 @@ async function main(): Promise<void> {
     }
   }
 
-  superToken = await mintFor('usr-super-002', `roles suite — supervisor (${RUN})`);
-  merchToken = await mintFor('usr-merch-003', `roles suite — merchandiser (${RUN})`);
+  const superToken = await mintFor('usr-super-002', `roles suite — supervisor (${RUN})`);
+  const merchToken = await mintFor('usr-merch-003', `roles suite — merchandiser (${RUN})`);
 
   if (!superToken || !merchToken) {
     console.log(
