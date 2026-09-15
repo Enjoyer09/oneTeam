@@ -56,14 +56,79 @@ import {
 } from '../types';
 import { credentialStore } from './credentialStore';
 
+/**
+ * The harness-only variable names, read through an alias.
+ *
+ * Reading `process.env` through a local alias is DELIBERATE here and is the
+ * opposite of what the block below does. Expo/Metro substitutes only
+ * `process.env.EXPO_PUBLIC_*`, written as a direct member expression; everything
+ * else — including every name reached through this alias — survives into the
+ * bundle as a real lookup and evaluates to `undefined` on the device. That is
+ * exactly what these names need, because they are the Node harness's way of
+ * naming itself and must NOT be settable in a shipping build.
+ */
 const env: Record<string, string | undefined> =
   typeof process !== 'undefined' && process.env ? process.env : {};
 
-/** Same variable names the bot uses, so one deployment describes both channels. */
-const API_BASE_URL = (env.ONETEAM_API_URL || env.API_BASE_URL || 'http://localhost:3001').replace(
-  /\/+$/,
-  '',
-);
+/**
+ * The build-time variables Expo actually substitutes.
+ *
+ * WHY THIS ONE IS WRITTEN OUT IN FULL
+ * -----------------------------------
+ * `EXPO_PUBLIC_ONETEAM_API_URL` appears below as a direct member expression
+ * (`process.env.EXPO_PUBLIC_ONETEAM_API_URL`), not through the alias above and
+ * not through a computed key. Metro matches the literal source text, so:
+ *
+ *   - `process.env[name]` is not substituted — the bundler cannot see through a
+ *     variable, the expression survives, and it is `undefined` on the device;
+ *   - the `const env = process.env` alias makes EVERY name look non-public, so
+ *     the address silently fell back to `http://localhost:3001` in a real build.
+ *     Nothing failed. The app simply pointed at a machine that is not there.
+ *
+ * Both were measured in plan item 3.1 and this is the fix. The shape is
+ * fragile — a tidy-looking refactor into a loop would silently undo it — so
+ * `scripts/dev/verify-mobile-config.mjs` asserts that the direct member
+ * expression is still present.
+ *
+ * WHY ONLY THE ADDRESS HAS A PUBLIC NAME
+ * --------------------------------------
+ * `EXPO_PUBLIC_*` values are compiled into the downloadable bundle and can be
+ * extracted from it. The address is not a secret — it is in every request the
+ * app makes. The other three names are:
+ *
+ *   - `ONETEAM_DEVICE_TOKEN` and `ONETEAM_DEVICE_ID` are read below through the
+ *     alias and are the harness's. A device credential that ships inside an IPA
+ *     is worth one installation and extractable; there is no reason to accept
+ *     that, and `credentialStore` exists to keep it in the keychain instead.
+ *   - `ONETEAM_ENROLLMENT_SECRET` is the deployment's second factor. The same
+ *     argument, more so: `credentialStore.enrollmentSecret()` keeps it in the
+ *     keychain precisely so that it is not a string compiled into the binary.
+ *
+ * The config script fails if any of the three ever gains an `EXPO_PUBLIC_` name,
+ * because that would be a quiet way to publish a credential.
+ */
+const PUBLIC_API_URL =
+  typeof process !== 'undefined' && process.env
+    ? process.env.EXPO_PUBLIC_ONETEAM_API_URL
+    : undefined;
+
+/**
+ * Where the API is, resolved in order of who is allowed to say.
+ *
+ * The public build-time name wins: it is the only one that can exist in a real
+ * build, and an operator setting it on a build machine means it. The two harness
+ * names follow, for the same reason they exist at all — `ONETEAM_API_URL` is
+ * what the bot and the test runners already use, so one deployment describes
+ * both channels with one variable. The literal is last and is not a default
+ * anybody should ship: it is what a developer's machine happens to have, and it
+ * is reported as the target on the app's own status screen.
+ */
+const API_BASE_URL = (
+  PUBLIC_API_URL ||
+  env.ONETEAM_API_URL ||
+  env.API_BASE_URL ||
+  'http://localhost:3001'
+).replace(/\/+$/, '');
 
 /**
  * The credential this installation holds, once `restoreCredential()` has run.

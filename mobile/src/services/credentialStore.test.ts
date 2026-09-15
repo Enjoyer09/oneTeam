@@ -338,6 +338,11 @@ async function main() {
   // rule is about the ONE place that clears local state. Calling
   // `clearQueue()` here would prove only that two unrelated modules are
   // unrelated.
+  //
+  // `clearLocalData` became async in 3.3, when the queue moved onto the device:
+  // clearing only the in-memory array would bring every item back next launch,
+  // so the clear has to await the write. The count it returns comes back from
+  // the same call that did the clearing.
   const liveStore = new MemorySecureStore();
   const liveCreds = new CredentialStore(liveStore);
   await liveCreds.saveDeviceToken('otd_live-token');
@@ -365,7 +370,7 @@ async function main() {
     offlineQueueService.getQueue().length === 2,
   );
 
-  const cleared = mobileApp.clearLocalData();
+  const cleared = await mobileApp.clearLocalData();
   check(
     'clearing local data clears the queue — the precondition, asserted separately',
     cleared.queuedItemsCleared === 2 && offlineQueueService.getQueue().length === 0,

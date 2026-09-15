@@ -12,26 +12,29 @@
     "jsx": "react-jsx"
   },
   "include": ["src/**/*"],
-  // WHY ONE FILE IS EXCLUDED
-  // ------------------------
-  // `keychain.ts` is the only file under `src/` that imports a native module
-  // (`expo-secure-store`). The package is declared in `package.json` but is not
-  // installed — the sandbox where this was written refuses a dependency tree of
-  // this size — so the import cannot be resolved and `mobile:check` fails on it.
+  // WHY TWO FILES ARE EXCLUDED, AND WHY THAT LIST MUST NOT GROW
+  // -----------------------------------------------------------
+  // `keychain.ts` and `queueStorage.ts` are the only files under `src/` that
+  // import a native module (`expo-secure-store` and
+  // `@react-native-async-storage/async-storage`). Both packages are declared in
+  // `package.json` but are not installed — the sandbox where this was written
+  // refuses a dependency tree of this size — so the imports cannot be resolved
+  // and `mobile:check` fails on them.
   //
-  // The tempting fix is a hand-written `declare module 'expo-secure-store'`. It
-  // is worse than excluding the file, and it is worth saying why: the shape of
-  // that declaration would come from the same memory as the call sites, so it
-  // could not catch the only thing it would exist to catch — a call into an API
-  // that does not look like that. It would buy a green tick and a new artifact
-  // that has to be deleted later.
+  // The tempting fix is a hand-written `declare module`. It is worse than
+  // excluding the files, and it is worth saying why: the shape of that
+  // declaration would come from the same memory as the call sites, so it could
+  // not catch the only thing it would exist to catch — a call into an API that
+  // does not look like that. It would buy a green tick and a new artifact that
+  // has to be deleted later.
   //
-  // So the exclusion is honest and visible instead. `npm run mobile:config`
-  // guards it: it fails if `keychain.ts` stops importing `expo-secure-store`, if
-  // this exclusion is removed, or if a SECOND file under `src/` starts importing
-  // the same package. That last one is the point — it means the exclusion cannot
-  // quietly grow into "no native file is type-checked".
+  // So the exclusions are honest and visible instead. `npm run mobile:config`
+  // guards them: it fails if either file stops importing its package, if an
+  // exclusion is removed, if an exclusion names a file that no longer exists, or
+  // if a SECOND file under `src/` starts importing either package. That last one
+  // is the point — it means this list cannot quietly grow into "no native file
+  // is type-checked".
   //
-  // Remove this exclusion the moment `cd mobile && npm install` succeeds.
-  "exclude": ["src/services/keychain.ts"]
+  // Remove these exclusions the moment `cd mobile && npm install` succeeds.
+  "exclude": ["src/services/keychain.ts", "src/services/queueStorage.ts"]
 }

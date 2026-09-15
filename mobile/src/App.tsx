@@ -27,6 +27,29 @@ export class MobileAppCoordinator {
   }
 
   /**
+   * Reads the queued audits back off the device.
+   *
+   * MUST run before anything reads the queue. The queue's storage is wired by
+   * the app entry (it is the file that may import a native module), and until
+   * this has run the in-memory queue is not the whole queue — so
+   * `getQueue()` refuses rather than answering with an empty array that would
+   * look identical to "nothing is queued". See `OfflineQueueManager.assertLoaded`.
+   *
+   * Returns what it found, including anything the last launch left in flight, so
+   * the caller can say so instead of the count quietly being wrong.
+   */
+  async initializeQueue() {
+    const report = await offlineQueueService.load();
+    return {
+      pendingCount: offlineQueueService.getPendingCount(),
+      restoredCount: report.restoredCount,
+      interruptedCount: report.interruptedCount,
+      droppedCount: report.droppedCount,
+      corruption: report.corruption,
+    };
+  }
+
+  /**
    * Clears the device's local working data and keeps the credential.
    *
    * The queue is what is being cleared: a captured audit that has not been sent
@@ -34,20 +57,21 @@ export class MobileAppCoordinator {
    * the worker makes ("start over"), and it is recoverable — the photo is still
    * in the camera roll if the phone kept it, and the audit was never filed.
    *
+   * Async because it has to be. Plan item 3.3 put the queue on the device, so a
+   * clear that only emptied the in-memory array would bring every item back on
+   * the next launch — the opposite of starting over. The count comes back from
+   * `clearQueue()`, which is the same call that did the clearing, so a test
+   * cannot be told "two were removed" by something that removed none.
+   *
    * The credential is NOT part of it, and that split is the requirement: losing
    * the credential costs one sign-in, but losing the IDENTITY costs the device
    * its whole audit history and spends the store's new-device allowance. So this
    * method exists to be the one place that clears local state, and to say in code
    * that the keychain is not its business. A future "sign out" button belongs
    * here rather than rolling its own cleanup.
-   *
-   * Returns what it cleared, so a caller — or a test — can tell that it did
-   * something. A cleanup that silently does nothing passes every "and the
-   * credential survived" check for the wrong reason.
    */
-  clearLocalData(): { queuedItemsCleared: number } {
-    const queuedItemsCleared = offlineQueueService.getQueue().length;
-    offlineQueueService.clearQueue();
+  async clearLocalData(): Promise<{ queuedItemsCleared: number }> {
+    const queuedItemsCleared = await offlineQueueService.clearQueue();
     return { queuedItemsCleared };
   }
 

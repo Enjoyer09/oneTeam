@@ -24,7 +24,7 @@
  *
  * WHY THE STARTUP ORDER IS WHAT IT IS
  * -----------------------------------
- * Three steps, and the order matters:
+ * Four steps, and the order matters:
  *
  *   1. Point the credential store at the keychain, if this device has one.
  *      Skipping this leaves the store on its in-memory default, and the app then
@@ -32,15 +32,24 @@
  *      like it works, and each launch spends the store's new-device allowance.
  *   2. Read the identity and the credential back. This is what makes enrolment
  *      automatic on every launch after the first.
- *   3. Only then let anything call the API. `portalApi.deviceId()` throws until
- *      step 2 has run, on purpose: the value it used to fall back to was shared
- *      by every unconfigured installation, and the API allows one live credential
- *      per device id, so those installations used to sign each other out. See
- *      `src/services/credentialStore.ts`.
+ *   3. Point the offline queue at AsyncStorage, if this device has it. Skipping
+ *      this leaves the queue in memory, so a captured audit survives until the
+ *      app is closed and no longer.
+ *   4. Read the queued audits back. Until this has run the queue refuses to be
+ *      read rather than answering with an empty list, because "nothing is
+ *      queued" and "nobody has looked" are the same thing to a caller that only
+ *      sees an empty array.
  *
- * This file is the ONLY place allowed to import `src/services/keychain.ts`. The
- * policy under `src/services/` must stay free of native imports so it can run
- * under Node; that is the whole reason the storage is an interface.
+ * Only then let anything call the API. `portalApi.deviceId()` throws until step
+ * 2 has run, on purpose: the value it used to fall back to was shared by every
+ * unconfigured installation, and the API allows one live credential per device
+ * id, so those installations used to sign each other out. See
+ * `src/services/credentialStore.ts`.
+ *
+ * This file is the ONLY place allowed to import `src/services/keychain.ts` or
+ * `src/services/queueStorage.ts`. The policy under `src/services/` must stay
+ * free of native imports so it can run under Node; that is the whole reason both
+ * storages are interfaces.
  *
  * It is deliberately plain. No brand colour is invented here — a guessed hex
  * would be a claim about the brand that nobody checked.
@@ -66,12 +75,19 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { mobileApp } from './src/App';
 import { credentialStore } from './src/services/credentialStore';
 import { keychainAvailable, keychainStore } from './src/services/keychain';
+import { offlineQueueService } from './src/services/offlineQueue';
+import { asyncStorageQueue, queueStorageAvailable } from './src/services/queueStorage';
 
 /** What the startup sequence learned, or null while it is still running. */
 type Startup = {
   deviceId: string;
   hasCredential: boolean;
   storage: 'keychain' | 'memory';
+  queueStorage: 'device' | 'memory';
+  pendingCount: number;
+  interruptedCount: number;
+  droppedCount: number;
+  corrupted: boolean;
 };
 
 /** One line of the status readout. */
@@ -97,11 +113,23 @@ export function Root() {
 
       const restored = await mobileApp.initializeCredentials();
 
+      // Step 3 and 4. Wired before anything can enqueue: `enqueueSubmission`
+      // awaits the load itself, so an audit captured before this ran cannot
+      // overwrite what is on disk.
+      const queueIsPersistent = await queueStorageAvailable();
+      if (queueIsPersistent) offlineQueueService.useStorage(asyncStorageQueue);
+      const queue = await mobileApp.initializeQueue();
+
       if (!cancelled) {
         setStartup({
           deviceId: restored.deviceId,
           hasCredential: restored.hasToken,
           storage: persistent ? 'keychain' : 'memory',
+          queueStorage: queueIsPersistent ? 'device' : 'memory',
+          pendingCount: queue.pendingCount,
+          interruptedCount: queue.interruptedCount,
+          droppedCount: queue.droppedCount,
+          corrupted: queue.corruption !== null,
         });
       }
     })().catch((error) => {
@@ -141,6 +169,22 @@ export function Root() {
                     : 'Yalnız yaddaş — hər açılışda yenidən qeydiyyat'
                 }
               />
+              <Row
+                label="Gözləyən audit"
+                value={
+                  startup.pendingCount === 0
+                    ? 'yoxdur'
+                    : `${startup.pendingCount} ədəd göndərilməyi gözləyir`
+                }
+              />
+              <Row
+                label="Növbənin saxlandığı yer"
+                value={
+                  startup.queueStorage === 'device'
+                    ? 'Cihazın yaddaşı — tətbiq bağlansa da qalır'
+                    : 'Yalnız yaddaş — tətbiq bağlananda itir'
+                }
+              />
             </View>
 
             <Text style={styles.note}>
@@ -153,6 +197,35 @@ export function Root() {
                 Bu cihazda açar saxlayıcı əlçatan deyil, ona görə identifikator yalnız yaddaşdadır
                 və tətbiq hər açılışda yenidən qeydiyyatdan keçəcək. Bu, tətbiqi sındırmır, amma
                 mağazanın yeni cihaz limitini boş yerə xərcləyir.
+              </Text>
+            ) : null}
+
+            {startup.queueStorage === 'memory' ? (
+              <Text style={styles.warning}>
+                Bu cihazda növbə üçün yaddaş əlçatan deyil. Çəkilmiş, amma göndərilməmiş auditlər
+                tətbiq bağlananda İTİRİLƏCƏK. Bu halda foto çəkməzdən əvvəl şəbəkənin olduğuna əmin
+                olun.
+              </Text>
+            ) : null}
+
+            {startup.interruptedCount > 0 ? (
+              <Text style={styles.warning}>
+                {startup.interruptedCount} audit göndərilmə əsnasında yarımçıq qalıb. Onlar artıq
+                qeydə alınmış ola bilər, ona görə avtomatik təkrar cəhd dayandırıldı — yoxlamadan
+                təkrar göndərməyin.
+              </Text>
+            ) : null}
+
+            {startup.corrupted ? (
+              <Text style={styles.failure}>
+                Növbə faylı oxuna bilmədi. İçindəki auditlər bərpa oluna bilməz. Bu, adətən yaddaşın
+                zədələnməsi deməkdir.
+              </Text>
+            ) : null}
+
+            {startup.droppedCount > 0 ? (
+              <Text style={styles.warning}>
+                {startup.droppedCount} qeyd zədəli olduğu üçün növbədən çıxarıldı.
               </Text>
             ) : null}
           </>

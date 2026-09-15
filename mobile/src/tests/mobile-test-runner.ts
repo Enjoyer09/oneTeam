@@ -343,6 +343,25 @@ async function runMobileTests() {
   // --------------------------------------------------------------------------
   logStep(3, 'Offline In-Store Queue & Honest Sync Failure');
 
+  // The drain below is driven through RECONNECTION, not by calling
+  // `processQueue` by hand. That distinction is the whole point of this rewrite:
+  // `triggerAutoSync` used to be an empty method, and the old version of this
+  // suite called `processQueue` itself — so it passed against a reconnection
+  // path that did nothing at all. It was asserting on the neighbour of the
+  // thing it claimed to test.
+  //
+  // The handler is registered HERE rather than left to the history screen,
+  // because this tier is read-only: the real handler acknowledges the task
+  // before uploading, and acknowledging is a write. This one fails exactly the
+  // way the real one would when it has no image bytes, and says so.
+  offlineQueueService.setUploadHandler(async (item) => {
+    const { photoUrl } = await mobileApi.uploadPhoto({
+      base64: item.photo_base64,
+      fileName: `audits/${item.store_id}/${item.task_id}_${Date.now()}.jpg`,
+    });
+    return { photoUrl, submissionId: 'never-reached' };
+  });
+
   offlineQueueService.setOnlineStatus(false);
   logInfo('Network status changed: OFFLINE (Basement retail store)');
 
@@ -366,14 +385,20 @@ async function runMobileTests() {
   // must FAIL and say why, rather than filing a placeholder image as though it
   // were the audit the worker took. This is the assertion that keeps that from
   // regressing.
-  const syncResult = await offlineQueueService.processQueue(async (item) => {
-    const { photoUrl } = await mobileApi.uploadPhoto({
-      base64: item.photo_base64,
-      fileName: `audits/${item.store_id}/${item.task_id}_${Date.now()}.jpg`,
-    });
-    return { photoUrl, submissionId: 'never-reached' };
-  });
+  const syncResult = await offlineQueueService.autoSync;
 
+  if (!syncResult) {
+    throw new Error(
+      'Reconnection did not start a drain. `triggerAutoSync` is not wired to `setOnlineStatus`, ' +
+        'so a worker coming out of a basement would keep their audits in the queue forever.',
+    );
+  }
+  if (syncResult.reason !== 'drained') {
+    throw new Error(
+      `Expected reconnection to attempt an upload, got reason "${syncResult.reason}" — ` +
+        'nothing was tried, so nothing was proven.',
+    );
+  }
   if (syncResult.syncedCount !== 0 || syncResult.failedCount !== 1) {
     throw new Error(
       `Expected the queueless sync to fail (0 synced / 1 failed), got ` +
@@ -392,7 +417,7 @@ async function runMobileTests() {
   }
   logPass(`Sync refused to invent an image: "${failedItem.error_message}"`);
 
-  offlineQueueService.clearQueue();
+  await offlineQueueService.clearQueue();
 
   // --------------------------------------------------------------------------
   // SUITE 4: Real reads against the API

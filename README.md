@@ -289,8 +289,10 @@ An iOS-ready mobile field application designed for Coca-Cola in-store merchandis
 
 4. **In-Store Offline Queue & Background Sync**:
    - Resilient offline capability for basement supermarkets with zero cellular connectivity.
-   - Submissions are queued securely in local storage.
-   - Automatically detects network reconnection and triggers background uploads to Supabase Storage (`shelf-images`) and database inserts.
+   - Submissions are queued on the device in `AsyncStorage`, written before the capture is reported as saved, and read back on the next launch.
+   - Reconnection drains the queue automatically, in order, one audit at a time, using the same acknowledgement-then-upload path a manual sync uses.
+   - The queue holds 50 MB. A new audit that would exceed that is **refused with a message**, never silently swapped in for an older one — the oldest item is somebody's work.
+   - Two things it does **not** do, stated here because this section used to claim otherwise: there is no background retry timer (retries follow a reconnection, or a worker pressing sync), and `AsyncStorage` is not encrypted — a queued audit is protected by the iOS app sandbox, not by a key. See `mobile/src/services/queueStorage.ts`.
 
 5. **iOS Native Configuration**:
    - [`mobile/app.json`](./mobile/app.json) is the single source of truth: bundle identifier, icon, splash, the three Expo config plugins (`expo-camera`, `expo-location`, `expo-secure-store`) and the Azerbaijani privacy strings (`NSCameraUsageDescription`, `NSLocationWhenInUseUsageDescription`).
@@ -318,7 +320,31 @@ npm run web:test
 
 # 3. iOS Mobile Field Client (Geofence, Camera, Offline Queue)
 npm run mobile:test
+
+# 4. Device credential policy (identity minted once, survives a restart)
+npm run test:credentials
+
+# 5. Offline queue policy (durability, the 50 MB limit, reconnection drain)
+npm run test:queue
 ```
+
+### Prove the suites actually guard what they claim:
+
+```bash
+npm run test:break
+```
+
+This is not a test suite — it is the tool that decides whether the suites are
+evidence. It deliberately reintroduces each defect the queue suite claims to catch,
+one at a time, and checks that **the matching check** goes red. A case counts only
+if the patch landed **and** the target reached its summary line; a patch that
+silently failed to apply, or a target killed by a syntax error, is reported as
+**not evidence** rather than as a pass. It restores every file afterwards and
+re-runs both suites to prove the restore was clean, then exits non-zero if any
+break failed to redden its own check.
+
+It is kept out of `npm run quality` on purpose: it **writes to source files**, so it
+is a deliberate, supervised action, not something a build step should trigger.
 
 ---
 
@@ -381,8 +407,13 @@ oneTeam/
 │       ├── types/index.ts                            # Mobile interfaces & geofence types
 │       ├── utils/geofence.ts                         # Haversine distance & 100m geofence validator
 │       ├── services/
-│       │   ├── offlineQueue.ts                       # In-store offline queue & background sync
-│       │   └── supabaseMobile.ts                     # Mobile Supabase client & storage
+│       │   ├── portalApi.ts                          # Core API data layer (device-credentialled)
+│       │   ├── credentialStore.ts                    # Identity + credential policy (storage is a seam)
+│       │   ├── keychain.ts                           # The iOS keychain, as that seam (native import)
+│       │   ├── offlineQueue.ts                       # Offline queue policy (storage is a seam)
+│       │   ├── queueStorage.ts                       # AsyncStorage, as that seam (native import)
+│       │   ├── credentialStore.test.ts               # 37 checks over the credential policy
+│       │   └── offlineQueue.test.ts                  # 83 checks over the queue policy
 │       ├── components/
 │       │   └── SmartCameraOverlay.tsx                # Ghost overlay & live camera capture
 │       ├── screens/

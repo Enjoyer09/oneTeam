@@ -19,11 +19,16 @@
  *   - the icon is square and has no alpha channel, and the splash mark is
  *     square, because iOS rejects an app icon that is either;
  *   - the permission strings that iOS shows to the user are non-empty;
- *   - the one file excluded from `mobile/tsconfig.json` is the only file that
- *     needs to be, so the exclusion cannot quietly widen;
- *   - the app entry still wires the keychain into the credential store and still
- *     restores the credential at startup — two things nothing else would notice,
- *     because the entry is outside the type-check.
+ *   - every file excluded from `mobile/tsconfig.json` is one that has to be, that
+ *     it still exists, and that it is the ONLY file importing the native package
+ *     it is excluded for — so the exclusion cannot quietly widen;
+ *   - the build-time variables Expo actually substitutes are read the only way
+ *     Metro substitutes them (a direct `process.env.EXPO_PUBLIC_*` member
+ *     expression), and that no credential has been given a public name;
+ *   - the app entry still wires the keychain into the credential store, wires
+ *     AsyncStorage into the offline queue, and restores both at startup — four
+ *     things nothing else would notice, because the entry is outside the
+ *     type-check.
  *
  * It is a substitute for the parts it can reach, not for the whole thing. It
  * cannot tell you that prebuild succeeds; it tells you that nothing obvious in
@@ -99,6 +104,31 @@ function listFiles(dir) {
     else found.push(full);
   }
   return found;
+}
+
+/**
+ * Drops comment-only lines, so a scan looks at code rather than prose.
+ *
+ * Needed because the modules here EXPLAIN the failure they guard against — the
+ * header of `portalApi.ts` names `process.env[name]` while saying why it must not
+ * be used, and a raw text scan counted that sentence as a violation. The first
+ * run of this check failed on its own documentation, which is the same mistake
+ * the break-detector harness made in plan item 3.2: a marker satisfied by a
+ * comment proves nothing about the code.
+ *
+ * Whole-line only: a JSDoc block's every line begins with `*`, and a `//`
+ * comment begins with `//`. A TRAILING comment on a line of code is still
+ * scanned, which is the safe direction — it can produce a loud false failure,
+ * never a silent pass.
+ */
+function codeLines(text) {
+  return text
+    .split('\n')
+    .filter((line) => {
+      const trimmed = line.trim();
+      return !(trimmed.startsWith('*') || trimmed.startsWith('//') || trimmed.startsWith('/*'));
+    })
+    .join('\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -213,46 +243,143 @@ if (typeof pkg.main === 'string') {
 // ---------------------------------------------------------------------------
 // What the type-check actually sees.
 //
-// `keychain.ts` is excluded from `mobile/tsconfig.json`, because it imports
-// `expo-secure-store` and the package cannot be installed here. An exclusion is
-// only honest while it covers exactly the files it claims to and no more, and
-// nothing else in the repo would notice if that stopped being true — a second
-// file importing the same package would simply be reported as a missing module
-// by `mobile:check`, which reads like an install problem rather than a scope
-// problem. These checks make the exclusion say what it means.
+// Two files are excluded from `mobile/tsconfig.json`, each because it imports a
+// native package that cannot be installed here. An exclusion is only honest
+// while it covers exactly the files it claims to and no more, and nothing else
+// in the repo would notice if that stopped being true — a second file importing
+// the same package would simply be reported as a missing module by
+// `mobile:check`, which reads like an install problem rather than a scope
+// problem. These checks make each exclusion say what it means.
 // ---------------------------------------------------------------------------
 console.log('\nType-check coverage');
+
+/**
+ * Each excluded file, and the native package it is the sole importer of.
+ *
+ * Adding a row here without adding the exclusion to `tsconfig.json` fails the
+ * check below, which is the point: the list of exceptions is written down twice
+ * on purpose, so neither copy can grow unnoticed.
+ */
+const NATIVE_IMPORTS = [
+  { package: 'expo-secure-store', file: 'src/services/keychain.ts' },
+  { package: '@react-native-async-storage/async-storage', file: 'src/services/queueStorage.ts' },
+];
+
 const tsconfigPath = join(MOBILE, 'tsconfig.json');
 check('mobile/tsconfig.json exists', existsSync(tsconfigPath));
 if (existsSync(tsconfigPath)) {
   const tsconfig = readTsconfig(tsconfigPath);
   const excluded = tsconfig.exclude ?? [];
-  check(
-    'keychain.ts is excluded from the type-check (expo-secure-store is not installed)',
-    excluded.includes('src/services/keychain.ts'),
-    excluded.join(', ') || '<nothing excluded>',
+  const sourceFiles = listFiles(join(MOBILE, 'src')).map((file) =>
+    relative(MOBILE, file).split(sep).join('/'),
   );
 
-  const nativeImporters = listFiles(join(MOBILE, 'src'))
-    .filter((file) => /from\s+['"]expo-secure-store['"]/.test(readFileSync(file, 'utf8')))
-    .map((file) => relative(MOBILE, file).split(sep).join('/'));
+  for (const { package: packageName, file } of NATIVE_IMPORTS) {
+    check(
+      `${file} is excluded from the type-check (${packageName} is not installed)`,
+      excluded.includes(file),
+      excluded.join(', ') || '<nothing excluded>',
+    );
 
+    check(
+      `the excluded file ${file} still exists`,
+      existsSync(join(MOBILE, file)),
+      'an exclusion naming a file that is gone is a stale claim, not a narrower scope',
+    );
+
+    // Matched on the IMPORT STATEMENT, not on the bare name: both headers
+    // discuss their own package in prose, and a substring search would count a
+    // comment as an importer.
+    const importers = sourceFiles.filter((relativePath) =>
+      new RegExp(`from\\s+['"]${packageName}['"]`).test(
+        readFileSync(join(MOBILE, relativePath), 'utf8'),
+      ),
+    );
+
+    check(
+      `exactly one file under src/ imports ${packageName}, and it is ${file}`,
+      importers.length === 1 && importers[0] === file,
+      importers.join(', ') || '<no file imports it — remove the exclusion>',
+    );
+  }
+
+  const stale = excluded.filter((entry) => !sourceFiles.includes(entry));
   check(
-    'exactly one file under src/ imports expo-secure-store, and it is the excluded one',
-    nativeImporters.length === 1 && nativeImporters[0] === 'src/services/keychain.ts',
-    nativeImporters.join(', ') || '<no file imports it — remove the exclusion>',
+    'every exclusion names a file that still exists',
+    stale.length === 0,
+    stale.join(', ') || `${excluded.length} exclusion(s), all present`,
   );
 }
 
 // ---------------------------------------------------------------------------
+// The build-time variables.
+//
+// Expo/Metro substitutes `process.env.EXPO_PUBLIC_*` and nothing else, and it
+// does so by matching the LITERAL SOURCE TEXT of a direct member expression.
+// Two failure modes follow, both measured in plan item 3.1:
+//
+//   - `process.env[name]` and reads through a `const env = process.env` alias
+//     are not substituted, so the value is `undefined` on the device and the API
+//     address falls back to `http://localhost:3001` — silently;
+//   - anything given an `EXPO_PUBLIC_` name is compiled into the downloadable
+//     bundle and can be extracted from it.
+//
+// Neither shows up as a test failure or a build error. So both are asserted.
+// ---------------------------------------------------------------------------
+console.log('\nBuild-time variables');
+
+const variableScanTargets = [
+  ...listFiles(join(MOBILE, 'src')),
+  join(MOBILE, 'Root.tsx'),
+  join(MOBILE, 'index.ts'),
+].filter((file) => existsSync(file));
+
+const publicNames = new Set();
+const computedKeyUsers = [];
+for (const file of variableScanTargets) {
+  const code = codeLines(readFileSync(file, 'utf8'));
+  for (const match of code.matchAll(/process\.env\.(EXPO_PUBLIC_[A-Z0-9_]+)/g)) {
+    publicNames.add(match[1]);
+  }
+  if (/process\.env\[/.test(code)) {
+    computedKeyUsers.push(relative(MOBILE, file).split(sep).join('/'));
+  }
+}
+
+check(
+  'the API address is read as a direct process.env.EXPO_PUBLIC_ONETEAM_API_URL member expression',
+  publicNames.has('EXPO_PUBLIC_ONETEAM_API_URL'),
+  'without the direct expression Metro does not substitute it and the address falls back to localhost',
+);
+
+check(
+  'no computed process.env[key] access is used for a build-time variable',
+  computedKeyUsers.length === 0,
+  computedKeyUsers.join(', ') || 'none',
+);
+
+// The allow-list is exactly one entry, and it is not a credential. A device
+// token or the enrolment secret given a public name would ship inside the IPA.
+const allowedPublicNames = new Set(['EXPO_PUBLIC_ONETEAM_API_URL']);
+const forbidden = [...publicNames].filter((name) => !allowedPublicNames.has(name));
+check(
+  'no credential has a public (EXPO_PUBLIC_) name',
+  forbidden.length === 0,
+  forbidden.length > 0
+    ? `these would be compiled into the bundle: ${forbidden.join(', ')}`
+    : [...publicNames].join(', '),
+);
+
+// ---------------------------------------------------------------------------
 // The startup wiring.
 //
-// `mobile/Root.tsx` is outside the type-check for the same reason `keychain.ts`
-// is — it imports `react-native` — so nothing else in this repo would notice if
-// the keychain stopped being connected to the credential store. The failure that
-// would cause is quiet and expensive: the store falls back to its in-memory
-// default, the app still works, and it re-enrols on every launch, spending the
-// store's new-device allowance each time. So the wiring is asserted here.
+// `mobile/Root.tsx` is outside the type-check for the same reason the two
+// excluded service files are — it imports `react-native` — so nothing else in
+// this repo would notice if either storage stopped being connected. Both
+// failures are quiet and expensive: the credential store falls back to memory
+// and spends the store's new-device allowance on every launch, and the queue
+// falls back to memory so a captured audit dies with the app. So both wirings
+// are asserted.
 // ---------------------------------------------------------------------------
 console.log('\nStartup wiring');
 const rootPath = join(MOBILE, 'Root.tsx');
@@ -268,6 +395,16 @@ if (existsSync(rootPath)) {
     'Root.tsx restores the credential before anything can call the API',
     /initializeCredentials\(\)/.test(root),
     'without this deviceId() throws and every API call fails',
+  );
+  check(
+    'Root.tsx points the offline queue at AsyncStorage',
+    /offlineQueueService\.useStorage\(\s*asyncStorageQueue\s*\)/.test(root),
+    'without this the queue stays memory-only and a captured audit dies with the app',
+  );
+  check(
+    'Root.tsx reads the queue back before anything can enqueue',
+    /initializeQueue\(\)/.test(root),
+    'without this getQueue() refuses, and an enqueue could overwrite what is on disk',
   );
 }
 
