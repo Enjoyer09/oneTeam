@@ -870,6 +870,17 @@ ios` hələ də icra olunmayıb (3.1-dəki üç əmr gözləyir).
 | **Cihaz açarını ləğv edən route YOXDUR**                                                                              | **3.2-də koda baxıb təsdiqləndi.** `panel-auth.controller.ts`-dəki `keys/:prefix/revoke` və `users/:userId/revoke-keys` **panel** açarları üçündür. Cihaz kredensialını ələ keçirməyin iki yolu var, ikisi də baha: cihaz **özü** yenidən qeydiyyatdan keçməlidir (**telefon lazımdır**), ya da istifadəçi silinməlidir — audit təqdim etmiş merçendayzer üçün **`409 USER_HAS_SUBMISSIONS`** bloklayır. Nəticə: **itirilmiş telefon paneldən kəsilə bilmir**                                                                                                                                   | `POST /api/panel/devices/:deviceId/revoke` (və ya `users/:id/devices`) — supervayzer rol qapısı ilə. **Bu, 3.2-nin qəbulunu məhdudlaşdıran yeganə API boşluğudur**                                                           |
 | **Açar saxlayıcı uninstall-da təmizlənmir**                                                                           | **3.2-də qərar verildi.** iOS-da açar saxlayıcı app bundle-ına bağlı deyil, ona görə silinib yenidən qurulan tətbiq **qeydiyyatlı qalır** — bu, planın tələbidir ("silinmədə `deviceToken` qalır"), amma **ötürülən telefon əvvəlki işçinin identifikasiyasını daşıyır**                                                                                                                                                                                                                                                                                                                        | Yuxarıdaki revoke route-u bunun qarşılığıdır. O gələnə qədər **əl ilə müdaxilə yoxdur**                                                                                                                                      |
 
+| ~~**Sirr skanı öz yalançı siqnalı ilə borunu bağlamışdı**~~ | Addımın adı **"Scan entire history for committed credentials"** idi və `fetch-depth: 0` tələb edirdi — **hər iki iddia yalan**: skaner `git ls-files` oxuyur, yəni **bu commit-dəki izlənən faylları**, tarix rejimi isə **ümumiyyətlə yoxdur**. Üstəlik skaner öz **test korpusunu** tapırdı, yəni özünü qırmızı edirdi | **Həll olundu** (`35d0a02` + `a113d8c`) — addımın adı düzəldildi (_"Scan tracked files"_); tarix skanı **qəsdən yoxdur** və bu, faylda **adı ilə** yazılıb (`git log -p --all` ilə əl ilə yoxlanılır); skanerin öz test korpusu istisna edildi |
+| ~~`mobile` tip yoxlaması **gitignored** artefaktdan asılı idi~~ | `@oneteam/types` gitignored `packages/*/dist/`-dən oxunurdu → `mobile:check` **yalnız laptopda** yaşıl, təmiz klonda qırmızı. **Bu, sinfin 1-ci təkrarıdır** | **Həll olundu** (`5793fb7`) — yoxlama reponun izlədiyi mənbədən oxuyur |
+| ~~**CI heç vaxt keçməmişdi**~~ | `gh run list` → **50 uğursuz, 1 ləğv, 0 uğurlu**. Hər push **5-ci addımda** (sirr skanı) ölürdü; GitHub qalan addımları **`-` (atlanmış)** kimi göstərirdi — ona görə borc **görünməz** idi: `type-check`, `lint`, `format:check`, `test:all` və `web:build` **heç vaxt icra olunmamışdı**. Addımlar bir-bir açıldı və **hər biri öz qüsuru ilə**: run `34980023173` → **Lint X** (228 xəta), `format:check` yenə atlandı; run `34983128531` → **Verify ilk dəfə ✓ (1m0s)**, amma **Build X** + **Test X** — o iki iş **ilk dəfə** işləyirdi. §5 cədvəlinin 3-cü sətri (`xcodebuild test` CI → green) buna görə mümkün deyildi | **Həll olundu** (`6a4d007` + `c9bef8f` + `4114782` + `a6349ac`) — run `34983792832`: **Verify 55s ✓ · Test 17s ✓ · Build 36s ✓**, tarixdə ilk dəfə |
+| **`web/` npm workspace üzvü deyil** | `workspaces` yalnız `apps/*` və `packages/*` sadalayır → CI `web/node_modules`-u **heç vaxt quraşdırmır**, ona görə portalın istehsalat bundle-ı **yalnız laptopda** qurulurdu. Eyni sinif: _reponun izləmədiyi artefaktdan asılı yoxlama_ — `mobile`-in gitignored `dist/`-i ilə **eyni xəta**; bu, həmin sinfin **3-cü** təkrarıdır | CI-in `Build` işinə açıq `cd web && npm ci` addımı əlavə olundu. **Qərar gözləyir:** `web` workspace üzvü edilsin? (tək kök lockfile, `web/package-lock.json` silinir) — bu, asılılıq idarəsi qərarıdır, CI düzəlişi deyil |
+| ~~`scripts/**/*.cjs` ESLint konfiqurasiyasında yox idi~~ | **Bir glob-un əskikliyi 124 xəta verdi** (120 `no-undef` + 4 `no-require-imports`), hamısı `scripts/live-*.cjs` zondlarında. `process`, `console`, `fetch`, `setTimeout`, `module` "təyin olunmamış" oxunurdu; eyni yoxlama CommonJS faylında `require()`-i **qadağan idxal** adlandırırdı — yəni `require`-in **modul sistemi olduğu yerdə** | **Həll olundu** — `scripts/**/*.cjs` globu + `@typescript-eslint/no-require-imports: off`; səbəb konfiqurasiyanın özündə yazılıb |
+| ~~**5 fayl heç bir tsconfig-də deyildi**~~ | `mobile/Root.tsx`, `mobile/index.ts`, `mobile/src/services/keychain.ts`, `mobile/src/services/queueStorage.ts`, `web/vite.config.ts`. typescript-eslint onları **lint edə bilmirdi** və bunu `Parsing error: … was not found by the project service` kimi verirdi — bu **XƏTADIR**, sükutla ötürmə deyil | **Həll olundu** — `projectService.allowDefaultProject` (5 qlob; `**` icazəli deyil, default limit 8 fayl). **Qiyməti açıq yazılıb:** bu fayllar yalnız **sintaksis** qaydaları ilə yoxlanılır — tip-ə baxan qaydalar **atlanır** |
+| ~~`no-return-await` **ESLint nüvə qaydası** idi~~ | ESLint 8.46-da **köhnəlmiş**; `try` blokundakı `return await`-i işarələyirdi — halbuki `catch`-in işə düşməsi üçün `await` **məhz orada lazımdır**, yəni məsləhəti **ən vacib halda yanlış** idi | **Həll olundu** — `@typescript-eslint/return-await` (`in-try-catch`) ilə əvəz olundu. 18 yerin hamısı yenə bildirildi və hamısı **koddan** düzəldildi |
+| **`npm run lint` yerli maşında işlədilə BİLMİR** | `node_modules/eslint` **yoxdur** — baxmayaraq ki `eslint@^10.10.0` `package.json`-da elan olunub və lock-da var; `node_modules/globals` da yoxdur. Ona görə **228 düzəlişin heç biri yerli lint ilə yoxlanılmadı** — hər biri qaydaların rəsmi sənədi və bildirilən sətirlər oxunaraq hazırlandı. **CI ilk real yoxlama oldu** və 2 xəta tapdı (`prefer-const` — **öz düzəlişimin yaratdığı**) | `sudo chown -R $(whoami) ~/.npm` → təmiz `npm install` (ya da lockfile bərpası). **Açıq** — növbəti lint dəyişikliyi də **yalnız CI ilə** yoxlana bilər |
+| ~~`test:ai`-nin worker yoxlamaları reponun izləmədiyi artefaktlardan asılı idi~~ | Gitignored `.venv` (`.gitignore:74`) və **izlənməyən** model çəkisi. Yəni 3 yoxlama CI-da **heç vaxt keçə bilməzdi** → boru **daimi qırmızı** olardı, sonra isə heç kim oxumazdı. CI faylının öz sözü ilə: _"öz gücünü şişirdən təhlükəsizlik nəzarəti dar nəzarətdən pisdir, çünki adamlar baxmağı dayandırır"_ | **Həll olundu** — **dar və təkistiqamətli** `skip`: yalnız `worker-unavailable` (Python mühiti **ümumiyyətlə yoxdur**) halında atlanır və **ucadan** çap olunur. Worker varsa və çökürsə, boş siyahı qaytarırsa, ya büdcəni aşırsa — **yenə QIRMIZI**. İki hal da ölçüldü: `.venv` ilə 19/19 exit 0; `.venv` kənara çəkildikdə **16/19 keçdi, 3 SKIPPED, exit 0** |
+| **`yolov8n.pt` repoda izlənmir və CI `.venv` qurmur** | `git ls-files --error-unmatch yolov8n.pt` → _did not match any file(s) known to git_; model çəkisi **yalnız bu laptopdadır** (§1 onu "faylı mövcuddur" kimi göstərir). CI-da isə Python mühiti yoxdur, ona görə 3 yoxlama `worker-unavailable` yolundan **atlanır** — dürüst, amma YOLO zənciri CI-da **sübut olunmur** | Qərar: fayl repoya salınsın (Git LFS, ~6 MB) və CI `.venv` qursun (hər push-da torch endirməsi — ya **keşlənmiş** venv), yoxsa ikisi də **məlum məhdudiyyət** kimi sənədləşsin. **Qərar gözləyir (bahaI)** |
+
 ---
 
 ## 5. Qəbul meyarı cədvəli (Definition of Done — hər mərhələ üçün)
@@ -881,6 +892,18 @@ ios` hələ də icra olunmayıb (3.1-dəki üç əmr gözləyir).
 | 3       | `xcodebuild test` CI → green                                   | Real iPhone-da Login → Enroll → Photo → Submit         | ⏳                      |
 | 4       | 100 test şəkli → AI worker → JSON valid + `fallback` rate < 5% | 10 şəkil → paneldə skor + anomaliya görünür            | ⏳                      |
 | 5       | `k6` load test nightly → green                                 | Demo video + executive summary                         | ⏳                      |
+
+**Ümumi önşərt — CI artıq işləyir.** `.github/workflows/ci.yml` üç işlə (`Verify`, `Test`, `Build`)
+qurulub və **15 sentyabr 2026-da tarixdə ilk dəfə üçü də yaşıl oldu** (run `34983792832`). O vaxta
+qədər hər push **5-ci addımda** (sirr skanı) ölürdü — yəni bu cədvəlin "Avtomatik yoxlama" sütununun
+arxasında **heç bir yoxlama yox idi**: `type-check`, `lint`, `format:check`, `test:all` və `web:build`
+heç vaxt icra olunmamışdı. İlk icra olunduqda **dörd fərqli səbəbdən 228 lint xətası** və **iki heç
+vaxt işləməmiş iş** üzə çıxdı (səbəblər və düzəlişlər §4-də).
+
+Buna görə **3-cü sətrin "CI → green" yarısı artıq şərt deyil** — boru işləyir. Qalan hissə
+**`xcodebuild test`**-dir və o, `npx expo prebuild --platform ios` icra olunmadan **mövcud deyil**,
+çünki `mobile/` altında Xcode layihəsi yoxdur. Yəni 3-cü sətrin qalan şərti **3.1-in üç Terminal
+əmrindən** asılıdır, CI-dan yox.
 
 ---
 
@@ -921,11 +944,21 @@ Onda `required` yenidən `false` olur və panel URL-i bilən hər kəsə **açı
 
 ---
 
-_Plan versiyası: 0.6 — 15 sentyabr 2026 — TƏSDİQLƏNİB, icra davam edir. 3.1 🔶: config hazırdır və
-yoxlanıldı, `expo prebuild` agent mühitində bloklandığı üçün bahaI-nin Terminalında icra olunmalıdır.
-3.2 🔶: açarın saxlanması qatı yazıldı və 37 yoxlama + 13 pozma ilə sübut olundu; **kamera yarısı və
-əsl açar saxlayıcı hələ sübut olunmayıb**. Yeni API boşluğu: **cihaz açarını ləğv edən route yoxdur**.
-3.3 🔶 `20a7140`: növbə **yazıldı** (köçürülmədi) və 83 yoxlama + 23 pozma ilə sübut olundu; `EXPO_PUBLIC_`
-borcu bağlandı; pozma harness-ı repoya salındı (`npm run test:break`) — **`/tmp`-də saxlanılan sübut sübut
-deyil**. **AsyncStorage-ın özü və real cihazda avia-rejim sınağı sübut olunmayıb.** İki qərar gözləyir:
-növbə faylının şifrələnməsi və API-də təkrar təqdimat qoruyucusu._
+_Plan versiyası: 0.7 — 15 sentyabr 2026 — TƏSDİQLƏNİB, icra davam edir._
+
+**CI — həll olundu və bu, planın ən köhnə görünməz borcu idi.** `.github/workflows/ci.yml` **tarixdə ilk
+dəfə** tam yaşıldır (run `34983792832`: Verify 55s · Test 17s · Build 36s). O vaxta qədər hər push 5-ci
+addımda ölürdü, yəni `type-check`, `lint`, `format:check`, `test:all` və `web:build` **heç vaxt icra
+olunmamışdı**; ilk icra olunduqda **228 lint xətası** (dörd fərqli səbəbdən — üçü kodda deyil,
+**konfiqurasiyada**) və **iki heç vaxt işləməmiş iş** üzə çıxdı. Təfərrüat §4-ün sonundadır. Ən vacib
+nəticə bir **naxışdır, xəta deyil**: **üç dəfə** təkrarlandı ki, bir yoxlama **yalnız reponun
+izləmədiyi yerli artefakt** sayəsində yaşıl qalır — `mobile`-in gitignored `dist/`-i, `web/node_modules`
+(və `web` npm workspace üzvü deyil), gitignored `.venv` + izlənməyən `yolov8n.pt`.
+
+3.1 🔶: config hazırdır və yoxlanıldı, `expo prebuild` agent mühitində bloklandığı üçün bahaI-nin
+Terminalında icra olunmalıdır. 3.2 🔶: açarın saxlanması qatı yazıldı və 37 yoxlama + 13 pozma ilə sübut
+olundu; **kamera yarısı və əsl açar saxlayıcı hələ sübut olunmayıb**. Yeni API boşluğu: **cihaz açarını
+ləğv edən route yoxdur**. 3.3 🔶 `20a7140`: növbə **yazıldı** (köçürülmədi) və 83 yoxlama + 23 pozma ilə
+sübut olundu; `EXPO_PUBLIC_` borcu bağlandı; pozma harness-ı repoya salındı (`npm run test:break`) —
+**`/tmp`-də saxlanılan sübut sübut deyil**. **AsyncStorage-ın özü və real cihazda avia-rejim sınağı sübut
+olunmayıb.** İki qərar gözləyir: növbə faylının şifrələnməsi və API-də təkrar təqdimat qoruyucusu._
