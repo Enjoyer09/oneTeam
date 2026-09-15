@@ -54,6 +54,9 @@ export function App() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [reviewInitialFilter, setReviewInitialFilter] = useState<
+    'all' | 'pending_review' | 'approved' | 'rejected'
+  >('all');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   /* Mobil çekmece + toolbar kölgəsi */
@@ -293,7 +296,20 @@ export function App() {
 
   const openSubmissionFromDashboard = (sub: Submission) => {
     setSelectedSubmission(sub);
+    setReviewInitialFilter('all');
     handleTabChange('review');
+  };
+
+  const handleNavigateToReview = (
+    filter: 'all' | 'pending_review' | 'approved' | 'rejected' = 'all',
+  ) => {
+    setReviewInitialFilter(filter);
+    handleTabChange('review');
+  };
+
+  const handleOpenCreateTask = () => {
+    handleTabChange('tasks');
+    setIsCreateModalOpen(true);
   };
 
   // ---------------------------------------------------------------------------
@@ -378,7 +394,7 @@ export function App() {
       <div className="relative z-10 flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header
           activeTab={activeTab}
-          onOpenCreateTask={() => setIsCreateModalOpen(true)}
+          onOpenCreateTask={handleOpenCreateTask}
           onOpenDrawer={() => setDrawerOpen(true)}
           scrolled={scrolled}
           identity={auth.identity}
@@ -419,7 +435,13 @@ export function App() {
                   metrics={metrics}
                   recentSubmissions={submissions.slice(0, 6)}
                   onOpenSubmissionReview={openSubmissionFromDashboard}
-                  onNavigateTab={handleTabChange}
+                  onNavigateTab={(tab, filter) => {
+                    if (tab === 'review') {
+                      handleNavigateToReview(filter || 'all');
+                    } else {
+                      handleTabChange(tab);
+                    }
+                  }}
                 />
               )}
 
@@ -431,6 +453,7 @@ export function App() {
                   onApprove={handleApproveSubmission}
                   onAIApprove={handleAIApproveSubmission}
                   onReject={handleRejectSubmission}
+                  initialFilter={reviewInitialFilter}
                 />
               )}
 

@@ -27,6 +27,7 @@ interface AuditReviewCenterProps {
   onApprove: (id: string) => Promise<void>;
   onAIApprove?: (id: string) => Promise<void>;
   onReject: (id: string, feedback: string) => Promise<void>;
+  initialFilter?: SubmissionStatus | 'all';
 }
 
 export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
@@ -36,14 +37,24 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
   onApprove,
   onAIApprove,
   onReject,
+  initialFilter,
 }) => {
-  const [filterStatus, setFilterStatus] = useState<SubmissionStatus | 'all'>('all');
+  const [filterStatus, setFilterStatus] = useState<SubmissionStatus | 'all'>(
+    initialFilter || 'all',
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [rejectFeedback, setRejectFeedback] = useState('');
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [showBoundingBoxes, setShowBoundingBoxes] = useState(true);
   const [activePhotoView, setActivePhotoView] = useState<'after' | 'before'>('after');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isReevaluating, setIsReevaluating] = useState(false);
+
+  React.useEffect(() => {
+    if (initialFilter) {
+      setFilterStatus(initialFilter);
+    }
+  }, [initialFilter]);
 
   /* Escape bağlayır, fokus modalın içində qalır, bağlananda geri qaytar */
   const reviewModalRef = useModalA11y<HTMLDivElement>(!!selectedSubmission, () =>
@@ -54,6 +65,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
   React.useEffect(() => {
     if (selectedSubmission) {
       setActivePhotoView('after');
+      setIsReevaluating(false);
       if (
         selectedSubmission.metadata?.scenario === 'scenario_c_missing_sprite' ||
         (selectedSubmission.ai_score !== null && (selectedSubmission.ai_score ?? 100) < 60)
@@ -671,8 +683,39 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                 </div>
 
                 <div className="flex items-center space-x-2.5 w-full sm:w-auto">
-                  {!showRejectInput ? (
+                  {selectedSubmission.status !== 'pending_review' && !isReevaluating ? (
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      {selectedSubmission.status === 'approved' ? (
+                        <span className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-300 text-xs font-extrabold flex items-center gap-1.5 shadow-sm">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          Təsdiqlənib (Yekunlaşıb)
+                        </span>
+                      ) : (
+                        <span className="px-3 py-1.5 rounded-lg bg-rose-50 text-rose-800 border border-rose-300 text-xs font-extrabold flex items-center gap-1.5 shadow-sm">
+                          <XCircle className="w-4 h-4 text-rose-600" />
+                          İmtina Edilib
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setIsReevaluating(true)}
+                        className="btn-g text-xs font-bold"
+                        title="Qərarı dəyişmək və ya yenidən yoxlamaq"
+                      >
+                        Qərarı Yenilə...
+                      </button>
+                    </div>
+                  ) : !showRejectInput ? (
                     <>
+                      {isReevaluating && (
+                        <button
+                          type="button"
+                          onClick={() => setIsReevaluating(false)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-ink-2 hover:bg-[var(--g-panel)] border border-hair"
+                        >
+                          Ləğv Et
+                        </button>
+                      )}
                       <button
                         disabled={isProcessing}
                         onClick={() => setShowRejectInput(true)}
@@ -683,8 +726,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                       </button>
 
                       {selectedSubmission.ai_score &&
-                        selectedSubmission.ai_score >= 80 &&
-                        selectedSubmission.status === 'pending_review' && (
+                        selectedSubmission.ai_score >= 80 && (
                           <button
                             disabled={isProcessing}
                             onClick={() => handleAIApproveClick(selectedSubmission.id)}

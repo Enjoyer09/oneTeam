@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { ModalPortal } from './ui/ModalPortal';
 import {
   PlusCircle,
@@ -13,6 +13,8 @@ import {
   Layers,
   Sparkles,
   Camera,
+  Upload,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { Task, Store, TaskPriority } from '../types';
 import { useModalA11y } from '../lib/useModalA11y';
@@ -65,6 +67,24 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
   );
   const [selectedStores, setSelectedStores] = useState<string[]>(['all']);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Şəkil ölçüsü 5 MB-dan çox ola bilməz.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setReferenceImageUrl(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
 
@@ -683,20 +703,55 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   </div>
                 </div>
 
-                {/* Planogram Reference Photo URL */}
+                {/* Planogram Reference Photo Upload / URL */}
                 <div>
-                  <label className="block text-xs font-bold text-ink-2 mb-1">
-                    Planogram Nümunə Fotosunun URL-i
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-ink-2">
+                      Planogram Nümunə Fotosu
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-1.5 text-[11px] font-extrabold text-coke hover:opacity-80 transition-opacity cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Kompüterdən Şəkil Seç</span>
+                    </button>
+                  </div>
+
                   <input
-                    type="url"
-                    placeholder="https://.../planogram.jpg"
-                    value={referenceImageUrl}
-                    onChange={(e) => setReferenceImageUrl(e.target.value)}
-                    className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/*"
+                    onChange={handleFileSelect}
+                    className="hidden"
                   />
+
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex-1">
+                      <input
+                        type="text"
+                        placeholder="https://.../planogram.jpg və ya kompüterdən seçin"
+                        value={referenceImageUrl}
+                        onChange={(e) => setReferenceImageUrl(e.target.value)}
+                        className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45 truncate"
+                      />
+                    </div>
+                    {referenceImageUrl && (
+                      <div className="w-12 h-9 rounded-lg overflow-hidden border border-hair bg-[var(--g-panel)] flex-shrink-0 relative group shadow-sm">
+                        <img
+                          src={referenceImageUrl}
+                          alt="Preview"
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = 'none';
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
                   <p className="text-[10px] text-muted mt-1">
-                    Supabase Storage və ya birbaşa CDN linki daxil edə bilərsiniz.
+                    Kompüterinizdən birbaşa şəkil seçə və ya URL daxil edə bilərsiniz (PNG, JPG, WebP).
                   </p>
                 </div>
 

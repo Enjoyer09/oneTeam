@@ -14,7 +14,7 @@ interface DashboardOverviewProps {
   metrics: DashboardMetrics;
   recentSubmissions: Submission[];
   onOpenSubmissionReview: (submission: Submission) => void;
-  onNavigateTab: (tab: any) => void;
+  onNavigateTab: (tab: any, filter?: any) => void;
 }
 
 export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
@@ -32,6 +32,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       tint: 'rgba(91,91,234,.14)',
       ink: '#4b4bd8',
       acc: 'rgba(91,91,234,.20)',
+      action: () => onNavigateTab('stores'),
     },
     {
       title: 'Aktiv Planogramlar',
@@ -41,6 +42,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       tint: 'var(--coke-soft)',
       ink: 'var(--coke)',
       acc: 'rgba(244,0,9,.18)',
+      action: () => onNavigateTab('tasks'),
     },
     {
       title: 'Yoxlama Gözləyən',
@@ -51,6 +53,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       ink: 'var(--warn)',
       acc: 'rgba(245,158,11,.22)',
       highlight: metrics.pendingReviews > 0,
+      action: () => onNavigateTab('review', 'pending_review'),
     },
     {
       title: 'Planogram Uyğunluğu',
@@ -60,6 +63,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       tint: 'var(--ok-bg)',
       ink: 'var(--ok)',
       acc: 'rgba(16,185,129,.20)',
+      action: () => onNavigateTab('review', 'approved'),
     },
   ];
 
@@ -113,10 +117,21 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           return (
             <div
               key={idx}
+              role="button"
+              tabIndex={0}
+              onClick={kpi.action}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  kpi.action();
+                }
+              }}
               className={[
-                'glass-card glass-lift relative overflow-hidden rounded-card p-3.5 lg:p-4',
+                'glass-card glass-lift relative overflow-hidden rounded-card p-3.5 lg:p-4 cursor-pointer select-none text-left transition-all',
+                'focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] hover:border-coke/40',
                 kpi.highlight ? 'ring-2 ring-[var(--warn-bd)]' : '',
               ].join(' ')}
+              title={`${kpi.title} bölməsinə keç`}
             >
               {/* Küncdəki rəngli işıq ləkəsi */}
               <span
@@ -176,7 +191,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </div>
           <button
             type="button"
-            onClick={() => onNavigateTab('review')}
+            onClick={() => onNavigateTab('review', 'pending_review')}
             className="btn-g flex-none self-start sm:self-auto"
           >
             Yoxlama Mərkəzinə keç
