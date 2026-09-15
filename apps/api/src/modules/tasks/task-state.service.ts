@@ -76,6 +76,7 @@ export class TaskStateService {
     );
 
     const createdTasks: InMemoryStoreTask[] = [];
+    const failures: Array<{ storeId: string; storeName: string; reason: string }> = [];
     let telegramCount = 0;
     let pushCount = 0;
 
@@ -93,7 +94,19 @@ export class TaskStateService {
         updatedAt: new Date(),
       };
 
-      db.createStoreTask(newTask);
+      // Awaited: the insert either lands or this store is reported as failed.
+      // A failed task is not pushed to memory either, so the process's list
+      // matches the database and the loop's counts mean something.
+      const stored = await db.createStoreTask(newTask);
+      if (stored.error || !stored.task) {
+        failures.push({
+          storeId: store.id,
+          storeName: store.name,
+          reason: 'Bazaya yazıla bilmədi',
+        });
+        continue;
+      }
+
       createdTasks.push(newTask);
 
       // Audit Log
@@ -122,6 +135,29 @@ export class TaskStateService {
       if (dispatchRes.pushNotification) pushCount++;
     }
 
+    if (failures.length > 0) {
+      this.logger.error(
+        `⚠️ [BULK DISPATCH INCOMPLETE] ${failures.length} of ${matchedStores.length} stores ` +
+          `could not be dispatched: ${failures.map((f) => f.storeName).join(', ')}`,
+      );
+    }
+
+    // Nothing at all was written: that is a failure of the request, not a
+    // successful dispatch of zero stores. Saying "0 tasks created" with a 200
+    // would read as "the segmentation matched nothing", which is a different
+    // and false statement.
+    if (createdTasks.length === 0) {
+      throw new HttpException(
+        {
+          success: false,
+          error: 'DISPATCH_FAILED',
+          message: `Heç bir tapşırıq yazıla bilmədi (${matchedStores.length} mağaza uyğun gəldi).`,
+          failures,
+        },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
     this.logger.log(
       `✅ [BULK DISPATCH COMPLETE] Created ${createdTasks.length} tasks. Dispatched ${telegramCount} Telegram and ${pushCount} Push notifications.`,
     );
@@ -135,6 +171,7 @@ export class TaskStateService {
         telegram: telegramCount,
         pushNotification: pushCount,
       },
+      failures: failures.length > 0 ? failures : undefined,
     };
   }
 

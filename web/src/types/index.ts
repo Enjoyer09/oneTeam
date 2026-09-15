@@ -32,6 +32,34 @@ export interface Task {
   assigned_stores?: string[]; // Array of store IDs
   requires_before_after_photo?: boolean;
   checklist_schema?: any[];
+
+  /**
+   * The ids an edit or delete needs.
+   *
+   * A panel task is a projection of one `store_tasks` row. Its deadline and
+   * assignee live on that row; its title, description, priority and checklist
+   * live on the template it was dispatched from, which every other store that
+   * received the same briefing also reads. The panel cannot infer either id
+   * from what it renders, so the API states them.
+   */
+  template_id?: string;
+  store_id?: string;
+  assigned_user_id?: string | null;
+
+  /**
+   * The kind of work, derived by the API from the fields that exist.
+   *
+   * There is no `task_type` column: a checklist means the template has a
+   * checklist, a photo comparison means it requires a before/after pair, and
+   * anything else is a plain audit. Computed, so it cannot drift.
+   */
+  kind?: 'CHECKLIST' | 'PHOTO' | 'AUDIT';
+
+  /** How many store tasks share this task's template. */
+  sibling_task_count?: number;
+
+  /** Submissions against this task. A task with any cannot be deleted. */
+  evidence_count?: number;
 }
 
 export type CocaColaSKU =

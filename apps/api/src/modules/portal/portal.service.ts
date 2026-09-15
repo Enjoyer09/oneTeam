@@ -90,6 +90,37 @@ export interface PanelTask {
    * reading nothing.
    */
   planogram_rules: unknown[];
+
+  /**
+   * The ids the edit and delete forms need.
+   *
+   * A panel task is a projection of one `store_tasks` row, so editing it means
+   * editing that row (deadline, assignee) or the template behind it (title,
+   * checklist). The panel cannot guess either id from what it renders, and
+   * inventing a lookup by title would be exactly the kind of guess this
+   * codebase has been burned by.
+   */
+  template_id: string;
+  store_id: string;
+  assigned_user_id: string | null;
+
+  /**
+   * What kind of work this is, DERIVED from the columns that exist.
+   *
+   * There is no `task_type` column, and adding one would create a label with no
+   * behaviour behind it. The three kinds the plan asks for are already
+   * expressible: a checklist means `checklist_schema` is populated, a photo
+   * comparison means `requires_before_after_photo` is set, and anything else is
+   * a plain audit. This is computed, never stored, so it cannot drift from the
+   * fields it describes.
+   */
+  kind: 'CHECKLIST' | 'PHOTO' | 'AUDIT';
+
+  /** How many store tasks share this task's template. See `updateTask`. */
+  sibling_task_count: number;
+
+  /** Submitted evidence against this store task. A task with any cannot be deleted. */
+  evidence_count: number;
 }
 
 export interface PanelSubmission {
@@ -214,7 +245,30 @@ export class PortalService {
       requires_before_after_photo: template?.requiresBeforeAfterPhoto ?? false,
       checklist_schema: template?.checklistSchema ?? [],
       planogram_rules: template?.planogramRules ?? [],
+      template_id: task.templateId,
+      store_id: task.storeId,
+      assigned_user_id: task.assignedUserId ?? null,
+      kind: PortalService.deriveTaskKind(template),
+      sibling_task_count: db.storeTasks.filter((t) => t.templateId === task.templateId).length,
+      evidence_count: db.evidences.filter((e) => e.storeTaskId === task.id).length,
     };
+  }
+
+  /**
+   * Names the kind of work a task is, from the fields it actually has.
+   *
+   * See the `kind` field on `PanelTask` for why this is derived rather than
+   * stored. A template with both a checklist and a before/after requirement is
+   * reported as CHECKLIST, because that is the stricter of the two: the field
+   * client will refuse a submission with unanswered checklist items, whereas the
+   * second photo is a separate evidence row.
+   */
+  private static deriveTaskKind(template: any): 'CHECKLIST' | 'PHOTO' | 'AUDIT' {
+    if (Array.isArray(template?.checklistSchema) && template.checklistSchema.length > 0) {
+      return 'CHECKLIST';
+    }
+    if (template?.requiresBeforeAfterPhoto) return 'PHOTO';
+    return 'AUDIT';
   }
 
   toPanelSubmission(evidence: InMemoryEvidence): PanelSubmission {
@@ -832,86 +886,212 @@ export class PortalService {
     },
     principal: AuthenticatedPrincipal,
   ) {
-    if (!payload.title || !payload.title.trim()) {
-      throw new HttpException('Tapşırıq başlığı tələb olunur', HttpStatus.BAD_REQUEST);
-    }
-    if (!payload.deadline) {
-      throw new HttpException('Son tarix (deadline) tələb olunur', HttpStatus.BAD_REQUEST);
-    }
+    // The role gate was missing here while `bulkDispatchTasks` had one, which
+    // meant a merchandiser holding a panel key could dispatch work through the
+    // explicit-store path but not through the segmentation path. Two doors to
+    // the same room need the same lock.
+    this.requireTaskEditor(principal);
+
+    const title = this.requireText(payload.title, 'Tapşırıq başlığı');
+
+    const deadline = this.readDeadline(payload.deadline);
+    const priority = this.readPriority(payload.priority);
+    const checklistSchema = this.readChecklistSchema(payload.checklist_schema);
 
     const templateId = `tmpl-panel-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    db.createTemplate({
+    const stored = await db.createTemplate({
       id: templateId,
       campaignId: db.campaign?.id ?? null,
-      title: payload.title,
-      description: payload.description ?? '',
+      title,
+      description: typeof payload.description === 'string' ? payload.description : '',
       referenceImageUrl: payload.reference_image_url ?? '',
-      priority: String(payload.priority ?? 'MEDIUM').toUpperCase(),
+      priority,
       planogramRules: [],
       requiresBeforeAfterPhoto: payload.requires_before_after_photo ?? false,
-      checklistSchema: payload.checklist_schema ?? [],
+      checklistSchema,
     });
 
-    // Explicit store selection wins over segmentation. The panel's "create task"
-    // form sends store ids; the bulk-dispatch form sends chain/format/region.
-    //
-    // No assignee is invented here. The panel's form asks which stores, not
-    // which person, and defaulting to the first merchandiser silently gave one
-    // person every task — which is what stopped anyone else from submitting for
-    // that store through the bot. An unassigned task is claimed by whoever is at
-    // the store. See dispatchToExplicitStores.
-    if (payload.assigned_stores?.length) {
-      const created = await this.dispatchToExplicitStores(
-        templateId,
-        payload.deadline,
-        payload.assigned_stores,
-        payload.assignedUserId ?? null,
+    // Awaited, and a failure is reported as one: dispatching from a template
+    // that never landed would create store tasks whose foreign key cannot be
+    // satisfied, so every one of them would fail too.
+    if (stored.error || !stored.template) {
+      throw new HttpException(
+        'Tapşırıq yaradıla bilmədi — təlimat bazaya yazılmadı, heç nə göndərilmədi.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    // From here on the template exists, and every way this can fail below — a
+    // store id that does not exist, a segmentation that matches nothing, no
+    // merchandiser to assign to — must not leave the briefing behind.
+    // `discardTemplate` declines when any store task was created, so a partial
+    // dispatch keeps its template and a total failure does not.
+    try {
+      // Explicit store selection wins over segmentation. The panel's "create
+      // task" form sends store ids; the bulk-dispatch form sends
+      // chain/format/region.
+      //
+      // No assignee is invented here. The panel's form asks which stores, not
+      // which person, and defaulting to the first merchandiser silently gave one
+      // person every task — which is what stopped anyone else from submitting
+      // for that store through the bot. An unassigned task is claimed by whoever
+      // is at the store. See dispatchToExplicitStores.
+      if (payload.assigned_stores?.length) {
+        const result = await this.dispatchToExplicitStores(
+          templateId,
+          deadline,
+          payload.assigned_stores,
+          payload.assignedUserId ?? null,
+          principal,
+        );
+
+        if (result.created.length === 0) {
+          throw new HttpException(
+            {
+              success: false,
+              error: 'DISPATCH_FAILED',
+              message: 'Heç bir mağazaya göndərilə bilmədi — tapşırıq heç bir mağazada yaranmadı.',
+              failures: result.failures,
+            },
+            HttpStatus.SERVICE_UNAVAILABLE,
+          );
+        }
+
+        return {
+          success: true,
+          data: {
+            templateId,
+            totalStoresMatched: payload.assigned_stores.length,
+            tasksCreated: result.created.length,
+            taskIds: result.created.map((t) => t.id),
+            failures: result.failures.length > 0 ? result.failures : undefined,
+          },
+        };
+      }
+
+      // Segmentation still needs an assignee: `bulkDispatchTasks` refuses to
+      // create a task nobody owns, and there is no store list to claim from.
+      const assigneeId =
+        payload.assignedUserId ?? db.users.find((user) => user.role === UserRole.MERCHANDISER)?.id;
+
+      if (!assigneeId) {
+        throw new HttpException(
+          'Təyin edilə biləcək merchandiser tapılmadı',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const result = await this.taskStateService.bulkDispatchTasks(
+        {
+          templateId,
+          deadline: deadline.toISOString(),
+          assignedUserId: assigneeId,
+          regionId: payload.regionId,
+          chainName: payload.chainName,
+          storeFormat: payload.storeFormat,
+        },
         principal,
       );
-      return {
-        success: true,
-        data: {
-          templateId,
-          totalStoresMatched: created.length,
-          tasksCreated: created.length,
-          taskIds: created.map((t) => t.id),
-        },
-      };
+
+      return { success: true, data: { templateId, ...result } };
+    } catch (error) {
+      await db.discardTemplate(templateId);
+      throw error;
     }
-
-    // Segmentation still needs an assignee: `bulkDispatchTasks` refuses to
-    // create a task nobody owns, and there is no store list to claim from.
-    const assigneeId =
-      payload.assignedUserId ?? db.users.find((user) => user.role === UserRole.MERCHANDISER)?.id;
-
-    if (!assigneeId) {
-      throw new HttpException('Təyin edilə biləcək merchandiser tapılmadı', HttpStatus.BAD_REQUEST);
-    }
-
-    const result = await this.taskStateService.bulkDispatchTasks(
-      {
-        templateId,
-        deadline: payload.deadline,
-        assignedUserId: assigneeId,
-        regionId: payload.regionId,
-        chainName: payload.chainName,
-        storeFormat: payload.storeFormat,
-      },
-      principal,
-    );
-
-    return { success: true, data: { templateId, ...result } };
   }
 
   /**
-   * Dispatches a template to an explicit list of stores.
+   * Refuses a caller who may not author or change work.
    *
-   * Kept here rather than added to TaskStateService because segmentation-based
-   * dispatch is the service's concern and a fixed id list is a panel concern;
-   * mixing them would put a second, subtly different dispatch path in the
-   * domain service. The state, audit entry and notification behaviour mirror
-   * `bulkDispatchTasks` exactly.
+   * The same rule as `requireStoreEditor`, and for the same reason: a panel key
+   * narrows the caller to one person, and this is what stops a merchandiser who
+   * has been handed one from dispatching briefings to their colleagues.
    */
+  private requireTaskEditor(principal: AuthenticatedPrincipal): void {
+    if (!isPrivilegedPrincipal(principal)) {
+      throw new ForbiddenException({
+        error: 'TASK_EDIT_FORBIDDEN',
+        message: 'Tapşırıqları yalnız administrator və supervayzer yarada və dəyişə bilər.',
+      });
+    }
+  }
+
+  /** Reads a required text field, refusing blank and non-string values. */
+  private requireText(raw: unknown, label: string): string {
+    if (raw === undefined || raw === null || String(raw).trim() === '') {
+      throw new HttpException(`${label} tələb olunur`, HttpStatus.BAD_REQUEST);
+    }
+    return String(raw).trim();
+  }
+
+  /**
+   * Reads a deadline, refusing anything that is not a real date.
+   *
+   * `new Date('sabah')` produces an Invalid Date, and `store_tasks.deadline` is
+   * `NOT NULL` with no default — so without this check the row is written with
+   * an unusable timestamp and every later comparison against it is false. The
+   * message names the expected shape rather than the parser's complaint.
+   */
+  private readDeadline(raw: unknown): Date {
+    if (raw === undefined || raw === null || String(raw).trim() === '') {
+      throw new HttpException('Son tarix (deadline) tələb olunur', HttpStatus.BAD_REQUEST);
+    }
+    const deadline = new Date(String(raw));
+    if (Number.isNaN(deadline.getTime())) {
+      throw new HttpException(
+        'Son tarix düzgün formatda deyil (məsələn: 2026-09-30T18:00)',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    return deadline;
+  }
+
+  /** Reads a priority, defaulting to MEDIUM and refusing anything outside the enum. */
+  private readPriority(raw: unknown): string {
+    const allowed = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
+    if (raw === undefined || raw === null || String(raw).trim() === '') return 'MEDIUM';
+    const priority = String(raw).trim().toUpperCase();
+    if (!allowed.includes(priority)) {
+      throw new HttpException(
+        `Prioritet bunlardan biri olmalıdır: ${allowed.join(', ')}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    return priority;
+  }
+
+  /**
+   * Reads a checklist schema.
+   *
+   * Each item must be an object carrying a question. A bare string or an empty
+   * object would be stored happily by Postgres — the column is `jsonb` — and
+   * then reach the field client as a checklist item with no question, which the
+   * merchandiser cannot answer and the reviewer cannot read.
+   */
+  private readChecklistSchema(raw: unknown): unknown[] {
+    if (raw === undefined || raw === null) return [];
+    if (!Array.isArray(raw)) {
+      throw new HttpException('Çeklist siyahı olmalıdır', HttpStatus.BAD_REQUEST);
+    }
+    return raw.map((item, index) => {
+      if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+        throw new HttpException(
+          `Çeklistin ${index + 1}-ci bəndi obyekt olmalıdır ({ id, label })`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      const record = item as Record<string, unknown>;
+      const label = record.label ?? record.text ?? record.title;
+      if (label === undefined || String(label).trim() === '') {
+        throw new HttpException(
+          `Çeklistin ${index + 1}-ci bəndində sual mətni yoxdur (label)`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      return { ...record, id: record.id ?? `q${index + 1}`, label: String(label).trim() };
+    });
+  }
+
   /**
    * Dispatches a template to an explicit list of stores.
    *
@@ -935,21 +1115,36 @@ export class PortalService {
    * mixing them would put a second, subtly different dispatch path in the
    * domain service. The state, audit entry and notification behaviour mirror
    * `bulkDispatchTasks` exactly.
+   *
+   * REPORTS WHAT FAILED, NOT ONLY WHAT SUCCEEDED
+   * -------------------------------------------
+   * Each insert is awaited and a store whose row did not land is recorded in
+   * `failures` rather than counted as created. The panel's dispatch form used to
+   * be told "N mağazaya göndərildi" from the length of the id list it had just
+   * built, which is a statement about the request, not about the database.
    */
   private async dispatchToExplicitStores(
     templateId: string,
-    deadline: string,
+    deadline: Date,
     storeIds: string[],
     assigneeId: string | null,
     principal: AuthenticatedPrincipal,
-  ): Promise<InMemoryStoreTask[]> {
+  ): Promise<{
+    created: InMemoryStoreTask[];
+    failures: Array<{ storeId: string; storeName: string; reason: string }>;
+  }> {
     const created: InMemoryStoreTask[] = [];
+    const failures: Array<{ storeId: string; storeName: string; reason: string }> = [];
     const template: any = db.getTemplate(templateId);
 
-    for (const storeId of storeIds) {
+    // De-duplicated: the picker sends whatever was ticked, and the same id twice
+    // would dispatch the briefing to the same store twice with nothing in the
+    // rows afterwards to tell them apart.
+    for (const storeId of [...new Set(storeIds)]) {
       const store = db.getStore(storeId);
       if (!store) {
         this.logger.warn(`⚠️ [PANEL DISPATCH] Skipping unknown store ${storeId}`);
+        failures.push({ storeId, storeName: storeId, reason: 'Mağaza tapılmadı' });
         continue;
       }
 
@@ -959,13 +1154,18 @@ export class PortalService {
         storeId,
         assignedUserId: assigneeId ?? undefined,
         status: TaskState.PUBLISHED,
-        deadline: new Date(deadline),
+        deadline,
         publishedAt: new Date(),
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
-      db.createStoreTask(task);
+      const stored = await db.createStoreTask(task);
+      if (stored.error || !stored.task) {
+        failures.push({ storeId, storeName: store.name, reason: 'Bazaya yazıla bilmədi' });
+        continue;
+      }
+
       created.push(task);
 
       db.logAuditEvent({
@@ -986,6 +1186,199 @@ export class PortalService {
       });
     }
 
-    return created;
+    return { created, failures };
+  }
+
+  /**
+   * Edits a task.
+   *
+   * A panel task is one `store_tasks` row, and the fields a supervisor might
+   * change live in two places:
+   *
+   *   per this store   deadline, assigned_user_id     → the `store_tasks` row
+   *   per the briefing title, description, priority,
+   *                    checklist, before/after        → the `task_templates` row
+   *
+   * The second group is shared with every other store the briefing was
+   * dispatched to. That is not an accident of the schema, it is what "one task,
+   * many stores" means — but a supervisor who renames one row and silently
+   * renames four others has been misled. So the response states how many rows
+   * the content change reached, and the panel says so out loud.
+   */
+  async updateTask(taskId: string, body: Record<string, any>, principal: AuthenticatedPrincipal) {
+    this.requireTaskEditor(principal);
+
+    const task = db.getTask(taskId);
+    if (!task) {
+      throw new NotFoundException({
+        error: 'TASK_NOT_FOUND',
+        message: 'Bu identifikatorla tapşırıq tapılmadı.',
+      });
+    }
+
+    const perTask: { deadline?: Date; assignedUserId?: string | null } = {};
+    const perTemplate: Record<string, unknown> = {};
+
+    if (body.deadline !== undefined) {
+      perTask.deadline = this.readDeadline(body.deadline);
+    }
+
+    if (body.assigned_user_id !== undefined) {
+      const raw = body.assigned_user_id;
+      if (raw === null || raw === '') {
+        // An explicit unassignment: the task goes back to being claimable by
+        // whoever is at the store. Different from omitting the key.
+        perTask.assignedUserId = null;
+      } else {
+        const userId = String(raw).trim();
+        const user = db.getUser(userId);
+        if (!user) {
+          throw new HttpException(`İstifadəçi tapılmadı: ${userId}`, HttpStatus.BAD_REQUEST);
+        }
+        if (user.role !== UserRole.MERCHANDISER) {
+          throw new HttpException(
+            'Tapşırıq yalnız merchandiser istifadəçiyə təyin edilə bilər',
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+        perTask.assignedUserId = userId;
+      }
+    }
+
+    if (body.title !== undefined) {
+      perTemplate.title = this.requireText(body.title, 'Tapşırıq başlığı');
+    }
+    if (body.description !== undefined) {
+      perTemplate.description = String(body.description ?? '');
+    }
+    if (body.priority !== undefined) {
+      perTemplate.priority = this.readPriority(body.priority);
+    }
+    if (body.reference_image_url !== undefined) {
+      perTemplate.referenceImageUrl = String(body.reference_image_url ?? '');
+    }
+    if (body.requires_before_after_photo !== undefined) {
+      perTemplate.requiresBeforeAfterPhoto =
+        body.requires_before_after_photo === true ||
+        String(body.requires_before_after_photo) === 'true';
+    }
+    if (body.checklist_schema !== undefined) {
+      perTemplate.checklistSchema = this.readChecklistSchema(body.checklist_schema);
+    }
+
+    const touchesTask = Object.keys(perTask).length > 0;
+    const touchesTemplate = Object.keys(perTemplate).length > 0;
+
+    if (!touchesTask && !touchesTemplate) {
+      throw new HttpException('Dəyişdiriləcək heç bir sahə göndərilmədi', HttpStatus.BAD_REQUEST);
+    }
+
+    const siblingCount = db.storeTasks.filter((t) => t.templateId === task.templateId).length;
+
+    // The per-store row goes first. If the shared content then fails to write,
+    // the message can say exactly which half landed, which a single
+    // all-or-nothing error could not.
+    let updated = task;
+    if (touchesTask) {
+      const result = await db.updateTask(taskId, perTask);
+      if (result.error === 'NOT_FOUND') {
+        throw new NotFoundException({
+          error: 'TASK_NOT_FOUND',
+          message: 'Bu identifikatorla tapşırıq tapılmadı.',
+        });
+      }
+      if (result.error || !result.task) {
+        throw new HttpException(
+          'Tapşırıq yenilənə bilmədi — bazaya yazılmadı, heç nə dəyişmədi.',
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
+      updated = result.task;
+    }
+
+    if (touchesTemplate) {
+      const result = await db.updateTemplate(task.templateId, perTemplate as any);
+      if (result.error === 'NOT_FOUND') {
+        throw new NotFoundException({
+          error: 'TASK_TEMPLATE_NOT_FOUND',
+          message: 'Tapşırığın təlimatı tapılmadı — məzmun dəyişdirilə bilməz.',
+        });
+      }
+      if (result.error || !result.template) {
+        throw new HttpException(
+          touchesTask
+            ? 'Bu mağazanın son tarixi/təyinatı dəyişdi, lakin ümumi məzmun yazıla bilmədi.'
+            : 'Məzmun yazıla bilmədi — bazaya heç nə yazılmadı.',
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
+    }
+
+    db.logAuditEvent({
+      entityType: 'store_task',
+      entityId: taskId,
+      action: 'TASK_UPDATED',
+      actorId: principal.userId,
+      payload: {
+        templateId: task.templateId,
+        taskFields: Object.keys(perTask),
+        templateFields: Object.keys(perTemplate),
+        templateEditReachedTasks: touchesTemplate ? siblingCount : 0,
+      },
+    });
+
+    return {
+      success: true,
+      data: this.toPanelTask(updated),
+      // Stated in the payload rather than left for the UI to infer: the panel
+      // has no way to know how many rows share a template.
+      templateEditReachedTasks: touchesTemplate ? siblingCount : 0,
+    };
+  }
+
+  /**
+   * Deletes a task, or explains why it cannot be deleted.
+   *
+   * A task with submissions is refused. `task_evidences.store_task_id` is
+   * `ON DELETE CASCADE`, so deleting it would take the photos, the coordinates
+   * and the checklist answers with it — silently, and without the supervisor
+   * ever seeing what they were removing. `409`, not `500`: this is a conflict
+   * with the data, not a fault.
+   */
+  async deleteTask(taskId: string, principal: AuthenticatedPrincipal) {
+    this.requireTaskEditor(principal);
+
+    const result = await db.deleteTask(taskId);
+
+    if (result.reason === 'NOT_FOUND') {
+      throw new NotFoundException({
+        error: 'TASK_NOT_FOUND',
+        message: 'Bu identifikatorla tapşırıq tapılmadı.',
+      });
+    }
+    if (result.reason === 'HAS_EVIDENCE') {
+      throw new ConflictException({
+        error: 'TASK_HAS_EVIDENCE',
+        message:
+          `Bu tapşırığa ${result.evidences} audit göndərişi var — silinə bilməz. ` +
+          'Silinsə, həmin foto və çeklist cavabları da silinəcəkdi.',
+        evidences: result.evidences,
+      });
+    }
+    if (result.reason === 'NOT_DELETED') {
+      throw new HttpException(
+        'Tapşırıq silinə bilmədi — bazadan silinmədi, tapşırıq yerində qaldı.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    db.logAuditEvent({
+      entityType: 'store_task',
+      entityId: taskId,
+      action: 'TASK_DELETED',
+      actorId: principal.userId,
+    });
+
+    return { success: true, data: { id: taskId } };
   }
 }

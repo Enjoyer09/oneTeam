@@ -582,16 +582,40 @@ export class EnterpriseDatabase {
   }
 
   /**
-   * Adds a store task and persists it.
+   * Adds a store task and waits for it to reach the database.
    *
-   * Replaces a direct `db.storeTasks.push(...)` in the task service. The push
-   * is still what makes the task visible to the running process; the insert is
-   * what makes it survive.
+   * WHY THIS AWAITS, ALTHOUGH IT USED NOT TO
+   * ----------------------------------------
+   * Store tasks are only ever created by a supervisor dispatching a briefing
+   * from the panel — there is no field-worker path that creates one. So the
+   * caller is always someone who just pressed a button and expects to see the
+   * result. Firing the insert and returning meant a failed write was reported
+   * as "12 tasks created" while the database held nothing.
+   *
+   * The foreign key makes that worse than it sounds: `store_tasks.template_id`
+   * references `task_templates`, so if the template's own insert did not land,
+   * every store task insert fails too — twelve failures, twelve reported
+   * successes. Awaiting is what lets the caller tell the difference.
+   *
+   * On failure the in-memory push is undone, so the process's task list matches
+   * what actually persisted.
    */
-  public createStoreTask(task: InMemoryStoreTask): InMemoryStoreTask {
+  public async createStoreTask(
+    task: InMemoryStoreTask,
+  ): Promise<{ task?: InMemoryStoreTask; error?: 'NOT_STORED' }> {
     this.storeTasks.push(task);
-    if (this.pool) this.persist((pool) => pg.insertStoreTask(pool, task), `task ${task.id}`);
-    return task;
+
+    if (this.pool) {
+      try {
+        await this.enqueue((pool) => pg.insertStoreTask(pool, task), `task ${task.id}`);
+      } catch (error) {
+        this.storeTasks = this.storeTasks.filter((candidate) => candidate.id !== task.id);
+        console.error(`⛔ [oneTeam DB] Could not store task ${task.id}: ` + describeError(error));
+        return { error: 'NOT_STORED' };
+      }
+    }
+
+    return { task };
   }
 
   /**
@@ -874,15 +898,19 @@ export class EnterpriseDatabase {
   }
 
   /**
-   * Adds a task template authored from the web panel and persists it.
+   * Adds a task template authored from the web panel and waits for it to land.
    *
    * The panel's "create task" form produces a briefing, not a store task: it
    * has no store in it. The domain model requires every store task to point at
    * a template, so the panel's payload becomes a template here and the existing
    * bulk dispatch then fans it out to the matching stores. That keeps one
    * code path for dispatch instead of giving the panel its own.
+   *
+   * Awaited for the same reason the store writes are: a supervisor typed a
+   * title and a deadline. It is also what stops the fan-out below from
+   * reporting twelve created tasks whose rows all failed their foreign key.
    */
-  public createTemplate(template: {
+  public async createTemplate(template: {
     id: string;
     campaignId?: string | null;
     title: string;
@@ -892,7 +920,7 @@ export class EnterpriseDatabase {
     planogramRules?: unknown[];
     requiresBeforeAfterPhoto?: boolean;
     checklistSchema?: unknown[];
-  }) {
+  }): Promise<{ template?: any; error?: 'NOT_STORED' }> {
     const record = {
       ...template,
       planogramRules: template.planogramRules ?? [],
@@ -901,8 +929,213 @@ export class EnterpriseDatabase {
       updatedAt: new Date(),
     };
     this.templates.push(record as (typeof this.templates)[number]);
-    if (this.pool) this.persist((pool) => pg.insertTemplate(pool, record), `template ${record.id}`);
-    return record;
+
+    if (this.pool) {
+      try {
+        await this.enqueue((pool) => pg.insertTemplate(pool, record), `template ${record.id}`);
+      } catch (error) {
+        this.templates = this.templates.filter((candidate) => candidate.id !== record.id);
+        console.error(
+          `⛔ [oneTeam DB] Could not store template ${record.id}: ` + describeError(error),
+        );
+        return { error: 'NOT_STORED' };
+      }
+    }
+
+    return { template: record };
+  }
+
+  /**
+   * Applies an edit to a task template.
+   *
+   * This is what "edit a task" means for everything except its deadline and its
+   * assignee: the title, the description, the priority and the checklist live on
+   * the template, and every store task dispatched from it reads them from there.
+   * Editing one therefore changes what all of them say — which is the truthful
+   * behaviour for the panel's "one task, many stores" shape, and the reason the
+   * service reports how many rows were reached.
+   */
+  public async updateTemplate(
+    templateId: string,
+    changes: Partial<{
+      title: string;
+      description: string;
+      referenceImageUrl: string;
+      priority: string;
+      planogramRules: unknown[];
+      requiresBeforeAfterPhoto: boolean;
+      checklistSchema: unknown[];
+    }>,
+  ): Promise<{ template?: any; error?: 'NOT_FOUND' | 'NOT_STORED' }> {
+    const template: any = this.getTemplate(templateId);
+    if (!template) return { error: 'NOT_FOUND' };
+
+    const before = { ...template };
+
+    // Undefined means "not mentioned", which is not the same as "set to
+    // undefined" — the same distinction `updateStore` makes.
+    for (const [key, value] of Object.entries(changes)) {
+      if (value !== undefined) template[key] = value;
+    }
+    template.updatedAt = new Date();
+
+    if (this.pool) {
+      try {
+        await this.enqueue(
+          (pool) => pg.updateTemplateRow(pool, template),
+          `template ${templateId} edit`,
+        );
+      } catch (error) {
+        Object.assign(template, before);
+        console.error(
+          `⛔ [oneTeam DB] Could not save the edit to template ${templateId}: ` +
+            describeError(error),
+        );
+        return { error: 'NOT_STORED' };
+      }
+    }
+
+    return { template };
+  }
+
+  /**
+   * Applies an edit to one store task.
+   *
+   * Only the two fields that genuinely belong to a single (template, store)
+   * pair: its deadline and who it is assigned to. Status is deliberately not
+   * writable here — it moves through the state machine, and a direct write
+   * would let the panel skip a transition the audit log is built to record.
+   *
+   * `assignedUserId: null` is a real instruction meaning "unassign, let whoever
+   * is at the store claim it", which is different from omitting the key.
+   */
+  public async updateTask(
+    taskId: string,
+    changes: Partial<{ deadline: Date; assignedUserId: string | null }>,
+  ): Promise<{ task?: InMemoryStoreTask; error?: 'NOT_FOUND' | 'NOT_STORED' }> {
+    const task = this.getTask(taskId);
+    if (!task) return { error: 'NOT_FOUND' };
+
+    const before: InMemoryStoreTask = { ...task };
+
+    if (changes.deadline !== undefined) task.deadline = changes.deadline;
+    if (changes.assignedUserId !== undefined) {
+      task.assignedUserId = changes.assignedUserId ?? undefined;
+    }
+    task.updatedAt = new Date();
+
+    if (this.pool) {
+      try {
+        await this.enqueue((pool) => pg.updateStoreTaskRow(pool, task), `task ${taskId} edit`);
+      } catch (error) {
+        Object.assign(task, before);
+        console.error(
+          `⛔ [oneTeam DB] Could not save the edit to task ${taskId}: ` + describeError(error),
+        );
+        return { error: 'NOT_STORED' };
+      }
+    }
+
+    return { task };
+  }
+
+  /**
+   * Removes one store task.
+   *
+   * REFUSES WHEN THE TASK HAS EVIDENCE, AND THAT IS THE POINT
+   * --------------------------------------------------------
+   * `task_evidences.store_task_id` is `ON DELETE CASCADE`. Deleting a task
+   * therefore deletes the photos, the coordinates and the checklist answers
+   * submitted against it, silently and in one statement. A supervisor
+   * tidying up a task list would be destroying field work they cannot see.
+   *
+   * So the count is taken first and the delete is refused while any evidence
+   * exists. Unlike a store — where deactivation is the sensible alternative —
+   * there is no "archive" for a task, so the refusal simply says how much would
+   * be lost and leaves the decision with the operator.
+   */
+  public async deleteTask(taskId: string): Promise<{
+    deleted: boolean;
+    reason?: 'NOT_FOUND' | 'HAS_EVIDENCE' | 'NOT_DELETED';
+    evidences?: number;
+  }> {
+    const task = this.getTask(taskId);
+    if (!task) return { deleted: false, reason: 'NOT_FOUND' };
+
+    // The count is taken from the database when there is one. The in-memory
+    // list is a poll behind (see ONETEAM_REFRESH_MS), so a submission that
+    // landed in the last second would not be in it — and because the foreign
+    // key is ON DELETE CASCADE, a stale count does not fail loudly, it destroys
+    // the evidence quietly. The database cannot be a poll behind.
+    let evidenceCount: number;
+    if (this.pool) {
+      try {
+        evidenceCount = await pg.countEvidencesForTask(this.pool, taskId);
+      } catch (error) {
+        console.error(
+          `⛔ [oneTeam DB] Could not count evidence for task ${taskId}: ` + describeError(error),
+        );
+        return { deleted: false, reason: 'NOT_DELETED' };
+      }
+    } else {
+      evidenceCount = this.evidences.filter((e) => e.storeTaskId === taskId).length;
+    }
+
+    if (evidenceCount > 0) {
+      return { deleted: false, reason: 'HAS_EVIDENCE', evidences: evidenceCount };
+    }
+
+    if (this.pool) {
+      try {
+        await this.enqueue((pool) => pg.deleteStoreTaskRow(pool, taskId), `task ${taskId} delete`);
+      } catch (error) {
+        // The count above is a pre-check and can go stale: an evidence row
+        // submitted between the two statements would be cascaded away by the
+        // delete. Reporting "could not delete" leaves the task in place to
+        // match the database, which is the safe side to fail on.
+        console.error(`⛔ [oneTeam DB] Could not delete task ${taskId}: ` + describeError(error));
+        return { deleted: false, reason: 'NOT_DELETED' };
+      }
+    }
+
+    this.storeTasks = this.storeTasks.filter((candidate) => candidate.id !== taskId);
+    return { deleted: true };
+  }
+
+  /**
+   * Removes a task template that was never dispatched to anything.
+   *
+   * Used to undo the template half of a dispatch that then failed — a deadline
+   * that would not parse, a store id that does not exist, a segmentation that
+   * matched nothing. A briefing nobody was sent is harmless in itself, but
+   * leaving one behind on every failed request turns a mistyped field into
+   * permanent litter that no screen lists and no endpoint can remove.
+   *
+   * Returns false, without attempting anything, when any store task points at
+   * the template: `store_tasks.template_id` is `ON DELETE RESTRICT`, and a
+   * template with dispatched work against it is not an orphan. That is also
+   * what makes this safe to call from a `catch` that does not know how far the
+   * dispatch got.
+   */
+  public async discardTemplate(templateId: string): Promise<boolean> {
+    if (this.storeTasks.some((task) => task.templateId === templateId)) return false;
+
+    if (this.pool) {
+      try {
+        await this.enqueue(
+          (pool) => pg.deleteTemplateRow(pool, templateId),
+          `template ${templateId} discard`,
+        );
+      } catch (error) {
+        console.error(
+          `⛔ [oneTeam DB] Could not discard template ${templateId}: ` + describeError(error),
+        );
+        return false;
+      }
+    }
+
+    this.templates = this.templates.filter((candidate) => candidate.id !== templateId);
+    return true;
   }
 
   /**

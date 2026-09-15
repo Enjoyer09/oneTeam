@@ -15,9 +15,73 @@ import {
   Camera,
   Upload,
   Image as ImageIcon,
+  Pencil,
+  Trash2,
+  AlertTriangle,
+  Loader2,
 } from 'lucide-react';
 import { Task, Store, TaskPriority } from '../types';
 import { useModalA11y } from '../lib/useModalA11y';
+
+/**
+ * What the edit form sends.
+ *
+ * `deadline` is a `datetime-local` string, so it carries a time. The create
+ * forms are still date-only; upgrading them is a separate, smaller change.
+ */
+export interface TaskEditValues {
+  title: string;
+  description: string;
+  priority: TaskPriority;
+  deadline: string;
+  requires_before_after_photo: boolean;
+  checklist_schema: Array<{ id: string; label: string }>;
+}
+
+/**
+ * An ISO timestamp as the value a `datetime-local` input expects.
+ *
+ * The input reads and writes local wall-clock time and has no timezone field,
+ * so slicing the ISO string would show UTC — two hours behind Baku — and the
+ * supervisor would "fix" a deadline that was already correct.
+ */
+function toLocalInput(iso: string | undefined): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  );
+}
+
+/**
+ * Renders the task's real status.
+ *
+ * This slot used to hold a hardcoded green "Aktiv" on every card, so a task
+ * that had been approved or rejected still read as active — the same class of
+ * lie as the store list's hardcoded "Aktiv". An unrecognised status shows the
+ * raw value rather than being rounded to something reassuring.
+ */
+function getStatusBadge(status: string | undefined) {
+  const map: Record<string, { label: string; className: string }> = {
+    draft: { label: 'Qaralama', className: 'bg-slate-100 text-slate-700' },
+    published: { label: 'Aktiv', className: 'bg-emerald-50 text-emerald-700' },
+    completed: { label: 'Tamamlandı', className: 'bg-indigo-50 text-indigo-700' },
+    archived: { label: 'Arxivlənmiş', className: 'bg-amber-50 text-amber-700' },
+  };
+  const entry = status ? map[status] : undefined;
+  return (
+    <span
+      className={`text-[10px] px-2 py-0.5 rounded font-bold ${
+        entry?.className ?? 'bg-slate-100 text-slate-700'
+      }`}
+    >
+      {entry?.label ?? (status || 'Bilinmir')}
+    </span>
+  );
+}
 
 interface TaskManagerProps {
   tasks: Task[];
@@ -46,6 +110,18 @@ interface TaskManagerProps {
     requires_before_after_photo?: boolean;
     checklist_schema?: any[];
   }) => Promise<void>;
+  /**
+   * Resolves with how many store tasks the content change reached.
+   *
+   * Title, description, priority and the checklist live on the template, so
+   * editing them from one row changes every row dispatched from the same
+   * briefing. The API counts them and this is what lets the panel say so
+   * instead of letting a supervisor believe they renamed one card.
+   */
+  onUpdateTask?: (id: string, changes: TaskEditValues) => Promise<number>;
+  onDeleteTask?: (id: string) => Promise<void>;
+  /** UI-only gate; the real one is `TASK_EDIT_FORBIDDEN` in the API. */
+  canEdit?: boolean;
 }
 
 export const TaskManager: React.FC<TaskManagerProps> = ({
@@ -55,6 +131,9 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
   setIsCreateModalOpen,
   onCreateTask,
   onBulkDispatch,
+  onUpdateTask,
+  onDeleteTask,
+  canEdit = false,
 }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -68,6 +147,103 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
   const [selectedStores, setSelectedStores] = useState<string[]>(['all']);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  /* ------------------------------------------------------------------------ */
+  /* Redaktə və silmə                                                         */
+  /*                                                                          */
+  /* Xətalar modalın İÇİNDƏ göstərilir, toast kimi yox: "bu tapşırığa 3 audit  */
+  /* göndərişi var" kimi bir səbəb istifadəçinin baxdığı yerin yanında          */
+  /* görünməlidir. `StoreDirectory`dəki eyni qayda.                            */
+  /* ------------------------------------------------------------------------ */
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editValues, setEditValues] = useState<TaskEditValues | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  const [deletingTask, setDeletingTask] = useState<Task | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const editModalRef = useModalA11y<HTMLDivElement>(editingTask !== null, () => closeEdit());
+  const deleteModalRef = useModalA11y<HTMLDivElement>(deletingTask !== null, () => closeDelete());
+
+  function closeEdit() {
+    setEditingTask(null);
+    setEditValues(null);
+    setEditError(null);
+  }
+
+  function closeDelete() {
+    setDeletingTask(null);
+    setDeleteError(null);
+  }
+
+  const openEdit = (task: Task) => {
+    setEditValues({
+      title: task.title ?? '',
+      description: task.description ?? '',
+      priority: (task.priority ?? 'medium') as TaskPriority,
+      deadline: toLocalInput(task.deadline),
+      requires_before_after_photo: task.requires_before_after_photo ?? false,
+      checklist_schema: (task.checklist_schema ?? []).map((item: any, index: number) => ({
+        id: String(item?.id ?? `q${index + 1}`),
+        label: String(item?.label ?? item?.text ?? ''),
+      })),
+    });
+    setEditError(null);
+    setEditingTask(task);
+  };
+
+  const submitEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTask || !editValues || !onUpdateTask) return;
+
+    if (!editValues.title.trim()) {
+      setEditError('Tapşırıq başlığı tələb olunur');
+      return;
+    }
+    if (!editValues.deadline) {
+      setEditError('Son tarix tələb olunur');
+      return;
+    }
+    // An item with no question would reach the field client as a checklist row
+    // the merchandiser cannot answer, so it is refused here rather than stored.
+    const blankItem = editValues.checklist_schema.findIndex((item) => !item.label.trim());
+    if (blankItem !== -1) {
+      setEditError(`Çeklistin ${blankItem + 1}-ci bəndində sual mətni boşdur`);
+      return;
+    }
+
+    setIsSavingEdit(true);
+    setEditError(null);
+    try {
+      // Resolves with how many rows the content change reached; the caller
+      // reports that, so it is not swallowed here.
+      await onUpdateTask(editingTask.id, {
+        ...editValues,
+        title: editValues.title.trim(),
+      });
+      closeEdit();
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const submitDelete = async () => {
+    if (!deletingTask || !onDeleteTask) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await onDeleteTask(deletingTask.id);
+      closeDelete();
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -305,6 +481,16 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
                 <div className="p-4 space-y-2">
                   <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* The API derives `kind` from the fields below, so this
+                        badge appears exactly when neither of the other two
+                        does — a plain audit with no checklist and no
+                        before/after pair. */}
+                    {task.kind === 'AUDIT' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200">
+                        <Layers className="w-3 h-3 text-slate-500" />
+                        Ümumi audit
+                      </span>
+                    )}
                     {task.requires_before_after_photo && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200">
                         <Camera className="w-3 h-3 text-indigo-500" />
@@ -327,14 +513,41 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 </div>
               </div>
 
-              <div className="p-4 pt-0 border-t border-hair-2 mt-2 flex items-center justify-between text-xs text-muted">
-                <span className="flex items-center gap-1 font-medium text-[11px]">
-                  <StoreIcon className="w-3.5 h-3.5 text-muted" />
-                  {task.assigned_stores?.length || 'Bütün'} Mağaza Təhkim edilib
+              <div className="p-4 pt-0 border-t border-hair-2 mt-2 flex items-center justify-between gap-2 text-xs text-muted">
+                <span className="flex min-w-0 items-center gap-1 font-medium text-[11px]">
+                  <StoreIcon className="w-3.5 h-3.5 flex-shrink-0 text-muted" />
+                  <span className="truncate">
+                    {task.assigned_stores?.length || 'Bütün'} Mağaza Təhkim edilib
+                  </span>
                 </span>
-                <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-emerald-50 text-emerald-700">
-                  Aktiv
-                </span>
+                <div className="flex flex-shrink-0 items-center gap-1.5">
+                  {getStatusBadge(task.status)}
+                  {canEdit && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => openEdit(task)}
+                        aria-label={`"${task.title}" tapşırığını redaktə et`}
+                        title="Redaktə et"
+                        className="rounded-lg p-1.5 text-muted transition-colors hover:bg-[var(--g-panel)] hover:text-ink cursor-pointer"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeleteError(null);
+                          setDeletingTask(task);
+                        }}
+                        aria-label={`"${task.title}" tapşırığını sil`}
+                        title="Sil"
+                        className="rounded-lg p-1.5 text-muted transition-colors hover:bg-[rgba(200,60,60,.08)] hover:text-[#b23b3b] cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           );
@@ -813,6 +1026,311 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+
+      {/* ====================================================================== */}
+      {/* TAPŞIRIĞI REDAKTƏ ET                                                   */}
+      {/* ====================================================================== */}
+      {editingTask && editValues && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 modal-veil flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <div
+              ref={editModalRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Tapşırığı redaktə et"
+              className="glass-pop w-full max-w-2xl rounded-card overflow-hidden my-auto"
+            >
+              <div className="p-5 border-b border-hair flex items-center justify-between bg-[var(--g-panel)]">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-coke-500 flex items-center justify-center text-white shadow-md shadow-[0_3px_10px_-3px_var(--coke-ring)]">
+                    <Pencil className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm sm:text-base text-ink">
+                      Tapşırığı redaktə et
+                    </h3>
+                    <p className="text-xs text-muted">{editingTask.title}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeEdit}
+                  aria-label="Bağla"
+                  className="p-1.5 rounded-lg text-muted hover:text-ink hover:bg-[var(--g-card)] cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={submitEdit} className="p-5 space-y-4 max-h-[65vh] overflow-y-auto">
+                {/*
+                  The single most important sentence on this screen. The panel
+                  shows one card per store, so a supervisor reasonably expects
+                  the edit to touch the card they clicked. Four of these five
+                  fields do not.
+                */}
+                {(editingTask.sibling_task_count ?? 1) > 1 && (
+                  <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-600 mt-[1px]" />
+                    <p className="text-[11.5px] leading-relaxed text-ink">
+                      Bu təlimat <b>{editingTask.sibling_task_count} mağazaya</b> göndərilib.
+                      Başlıq, təsvir, prioritet, çeklist və foto tələbi <b>hamısında</b> dəyişəcək.
+                      Yalnız son tarix bu mağazaya aiddir.
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-[11px] font-bold text-ink-2 mb-1.5">
+                    Tapşırıq Başlığı *
+                  </label>
+                  <input
+                    type="text"
+                    value={editValues.title}
+                    onChange={(e) => setEditValues({ ...editValues, title: e.target.value })}
+                    className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-ink-2 mb-1.5">Təlimat</label>
+                  <textarea
+                    rows={3}
+                    value={editValues.description}
+                    onChange={(e) => setEditValues({ ...editValues, description: e.target.value })}
+                    className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45 resize-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold text-ink-2 mb-1.5">
+                      Prioritet
+                    </label>
+                    <select
+                      value={editValues.priority}
+                      onChange={(e) =>
+                        setEditValues({ ...editValues, priority: e.target.value as TaskPriority })
+                      }
+                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)]"
+                    >
+                      <option value="low">Aşağı</option>
+                      <option value="medium">Orta</option>
+                      <option value="high">Yüksək</option>
+                      <option value="urgent">Təcili</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-ink-2 mb-1.5">
+                      Son Tarix (bu mağaza üçün) *
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={editValues.deadline}
+                      onChange={(e) => setEditValues({ ...editValues, deadline: e.target.value })}
+                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
+                    />
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editValues.requires_before_after_photo}
+                    onChange={(e) =>
+                      setEditValues({
+                        ...editValues,
+                        requires_before_after_photo: e.target.checked,
+                      })
+                    }
+                    className="w-4 h-4 rounded border-hair accent-[var(--coke-500)] cursor-pointer"
+                  />
+                  <span className="text-xs font-semibold text-ink-2">
+                    Before &amp; After fotosu tələb olunsun
+                  </span>
+                </label>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[11px] font-bold text-ink-2">
+                      Çeklist sualları ({editValues.checklist_schema.length})
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditValues({
+                          ...editValues,
+                          checklist_schema: [
+                            ...editValues.checklist_schema,
+                            { id: `q${Date.now()}`, label: '' },
+                          ],
+                        })
+                      }
+                      className="text-[11px] font-bold text-coke-600 hover:underline cursor-pointer"
+                    >
+                      + Sual əlavə et
+                    </button>
+                  </div>
+                  {editValues.checklist_schema.length === 0 ? (
+                    <p className="text-[11px] text-muted italic">
+                      Çeklist yoxdur — bu tapşırıq ümumi audit kimi göndəriləcək.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {editValues.checklist_schema.map((item, index) => (
+                        <div key={item.id} className="flex items-center gap-2">
+                          <span className="w-5 flex-shrink-0 text-[11px] font-bold text-muted">
+                            {index + 1}
+                          </span>
+                          <input
+                            type="text"
+                            value={item.label}
+                            placeholder="Sual mətni (məsələn: Rəfdə boşluq var?)"
+                            onChange={(e) => {
+                              const next = [...editValues.checklist_schema];
+                              next[index] = { ...next[index], label: e.target.value };
+                              setEditValues({ ...editValues, checklist_schema: next });
+                            }}
+                            className="flex-1 px-3 py-1.5 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)]"
+                          />
+                          <button
+                            type="button"
+                            aria-label={`${index + 1}-ci sualı sil`}
+                            onClick={() =>
+                              setEditValues({
+                                ...editValues,
+                                checklist_schema: editValues.checklist_schema.filter(
+                                  (_, i) => i !== index,
+                                ),
+                              })
+                            }
+                            className="p-1.5 rounded-lg text-muted hover:text-[#b23b3b] hover:bg-[rgba(200,60,60,.08)] cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {editError && (
+                  <div className="flex items-start gap-2.5 rounded-xl border border-[rgba(200,60,60,.28)] bg-[rgba(200,60,60,.08)] px-3.5 py-2.5">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[#b23b3b] mt-[1px]" />
+                    <p className="text-[11.5px] leading-relaxed text-ink">{editError}</p>
+                  </div>
+                )}
+
+                <div className="pt-3 border-t border-hair flex items-center justify-end space-x-2.5">
+                  <button
+                    type="button"
+                    onClick={closeEdit}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-ink-2 hover:bg-[var(--g-panel)] cursor-pointer"
+                  >
+                    Ləğv Et
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingEdit}
+                    className="px-5 py-1.5 rounded-lg btn-coke text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+                  >
+                    {isSavingEdit && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    {isSavingEdit ? 'Saxlanılır...' : 'Yadda saxla'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+
+      {/* ====================================================================== */}
+      {/* TAPŞIRIĞI SİL                                                          */}
+      {/* ====================================================================== */}
+      {deletingTask && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 modal-veil flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <div
+              ref={deleteModalRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Tapşırığı sil"
+              className="glass-pop w-full max-w-lg rounded-card overflow-hidden my-auto"
+            >
+              <div className="p-5 border-b border-hair flex items-center justify-between bg-[var(--g-panel)]">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-[rgba(200,60,60,.14)] flex items-center justify-center text-[#b23b3b]">
+                    <Trash2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm sm:text-base text-ink">Tapşırığı sil</h3>
+                    <p className="text-xs text-muted">Bu əməliyyat geri qaytarılmır</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeDelete}
+                  aria-label="Bağla"
+                  className="p-1.5 rounded-lg text-muted hover:text-ink hover:bg-[var(--g-card)] cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-3.5">
+                <p className="text-xs leading-relaxed text-ink">
+                  <b>{deletingTask.title}</b> tapşırığı silinəcək. Tapşırığın təlimatı və bu mağaza
+                  üçün yaradılmış qeyd bazadan çıxacaq.
+                </p>
+
+                {/*
+                  The API refuses this with 409 TASK_HAS_EVIDENCE, because
+                  `task_evidences.store_task_id` is ON DELETE CASCADE and the
+                  delete would take the photos with it. Saying so here means the
+                  supervisor learns it before pressing the button rather than
+                  after — but the button stays enabled, because the count on this
+                  card can be a refresh behind.
+                */}
+                {(deletingTask.evidence_count ?? 0) > 0 && (
+                  <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-600 mt-[1px]" />
+                    <p className="text-[11.5px] leading-relaxed text-ink">
+                      Bu tapşırığa <b>{deletingTask.evidence_count} audit göndərişi</b> var. Silinmə
+                      rədd olunacaq — silinsəydi, həmin fotolar və çeklist cavabları da silinərdi.
+                    </p>
+                  </div>
+                )}
+
+                {deleteError && (
+                  <div className="flex items-start gap-2.5 rounded-xl border border-[rgba(200,60,60,.28)] bg-[rgba(200,60,60,.08)] px-3.5 py-2.5">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[#b23b3b] mt-[1px]" />
+                    <p className="text-[11.5px] leading-relaxed text-ink">{deleteError}</p>
+                  </div>
+                )}
+
+                <div className="pt-3 border-t border-hair flex items-center justify-end space-x-2.5">
+                  <button
+                    type="button"
+                    onClick={closeDelete}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-ink-2 hover:bg-[var(--g-panel)] cursor-pointer"
+                  >
+                    Ləğv Et
+                  </button>
+                  <button
+                    type="button"
+                    onClick={submitDelete}
+                    disabled={isDeleting}
+                    className="px-5 py-1.5 rounded-lg bg-[#b23b3b] text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+                  >
+                    {isDeleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    {isDeleting ? 'Silinir...' : 'Bəli, sil'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </ModalPortal>

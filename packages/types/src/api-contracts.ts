@@ -120,6 +120,15 @@ export interface BulkDispatchResultDto {
     telegram: number;
     pushNotification: number;
   };
+  /**
+   * Stores the briefing could not be dispatched to, and why.
+   *
+   * Present because `tasksCreated` alone cannot distinguish "the segmentation
+   * matched twelve stores and all twelve succeeded" from "twelve matched, nine
+   * were written and three failed". A supervisor who is told only the first
+   * number will believe the shelves are covered when they are not.
+   */
+  failures?: Array<{ storeId: string; storeName: string; reason: string }>;
 }
 
 export interface ApiResponse<T = any> {

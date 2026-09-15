@@ -3,7 +3,7 @@ import { Sidebar, TabType } from './components/Sidebar';
 import { Header } from './components/Header';
 import { DashboardOverview } from './components/DashboardOverview';
 import { AuditReviewCenter } from './components/AuditReviewCenter';
-import { TaskManager } from './components/TaskManager';
+import { TaskManager, TaskEditValues } from './components/TaskManager';
 import { StoreDirectory, StoreFormValues } from './components/StoreDirectory';
 import { PanelLogin } from './components/PanelLogin';
 import { PanelKeysModal } from './components/PanelKeysModal';
@@ -325,6 +325,50 @@ export function App() {
       'Yeni planogram təlimatı mağazalara uğurla göndərildi!',
     );
 
+  /**
+   * Tapşırıq redaktəsi.
+   *
+   * Xəta **yenidən atılır** (udulmur): səbəb modalın içində, istifadəçinin
+   * baxdığı yerin yanında görünməlidir — "bu tapşırığa 3 audit göndərişi var"
+   * kimi bir cümlə toast-da itməməlidir.
+   *
+   * Uğur mesajı isə API-dən gələn rəqəmə bağlıdır: başlıq, təsvir, prioritet və
+   * çeklist təlimatın üzərindədir, ondan göndərilmiş hər mağaza onları oxuyur.
+   * Səssizcə dörd kartı dəyişmək istifadəçini çaşdırardı.
+   */
+  const handleUpdateTask = async (id: string, changes: TaskEditValues) => {
+    try {
+      const { templateEditReachedTasks } = await portalService.updateTask(id, changes);
+      await loadData();
+      showToast(
+        templateEditReachedTasks > 1
+          ? `Tapşırıq yeniləndi — məzmun dəyişikliyi ${templateEditReachedTasks} mağazaya tətbiq olundu.`
+          : 'Tapşırıq yeniləndi.',
+      );
+      return templateEditReachedTasks;
+    } catch (error) {
+      if (isAuthFailure(error)) {
+        clearStoredKey();
+        await checkAuth();
+      }
+      throw error;
+    }
+  };
+
+  const handleDeleteTask = async (id: string) => {
+    try {
+      await portalService.deleteTask(id);
+      await loadData();
+      showToast('Tapşırıq silindi.');
+    } catch (error) {
+      if (isAuthFailure(error)) {
+        clearStoredKey();
+        await checkAuth();
+      }
+      throw error;
+    }
+  };
+
   const handleBulkDispatch = (bulkData: {
     title: string;
     description: string;
@@ -364,17 +408,17 @@ export function App() {
   };
 
   /**
-   * Mağaza/tapşırıq yaratmaq hüququ olan istifadəçi.
+   * Mağaza/tapşırıq yaratmaq, redaktə etmək və silmək hüququ olan istifadəçi.
    *
    * Bu, **yalnız UI** qərarıdır — düymələri göstərmək və ya gizlətmək üçün.
-   * Əsl qapı API-dədir (`STORE_EDIT_FORBIDDEN`, 403), çünki brauzerdəki bir
-   * şərt heç vaxt təhlükəsizlik sərhədi deyil.
+   * Əsl qapı API-dədir (`STORE_EDIT_FORBIDDEN` / `TASK_EDIT_FORBIDDEN`, 403),
+   * çünki brauzerdəki bir şərt heç vaxt təhlükəsizlik sərhədi deyil.
    *
    * `identity` null ola bilər (şəxsiyyət sorğusu alınmadı). O halda rol
    * bilinmir, ona görə imtiyazlı əməliyyat **təklif olunmur**: bilinməyəni
    * "bəlkə admin" kimi oxumaq səhv tərəfə yıxılmaq olardı.
    */
-  const canEditStores =
+  const canEditMasterData =
     auth.phase === 'ready' &&
     (auth.identity?.role === 'ADMIN' || auth.identity?.role === 'SUPERVISOR');
 
@@ -531,6 +575,9 @@ export function App() {
                   setIsCreateModalOpen={setIsCreateModalOpen}
                   onCreateTask={handleCreateTask}
                   onBulkDispatch={handleBulkDispatch}
+                  onUpdateTask={handleUpdateTask}
+                  onDeleteTask={handleDeleteTask}
+                  canEdit={canEditMasterData}
                 />
               )}
 
@@ -541,7 +588,7 @@ export function App() {
                   onCreate={handleCreateStore}
                   onUpdate={handleUpdateStore}
                   onDelete={handleDeleteStore}
-                  canEdit={canEditStores}
+                  canEdit={canEditMasterData}
                 />
               )}
             </div>

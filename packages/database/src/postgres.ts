@@ -327,12 +327,24 @@ export async function insertAuditLog(pool: Pool, entry: InMemoryAuditLog): Promi
 }
 
 /**
- * Persists the outcome of a state transition.
+ * Persists a change to a store task.
  *
  * The timestamp columns are written explicitly rather than derived in SQL,
  * because the value the in-memory copy holds is the one the audit log already
  * recorded; letting the database choose its own would make the two disagree by
  * a few milliseconds for no benefit.
+ *
+ * WHY `deadline` IS IN THIS LIST
+ * ------------------------------
+ * It was not, for a long time. The statement was written for state transitions
+ * and assignment, and the panel only gained the ability to edit a deadline
+ * later — so an edit moved the deadline in the process's memory, answered 200,
+ * rendered the new date, and left the old one in the column. It would have come
+ * back on the next restart with no trace of the change.
+ *
+ * The task suite's read-back assertion caught it, which is the entire reason
+ * that assertion exists: everything the API said was true, and the row
+ * disagreed.
  */
 export async function updateStoreTaskRow(pool: Pool, task: InMemoryStoreTask): Promise<void> {
   await pool.query(
@@ -344,7 +356,8 @@ export async function updateStoreTaskRow(pool: Pool, task: InMemoryStoreTask): P
             submitted_at = $6,
             reviewed_at = $7,
             updated_at = $8,
-            assigned_user_id = $9
+            assigned_user_id = $9,
+            deadline = $10
       WHERE id = $1`,
     [
       task.id,
@@ -356,6 +369,7 @@ export async function updateStoreTaskRow(pool: Pool, task: InMemoryStoreTask): P
       task.reviewedAt ?? null,
       task.updatedAt,
       task.assignedUserId ?? null,
+      task.deadline,
     ],
   );
 }
@@ -409,6 +423,104 @@ export async function insertTemplate(
       template.updatedAt ?? new Date(),
     ],
   );
+}
+
+/**
+ * Applies an edit to a task template.
+ *
+ * The template is where a briefing's words live, and every store task created
+ * from it reads them from here. Editing a template therefore edits what all of
+ * its dispatched tasks say — which is correct for the panel's "one task, many
+ * stores" shape, and is why the service reports how many tasks were affected
+ * rather than pretending the edit touched one row.
+ *
+ * `id` and `created_at` are deliberately not in the SET list: an edit must not
+ * be able to move a template's identity or rewrite when it was authored.
+ */
+export async function updateTemplateRow(
+  pool: Pool,
+  template: {
+    id: string;
+    title: string;
+    description: string;
+    referenceImageUrl: string;
+    priority: string;
+    planogramRules?: unknown[];
+    requiresBeforeAfterPhoto?: boolean;
+    checklistSchema?: unknown[];
+    updatedAt?: Date;
+  },
+): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE task_templates
+        SET title = $2, description = $3, reference_image_url = $4, priority = $5,
+            planogram_rules = $6, requires_before_after_photo = $7,
+            checklist_schema = $8, updated_at = $9
+      WHERE id = $1`,
+    [
+      template.id,
+      template.title,
+      template.description,
+      template.referenceImageUrl,
+      template.priority,
+      JSON.stringify(template.planogramRules ?? []),
+      template.requiresBeforeAfterPhoto ?? false,
+      JSON.stringify(template.checklistSchema ?? []),
+      template.updatedAt ?? new Date(),
+    ],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/**
+ * Counts the store tasks a template has been dispatched to.
+ *
+ * Used to say how many rows an edit to the template reached, and to explain why
+ * a template cannot simply be discarded.
+ */
+export async function countStoreTasksForTemplate(pool: Pool, templateId: string): Promise<number> {
+  const result = await pool.query<{ count: string }>(
+    'SELECT count(*)::text AS count FROM store_tasks WHERE template_id = $1',
+    [templateId],
+  );
+  return Number(result.rows[0]?.count ?? 0);
+}
+
+/**
+ * Deletes a task template.
+ *
+ * Only safe for a briefing that was never dispatched: `store_tasks.template_id`
+ * is `ON DELETE RESTRICT`, so the statement raises rather than cascading if any
+ * store task still points at it. The caller checks that first — see
+ * `EnterpriseDatabase.discardTemplate`, which uses this to undo the template
+ * half of a dispatch that then failed.
+ */
+export async function deleteTemplateRow(pool: Pool, templateId: string): Promise<boolean> {
+  const result = await pool.query('DELETE FROM task_templates WHERE id = $1', [templateId]);
+  return (result.rowCount ?? 0) > 0;
+}
+
+/**
+ * Deletes one store task.
+ *
+ * `task_evidences.store_task_id` is `ON DELETE CASCADE`, so this statement also
+ * destroys every photo and checklist answer submitted against the task. That is
+ * why the caller counts the evidence first and refuses rather than letting a
+ * supervisor delete a briefing and lose the field work with it — see
+ * `countEvidencesForTask`.
+ */
+export async function deleteStoreTaskRow(pool: Pool, taskId: string): Promise<boolean> {
+  const result = await pool.query('DELETE FROM store_tasks WHERE id = $1', [taskId]);
+  return (result.rowCount ?? 0) > 0;
+}
+
+/** Counts the submitted evidence rows attached to a store task. */
+export async function countEvidencesForTask(pool: Pool, taskId: string): Promise<number> {
+  const result = await pool.query<{ count: string }>(
+    'SELECT count(*)::text AS count FROM task_evidences WHERE store_task_id = $1',
+    [taskId],
+  );
+  return Number(result.rows[0]?.count ?? 0);
 }
 
 /**

@@ -286,6 +286,51 @@ class PortalDataService {
     } as Task;
   }
 
+  /**
+   * Applies a partial edit to one task.
+   *
+   * Which keys are sent decides which table is touched: `deadline` and
+   * `assigned_user_id` belong to this store's row, everything else belongs to
+   * the briefing the row was dispatched from — and is therefore shared with
+   * every other store that received it. The API reports how many rows the
+   * content change reached, and the caller shows that rather than letting a
+   * supervisor believe they renamed one row.
+   */
+  async updateTask(
+    id: string,
+    changes: Partial<{
+      title: string;
+      description: string;
+      priority: Task['priority'];
+      reference_image_url: string;
+      deadline: string;
+      assigned_user_id: string | null;
+      requires_before_after_photo: boolean;
+      checklist_schema: any[];
+    }>,
+  ): Promise<{ task: Task; templateEditReachedTasks: number }> {
+    const body = await request<Envelope<Task> & { templateEditReachedTasks?: number }>(
+      `/api/portal/tasks/${encodeURIComponent(id)}`,
+      { method: 'PATCH', body: JSON.stringify(changes) },
+    );
+    return { task: body.data, templateEditReachedTasks: body.templateEditReachedTasks ?? 0 };
+  }
+
+  /**
+   * Deletes a task.
+   *
+   * Rejects with the API's own sentence when the task has submissions, because
+   * deleting it cascades to the photos and checklist answers submitted against
+   * it. There is deliberately no client-side pre-check: the panel's copy of the
+   * task list can be a refresh behind, and its `evidence_count` is only ever a
+   * hint — refusing on it would block a delete that would have succeeded.
+   */
+  async deleteTask(id: string): Promise<void> {
+    await request<Envelope<{ id: string }>>(`/api/portal/tasks/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  }
+
   async bulkDispatchTasks(data: {
     templateId?: string;
     title: string;

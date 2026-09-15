@@ -114,4 +114,24 @@ export class PortalController {
   async createTask(@Body() body: any, @Request() request: AuthedRequest) {
     return this.portalService.createAndDispatch(body, getPrincipal(request));
   }
+
+  /**
+   * Task edits and deletes, next to the read for the same reason the store
+   * writes are: a task is business data, not panel administration.
+   *
+   * `PATCH` rather than `PUT` because the form sends only what changed, and a
+   * task's fields are split across two tables — the row's own deadline and
+   * assignee, and the shared briefing behind it. See `PortalService.updateTask`.
+   */
+  @Patch('tasks/:id')
+  @HttpCode(HttpStatus.OK)
+  async updateTask(@Param('id') id: string, @Body() body: any, @Request() request: AuthedRequest) {
+    return this.portalService.updateTask(id, body, getPrincipal(request));
+  }
+
+  @Delete('tasks/:id')
+  @HttpCode(HttpStatus.OK)
+  async deleteTask(@Param('id') id: string, @Request() request: AuthedRequest) {
+    return this.portalService.deleteTask(id, getPrincipal(request));
+  }
 }
