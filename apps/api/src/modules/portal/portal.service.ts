@@ -340,10 +340,20 @@ export class PortalService {
   } {
     const fields: Record<string, any> = {};
 
-    const text = (key: string, label: string): string | undefined => {
+    /**
+     * Reads a text field.
+     *
+     * `required` is per-field rather than one flag for the whole body. It was
+     * one flag at first, and the first live create without a `city` came back
+     * "Şəhər tələb olunur" — a field with a perfectly good default had been
+     * made mandatory by a flag that was only ever meant to cover the code, the
+     * name, the address and the coordinates. The suite did not catch it because
+     * its helper always sends every field; the live check did.
+     */
+    const text = (key: string, label: string, required: boolean): string | undefined => {
       const raw = body[key];
       if (raw === undefined || raw === null || String(raw).trim() === '') {
-        if (options.requireAll) {
+        if (required) {
           throw new HttpException(`${label} tələb olunur`, HttpStatus.BAD_REQUEST);
         }
         return undefined;
@@ -351,7 +361,7 @@ export class PortalService {
       return String(raw).trim();
     };
 
-    const code = text('store_code', 'Mağaza kodu');
+    const code = text('store_code', 'Mağaza kodu', options.requireAll);
     if (code !== undefined) {
       // Uppercased rather than accepted as typed: the bot and the mobile client
       // match a code case-insensitively today, and storing two rows that differ
@@ -366,16 +376,19 @@ export class PortalService {
       fields.storeCode = normalized;
     }
 
-    const name = text('name', 'Mağazanın adı');
+    // Only the three that the database has no default for are required. City,
+    // chain and format all have one, so an operator who types a code, a name,
+    // an address and a pin gets a usable store.
+    const name = text('name', 'Mağazanın adı', options.requireAll);
     if (name !== undefined) fields.name = name;
 
-    const address = text('address', 'Ünvan');
+    const address = text('address', 'Ünvan', options.requireAll);
     if (address !== undefined) fields.address = address;
 
-    const city = text('city', 'Şəhər');
+    const city = text('city', 'Şəhər', false);
     if (city !== undefined) fields.city = city;
 
-    const chainName = text('chain_name', 'Şəbəkə adı');
+    const chainName = text('chain_name', 'Şəbəkə adı', false);
     if (chainName !== undefined) fields.chainName = chainName;
 
     if (body.store_format !== undefined && body.store_format !== null) {

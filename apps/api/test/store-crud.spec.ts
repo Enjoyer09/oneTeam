@@ -368,6 +368,45 @@ async function main(): Promise<void> {
     }
 
     // -------------------------------------------------------------------------
+    console.log('\ncreate with only the required fields');
+    // -------------------------------------------------------------------------
+
+    // The first live run of this suite was missing this, and the API had a real
+    // bug because of it: a single "require everything" flag made `city` and
+    // `chain_name` mandatory, and the only reason the suite stayed green was
+    // that its helper always sent every field. A store has defaults for city,
+    // chain and format, so a supervisor who types a code, a name, an address
+    // and a pin must get a usable store.
+    const minimalCode = `TEST_MINIMAL_${RUN}`;
+    const minimal = await call('POST', '/api/portal/stores', {
+      token,
+      body: {
+        store_code: minimalCode,
+        name: 'Minimal Market',
+        address: 'Yalnız tələb olunan sahələr 1, Bakı',
+        latitude: 40.3724,
+        longitude: 49.8372,
+      },
+    });
+
+    check(
+      'a store with no city, chain or format is accepted',
+      minimal.status === 201,
+      minimal.body,
+    );
+    check(
+      'and it gets the default city',
+      minimal.body?.data?.city === 'Bakı',
+      minimal.body?.data?.city,
+    );
+    check(
+      'and the default format',
+      minimal.body?.data?.store_format === 'supermarket',
+      minimal.body?.data?.store_format,
+    );
+    if (minimal.body?.data?.id) createdIds.push(minimal.body.data.id);
+
+    // -------------------------------------------------------------------------
     console.log('\nedit');
     // -------------------------------------------------------------------------
 
@@ -468,7 +507,10 @@ async function main(): Promise<void> {
     const unknownDelete = await call('DELETE', '/api/portal/stores/str-does-not-exist', { token });
     check('deleting an unknown id answers 404', unknownDelete.status === 404, unknownDelete.body);
 
-    createdIds.length = 0;
+    // Forgets only the one that is already gone. Clearing the whole list here
+    // would drop the minimal store from the cleanup and leak it — which the
+    // final count check would then report, correctly but unhelpfully.
+    if (storeId) createdIds.splice(createdIds.indexOf(storeId), 1);
 
     // -------------------------------------------------------------------------
     console.log('\nrole boundary');
