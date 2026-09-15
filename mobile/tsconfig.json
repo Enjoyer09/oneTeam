@@ -9,7 +9,28 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+
+    // WHY THESE PATHS EXIST — CI CAUGHT THIS, A LOCAL RUN COULD NOT
+    // -------------------------------------------------------------
+    // `src/types/index.ts` imports `@oneteam/types`. Without a mapping, that
+    // resolves through `node_modules/@oneteam/types`, which is a SYMLINK to
+    // `packages/types` — and that package's `types` field points at
+    // `./dist/index.d.ts`, which is GITIGNORED.
+    //
+    // So the type check silently depended on a build artefact that CI never
+    // builds. It passed on every developer machine, where `dist/` existed from
+    // an earlier `npm run build`, and failed on the first clean checkout with
+    // `Cannot find module '@oneteam/types'`.
+    //
+    // The root `tsconfig.json` already solves this the same way, mapping both
+    // `@oneteam/types` and `@oneteam/database` to `packages/*/src`. This is that
+    // same rule, for the same reason: type-check against SOURCE, so the result
+    // does not depend on whether somebody remembered to build.
+    "baseUrl": ".",
+    "paths": {
+      "@oneteam/types": ["../packages/types/src"]
+    }
   },
   "include": ["src/**/*"],
   // WHY TWO FILES ARE EXCLUDED, AND WHY THAT LIST MUST NOT GROW

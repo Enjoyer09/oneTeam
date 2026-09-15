@@ -1,4 +1,18 @@
-import { ChecklistQuestion, PlanogramRule } from '@oneteam/types';
+// `import type`, deliberately — and it is not a style preference.
+//
+// `mobile` is NOT a workspace member (it has its own lockfile and is installed
+// separately), so `@oneteam/types` is not in this package's dependencies. The
+// import only resolves because `mobile/` happens to sit inside the monorepo and
+// Node walks up to the root `node_modules`. In a standalone Expo build — an EAS
+// build, or a fresh clone where only `mobile/` was installed — there is nothing
+// to resolve.
+//
+// Both symbols below are used in TYPE POSITIONS only, so `import type` makes the
+// erasure explicit and guarantees the bundler drops the import instead of
+// emitting a runtime `require` that would fail exactly there. It also means the
+// mobile app genuinely has no runtime dependency on the shared package, which is
+// the truth.
+import type { ChecklistQuestion, PlanogramRule } from '@oneteam/types';
 
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type TaskStatus = 'draft' | 'published' | 'completed' | 'archived';

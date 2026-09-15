@@ -408,5 +408,53 @@ if (existsSync(rootPath)) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// `@oneteam/types` must resolve to SOURCE, not to a build artefact.
+//
+// This is the defect CI found the first time it was allowed to run at all. The
+// import resolved through `node_modules/@oneteam/types` — a symlink to
+// `packages/types` — whose `types` field points at `./dist/index.d.ts`, and
+// `packages/*/dist/` is GITIGNORED. So the mobile type check silently required a
+// build step that CI never performs: it passed on every machine where `dist/`
+// happened to exist from an earlier build, and failed on the first clean
+// checkout with `Cannot find module '@oneteam/types'`.
+//
+// A guard is warranted rather than a comment because the failure is INVISIBLE
+// locally: removing this mapping turns the check red only on a clean checkout,
+// which is the one place nobody is looking when they remove it.
+// ---------------------------------------------------------------------------
+console.log('\nShared types resolution');
+const mobileTsconfigPath = join(MOBILE, 'tsconfig.json');
+check('mobile/tsconfig.json exists', existsSync(mobileTsconfigPath));
+if (existsSync(mobileTsconfigPath)) {
+  const tsconfig = readFileSync(mobileTsconfigPath, 'utf8');
+  check(
+    'mobile/tsconfig.json maps @oneteam/types to packages/types/src',
+    /"@oneteam\/types"\s*:\s*\[\s*"\.\.\/packages\/types\/src"\s*\]/.test(tsconfig),
+    'without this the import resolves to a GITIGNORED dist/, so the check passes only where somebody has built',
+  );
+  check(
+    'and sets baseUrl, which `paths` is resolved against',
+    /"baseUrl"\s*:\s*"\."/.test(tsconfig),
+    '`paths` entries are relative to baseUrl',
+  );
+}
+
+// `mobile` is not a workspace member (it has its own lockfile and is installed
+// separately), so `@oneteam/types` is NOT in its dependencies — it resolves only
+// because `mobile/` happens to sit inside the monorepo. The import is therefore
+// kept type-only so the bundler erases it, instead of emitting a runtime
+// `require` for a package the app cannot install on its own.
+const mobileTypesPath = join(MOBILE, 'src/types/index.ts');
+check('mobile/src/types/index.ts exists', existsSync(mobileTypesPath));
+if (existsSync(mobileTypesPath)) {
+  const mobileTypes = readFileSync(mobileTypesPath, 'utf8');
+  check(
+    'the @oneteam/types import is type-only, so it is erased at bundle time',
+    /import\s+type\s*\{[^}]*\}\s*from\s*'@oneteam\/types'/.test(mobileTypes),
+    'a value import emits a runtime require for a package mobile does not depend on',
+  );
+}
+
 console.log(failures === 0 ? '\nAll config checks passed.' : `\n${failures} check(s) FAILED.`);
 process.exit(failures === 0 ? 0 : 1);
