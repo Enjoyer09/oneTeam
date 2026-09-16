@@ -205,7 +205,9 @@ export function CameraAuditScreenUI({
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
-            onPress={handleSubmit}
+            onPress={() => {
+              void handleSubmit();
+            }}
             disabled={submitting}
           >
             {submitting ? (
