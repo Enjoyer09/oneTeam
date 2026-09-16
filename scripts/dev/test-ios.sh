@@ -69,7 +69,18 @@ else
   echo "Metro artıq işləyir — mövcud serverdən istifadə olunur."
 fi
 
-# --- 2. Testlər -------------------------------------------------------------
+# --- 2. JS paketini əvvəlcədən hazırla ---------------------------------------
+# Debug quruluşunda ekran yalnız Metro JavaScript paketini verdikdən sonra
+# görünür. İsti maşında bu bir saniyədir, soyuq maşında (CI) 20-60 saniyə —
+# testin gözləmə müddətindən çox. Nəticə "giriş ekranı yoxdur" kimi görünür və
+# səbəb görünmür. Paketi bir dəfə soruşub cavabı gözləmək bunu aradan qaldırır.
+echo ""
+echo "JS paketi hazırlanır (soyuq Metro üçün 1-2 dəqiqə çəkə bilər)..."
+curl -s --max-time 600 -o /dev/null \
+  "http://127.0.0.1:8081/index.bundle?platform=ios&dev=true&hot=false"
+echo "Paket hazırdır."
+
+# --- 3. Testlər -------------------------------------------------------------
 echo ""
 echo "Testlər işləyir. Bu 5-15 dəqiqə çəkə bilər..."
 echo "Log: $LOG"
@@ -88,7 +99,7 @@ if [ "$METRO_WAS_RUNNING" = "0" ]; then
   kill "$METRO_PID" 2>/dev/null
 fi
 
-# --- 3. Nəticə --------------------------------------------------------------
+# --- 4. Nəticə --------------------------------------------------------------
 echo ""
 echo "=============================================="
 if [ "$STATUS" -eq 0 ]; then

@@ -73,13 +73,33 @@ final class FieldAuditUITests: XCTestCase {
   private func submitButton()  -> XCUIElement { app.buttons["login.submitButton"] }
   private func errorText()     -> XCUIElement { app.staticTexts["login.errorText"] }
 
+  /// Waits for the login screen, and on timeout says what IS on screen.
+  ///
+  /// WHY NOT `waitForExistence(timeout: 5)`
+  /// --------------------------------------
+  /// In Debug the screen only exists once Metro has served the JavaScript
+  /// bundle. On a machine where that bundle is already warm it takes under a
+  /// second; on a cold CI runner Metro has to transform the whole app first,
+  /// which is far more than 5 seconds. All four tests failed on CI at exactly
+  /// that wait, having shown nothing about the cause.
+  ///
+  /// So: a generous timeout, and a failure that prints the accessibility tree.
+  /// "login.storeCodeInput must be on the login screen" tells you nothing; the
+  /// tree tells you whether the app is still loading, showing a red box, or on
+  /// an entirely different screen.
+  private func waitForLoginScreen(file: StaticString = #filePath, line: UInt = #line) {
+    if storeCodeInput().waitForExistence(timeout: 60) { return }
+    let tree = app.debugDescription
+    let shown = tree.count > 4000 ? String(tree.prefix(4000)) + "\n… (truncated)" : tree
+    XCTFail("login.storeCodeInput never appeared. Screen was:\n\(shown)", file: file, line: line)
+  }
+
   // --- Tests ----------------------------------------------------------------
 
   /// The contract is honoured: the identifiers the Swift test addresses must
   /// exist as `testID`s in the React Native sources.
   func testLoginScreenContract() throws {
-    XCTAssertTrue(storeCodeInput().waitForExistence(timeout: 5),
-      "login.storeCodeInput must be on the login screen")
+    waitForLoginScreen()
     XCTAssertTrue(submitButton().exists,
       "login.submitButton must be on the login screen")
     XCTAssertTrue(errorText().exists == false,
@@ -89,7 +109,7 @@ final class FieldAuditUITests: XCTestCase {
   /// The button must stay disabled until a GPS fix arrives — the same gating
   /// the controller enforces against a real geofence.
   func testSignInStaysDisabledUntilGpsReports() throws {
-    XCTAssertTrue(storeCodeInput().waitForExistence(timeout: 5))
+    waitForLoginScreen()
 
     // The store code is pre-filled by the controller, so the only thing keeping
     // the button disabled here is the missing GPS fix — which is precisely the
@@ -110,7 +130,7 @@ final class FieldAuditUITests: XCTestCase {
   /// rejection through `login.errorText`. This is the part of the flow the
   /// simulator can exercise today.
   func testRejectionPathIsWiredToTheUi() throws {
-    XCTAssertTrue(storeCodeInput().waitForExistence(timeout: 5))
+    waitForLoginScreen()
 
     let enabled = NSPredicate(format: "isEnabled == true")
     expectation(for: enabled, evaluatedWith: submitButton())
@@ -130,7 +150,7 @@ final class FieldAuditUITests: XCTestCase {
   /// makes the protected screen unreachable: tapping where the row *would* be
   /// does nothing, and no element with the `taskList.*` identifier exists.
   func testTaskListIsNotReachableBeforeLogin() throws {
-    XCTAssertTrue(storeCodeInput().waitForExistence(timeout: 5))
+    waitForLoginScreen()
 
     let taskRow = app.otherElements["taskList.taskRow"]
     XCTAssertFalse(taskRow.exists,
