@@ -141,6 +141,17 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
 
           <TouchableOpacity
             testID="login.submitButton"
+            // `accessibilityRole` is what makes XCTest see a button at all.
+            // TouchableOpacity forwards the prop but defaults it to nothing, so
+            // without this the control is an "other" element and
+            // `app.buttons["login.submitButton"]` matches nothing.
+            //
+            // `accessibilityState` is what makes `isEnabled` mean something:
+            // React Native maps `disabled` to UIAccessibilityTraitNotEnabled
+            // (React/Views/RCTViewManager.m), which is exactly what XCUI
+            // reports as `isEnabled == false`. The UI test asserts on it.
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !canSubmit }}
             style={[styles.loginButton, !canSubmit && styles.loginButtonDisabled]}
             onPress={() => {
               void handleLogin();

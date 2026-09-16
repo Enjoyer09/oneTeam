@@ -23,6 +23,26 @@
 // `testFullFlowAgainstBackend` will run; otherwise `setUpWithError` skips it
 // with a clear reason, so the suite still tells the truth.
 //
+// A `testID` IS NOT ENOUGH
+// ------------------------
+// `scripts/quality/ui-test-ids.mjs` proves the identifiers exist in the
+// sources. It cannot prove XCTest can REACH them, and two places it cannot see
+// decide that:
+//
+//   * `TouchableOpacity` forwards `accessibilityRole` but defaults it to
+//     nothing, so without `accessibilityRole="button"` the control is an
+//     "other" element and `app.buttons["login.submitButton"]` matches nothing.
+//   * React Native maps `accessibilityState: { disabled: true }` to
+//     `UIAccessibilityTraitNotEnabled` (React/Views/RCTViewManager.m), which is
+//     what XCUI reports as `isEnabled == false`. The `disabled` prop by itself
+//     never reaches XCTest.
+//
+// Both are set in `LoginScreenUI.tsx`; both are called out here because
+// removing either one makes these tests fail for a reason no guard would catch.
+//
+// The store code field is PRE-FILLED by the controller
+// (`storeCodeInput: 'BRAVO_YASAMAL_01'`), so the tests must not type into it.
+//
 // THE TARGET
 // ----------
 // This file is committed next to the test contract so that
@@ -71,11 +91,10 @@ final class FieldAuditUITests: XCTestCase {
   func testSignInStaysDisabledUntilGpsReports() throws {
     XCTAssertTrue(storeCodeInput().waitForExistence(timeout: 5))
 
-    storeCodeInput().tap()
-    storeCodeInput().typeText("BRAVO_YASAMAL_01")
-
-    // The simulated fix arrives after roughly 1.5 seconds. Until then the
-    // submit button is disabled; once it lands it becomes enabled.
+    // The store code is pre-filled by the controller, so the only thing keeping
+    // the button disabled here is the missing GPS fix — which is precisely the
+    // rule under test. Typing a code would be meaningless and would corrupt the
+    // pre-filled value.
     XCTAssertFalse(submitButton().isEnabled,
       "Sign in must be disabled before the simulated GPS reports a fix")
 
@@ -92,9 +111,6 @@ final class FieldAuditUITests: XCTestCase {
   /// simulator can exercise today.
   func testRejectionPathIsWiredToTheUi() throws {
     XCTAssertTrue(storeCodeInput().waitForExistence(timeout: 5))
-
-    storeCodeInput().tap()
-    storeCodeInput().typeText("BRAVO_YASAMAL_01")
 
     let enabled = NSPredicate(format: "isEnabled == true")
     expectation(for: enabled, evaluatedWith: submitButton())
