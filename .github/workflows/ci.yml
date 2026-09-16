@@ -203,3 +203,80 @@ jobs:
           path: web/dist
           retention-days: 7
           if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Job 4 — the iOS UI test (plan 3.4). The only check in this pipeline that
+  # actually launches the app and taps it.
+  #
+  # WHY IT RUNS ON macOS AND WHY IT IS LAST
+  # ---------------------------------------
+  # A simulator only exists on macOS, and this job builds the whole native
+  # stack, so it is by far the most expensive thing here. It is gated on
+  # `verify` for the same reason `test` and `build` are: a type error should
+  # cost 30 seconds, not 20 minutes of macOS runner time.
+  #
+  # WHAT THIS JOB PROVES THAT NOTHING ELSE HERE DOES
+  # ------------------------------------------------
+  # That the UI test target is really created by
+  # `mobile/plugins/withUITests.js` on a clean machine, that the app really
+  # launches, and that the identifiers in `mobile/uitests/testids.json` are
+  # reachable by XCTest — not merely present in the source. The `test:ui-ids`
+  # step in `verify` proves the identifiers exist; it cannot prove XCTest can
+  # reach them, which is a distinction that already cost one round of fixes
+  # (a `TouchableOpacity` with no `accessibilityRole` is invisible to
+  # `app.buttons[...]`, and a `disabled` prop never reaches XCTest unless
+  # `accessibilityState` says so).
+  # ---------------------------------------------------------------------------
+  ui-tests:
+    name: UI tests (iOS)
+    runs-on: macos-latest
+    needs: verify
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install mobile dependencies
+        run: cd mobile && npm ci --no-audit --no-fund
+
+      # The Xcode project is generated, not committed, and the UI test target
+      # does not exist in the Expo template. `withUITests.js` creates it here —
+      # which is the entire reason the target is reproducible. On a machine
+      # where someone created the target by hand in Xcode, this job would not
+      # see it.
+      - name: Generate the native project
+        run: cd mobile && EXPO_NO_TYPESCRIPT_SETUP=1 npx expo prebuild --platform ios --no-install
+
+      - name: Install CocoaPods dependencies
+        run: cd mobile/ios && pod install
+
+      # Which simulators exist depends on the Xcode version the runner happens
+      # to have, so the destination cannot be a hardcoded device name. Take the
+      # first available iPhone and pass its UDID, which is stable for the life
+      # of the job.
+      - name: Pick a simulator
+        id: sim
+        run: |
+          set -euo pipefail
+          UDID=$(xcrun simctl list devices available | grep -m1 'iPhone' | sed -E 's/.*\(([0-9A-Fa-f-]{36})\).*/\1/')
+          if [ -z "$UDID" ]; then
+            echo "No iPhone simulator is available on this runner."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "Using simulator $UDID"
+          # Already-booted is not an error here; `xcodebuild test` will use it.
+          xcrun simctl boot "$UDID" || echo "already booted"
+          echo "destination=id=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Run the UI tests
+        run: bash scripts/dev/test-ios.sh
+        env:
+          ONETEAM_UI_TEST_DESTINATION: ${{ steps.sim.outputs.destination }}

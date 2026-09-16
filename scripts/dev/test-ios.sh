@@ -37,7 +37,10 @@ export EXPO_NO_TYPESCRIPT_SETUP=1
 
 LOG="$HOME/ios-uitest.log"
 METRO_LOG="$HOME/metro.log"
-DESTINATION='platform=iOS Simulator,name=iPhone 17 Pro'
+# Hansı simulyatorun mövcud olduğu kompüterdəki Xcode versiyasından asılıdır,
+# ona görə adı burada sabit yazmaq olmaz: "iPhone 17 Pro" hər Xcode-da yoxdur.
+# CI öz UDID-ni ötürür; yerli işlətmə default-a düşür.
+DESTINATION="${ONETEAM_UI_TEST_DESTINATION:-platform=iOS Simulator,name=iPhone 17 Pro}"
 
 echo ""
 echo "=============================================="
