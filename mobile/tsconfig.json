@@ -3,7 +3,13 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
+    // "DOM" is in Expo's own default tsconfig, and it is not decoration: without
+    // it `AbortSignal.timeout` has no type, because that static lives in the DOM
+    // lib rather than in ES2022 or in @types/node. The app calls it in
+    // portalApi.ts to bound every request, so this is a real dependency, not a
+    // convenience. It only reappeared once `mobile/node_modules` existed —
+    // before that the type silently resolved somewhere else.
+    "lib": ["ES2022", "DOM"],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -57,18 +63,10 @@
   // is type-checked".
   //
   // Remove these exclusions the moment `cd mobile && npm install` succeeds.
-  // The four `*UI.tsx` view files (3.5) import `react-native` — declared in
-  // package.json but not installed in this sandbox — so `mobile:check` cannot
-  // resolve them either. They are excluded on the same "cannot resolve the
-  // import" basis as the two service files. They are pure Views over the
-  // headless controllers, so excluding them hides only JSX/React typing (which
-  // `cd mobile && npm install` restores), never business logic.
-  "exclude": [
-    "src/services/keychain.ts",
-    "src/services/queueStorage.ts",
-    "src/screens/LoginScreenUI.tsx",
-    "src/screens/TaskListScreenUI.tsx",
-    "src/screens/TaskDetailScreen.tsx",
-    "src/screens/CameraAuditScreenUI.tsx"
-  ]
+  // The four `*UI.tsx` view files (3.5) USED to be listed here too, for the same
+  // reason: `react-native` was declared but not installed, so the import could
+  // not be resolved. `cd mobile && npm install` has now succeeded, so they are
+  // back under the type-check — which was the point of making the exclusion
+  // visible instead of silent.
+  "exclude": ["src/services/keychain.ts", "src/services/queueStorage.ts"]
 }

@@ -32,7 +32,8 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import type { MobileTask, MobileStore, ChecklistQuestion } from '../types';
+import type { MobileTask, MobileStore } from '../types';
+import type { ChecklistQuestion } from '@oneteam/types';
 import { TaskDetailController } from './TaskListScreen';
 
 export type ChecklistAnswer = {
@@ -123,8 +124,7 @@ export function TaskDetailScreen({ task, store, onBack, onOpenCamera }: TaskDeta
               <View key={idx} style={styles.ruleRow}>
                 <Text style={styles.ruleBullet}>•</Text>
                 <Text style={styles.ruleText}>
-                  {rule.sku_name}: {rule.min_facings}–{rule.max_facings} facings
-                  {rule.cooling_required ? ' (soyuducu)' : ''}
+                  {rule.label} ({rule.sku}): min {rule.minFacings} facing
                 </Text>
               </View>
             ))}

@@ -275,22 +275,13 @@ const CASES = [
     // as the value made the file unparseable, the verifier died before printing
     // a single check, and the case reported TARGET-DID-NOT-RUN. The marker must
     // be something the target can still read.
-    find: `  "exclude": [
-    "src/services/keychain.ts",
-    "src/services/queueStorage.ts",
-    "src/screens/LoginScreenUI.tsx",
-    "src/screens/TaskListScreenUI.tsx",
-    "src/screens/TaskDetailScreen.tsx",
-    "src/screens/CameraAuditScreenUI.tsx"
-  ]`,
+    // This `find` has now been rewritten three times, each because the exclude
+    // array was reformatted. That is the hazard the case exists to catch, but it
+    // is also a warning: a `find` that mirrors a whole multi-line literal is
+    // brittle. The array is two entries again and stable, so this matches that.
+    find: `  "exclude": ["src/services/keychain.ts", "src/services/queueStorage.ts"]`,
     replace: `  // BREAK-L: keychain.ts is back under the type-check
-  "exclude": [
-    "src/services/queueStorage.ts",
-    "src/screens/LoginScreenUI.tsx",
-    "src/screens/TaskListScreenUI.tsx",
-    "src/screens/TaskDetailScreen.tsx",
-    "src/screens/CameraAuditScreenUI.tsx"
-  ]`,
+  "exclude": ["src/services/queueStorage.ts"]`,
     expect: 'src/services/keychain.ts is excluded from the type-check',
   },
   {

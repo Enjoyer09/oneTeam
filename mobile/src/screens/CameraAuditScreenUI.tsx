@@ -28,8 +28,9 @@ import {
   Alert,
   ScrollView,
 } from 'react-native';
-import { CameraAuditController } from './CameraAuditScreen';
-import type { MobileTask, MobileStore, GPSCoordinates, ChecklistAnswer } from '../types';
+import { CameraAuditController, type CapturedPhoto } from './CameraAuditScreen';
+import type { MobileTask, MobileStore, GPSCoordinates } from '../types';
+import type { ChecklistAnswer } from './TaskDetailScreen';
 
 export interface CameraAuditScreenProps {
   task: MobileTask;
@@ -50,12 +51,7 @@ export function CameraAuditScreenUI({
 }: CameraAuditScreenProps) {
   const [controller] = useState(() => new CameraAuditController(task, store));
   const [state, setState] = useState(controller.getState());
-  const [captured, setCaptured] = useState<{
-    photoUri: string;
-    metadata: unknown;
-    base64?: string;
-    simulated: boolean;
-  } | null>(null);
+  const [captured, setCaptured] = useState<CapturedPhoto | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<string | null>(null);
 
@@ -290,7 +286,7 @@ const styles = StyleSheet.create({
     color: '#AAAAAA',
   },
   gridOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   gridLine: {
     position: 'absolute',
