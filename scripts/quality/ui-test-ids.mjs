@@ -92,7 +92,7 @@ export function check(root) {
   try {
     manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
   } catch (error) {
-    throw new Error(`cannot read ${MANIFEST_REL}: ${error.message}`);
+    throw new Error(`cannot read ${MANIFEST_REL}: ${error.message}`, { cause: error });
   }
   if (!Array.isArray(manifest.ids)) {
     throw new Error(`${MANIFEST_REL} has no "ids" array`);
