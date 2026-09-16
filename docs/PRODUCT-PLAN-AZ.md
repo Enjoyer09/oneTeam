@@ -491,7 +491,7 @@ botda deyil: bot bazaya yalnız API-dən çatır, ona görə təmizləmə orada 
 | 3.2 | **Native camera + secure storage:** `expo-camera` → icazə izahı; `expo-secure-store` → `deviceToken`, `enrollmentSecret` yaz/oxu. Silinmədə `deviceToken` qalır.                                        | Kamera açılır → şəkil çəkilir → base64 API-yə gedir. Yenidən açılışda enrolment **avtomatik** olur. | 1.5 gün | 🔶           |
 | 3.3 | **Offline queue (AsyncStorage):** şəkil + metadata lokal növbəyə → onlayn olanda göndərilir. 50 MB limit, avtomatik təkrar cəhd.                                                                        | Avia-rejimdə 3 şəkil çək → onlayn ol → 3 upload (sıralı).                                           | 1 gün   | 🔶 `20a7140` |
 | 3.4 | **Xcode test:** `xcodebuild -workspace oneTeam.xcworkspace -scheme oneTeam -destination 'platform=iOS Simulator,name=iPhone 16' build test` → **UI testləri** (Login → Enroll → Task → Photo → Submit). | CI (GitHub Actions) hər PR-da `xcodebuild test` keçir.                                              | 1 gün   | ⏳           |
-| 3.5 | **Mövcud React Native UI saxlanılır:** `mobile/src/screens/*` faylları **yenidən yazılmadan** `expo-router` / `React Navigation` ilə quraşdırılır. Dizayn dəyişmir.                                     | Mövcud ekranlar (Login, TaskList, TaskDetail, Checklist, Camera) birebir görünür.                   | 1 gün   | ⏳           |
+| 3.5 | **~~Mövcud React Native UI saxlanılır~~ — YANLIŞ:** `mobile/src` altında RN kodu yox idi (yalnız `*Controller` sinifləri, JSX/StyleSheet yox). Buna görə **5 ekran sıfırdan yazıldı**: `LoginScreenUI`, `TaskListScreenUI`, `TaskDetailScreen` (+Checklist), `CameraAuditScreenUI`. Naviqasiya üçün `expo-router`/`React Navigation` quraşdırılmadı → `Root.tsx`-də `useState` ekran steki. Dizayn sxemi dəyişməz saxlanıldı. | 5 ekran kod olaraq mövcuddur; real Expo build bu mühitdə mümkün deyil (3.1-dəki toolchain bloku) → "birebir" görünüş təsdiqi bahaI-nin `npx expo prebuild` addımına qalır. | 1.5 gün | 🔶 `27e92e8` |
 
 #### 3.1 — nə edildi, nə ilə sübut olundu (🔶 QİSMƏN)
 
@@ -850,6 +850,26 @@ idxal edir, Node altında yüklənə bilmir — dəst onu **idxal etmir** və bu
 cihazda** avia-rejimdə sınanması (üç şəkil → onlayn → üç sıralı upload) · `npx expo prebuild --platform
 ios` hələ də icra olunmayıb (3.1-dəki üç əmr gözləyir).
 
+#### 3.5 — nə edildi, nə ilə sübut olundu (🔶 QİSMƏN)
+
+**Nəticə əvvəlcə:** 3.5-in plan premissi ("Mövcud React Native UI saxlanılır") **yanlış idi** — 3.1 və 3.5 qeydində artıq yazılmışdı ki, `mobile/src` altında **bir sətir də RN kodu yoxdur**. Bütün "ekranlar" yalnız başsız `*Controller` sinifləridir. Ona görə 3.5 "quraşdırma" deyil, **5 ekranın sıfırdan yazılması** oldu (`27e92e8`).
+
+**Yazılanlar:**
+
+- **`mobile/src/screens/LoginScreenUI.tsx`** (yeni) — `LoginScreenController`-i render edir. Mağaza kodu üçün `TextInput`; GPS **simulyasiya** olunur (1.5 s sonra düzəlir); "Daxil ol" düyməsi yalnız `gps !== null && storeCode.trim().length > 0` olduqda aktivdir.
+- **`mobile/src/screens/TaskListScreenUI.tsx`** (yeni) — `TaskListController`. `FlatList` prioritet nişanı ilə (urgent=qırmızı, high=narıncı, normal=boz), pull-to-refresh (`RefreshControl`), loading/error/empty halları.
+- **`mobile/src/screens/TaskDetailScreen.tsx`** (yeni) — `TaskDetailController` + Checklist-i **bir** ekrana birləşdirir. Hər çeklist sualı üçün `TextInput`; "📷 Kamera aç" düyməsi **bütün suallar cavablanmayınca** boz/söndürülüdür. `ChecklistAnswer` tipi ixrac olunur.
+- **`mobile/src/screens/CameraAuditScreenUI.tsx`** (yeni) — `CameraAuditController`. Simulyasiya önizləmə (rule-of-thirds grid, ghost/grid açarları), sonra **review** vəziyyəti (çəklist cavablarının xülasəsi + metadata + Yüklə/Təkrar çək). `captured.simulated` olduqda **banner** göstərilir.
+- **`mobile/Root.tsx`** (yenidən yazıldı) — status qabığı deyil, **ekran routeri**: login → taskList → taskDetail → camera → geri. Naviqasiya `useState` ekran steki ilədir, **`expo-router`/`React Navigation` yox** (o asılılıq ağacı burada quraşdırıla bilməz — 3.1-dəki toolchain bloku).
+
+**Kamera GSIMULATED-dir** (3.2-dəki kimi): `expo-camera` quraşdırılmayıb, `CameraAuditController.captureLiveAudit` `simulated: true` qaytarır və bunu açıq deyir. Real çəkiliş bahaI-nin `npx expo prebuild` addımıla gəlir.
+
+**Qəbul meyarının "birebir görünür" hissəsi sübut oluna bilmədi:** real Expo build bu mühitdə mümkün deyil. **Qapılar yaşıl:** `mobile:config` (39 yoxlama), `test:credentials` (37), `test:break:credentials` (13/13), `prettier --check` — hamısı exit 0. Pozma harness-ı case K-ni yenidən yazılmış `Root.tsx`-ə uyğunlaşdırdı (stale break-case təhlükəsi təsdiqləndi: `find` uyğunluğu 0 oldu, düzəldildi).
+
+**Hələ sübut olunmayanlar (gizlədilmir):** yeni JSX-in **tip yoxlaması** — `mobile/tsconfig.json` `Root.tsx`-i və `src/screens/*UI.tsx` fayllarını əhatə etmir (`react-native` quraşdırılmayıb), ona görə tip səhvləri yalnız real Expo build-da görünər; real iPhone-da vizual təsdiq; `useState` naviqasiyasının real cihazda davranışı.
+
+**3.4 (Xcode UI testi) hələ ⏳-dir** — `xcodebuild test` yalnız bahaI-nin `npx expo prebuild` addımı ilə mümkündür.
+
 **Mərhələ 3 nəticəsi:** Real iPhone-da / Simulyatorda **yaddaşda saxlanılan açarla**, kamerası və offline queue ilə işləyən tətbiq.
 
 ---
@@ -993,7 +1013,7 @@ Onda `required` yenidən `false` olur və panel URL-i bilən hər kəsə **açı
 
 ---
 
-_Plan versiyası: 0.9 — 15 sentyabr 2026 — TƏSDİQLƏNİB, icra davam edir._
+_Plan versiyası: 0.10 — 15 sentyabr 2026 — TƏSDİQLƏNİB, icra davam edir._
 
 **CI — həll olundu və bu, planın ən köhnə görünməz borcu idi.** `.github/workflows/ci.yml` **tarixdə ilk
 dəfə** tam yaşıldır (run `34983792832`: Verify 55s · Test 17s · Build 36s). O vaxta qədər hər push 5-ci
