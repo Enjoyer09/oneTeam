@@ -20,9 +20,11 @@
 #
 #   bash scripts/dev/test-ios.sh
 #
-# İlk dəfə 10-20 dəqiqə çəkə bilər (tətbiq yenidən qurulur). Sonda
-# "TESTS SUCCEEDED" və ya "TESTS FAILED" görəcəksən. Hər iki halda agentə
-# xəbər ver — o, logu oxuyub növbəti addımı deyəcək.
+# İlk dəfə 10-25 dəqiqə çəkə bilər: tətbiq və bütün pod-lar sıfırdan qurulur
+# (əvvəlki qurulma artefaktları `expo prebuild` zamanı silinib). Sonrakı
+# cəhdlər adətən 2-5 dəqiqədir. Qorxma — ekranda heç nə görünməsə belə, iş
+# gedir. Sonda "TESTS SUCCEEDED" və ya "TESTS FAILED" görəcəksən. Hər iki
+# halda agentə xəbər ver — o, logu oxuyub növbəti addımı deyəcək.
 #
 
 cd "$(dirname "$0")/../../mobile" || exit 1
