@@ -255,8 +255,8 @@ const CASES = [
     target: 'config',
     file: 'root',
     why: 'the app entry stops restoring the credential at startup',
-    find: `      const restored = await mobileApp.initializeCredentials();`,
-    replace: `      const restored = { deviceId: 'BREAK-K', hasToken: false };`,
+    find: `        await mobileApp.initializeCredentials();`,
+    replace: `        /*BREAK-K: credential not restored*/`,
     expect: 'Root.tsx restores the credential before anything can call the API',
   },
   {
