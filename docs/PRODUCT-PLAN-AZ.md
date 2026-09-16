@@ -522,6 +522,22 @@ prosesdə də** rədd olundu.
 aparır, iç-içə sandbox isə qadağandır. `HOMEBREW_AVOID_NESTED_SANDBOXING=1` (brew-un bunun üçün
 nəzərdə tutduğu dəyişən) bu halda kömək etmədi.
 
+**16 sentyabrda yenidən ölçüldü — tıxac Xcode deyil, layihənin yaradılmasıdır.** Ölçmə göstərdi ki,
+**Xcode 26.6 quraşdırılıb** (`/Applications/Xcode.app`), `xcodebuild -version` agentin qabığında
+**işləyir**, və **iOS 26.5 simulyatorları** hazırdır (iPhone 17 Pro / Air / 17, iPad). Yəni agent
+Xcode-u komanda sətri ilə idarə edə bilər. Dəyişməyən tək şey `npm install`-dır: yenidən
+`CODEBUDDY_BROKER_DENY` / "Brokered host mkdir requires an available runtime file rule" ilə öldü —
+hətta sandbox söndürülmüş halda da. Deməli bu tapıntı köhnəlməyib, sadəcə **bölgü dəqiqləşib**:
+insan layihəni yaradır, agent onu build edir. Bunun üçün `scripts/dev/setup-ios.sh` yazıldı
+(`342b21c`) — insanın payı bir sətrdir: `bash scripts/dev/setup-ios.sh` (`npm install` → CocoaPods →
+`expo prebuild --platform ios --clean` → `mobile/ios/`).
+
+**Bir tələ də ölçüldü:** yarımçıq `npm install` (123/470 paket) `mobile/node_modules/@types/react`-i
+boş qoyur, TypeScript isə `@types` altındakı hər şeyi avtomatik yüklədiyi üçün `mobile:check`
+`TS2688: Cannot find type definition file for 'react'` ilə **qırmızı** olur. Səbəb kodda deyil,
+yarımçıq quraşdırmadadır — qovluq silinəndə yaşıl qayıdır. Ona görə ya quraşdırma **tamamlanmalıdır**,
+ya da `mobile/node_modules` **ümumiyyətlə olmamalıdır**; arası yoxdur.
+
 **Buna görə qəbul meyarının toolchain tələb etməyən hissəsi avtomatlaşdırıldı:**
 `scripts/dev/verify-mobile-config.mjs` — icrada **23 yoxlama** (3.3-dən sonra **39**). O, `prebuild`-in keçəcəyini **demir**; konfiqurasiyada
 uğursuzluğa səbəb olacaq heç nə olmadığını deyir. **Dərhal bir real qüsur tapdı:** ikon RGB yazılmalı
