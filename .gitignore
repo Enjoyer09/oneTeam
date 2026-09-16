@@ -62,6 +62,11 @@ mobile/build/
 mobile/ios/
 mobile/android/
 
+# Expo's own working directory (prebuild cache, device/simulator settings).
+# Same reasoning as `mobile/ios/`: generated, machine-specific, and committing it
+# lets the cache disagree with `app.json` without anyone noticing.
+mobile/.expo/
+
 # ---- Test & coverage ------------------------------------------------------
 coverage/
 .nyc_output/

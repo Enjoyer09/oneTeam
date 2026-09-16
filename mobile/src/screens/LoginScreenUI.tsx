@@ -102,6 +102,7 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
         <View style={styles.card}>
           <Text style={styles.label}>Mağaza kodu</Text>
           <TextInput
+            testID="login.storeCodeInput"
             style={styles.input}
             value={storeCode}
             onChangeText={setStoreCode}
@@ -129,9 +130,14 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
             </View>
           )}
 
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {error ? (
+            <Text testID="login.errorText" style={styles.errorText}>
+              {error}
+            </Text>
+          ) : null}
 
           <TouchableOpacity
+            testID="login.submitButton"
             style={[styles.loginButton, !canSubmit && styles.loginButtonDisabled]}
             onPress={handleLogin}
             disabled={!canSubmit}

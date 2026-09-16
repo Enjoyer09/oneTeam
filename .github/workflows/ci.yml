@@ -90,11 +90,22 @@ jobs:
       - name: Type check
         run: npm run type-check
 
-      # The mobile tree has its own tsconfig and its own structural guard. Both
-      # were written to run WITHOUT the Expo dependency tree (that is why the
-      # native imports are isolated behind interfaces), so they belong here.
-      # They were not run by CI at all before, which is the same defect class as
-      # a test suite nothing invokes.
+      # The mobile tree has its own tsconfig and its own structural guard. The
+      # structural guard was written to run WITHOUT the Expo dependency tree
+      # (that is why the native imports are isolated behind interfaces).
+      #
+      # `mobile:check` is NOT like that any more, and the difference matters.
+      # It type-checks the React Native screens, so it needs `react-native`,
+      # `expo-*` and `@types/react` to actually resolve. The root `npm ci` does
+      # not provide them (`mobile` is not a workspace member), so without the
+      # step below the check reports success precisely because the modules it
+      # was supposed to resolve are absent — a check that cannot fail. Measured:
+      # on 2026-09-16 this step was red for four consecutive pushes with
+      # "Cannot find module 'react-native'" while every local gate was green,
+      # because locally `mobile/node_modules` existed and in CI it did not.
+      - name: Install mobile dependencies
+        run: cd mobile && npm ci --no-audit --no-fund
+
       - name: Mobile type check
         run: npm run mobile:check
 

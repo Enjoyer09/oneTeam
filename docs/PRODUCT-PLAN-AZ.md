@@ -490,7 +490,7 @@ botda deyil: bot bazaya yalnız API-dən çatır, ona görə təmizləmə orada 
 | 3.1 | **Expo config:** `app.json` / `app.config.ts` — `bundleIdentifier`, `name`, `icon`, `splash`, `ios: {supportsTablet: false}`, `plugins: ["expo-camera", "expo-location", "expo-secure-store"]`.         | `npx expo prebuild --platform ios` → `ios/` qovluğu yaranır, heç bir xəta yoxdur.                   | 1 gün   | 🔶           |
 | 3.2 | **Native camera + secure storage:** `expo-camera` → icazə izahı; `expo-secure-store` → `deviceToken`, `enrollmentSecret` yaz/oxu. Silinmədə `deviceToken` qalır.                                        | Kamera açılır → şəkil çəkilir → base64 API-yə gedir. Yenidən açılışda enrolment **avtomatik** olur. | 1.5 gün | 🔶           |
 | 3.3 | **Offline queue (AsyncStorage):** şəkil + metadata lokal növbəyə → onlayn olanda göndərilir. 50 MB limit, avtomatik təkrar cəhd.                                                                        | Avia-rejimdə 3 şəkil çək → onlayn ol → 3 upload (sıralı).                                           | 1 gün   | 🔶 `20a7140` |
-| 3.4 | **Xcode test:** `xcodebuild -workspace oneTeam.xcworkspace -scheme oneTeam -destination 'platform=iOS Simulator,name=iPhone 16' build test` → **UI testləri** (Login → Enroll → Task → Photo → Submit). | CI (GitHub Actions) hər PR-da `xcodebuild test` keçir.                                              | 1 gün   | ⏳           |
+| 3.4 | **Xcode test:** `xcodebuild -workspace oneTeam.xcworkspace -scheme oneTeam -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build test` → **UI testləri** (Login → Enroll → Task → Photo → Submit). | CI (GitHub Actions) hər PR-da `xcodebuild test` keçir.                                              | 1 gün   | ⏳           |
 | 3.5 | **~~Mövcud React Native UI saxlanılır~~ — YANLIŞ:** `mobile/src` altında RN kodu yox idi (yalnız `*Controller` sinifləri, JSX/StyleSheet yox). Buna görə **5 ekran sıfırdan yazıldı**: `LoginScreenUI`, `TaskListScreenUI`, `TaskDetailScreen` (+Checklist), `CameraAuditScreenUI`. Naviqasiya üçün `expo-router`/`React Navigation` quraşdırılmadı → `Root.tsx`-də `useState` ekran steki. Dizayn sxemi dəyişməz saxlanıldı. | 5 ekran kod olaraq mövcuddur; real Expo build bu mühitdə mümkün deyil (3.1-dəki toolchain bloku) → "birebir" görünüş təsdiqi bahaI-nin `npx expo prebuild` addımına qalır. | 1.5 gün | 🔶 `27e92e8` |
 
 #### 3.1 — nə edildi, nə ilə sübut olundu (🔶 QİSMƏN)
@@ -583,10 +583,20 @@ deyil, **`MobileAppCoordinator` sinfini** ixrac edir. Heç nə bu sahəni oxumur
 bloklanmır):
 
 ```bash
-brew install cocoapods                    # 3.4 üçün də lazımdır
+/opt/homebrew/bin/brew install cocoapods  # DÜZ brew — aşağıdakı qeydə bax
 cd mobile && npm install                  # ~470 paket
 npx expo prebuild --platform ios          # 3.1-in qəbul meyarı
 ```
+
+> **Ölçülmüş düzəliş (16 sentyabr 2026).** Bu kompüterdə **İKİ Homebrew** var. `brew` komandası
+> `/usr/local/bin/brew` (Intel/Rosetta qalığı) tapır və o, Ruby-ni **mənbədən** qurmağa çalışır —
+> bu, `pkgconf.rb exited with 71` ilə ölür. Doğru olanı native ARM Homebrew-dur:
+> **`/opt/homebrew/bin/brew`** — o, Ruby 4.0.7 və CocoaPods 1.17.0-ı hazır paket (bottle) kimi
+> quraşdırır, 35 saniyə çəkir. Sistem Ruby-si 2.6.10-dur və `gem install cocoapods` onunla
+> **mümkün deyil** (`ffi` Ruby ≥ 3.0 tələb edir).
+> Bu gün ölçülən iş bölgüsü: `pod install` **uğurla bitdi** (`EXIT=0`,
+> `ios/oneTeamFieldAudit.xcworkspace` yarandı), amma `xcodebuild` agent mühitində **ölür** —
+> bax: 3.4.
 
 Sonra `node scripts/dev/verify-mobile-config.mjs` ilə konfiqurasiya yenidən yoxlanıla bilər.
 
@@ -884,7 +894,24 @@ ios` hələ də icra olunmayıb (3.1-dəki üç əmr gözləyir).
 
 **Hələ sübut olunmayanlar (gizlədilmir):** yeni JSX-in **tip yoxlaması** — `mobile/tsconfig.json` `Root.tsx`-i və `src/screens/*UI.tsx` fayllarını əhatə etmir (`react-native` quraşdırılmayıb), ona görə tip səhvləri yalnız real Expo build-da görünər; real iPhone-da vizual təsdiq; `useState` naviqasiyasının real cihazda davranışı.
 
-**3.4 (Xcode UI testi) hələ ⏳-dir** — `xcodebuild test` yalnız bahaI-nin `npx expo prebuild` addımı ilə mümkündür.
+**3.4 (Xcode UI testi) — 16 sentyabr 2026-da YENİDÖN ÖLÇÜLDÜ.** Köhnə cümlə ("yalnız bahaI-nin
+`npx expo prebuild` addımı ilə mümkündür") yanlış idi. Faktlar:
+
+| Addım                        | Agent edə bilir? | Ölçülmüş nəticə                                                            |
+| ---------------------------- | ---------------- | -------------------------------------------------------------------------- |
+| `expo prebuild`              | ✅               | `ios/oneTeamFieldAudit.xcodeproj` yarandı (target/scheme `oneTeamFieldAudit`) |
+| CocoaPods quraşdırmaq        | ✅               | `/opt/homebrew/bin/brew` → CocoaPods **1.17.0** (35 saniyə)                |
+| `pod install`                | ✅               | `EXIT=0`, 5 dəqiqə, `oneTeamFieldAudit.xcworkspace` yarandı                |
+| **`xcodebuild build`**       | ❌               | `Could not resolve package dependencies: sandbox-exec: sandbox_apply: Operation not permitted` |
+
+Sonuncu xəta **layihənin deyil, agent mühitinin** məhdudiyyətidir: eyni əmr birbaşa qabıqdan da,
+sandbox söndürülmüş halda da eyni xətanı verir, halbuki `sandbox-exec` ümumiyyətlə işləyir.
+`ExpoModulesJSI` podu build zamanı Swift paketlərini çözməlidir və bu addım agentdə keçilmir.
+Ona görə build **istifadəçinin öz Terminal-ında** işlədilir: `bash scripts/dev/build-ios.sh`.
+Bir dəfə uğurla qurulandan sonra artefakt `node_modules/expo-modules-jsi/apple/Products/`-da
+qalır və skriptin "up-to-date fast path"-i işə düşür — yəni təkrar build-lər daha tez gedir.
+**3.4-ün UI testləri (`testID` + XCTest) hələ yazılmayıb** — build yaşıl olandan sonra yazılacaq,
+çünki işləməyən tətbiq üzərində yazılan UI testi yalnız kağız üzərində yaşıl olar.
 
 **Mərhələ 3 nəticəsi:** Real iPhone-da / Simulyatorda **yaddaşda saxlanılan açarla**, kamerası və offline queue ilə işləyən tətbiq.
 

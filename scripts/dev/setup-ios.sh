@@ -36,14 +36,24 @@ npm install
 
 echo ""
 echo "2/3  CocoaPods quraşdırılır (iOS kitabxanalarını birləşdirir)..."
+# DİQQƏT: bu kompüterdə İKİ Homebrew var. `brew` komandası /usr/local/bin/brew
+# (Intel/Rosetta qalığı) tapır və o, Ruby-ni mənbədən qurmağa çalışır — uzun
+# çəkir və uğursuz olur. Doğrusu native ARM Homebrew-dur: /opt/homebrew/bin/brew
+# o, Ruby 4.0.7 və CocoaPods 1.17.0-ı HAZIR PAKET (bottle) kimi quraşdırır.
+BREW_BIN="/opt/homebrew/bin/brew"
+[ -x "$BREW_BIN" ] || BREW_BIN="$(command -v brew || true)"
 if command -v pod >/dev/null 2>&1; then
   echo "     CocoaPods artıq quraşdırılıb: $(pod --version)"
+elif [ -x /opt/homebrew/bin/pod ]; then
+  echo "     CocoaPods /opt/homebrew/bin/pod altındadır — PATH-a əlavə edilir."
+  export PATH="/opt/homebrew/bin:$PATH"
 else
-  if command -v brew >/dev/null 2>&1; then
-    brew install cocoapods || sudo gem install cocoapods
+  if [ -n "$BREW_BIN" ]; then
+    "$BREW_BIN" install cocoapods || sudo gem install cocoapods
   else
     sudo gem install cocoapods
   fi
+  export PATH="/opt/homebrew/bin:$PATH"
 fi
 
 echo ""
