@@ -20,6 +20,7 @@
     "test:secrets": "node scripts/quality/secret-scan.test.mjs",
     "test:break": "node scripts/dev/break-detector-queue.mjs",
     "test:break:device-revoke": "node scripts/dev/break-detector-device-revoke.mjs",
+    "test:break:credentials": "node scripts/dev/break-detector-credentials.mjs",
     "mobile:check": "node ./node_modules/typescript/bin/tsc --project mobile/tsconfig.json --noEmit",
     "mobile:config": "node scripts/dev/verify-mobile-config.mjs",
     "mobile:assets": "python3 scripts/dev/make-mobile-assets.py",
