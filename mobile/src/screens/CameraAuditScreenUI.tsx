@@ -81,7 +81,7 @@ export function CameraAuditScreenUI({
     try {
       const result = await controller.processAuditSubmission({
         photoUri: captured.photoUri,
-        metadata: captured.metadata as never,
+        metadata: captured.metadata,
         base64: captured.base64,
       });
       if (result.status === 'uploaded') {

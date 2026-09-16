@@ -275,9 +275,22 @@ const CASES = [
     // as the value made the file unparseable, the verifier died before printing
     // a single check, and the case reported TARGET-DID-NOT-RUN. The marker must
     // be something the target can still read.
-    find: `  "exclude": ["src/services/keychain.ts", "src/services/queueStorage.ts"]`,
+    find: `  "exclude": [
+    "src/services/keychain.ts",
+    "src/services/queueStorage.ts",
+    "src/screens/LoginScreenUI.tsx",
+    "src/screens/TaskListScreenUI.tsx",
+    "src/screens/TaskDetailScreen.tsx",
+    "src/screens/CameraAuditScreenUI.tsx"
+  ]`,
     replace: `  // BREAK-L: keychain.ts is back under the type-check
-  "exclude": ["src/services/queueStorage.ts"]`,
+  "exclude": [
+    "src/services/queueStorage.ts",
+    "src/screens/LoginScreenUI.tsx",
+    "src/screens/TaskListScreenUI.tsx",
+    "src/screens/TaskDetailScreen.tsx",
+    "src/screens/CameraAuditScreenUI.tsx"
+  ]`,
     expect: 'src/services/keychain.ts is excluded from the type-check',
   },
   {

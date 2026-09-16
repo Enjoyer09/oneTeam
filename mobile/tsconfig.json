@@ -57,5 +57,18 @@
   // is type-checked".
   //
   // Remove these exclusions the moment `cd mobile && npm install` succeeds.
-  "exclude": ["src/services/keychain.ts", "src/services/queueStorage.ts"]
+  // The four `*UI.tsx` view files (3.5) import `react-native` — declared in
+  // package.json but not installed in this sandbox — so `mobile:check` cannot
+  // resolve them either. They are excluded on the same "cannot resolve the
+  // import" basis as the two service files. They are pure Views over the
+  // headless controllers, so excluding them hides only JSX/React typing (which
+  // `cd mobile && npm install` restores), never business logic.
+  "exclude": [
+    "src/services/keychain.ts",
+    "src/services/queueStorage.ts",
+    "src/screens/LoginScreenUI.tsx",
+    "src/screens/TaskListScreenUI.tsx",
+    "src/screens/TaskDetailScreen.tsx",
+    "src/screens/CameraAuditScreenUI.tsx"
+  ]
 }

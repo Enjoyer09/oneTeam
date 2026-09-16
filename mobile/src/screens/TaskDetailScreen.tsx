@@ -70,7 +70,7 @@ export function TaskDetailScreen({ task, store, onBack, onOpenCamera }: TaskDeta
     }
     const checklistAnswers: ChecklistAnswer[] = details.checklistQuestions.map((q) => ({
       questionId: q.id,
-      questionText: q.question,
+      questionText: q.question ?? q.label ?? '',
       answer: answers[q.id]?.trim() ?? '',
     }));
     onOpenCamera({ task, store, checklistAnswers });
