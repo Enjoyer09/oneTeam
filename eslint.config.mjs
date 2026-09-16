@@ -302,6 +302,15 @@ export default tseslint.config(
       //
       // One glob was missing. `.mjs` and `.js` were covered, `.cjs` was not.
       'scripts/**/*.cjs',
+      // WHY THIS GLOB IS HERE — `mobile/plugins/withUITests.js` is an Expo
+      // config plugin. Expo loads config plugins with `require()`, and
+      // `mobile/package.json` declares no `"type"`, so the file is CommonJS by
+      // definition. Without this entry it is linted under the bare JS baseline,
+      // where every Node global is undefined and `require()` counts as a
+      // forbidden import — the same false positives the four `scripts/live-*.cjs`
+      // probes produced before this section existed. `require` is not a
+      // workaround in a CommonJS file; it is the module system.
+      'mobile/plugins/**/*.js',
       '**/*.config.js',
       '**/*.config.mjs',
       'postcss.config.js',

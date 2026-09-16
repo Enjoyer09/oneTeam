@@ -25,11 +25,12 @@
 //
 // THE TARGET
 // ----------
-// This file lives is committed alongside the test contract so that
-// `scripts/quality/ui-test-ids.mjs` can prove the identifiers are not in
-// name only. To actually run these tests you need a UI test target in the
-// Xcode project — Xcode handles that in three clicks. See
-// `docs/PRODUCT-PLAN-AZ.md` §3.4 for the one-time manual step.
+// This file is committed next to the test contract so that
+// `scripts/quality/ui-test-ids.mjs` can prove the identifiers are not in name
+// only. The Xcode UI test target is generated, not clicked: `mobile/plugins/
+// withUITests.js` creates it on every `expo prebuild`, copies this file into
+// `ios/oneTeamFieldAuditUITests/` and points the shared scheme at it. Nothing
+// in Xcode has to be set up by hand, and the same target exists on CI.
 //
 
 import XCTest
