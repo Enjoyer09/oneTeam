@@ -485,12 +485,12 @@ botda deyil: bot bazaya yalnız API-dən çatır, ona görə təmizləmə orada 
 
 ### MƏRHƏLƏ 3 — iOS tətbiqi (Expo prebuild + Xcode) (Həftə 4–5)
 
-| #   | İş paketi                                                                                                                                                                                               | Qəbul meyarı                                                                                        | Müddət  | Vəziyyət     |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ------- | ------------ |
-| 3.1 | **Expo config:** `app.json` / `app.config.ts` — `bundleIdentifier`, `name`, `icon`, `splash`, `ios: {supportsTablet: false}`, `plugins: ["expo-camera", "expo-location", "expo-secure-store"]`.         | `npx expo prebuild --platform ios` → `ios/` qovluğu yaranır, heç bir xəta yoxdur.                   | 1 gün   | 🔶           |
-| 3.2 | **Native camera + secure storage:** `expo-camera` → icazə izahı; `expo-secure-store` → `deviceToken`, `enrollmentSecret` yaz/oxu. Silinmədə `deviceToken` qalır.                                        | Kamera açılır → şəkil çəkilir → base64 API-yə gedir. Yenidən açılışda enrolment **avtomatik** olur. | 1.5 gün | 🔶           |
-| 3.3 | **Offline queue (AsyncStorage):** şəkil + metadata lokal növbəyə → onlayn olanda göndərilir. 50 MB limit, avtomatik təkrar cəhd.                                                                        | Avia-rejimdə 3 şəkil çək → onlayn ol → 3 upload (sıralı).                                           | 1 gün   | 🔶 `20a7140` |
-| 3.4 | **Xcode test:** `xcodebuild -workspace oneTeam.xcworkspace -scheme oneTeam -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build test` → **UI testləri** (Login → Enroll → Task → Photo → Submit). | CI (GitHub Actions) hər PR-da `xcodebuild test` keçir.                                              | 1 gün   | ⏳           |
+| #   | İş paketi                                                                                                                                                                                                                                                                                                                                                                                                                     | Qəbul meyarı                                                                                                                                                               | Müddət  | Vəziyyət     |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------------ |
+| 3.1 | **Expo config:** `app.json` / `app.config.ts` — `bundleIdentifier`, `name`, `icon`, `splash`, `ios: {supportsTablet: false}`, `plugins: ["expo-camera", "expo-location", "expo-secure-store"]`.                                                                                                                                                                                                                               | `npx expo prebuild --platform ios` → `ios/` qovluğu yaranır, heç bir xəta yoxdur.                                                                                          | 1 gün   | 🔶           |
+| 3.2 | **Native camera + secure storage:** `expo-camera` → icazə izahı; `expo-secure-store` → `deviceToken`, `enrollmentSecret` yaz/oxu. Silinmədə `deviceToken` qalır.                                                                                                                                                                                                                                                              | Kamera açılır → şəkil çəkilir → base64 API-yə gedir. Yenidən açılışda enrolment **avtomatik** olur.                                                                        | 1.5 gün | 🔶           |
+| 3.3 | **Offline queue (AsyncStorage):** şəkil + metadata lokal növbəyə → onlayn olanda göndərilir. 50 MB limit, avtomatik təkrar cəhd.                                                                                                                                                                                                                                                                                              | Avia-rejimdə 3 şəkil çək → onlayn ol → 3 upload (sıralı).                                                                                                                  | 1 gün   | 🔶 `20a7140` |
+| 3.4 | **Xcode test:** `xcodebuild -workspace oneTeam.xcworkspace -scheme oneTeam -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build test` → **UI testləri** (Login → Enroll → Task → Photo → Submit).                                                                                                                                                                                                                   | CI (GitHub Actions) hər PR-da `xcodebuild test` keçir.                                                                                                                     | 1 gün   | ⏳           |
 | 3.5 | **~~Mövcud React Native UI saxlanılır~~ — YANLIŞ:** `mobile/src` altında RN kodu yox idi (yalnız `*Controller` sinifləri, JSX/StyleSheet yox). Buna görə **5 ekran sıfırdan yazıldı**: `LoginScreenUI`, `TaskListScreenUI`, `TaskDetailScreen` (+Checklist), `CameraAuditScreenUI`. Naviqasiya üçün `expo-router`/`React Navigation` quraşdırılmadı → `Root.tsx`-də `useState` ekran steki. Dizayn sxemi dəyişməz saxlanıldı. | 5 ekran kod olaraq mövcuddur; real Expo build bu mühitdə mümkün deyil (3.1-dəki toolchain bloku) → "birebir" görünüş təsdiqi bahaI-nin `npx expo prebuild` addımına qalır. | 1.5 gün | 🔶 `27e92e8` |
 
 #### 3.1 — nə edildi, nə ilə sübut olundu (🔶 QİSMƏN)
@@ -897,19 +897,20 @@ ios` hələ də icra olunmayıb (3.1-dəki üç əmr gözləyir).
 **3.4 (Xcode UI testi) — 16 sentyabr 2026-da YENİDÖN ÖLÇÜLDÜ.** Köhnə cümlə ("yalnız bahaI-nin
 `npx expo prebuild` addımı ilə mümkündür") yanlış idi. Faktlar:
 
-| Addım                        | Agent edə bilir? | Ölçülmüş nəticə                                                            |
-| ---------------------------- | ---------------- | -------------------------------------------------------------------------- |
-| `expo prebuild`              | ✅               | `ios/oneTeamFieldAudit.xcodeproj` yarandı (target/scheme `oneTeamFieldAudit`) |
-| CocoaPods quraşdırmaq        | ✅               | `/opt/homebrew/bin/brew` → CocoaPods **1.17.0** (35 saniyə)                |
-| `pod install`                | ✅               | `EXIT=0`, 5 dəqiqə, `oneTeamFieldAudit.xcworkspace` yarandı                |
-| **`xcodebuild build`**       | ❌               | `Could not resolve package dependencies: sandbox-exec: sandbox_apply: Operation not permitted` |
+| Addım                  | Agent edə bilir? | Ölçülmüş nəticə                                                                                |
+| ---------------------- | ---------------- | ---------------------------------------------------------------------------------------------- |
+| `expo prebuild`        | ✅               | `ios/oneTeamFieldAudit.xcodeproj` yarandı (target/scheme `oneTeamFieldAudit`)                  |
+| CocoaPods quraşdırmaq  | ✅               | `/opt/homebrew/bin/brew` → CocoaPods **1.17.0** (35 saniyə)                                    |
+| `pod install`          | ✅               | `EXIT=0`, 5 dəqiqə, `oneTeamFieldAudit.xcworkspace` yarandı                                    |
+| **`xcodebuild build`** | ❌               | `Could not resolve package dependencies: sandbox-exec: sandbox_apply: Operation not permitted` |
 
 Sonuncu xəta **layihənin deyil, agent mühitinin** məhdudiyyətidir: eyni əmr birbaşa qabıqdan da,
 sandbox söndürülmüş halda da eyni xətanı verir, halbuki `sandbox-exec` ümumiyyətlə işləyir.
 `ExpoModulesJSI` podu build zamanı Swift paketlərini çözməlidir və bu addım agentdə keçilmir.
 Ona görə build **istifadəçinin öz Terminal-ında** işlədilir: `bash scripts/dev/build-ios.sh`.
-Bir dəfə uğurla qurulandan sonra artefakt `node_modules/expo-modules-jsi/apple/Products/`-da
-qalır və skriptin "up-to-date fast path"-i işə düşür — yəni təkrar build-lər daha tez gedir.
+Bir dəfə uğurla qurulandan sonra artefakt JSI paketinin içindəki `Products` qovluğunda
+(`node_modules` altında) qalır və skriptin "up-to-date fast path"-i işə düşür — yəni təkrar
+build-lər daha tez gedir.
 **3.4-ün UI testləri (`testID` + XCTest) hələ yazılmayıb** — build yaşıl olandan sonra yazılacaq,
 çünki işləməyən tətbiq üzərində yazılan UI testi yalnız kağız üzərində yaşıl olar.
 
