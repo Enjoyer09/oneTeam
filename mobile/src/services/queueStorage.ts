@@ -60,7 +60,7 @@ import { QUEUE_STORAGE_KEY, QueueStorage } from './offlineQueue';
  */
 export const asyncStorageQueue: QueueStorage = {
   async read(): Promise<string | null> {
-    return await AsyncStorage.getItem(QUEUE_STORAGE_KEY);
+    return AsyncStorage.getItem(QUEUE_STORAGE_KEY);
   },
 
   async write(serialized: string): Promise<void> {

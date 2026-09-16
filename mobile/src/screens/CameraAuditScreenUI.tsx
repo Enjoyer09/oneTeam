@@ -139,7 +139,9 @@ export function CameraAuditScreenUI({
       {/* Capture button */}
       <TouchableOpacity
         style={[styles.captureButton, state.isCapturing && styles.captureButtonDisabled]}
-        onPress={handleCapture}
+        onPress={() => {
+          void handleCapture();
+        }}
         disabled={state.isCapturing}
       >
         {state.isCapturing ? (

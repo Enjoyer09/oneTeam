@@ -57,7 +57,7 @@ export function TaskListScreenUI({ store, onSelectTask, onLogout }: TaskListScre
   };
 
   useEffect(() => {
-    load();
+    void load();
   }, [store.id]);
 
   if (loading) {
@@ -81,7 +81,12 @@ export function TaskListScreenUI({ store, onSelectTask, onLogout }: TaskListScre
       {error ? (
         <View style={styles.center}>
           <Text style={styles.errorText}>❌ {error}</Text>
-          <TouchableOpacity onPress={load} style={styles.retryButton}>
+          <TouchableOpacity
+            onPress={() => {
+              void load();
+            }}
+            style={styles.retryButton}
+          >
             <Text style={styles.retryText}>Yenidən cəhd et</Text>
           </TouchableOpacity>
         </View>
@@ -99,7 +104,7 @@ export function TaskListScreenUI({ store, onSelectTask, onLogout }: TaskListScre
               refreshing={refreshing}
               onRefresh={() => {
                 setRefreshing(true);
-                load();
+                void load();
               }}
             />
           }

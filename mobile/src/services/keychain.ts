@@ -79,7 +79,7 @@ const OPTIONS: SecureStore.SecureStoreOptions = {
 
 export const keychainStore: SecureKeyValueStore = {
   async get(key: string): Promise<string | null> {
-    return await SecureStore.getItemAsync(key, OPTIONS);
+    return SecureStore.getItemAsync(key, OPTIONS);
   },
 
   async set(key: string, value: string): Promise<void> {

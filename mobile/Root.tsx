@@ -105,7 +105,7 @@ export function Root() {
   useEffect(() => {
     let cancelled = false;
 
-    (async () => {
+    void (async () => {
       try {
         const persistent = await keychainAvailable();
         if (persistent) credentialStore.useStorage(keychainStore);
@@ -279,13 +279,19 @@ export function Root() {
 // app cannot start at all, so they are kept inline rather than adding a
 // dependency on the full screen set.
 function Text(props: { style?: any; children: React.ReactNode }) {
-  // eslint-disable-next-line no-undef
+  // `require` here is deliberate, not an oversight: these two components exist
+  // only for the fatal-error screen, and importing `react-native` at the top of
+  // this file would make startup depend on it before we know it can load.
+  // eslint-disable-next-line no-undef, @typescript-eslint/no-require-imports
   const RN = require('react-native');
   return <RN.Text style={props.style}>{props.children}</RN.Text>;
 }
 
 function ActivityIndicator(props: { size?: string | number; color?: string }) {
-  // eslint-disable-next-line no-undef
+  // `require` here is deliberate, not an oversight: these two components exist
+  // only for the fatal-error screen, and importing `react-native` at the top of
+  // this file would make startup depend on it before we know it can load.
+  // eslint-disable-next-line no-undef, @typescript-eslint/no-require-imports
   const RN = require('react-native');
   return <RN.ActivityIndicator size={props.size} color={props.color} />;
 }

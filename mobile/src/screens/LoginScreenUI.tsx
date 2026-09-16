@@ -44,7 +44,10 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
   const [controller] = useState(() => new LoginScreenController());
   const [storeCode, setStoreCode] = useState(controller.getState().storeCodeInput);
   const [gps, setGps] = useState<GPSCoordinates | null>(null);
-  const [gpsError, setGpsError] = useState<string | null>(null);
+  // The setter is deliberately not destructured: while the fix is simulated
+  // below nothing can fail, so `gpsError` stays null. The render branch is kept
+  // because it is the real path once `expo-location` is wired in.
+  const [gpsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -139,7 +142,9 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
           <TouchableOpacity
             testID="login.submitButton"
             style={[styles.loginButton, !canSubmit && styles.loginButtonDisabled]}
-            onPress={handleLogin}
+            onPress={() => {
+              void handleLogin();
+            }}
             disabled={!canSubmit}
             activeOpacity={0.8}
           >
