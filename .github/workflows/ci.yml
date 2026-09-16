@@ -112,6 +112,11 @@ jobs:
       - name: Mobile configuration guard
         run: npm run mobile:config
 
+      # The contract between the React Native screens and the Xcode UI test
+      # (plan 3.4). It runs its own self-test, so it cannot quietly stop biting.
+      - name: UI test identifiers
+        run: npm run test:ui-ids
+
       - name: Lint
         run: npm run lint
 

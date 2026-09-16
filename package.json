@@ -23,6 +23,7 @@
     "test:break:credentials": "node scripts/dev/break-detector-credentials.mjs",
     "mobile:check": "node ./node_modules/typescript/bin/tsc --project mobile/tsconfig.json --noEmit",
     "mobile:config": "node scripts/dev/verify-mobile-config.mjs",
+    "test:ui-ids": "node scripts/quality/ui-test-ids.mjs && node scripts/quality/ui-test-ids.mjs --self-test",
     "mobile:assets": "python3 scripts/dev/make-mobile-assets.py",
     "api:start": "node apps/api/dist/main.js",
     "api:build": "node ./node_modules/typescript/bin/tsc --build apps/api/tsconfig.json",
@@ -51,7 +52,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "secrets:scan": "node scripts/quality/secret-scan.mjs",
-    "quality": "npm run format:check && npm run mobile:config && npm run mobile:check && npm run lint && npm run type-check && npm run test:all",
+    "quality": "npm run format:check && npm run mobile:config && npm run test:ui-ids && npm run mobile:check && npm run lint && npm run type-check && npm run test:all",
     "mobile:test:write": "ONETEAM_MOBILE_WRITES=1 node ./node_modules/tsx/dist/cli.mjs mobile/src/tests/mobile-test-runner.ts"
   },
   "keywords": [

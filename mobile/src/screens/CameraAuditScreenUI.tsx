@@ -138,6 +138,7 @@ export function CameraAuditScreenUI({
 
       {/* Capture button */}
       <TouchableOpacity
+        testID="camera.captureButton"
         style={[styles.captureButton, state.isCapturing && styles.captureButtonDisabled]}
         onPress={() => {
           void handleCapture();
@@ -204,6 +205,7 @@ export function CameraAuditScreenUI({
             <Text style={styles.retakeButtonText}>🔄 Yenidən çək</Text>
           </TouchableOpacity>
           <TouchableOpacity
+            testID="camera.submitButton"
             style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
             onPress={() => {
               void handleSubmit();

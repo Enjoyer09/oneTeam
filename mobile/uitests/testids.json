@@ -1,0 +1,52 @@
+{
+  "$comment": [
+    "The contract between the React Native screens and the Xcode UI test (plan 3.4).",
+    "",
+    "An XCUI test can only tap what it can address, and in React Native that",
+    "means a `testID`. If an identifier is renamed or dropped here, the UI test",
+    "does not fail loudly — it times out on an element that is no longer there,",
+    "or worse, it is never written because nobody knows what to query.",
+    "",
+    "`scripts/quality/ui-test-ids.mjs` checks BOTH directions: every id below",
+    "must exist in the source, and every `testID` in the source must be listed",
+    "here. Only the identifiers the Login -> Task -> Photo -> Submit flow needs",
+    "are listed; add one when the UI test needs to touch something new."
+  ],
+  "ids": [
+    {
+      "id": "login.storeCodeInput",
+      "where": "mobile/src/screens/LoginScreenUI.tsx",
+      "why": "the worker types the store code here before signing in"
+    },
+    {
+      "id": "login.submitButton",
+      "where": "mobile/src/screens/LoginScreenUI.tsx",
+      "why": "disabled until a GPS fix exists, so the test must wait for it"
+    },
+    {
+      "id": "login.errorText",
+      "where": "mobile/src/screens/LoginScreenUI.tsx",
+      "why": "the rejection path (wrong store code, out of geofence)"
+    },
+    {
+      "id": "taskList.taskRow",
+      "where": "mobile/src/screens/TaskListScreenUI.tsx",
+      "why": "the test taps the first task to open it"
+    },
+    {
+      "id": "taskDetail.openCameraButton",
+      "where": "mobile/src/screens/TaskDetailScreen.tsx",
+      "why": "disabled until the checklist is complete, so the test must wait"
+    },
+    {
+      "id": "camera.captureButton",
+      "where": "mobile/src/screens/CameraAuditScreenUI.tsx",
+      "why": "takes the shelf photo"
+    },
+    {
+      "id": "camera.submitButton",
+      "where": "mobile/src/screens/CameraAuditScreenUI.tsx",
+      "why": "sends the audit; the end of the flow"
+    }
+  ]
+}

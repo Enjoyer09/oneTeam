@@ -126,7 +126,12 @@ function TaskRow({ task, onPress }: { task: MobileTask; onPress: () => void }) {
   const priorityLabel = task.priority.toUpperCase();
 
   return (
-    <TouchableOpacity style={styles.taskCard} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity
+      testID="taskList.taskRow"
+      style={styles.taskCard}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
       <View style={styles.taskHeader}>
         <Text style={styles.taskTitle} numberOfLines={2}>
           {task.title}

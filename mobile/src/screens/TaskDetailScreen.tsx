@@ -173,6 +173,7 @@ export function TaskDetailScreen({ task, store, onBack, onOpenCamera }: TaskDeta
       {/* Fixed bottom button */}
       <View style={styles.bottomBar}>
         <TouchableOpacity
+          testID="taskDetail.openCameraButton"
           style={[styles.cameraButton, !allAnswered && styles.cameraButtonDisabled]}
           onPress={handleOpenCamera}
           activeOpacity={0.8}
