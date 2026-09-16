@@ -67,7 +67,16 @@ const FILES = {
   guard: 'apps/api/src/common/auth/auth.guard.ts',
 };
 
-const ANSI = /\u001b\[[0-9;]*m/g;
+// npm writes ANSI colour codes into its output, so a suite's own result line has
+// to be stripped before it can be compared as text. Matching the escape
+// character is the entire purpose of this pattern: without `\x1b` in it there is
+// nothing to strip. That is the one thing `no-control-regex` exists to prevent —
+// a control character smuggled into a pattern by accident — so this is the rule
+// being wrong rather than the code, and it is silenced here rather than for the
+// whole file. `break-detector-queue.mjs` carries the same comment for the same
+// reason; the rule is the same rule.
+// eslint-disable-next-line no-control-regex
+const ANSI = /\x1b\[[0-9;]*m/g;
 
 /**
  * The line every suite run must reach before its output counts as evidence.
@@ -166,18 +175,48 @@ function buildServer() {
   return null;
 }
 
-async function waitForHealth(budgetMs = 20000) {
+/**
+ * Waits for the API to answer `/api/health`.
+ *
+ * WHY THE BUDGET IS 60 SECONDS AND NOT 20
+ * ---------------------------------------
+ * Measured on this machine: the API answers `/api/health` about **4.5 seconds**
+ * after launch. 20 seconds looked like ample headroom for that, and on an idle
+ * machine it is. On 15 September this harness ran while a second `npm install`
+ * saturated the same laptop; the run took 38 minutes instead of 1.5, and two
+ * cases reported `SERVER-DID-NOT-START` with an EMPTY server log. That is a
+ * false negative — the server was starting, not broken — and a harness that
+ * cries wolf is a harness whose "did not run" line stops being read, which is
+ * exactly the failure mode this whole file exists to prevent.
+ *
+ * A longer budget cannot hide a real failure. A server that crashes, or that
+ * cannot bind the port, EXITS — and that is noticed below and reported at once,
+ * rather than waited out.
+ */
+async function waitForHealth(
+  child,
+  budgetMs = Number(process.env.ONETEAM_BREAK_START_MS || 60000),
+) {
   const deadline = Date.now() + budgetMs;
   while (Date.now() < deadline) {
+    if (child.exitCode !== null || child.signalCode !== null) {
+      return {
+        healthy: false,
+        reason: `the server process exited (code ${child.exitCode}, signal ${child.signalCode})`,
+      };
+    }
     try {
       const response = await fetch(`${API_URL}/api/health`);
-      if (response.ok) return true;
+      if (response.ok) return { healthy: true, reason: null };
     } catch {
       // not up yet
     }
     await new Promise((r) => setTimeout(r, 250));
   }
-  return false;
+  return {
+    healthy: false,
+    reason: `no answer from /api/health within ${budgetMs}ms (set ONETEAM_BREAK_START_MS to raise it)`,
+  };
 }
 
 /**
@@ -205,9 +244,10 @@ async function startServer() {
   child.stdout.on('data', (chunk) => (log += chunk));
   child.stderr.on('data', (chunk) => (log += chunk));
 
-  const healthy = await waitForHealth();
+  const { healthy, reason } = await waitForHealth(child);
   return {
     healthy,
+    reason,
     log,
     stop: () =>
       new Promise((done) => {
@@ -341,8 +381,9 @@ for (const testCase of CASES) {
     if (!server.healthy) {
       didNotRun++;
       console.log(`  ⚠️  ${testCase.id}  SERVER-DID-NOT-START — nothing was exercised.`);
+      console.log(`        why: ${server.reason}`);
       console.log(
-        `        ${server.log.split('\n').filter(Boolean).slice(-2).join(' / ').slice(0, 240)}`,
+        `        server output: ${server.log.split('\n').filter(Boolean).slice(-2).join(' / ').slice(0, 240) || '(empty)'}`,
       );
       continue;
     }
@@ -408,8 +449,9 @@ if (buildError) {
   const server = await startServer();
   if (!server.healthy) {
     console.log('  ❌ the restored server did not start');
+    console.log(`        why: ${server.reason}`);
     console.log(
-      `        ${server.log.split('\n').filter(Boolean).slice(-2).join(' / ').slice(0, 240)}`,
+      `        server output: ${server.log.split('\n').filter(Boolean).slice(-2).join(' / ').slice(0, 240) || '(empty)'}`,
     );
   } else {
     const output = runSuite().replace(ANSI, '');

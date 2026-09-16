@@ -132,7 +132,10 @@ async function call(
   });
 
   const text = await response.text();
-  let body: any = null;
+  // Declared without an initialiser: both branches below assign it, so a `= null`
+  // here would be a value nothing ever reads — which is what `no-useless-assignment`
+  // is for, and what CI caught.
+  let body: any;
   try {
     body = text ? JSON.parse(text) : null;
   } catch {
