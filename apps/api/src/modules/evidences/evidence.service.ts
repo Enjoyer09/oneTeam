@@ -258,8 +258,9 @@ export class EvidenceService {
     }
 
     // 4. Store Evidence Record
+    const now = Date.now();
     const evidenceRecord: InMemoryEvidence = {
-      id: `evd-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      id: `evd-${now}-${Math.random().toString(36).substr(2, 6)}`,
       storeTaskId: dto.storeTaskId,
       submittedById: principal.userId,
       photoUrl: dto.photoUrl,
@@ -271,9 +272,9 @@ export class EvidenceService {
       aiScore: null,
       aiDetections: [],
       aiSummary: null,
-      submittedAt: new Date(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      submittedAt: new Date(now),
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
     };
 
     db.createEvidence(evidenceRecord);
