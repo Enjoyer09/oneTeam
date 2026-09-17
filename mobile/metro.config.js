@@ -14,4 +14,10 @@ if (!config.transformerPath) {
   );
 }
 
+// Force single-worker mode in CI. Worker threads (jest-worker) silently
+// fail to initialize in the macOS CI runner, leaving `_transformer`
+// undefined and producing the "transformFile" crash. This bypasses the
+// worker farm entirely and uses the in-process worker instead.
+config.maxWorkers = 1;
+
 module.exports = config;
