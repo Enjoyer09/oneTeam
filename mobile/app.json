@@ -11,6 +11,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "az.oneteam.cocacola.fieldaudit",
       "buildNumber": "1",
+      "appleTeamId": "UJ6APLMZFW",
       "infoPlist": {
         "CFBundleDevelopmentRegion": "az",
         "NSCameraUsageDescription": "Coca-Cola rəf və soyuducu planogram auditini həyata keçirmək üçün kameradan istifadə tələb olunur.",

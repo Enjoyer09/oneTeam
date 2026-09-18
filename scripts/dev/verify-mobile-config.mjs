@@ -164,9 +164,29 @@ check(
   app.ios?.supportsTablet === false,
   `plan item 3.1 requires false; found ${String(app.ios?.supportsTablet)}`,
 );
+// WHY THIS IS CHECKED — measured on 2026-09-18. Without a team id the app
+// builds for the simulator but NOT for a physical iPhone:
+//   error: Signing for "oneTeamFieldAudit" requires a development team.
+// The fix is not "pick a team in Xcode", because `ios/` is generated and
+// prebuild overwrites the project file — the choice made by hand disappears.
+// `appleTeamId` is the source of truth that prebuild writes into
+// DEVELOPMENT_TEAM, so losing it silently costs a build and reads as an
+// Xcode problem rather than a config problem.
+check(
+  'ios.appleTeamId is set (physical-device builds need it)',
+  typeof app.ios?.appleTeamId === 'string' && /^[A-Z0-9]{10}$/.test(app.ios.appleTeamId),
+  `a physical-device build fails without it; found ${String(app.ios?.appleTeamId ?? '<missing>')}`,
+);
 
 console.log('\nPrivacy strings (what iOS shows the user)');
-for (const key of ['NSCameraUsageDescription', 'NSLocationWhenInUseUsageDescription']) {
+// `NSLocalNetworkUsageDescription` is the one that is easy to miss: without it
+// iOS 14+ silently refuses the LAN connection the app needs to reach the Core
+// API and Metro from a phone, and the app looks like it simply cannot load.
+for (const key of [
+  'NSCameraUsageDescription',
+  'NSLocationWhenInUseUsageDescription',
+  'NSLocalNetworkUsageDescription',
+]) {
   const value = app.ios?.infoPlist?.[key];
   check(key, typeof value === 'string' && value.trim().length > 10, value ?? '<missing>');
 }

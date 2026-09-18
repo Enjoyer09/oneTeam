@@ -123,10 +123,41 @@ fi
 # başqa bir proqram tuta bilər; cavabın içindəki `service` sahəsi bizim API
 # olduğunu təsdiqləyir.
 api_is_up() {
-  local body
-  body="$(curl -s --max-time 2 "http://127.0.0.1:${API_PORT}/api/health" 2>/dev/null)"
+  local port="${1:-$API_PORT}" body
+  body="$(curl -s --max-time 2 "http://127.0.0.1:${port}/api/health" 2>/dev/null)"
   printf '%s' "$body" | grep -q 'oneteam-api'
 }
+
+port_is_free() {
+  ! lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1
+}
+
+# --- 2. API portu -----------------------------------------------------------
+#
+# Portu ƏVVƏLCƏDƏN seçirik, API-ni isə sonra başladırıq. Səbəb ÖLÇÜLMÜŞDÜR
+# (18 sentyabr 2026): bu maşında 3001 portunu layihədən olmayan bir proqram
+# tutur. API `npm run api:dev` bitəndən SONRA `EADDRINUSE` ilə ölür — yəni
+# istifadəçi ~60 saniyə boş ekrana baxır və səbəbi yalnız loqda görünür.
+#
+# Portu tutan BİZİM API-dirsə dəyişmirik (aşağıda təkrar istifadə olunacaq).
+# Əks halda növbəti boş port götürülür. Bu, telefonda test axını üçün
+# təhlükəsizdir: ünvan tətbiqə Metro paketi ilə verilir, yəni tətbiq hansı
+# portu istifadə etdiyimizi bilir.
+REQUESTED_API_PORT="$API_PORT"
+if ! port_is_free "$REQUESTED_API_PORT" && ! api_is_up "$REQUESTED_API_PORT"; then
+  echo "⚠️  Port $REQUESTED_API_PORT tutulub və cavab verən oneTeam API deyil."
+  for candidate in $(seq $((REQUESTED_API_PORT + 10)) $((REQUESTED_API_PORT + 20))); do
+    if port_is_free "$candidate"; then
+      API_PORT="$candidate"
+      break
+    fi
+  done
+  if [ "$API_PORT" = "$REQUESTED_API_PORT" ]; then
+    echo "   Boş port tapılmadı — $API_PORT ilə davam edilir, API qalxmaya bilər."
+  else
+    echo "   oneTeam API port $API_PORT-də başladılacaq."
+  fi
+fi
 
 metro_is_up() {
   local body
@@ -148,15 +179,19 @@ else
   )
   for _ in $(seq 1 30); do
     if api_is_up; then break; fi
+    # API portu tuta bilmirsə, qalan ~60 saniyəni gözləməyin mənası yoxdur.
+    # `>` loqu başlamazdan əvvəl sıfırlayır, ona görə burada tapdığımız hər şey
+    # BU işə salmaya aiddir — köhnə xəta bizi vaxtsız dayandıra bilməz.
+    if grep -q 'EADDRINUSE' "$API_LOG" 2>/dev/null; then break; fi
     sleep 2
   done
   if api_is_up; then
     echo "✓ API hazırdır."
   else
     echo "⚠️  API cavab vermir. Log: $API_LOG"
-    if lsof -nP -iTCP:"$API_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
-      echo "   Port $API_PORT başqa bir proqram tərəfindən tutulub — API ora qoşula bilmir."
-      echo "   Ya həmin proqramı dayandır, ya da fərqli port ver:"
+    if grep -q 'EADDRINUSE' "$API_LOG" 2>/dev/null; then
+      echo "   API $API_PORT portunu tuta bilmədi — orada başqa proqram var."
+      echo "   Həll: həmin proqramı dayandır, ya da portu açıq ver:"
       echo "     API_PORT=3011 bash scripts/dev/ensure-dev-servers.sh"
     fi
   fi
