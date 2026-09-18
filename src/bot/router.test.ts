@@ -108,6 +108,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 import { spawn, type ChildProcess } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { Client } from 'pg';
@@ -154,9 +155,22 @@ const SERVICE_TOKEN = process.env.ONETEAM_TEST_ADMIN_TOKEN || 'oneteam-user:usr-
  * It must not be shaped like another credential: `panelBootstrapProblem()`
  * refuses a value that starts with `otd_`, `otp_` or `oneteam-user:`, and one
  * shorter than `PANEL_BOOTSTRAP_MIN_LENGTH` (24) is never matched at all.
+ *
+ * GENERATED, NOT WRITTEN DOWN
+ * ---------------------------
+ * It was a literal, and the secret scan refused it as a high-entropy string —
+ * correctly, because a literal that looks like a credential is exactly what that
+ * check exists to catch, and it cannot tell a fixture from a leak. Generating one
+ * per run is the better answer anyway: nothing to reuse, nothing to confuse with
+ * a real key, and no value in the file for anyone to copy.
+ *
+ * `hex` rather than `base64url` on purpose. base64url's alphabet includes `_`,
+ * so a generated value could in principle begin with `otd_` and be routed as a
+ * device token by every reader except the one comparison that matters. Hex is
+ * `[0-9a-f]` only, so no reserved prefix is reachable — not "unlikely", not
+ * reachable. 24 bytes is 48 characters, comfortably over the minimum.
  */
-const SUPERVISOR_TOKEN =
-  process.env.ONETEAM_TEST_PANEL_KEY || 'router-suite-fixture-key-not-a-real-credential';
+const SUPERVISOR_TOKEN = randomBytes(24).toString('hex');
 
 const REPO_ROOT = process.cwd();
 const API_ENTRY = path.join(REPO_ROOT, 'apps/api/dist/main.js');
