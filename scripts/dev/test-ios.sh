@@ -113,6 +113,18 @@ if [ "$STATUS" -ne 0 ]; then
   echo "----------------------------------------------"
   echo "Xətalar:"
   grep -E "error:|failed - |XCTAssert" "$LOG" | tail -20
+
+  # Metro öz daxili xətasını (məsələn, transformer qurula bilmədi) yalnız
+  # öz loguna yazır və onu udur — ekranda yalnız "Metro has encountered an
+  # error" görünür, səbəb görünmür. Səbəbi təxmin etmək əvəzinə onu çap edirik.
+  if [ -f "$METRO_LOG" ]; then
+    echo "----------------------------------------------"
+    echo "Metro log-u (son 40 sətir — $METRO_LOG):"
+    tail -40 "$METRO_LOG"
+    echo "----------------------------------------------"
+    echo "Metro logunda xəta axtarışı:"
+    grep -iE "error|failed|Cannot|undefined|exception" "$METRO_LOG" | tail -20
+  fi
 fi
 echo "----------------------------------------------"
 echo "Tam log: $LOG"
