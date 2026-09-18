@@ -120,6 +120,44 @@ const DATABASE_URL =
   process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres';
 const SERVICE_TOKEN = process.env.ONETEAM_TEST_ADMIN_TOKEN || 'oneteam-user:usr-admin-001';
 
+/**
+ * The credential this suite uses for the supervisor calls it makes to set up and
+ * tear down its fixtures — a DIFFERENT credential from `SERVICE_TOKEN`.
+ *
+ * WHY THE SERVICE CREDENTIAL IS NOT ENOUGH FOR THOSE CALLS
+ * -------------------------------------------------------
+ * `mayUseRoute` in `auth.guard.ts` refuses the service credential on supervisor
+ * routes the moment the database holds a live panel key. That is deliberate: the
+ * panel injects a service credential at the edge, and if that kept working the
+ * login screen would be decorative.
+ *
+ * The consequence for this suite was not deliberate. It provisioned its fixture
+ * store with `SERVICE_TOKEN`, so it passed in CI — whose database has no panel
+ * keys — and passed on a fresh checkout, and then failed the first time anyone
+ * did the natural thing and minted a key to sign in to the panel:
+ *
+ *     ✗ the fixture store is created
+ *         got: {"error":"PANEL_KEY_REQUIRED", ...}
+ *     ○ every flow check — SKIPPED: the fixture store could not be created
+ *
+ * Measured on 18 September 2026 against one database, changing nothing but the
+ * key state: 67 passed / 0 failed with no live keys, 1 passed / 1 failed / 1
+ * skipped with three. The message named the credential and not the cause.
+ *
+ * WHY THE BOOTSTRAP KEY IS THE RIGHT ANSWER HERE
+ * ---------------------------------------------
+ * It resolves to an administrator through the PANEL path, so `mayUseRoute`
+ * accepts it whatever the database holds. It is passed only to the API this
+ * suite starts (see `startApi`), so it is not a standing credential, it does not
+ * appear in any environment file, and it leaves nothing behind for the next run.
+ *
+ * It must not be shaped like another credential: `panelBootstrapProblem()`
+ * refuses a value that starts with `otd_`, `otp_` or `oneteam-user:`, and one
+ * shorter than `PANEL_BOOTSTRAP_MIN_LENGTH` (24) is never matched at all.
+ */
+const SUPERVISOR_TOKEN =
+  process.env.ONETEAM_TEST_PANEL_KEY || 'router-suite-fixture-key-not-a-real-credential';
+
 const REPO_ROOT = process.cwd();
 const API_ENTRY = path.join(REPO_ROOT, 'apps/api/dist/main.js');
 
@@ -210,6 +248,12 @@ async function startApi(): Promise<void> {
       NODE_ENV: 'development',
       ONETEAM_REFRESH_MS: '0',
       ONETEAM_BOT_SWEEP_MS: '0',
+      // The other half of `SUPERVISOR_TOKEN`: the API this suite starts accepts
+      // that value as its bootstrap key, so the fixture calls below do not depend
+      // on — and do not change — how many panel keys the database holds.
+      ONETEAM_PANEL_BOOTSTRAP_KEY: SUPERVISOR_TOKEN,
+      // `ONETEAM_PANEL_BOOTSTRAP_USER` is left at its default (`usr-admin-001`),
+      // which is the same administrator `SERVICE_TOKEN` names.
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -236,6 +280,10 @@ async function stopApi(): Promise<void> {
 // ---------------------------------------------------------------------------
 // The supervisor's API calls — provisioning and cleanup only
 // ---------------------------------------------------------------------------
+//
+// `SUPERVISOR_TOKEN`, not `SERVICE_TOKEN`: everything this helper touches is a
+// supervisor route, and the service credential is refused on those as soon as a
+// panel key exists. See the note on `SUPERVISOR_TOKEN` for the measurement.
 
 async function supervisor(
   method: string,
@@ -245,7 +293,7 @@ async function supervisor(
   const response = await fetch(`${API_BASE}${requestPath}`, {
     method,
     headers: {
-      Authorization: `Bearer ${SERVICE_TOKEN}`,
+      Authorization: `Bearer ${SUPERVISOR_TOKEN}`,
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
