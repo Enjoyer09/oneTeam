@@ -144,20 +144,48 @@ port_is_free() {
 # təhlükəsizdir: ünvan tətbiqə Metro paketi ilə verilir, yəni tətbiq hansı
 # portu istifadə etdiyimizi bilir.
 REQUESTED_API_PORT="$API_PORT"
-if ! port_is_free "$REQUESTED_API_PORT" && ! api_is_up "$REQUESTED_API_PORT"; then
+
+if api_is_up "$REQUESTED_API_PORT" || port_is_free "$REQUESTED_API_PORT"; then
+  : # istənilən port ya BİZİM API-dir, ya boşdur — portu dəyişmirik
+else
   echo "⚠️  Port $REQUESTED_API_PORT tutulub və cavab verən oneTeam API deyil."
+  FOUND=""
   for candidate in $(seq $((REQUESTED_API_PORT + 10)) $((REQUESTED_API_PORT + 20))); do
+    # ƏVVƏLCƏ TƏKRAR İSTİFADƏ, sonra yeni port. Namizəd portda artıq bizim API
+    # işləyə bilər: skript bir dəfə işlədilib, sonra təkrar çağırılır. Bu
+    # yoxlama olmasa, ikinci çağırış işləyən API-ni görməz və NÖVBƏTİ boş portu
+    # götürərdi — yəni hər çağırışda yeni API başlardı, köhnəsi isə qalardı.
+    # Ölçüldü (18 sentyabr 2026): birinci çağırış 3011, ikinci çağırış 3012.
+    if api_is_up "$candidate"; then
+      API_PORT="$candidate"
+      FOUND="reuse"
+      echo "   Artıq işləyən oneTeam API tapıldı: port $candidate."
+      break
+    fi
     if port_is_free "$candidate"; then
       API_PORT="$candidate"
+      FOUND="new"
+      echo "   oneTeam API port $candidate-də başladılacaq."
       break
     fi
   done
-  if [ "$API_PORT" = "$REQUESTED_API_PORT" ]; then
+  if [ -z "$FOUND" ]; then
     echo "   Boş port tapılmadı — $API_PORT ilə davam edilir, API qalxmaya bilər."
-  else
-    echo "   oneTeam API port $API_PORT-də başladılacaq."
   fi
 fi
+
+# `export` MÜTLƏQDİR, sadəcə təyin etmək kifayət deyil.
+#
+# API portu `apps/api/src/main.ts`-də `process.env.PORT || process.env.API_PORT`
+# ilə oxunur, yəni uşaq prosessin MÜHİTİNDƏ olmalıdır. Skript daxilində təyin
+# edilən dəyişən isə mühitə düşmür: 18 sentyabr 2026-da bu, səssiz uğursuzluq
+# yaratdı — skript "API port 3011-də başladılacaq" yazdı, API isə 3001-i
+# yoxlayıb `EADDRINUSE` ilə öldü, yəni çıxış YALAN danışırdı.
+#
+# (`API_PORT=3011 bash ...` ilə işlədəndə dəyişən artıq mühitdən gəlir və
+# `export`-suz da işləyir — ona görə bu, yalnız avtomatik seçim yolunda
+# görünürdü.)
+export API_PORT
 
 metro_is_up() {
   local body
