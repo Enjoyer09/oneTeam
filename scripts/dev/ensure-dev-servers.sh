@@ -36,6 +36,10 @@ API_LOG="/tmp/oneteam-api.log"
 METRO_LOG="/tmp/oneteam-metro.log"
 API_PID_FILE="/tmp/oneteam-api.pid"
 METRO_PID_FILE="/tmp/oneteam-metro.pid"
+# Metro-nun hansı API ünvanı ilə başladıldığını yazırıq. Səbəb aşağıda, Metro
+# bölməsində izah olunub — bir sətirdə: paket YIĞILARKƏN ünvan ora yazılır,
+# ona görə "işləyən Metro" ilə "düzgün ünvanlı Metro" eyni şey deyil.
+METRO_ENV_FILE="/tmp/oneteam-metro.env"
 
 # Xcode pre-action-ı QİYMƏTLƏNDİRMƏ MÜHİTİNDƏ işləyir: PATH yalnız
 # /usr/bin:/bin:/usr/sbin:/sbin olur və `node` tapılmır. Ona görə node-un
@@ -75,6 +79,10 @@ if [ "${1:-}" = "--stop" ]; then
     fi
     rm -f "$file"
   done
+
+  # Metro-nun "hansı API ünvanı ilə başladıldı" qeydi də silinməlidir: köhnə
+  # qeyd qalsa, növbəti işə salma onu canlı Metro kimi sayıb yanılardı.
+  rm -f "$METRO_ENV_FILE"
 
   if [ "$stopped" -eq 0 ]; then
     echo "İşləyən server yoxdur."
@@ -155,28 +163,59 @@ else
 fi
 
 # --- 3. Metro ---------------------------------------------------------------
-METRO_JUST_STARTED=0
-if metro_is_up; then
-  echo "✓ Metro artıq işləyir (port $METRO_PORT)."
-else
-  echo "→ Metro başladılır (log: $METRO_LOG)..."
-  # `--host lan` OLMADAN paket yalnız kompüterin özünə verilir və telefonda
-  # "No script URL provided" görünür.
-  #
-  # `EXPO_PUBLIC_ONETEAM_API_URL` BURADA verilir, çünki Expo bu dəyəri paket
-  # YIĞILARKƏN yerinə qoyur (runtime-da oxumur). Metro səhv ünvanla başlasa,
-  # tətbiq telefonda özünün 'localhost'-una qoşulmağa çalışır və alınmır.
+#
+# "İşləyən Metro var" YETƏRLİ DEYİL, və bu, ölçülmüş bir tələdir.
+#
+# `EXPO_PUBLIC_ONETEAM_API_URL` paket YIĞILARKƏN JS-in içinə yazılır. Deməli
+# artıq işləyən Metro-nu təkrar istifadə etmək yalnız o Metro İSTƏNİLƏN ünvanla
+# başladılıbsa doğrudur. Əks halda tətbiq köhnə ünvana qoşulmağa çalışır və
+# ekranda səbəb görünmür.
+#
+# 18 sentyabr 2026-da bu, real olaraq baş verdi: 8081-də cavab verən Metro
+# başqa bir git worktree-dən (`.claude/worktrees/...`) işləyirdi və KÖHNƏ
+# checkout-u verirdi. Skript onu "Metro artıq işləyir" deyə təkrar istifadə
+# etdi — yəni telefon köhnə kodu yükləyəcəkdi.
+#
+# Ona görə indi üç şey yoxlanılır: portda Metro var? onu BİZ başlatmışıq?
+# və istənilən ünvanla? Üçü də "hə" olmasa, Metro yenidən başladılır.
+WANT_API_URL="http://${LAN_IP}:${API_PORT}"
+
+metro_is_ours() {
+  [ -f "$METRO_PID_FILE" ] || return 1
+  kill -0 "$(cat "$METRO_PID_FILE")" 2>/dev/null || return 1
+  [ "$(cat "$METRO_ENV_FILE" 2>/dev/null || true)" = "$WANT_API_URL" ]
+}
+
+# 8081-i tutan prosesi dayandırır. Yalnız `metro_is_up` doğru olanda çağırılır,
+# yəni prosesin həqiqətən Metro olduğu artıq təsdiqlənib — Metro isə yenidən
+# başladıla bilən dev serverdir, ona görə bunu avtomatik etmək təhlükəsizdir.
+stop_metro_holder() {
+  local pids pid
+  pids="$(lsof -nP -tiTCP:"$METRO_PORT" -sTCP:LISTEN 2>/dev/null || true)"
+  [ -n "$pids" ] || return 0
+  for pid in $pids; do
+    stop_tree "$pid"
+  done
+  for _ in $(seq 1 15); do
+    metro_is_up || break
+    sleep 1
+  done
+}
+
+start_metro() {
   (
     cd "$REPO_ROOT/mobile" || exit 1
-    EXPO_PUBLIC_ONETEAM_API_URL="http://${LAN_IP}:${API_PORT}" \
+    # `--host lan` OLMADAN paket yalnız kompüterin özünə verilir və telefonda
+    # "No script URL provided" görünür.
+    EXPO_PUBLIC_ONETEAM_API_URL="$WANT_API_URL" \
       EXPO_NO_TYPESCRIPT_SETUP=1 \
       nohup npx expo start --host lan --port "$METRO_PORT" > "$METRO_LOG" 2>&1 < /dev/null &
     echo $! > "$METRO_PID_FILE"
   )
-  METRO_JUST_STARTED=1
+  printf '%s' "$WANT_API_URL" > "$METRO_ENV_FILE"
 
-  # Yalnız özümüz başlatdıqda gözləyirik: soyuq Metro ~15-30 saniyə çəkir və
-  # gözləməsək tətbiq ondan əvvəl açılıb "qoşula bilmədi" göstərə bilər.
+  # Soyuq Metro ~15-30 saniyə çəkir; gözləməsək tətbiq ondan əvvəl açılıb
+  # "qoşula bilmədi" göstərə bilər.
   for _ in $(seq 1 30); do
     if metro_is_up; then break; fi
     sleep 2
@@ -186,6 +225,28 @@ else
   else
     echo "⚠️  Metro hələ cavab vermir. Log: $METRO_LOG"
   fi
+}
+
+METRO_JUST_STARTED=0
+if metro_is_up && metro_is_ours; then
+  echo "✓ Metro artıq işləyir və API ünvanı düzdür ($WANT_API_URL)."
+else
+  if metro_is_up; then
+    echo "→ Metro $METRO_PORT portunda işləyir, amma ondan istifadə etmək olmaz:"
+    if [ -f "$METRO_PID_FILE" ] && kill -0 "$(cat "$METRO_PID_FILE")" 2>/dev/null; then
+      echo "   • başqa API ünvanı ilə başladılıb: $(cat "$METRO_ENV_FILE" 2>/dev/null || echo 'bilinmir')"
+      echo "     (istənilən: $WANT_API_URL)"
+    else
+      echo "   • onu bu skript başlatmayıb — hansı checkout-u verdiyini və"
+      echo "     paketə hansı API ünvanını yazdığını bilmirik"
+    fi
+    echo "   Paket yığılarkən API ünvanı JS-in içinə yazılır, ona görə köhnə"
+    echo "   Metro köhnə ünvanı (və köhnə kodu) verərdi. Yenidən başladılır."
+    stop_metro_holder
+  fi
+  echo "→ Metro başladılır (log: $METRO_LOG)..."
+  start_metro
+  METRO_JUST_STARTED=1
 fi
 
 # --- 4. Yekun ---------------------------------------------------------------
