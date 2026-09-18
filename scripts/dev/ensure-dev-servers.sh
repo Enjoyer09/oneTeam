@@ -42,10 +42,17 @@ API_LOG="$STATE_DIR/oneteam-api.log"
 METRO_LOG="$STATE_DIR/oneteam-metro.log"
 API_PID_FILE="$STATE_DIR/oneteam-api.pid"
 METRO_PID_FILE="$STATE_DIR/oneteam-metro.pid"
+BOT_LOG="$STATE_DIR/oneteam-bot.log"
+BOT_PID_FILE="$STATE_DIR/oneteam-bot.pid"
 # Metro-nun hansı API ünvanı ilə başladıldığını yazırıq. Səbəb aşağıda, Metro
 # bölməsində izah olunub — bir sətirdə: paket YIĞILARKƏN ünvan ora yazılır,
 # ona görə "işləyən Metro" ilə "düzgün ünvanlı Metro" eyni şey deyil.
 METRO_ENV_FILE="$STATE_DIR/oneteam-metro.env"
+# Botun hansı API ünvanı ilə başladıldığını yazırıq — Metro ilə eyni səbəbə görə.
+# Botun öz defolt ünvanı `http://localhost:3001`-dir (`src/services/portalApi.ts`),
+# bu maşında isə 3001 portunu LAYİHƏDƏN OLMAYAN proqram tutur. Yəni bot səhv
+# ünvana danışardı: Telegram-da cavab gələrdi, amma boş/yanlış məlumatla.
+BOT_ENV_FILE="$STATE_DIR/oneteam-bot.env"
 # Bu skriptin SEÇDİYİ nəticəni yazırıq (port, ünvan, API cavab verir ya yox).
 # Lazımdır, çünki `run-on-device.sh` bu skripti UŞAQ proses kimi çağırır: uşaqda
 # təyin edilən dəyişən valideynə keçmir, ona görə valideyn seçilmiş portu başqa
@@ -117,7 +124,7 @@ spawn_detached() {
 
 if [ "${1:-}" = "--stop" ]; then
   stopped=0
-  for file in "$API_PID_FILE" "$METRO_PID_FILE"; do
+  for file in "$API_PID_FILE" "$METRO_PID_FILE" "$BOT_PID_FILE"; do
     [ -f "$file" ] || continue
     pid="$(cat "$file")"
     name="$(basename "$file" .pid)"
@@ -134,6 +141,8 @@ if [ "${1:-}" = "--stop" ]; then
   # Metro-nun "hansı API ünvanı ilə başladıldı" qeydi də silinməlidir: köhnə
   # qeyd qalsa, növbəti işə salma onu canlı Metro kimi sayıb yanılardı.
   rm -f "$METRO_ENV_FILE"
+  # Botun "hansı API ünvanı ilə başladıldı" qeydi də silinir — eyni səbəbə görə.
+  rm -f "$BOT_ENV_FILE"
   # Vəziyyət faylı da silinir — qalsa, `run-on-device.sh` dayandırılmış
   # serverlərin portunu "tətbiqin danışacağı API" kimi çap edərdi.
   rm -f "$STATE_FILE"
@@ -254,7 +263,17 @@ else
   echo "→ API başladılır (log: $API_LOG)..."
   # `api:dev` əvvəlcə TypeScript-i yığır. NestJS dekorator metadatası üçün
   # `tsc` lazımdır (`tsx` onu buraxmır), ona görə bu skript `tsx` işlətmir.
+  #
+  # `PORT` AÇIQ şəkildə verilir. Səbəb: `main.ts` portu
+  # `process.env.PORT || process.env.API_PORT || 3001` ilə oxuyur, `.env`-də isə
+  # `PORT=3000` var və API artıq `.env`-i yükləyir. `PORT` verilməsə, API 3000-i
+  # götürərdi, skript isə 3011 deyərdi — yəni yuxarıda düzəltdiyimiz YALAN
+  # yenidən yaranardı. `PORT` yalnız bu çağırış üçün dəyişdirilir: qlobal qalsa,
+  # Metro onu öz portu kimi götürə bilər.
+  saved_port="${PORT-}"
+  export PORT="$API_PORT"
   spawn_detached "$REPO_ROOT" "$API_LOG" npm run api:dev > "$API_PID_FILE"
+  if [ -n "$saved_port" ]; then export PORT="$saved_port"; else unset PORT; fi
   for _ in $(seq 1 30); do
     if api_is_up; then break; fi
     # API portu tuta bilmirsə, qalan ~60 saniyəni gözləməyin mənası yoxdur.
@@ -361,7 +380,103 @@ else
   METRO_JUST_STARTED=1
 fi
 
-# --- 4. Yekun ---------------------------------------------------------------
+# `API_UP` burada hesablanır, Yekun bölməsində YOX: bot bölməsi onu oxuyur və
+# "ünvan belədir" demək "API işləyir" demək DEYİL. İşləməyən API-ni işləyir kimi
+# göstərmək istifadəçini yanlış yönəldərdi.
+if api_is_up; then API_UP="yes"; else API_UP="no"; fi
+
+# --- 4. Telegram botu -------------------------------------------------------
+#
+# NİYƏ BURADA
+# -----------
+# Botun İKİ xarici asılılığı var: Telegram (token) və Core API (ünvan). İkisi də
+# səhv olanda səbəb görünmür:
+#
+#   • ÜNVAN. `src/services/portalApi.ts` defolt olaraq `http://localhost:3001`
+#     işlədir. Bu maşında 3001 portunu LAYİHƏDƏN OLMAYAN proqram tutur, bizim API
+#     isə başqa portda (adətən 3011) işləyir. Ona görə botu MÜTLƏQ açıq ünvanla
+#     başladırıq. `127.0.0.1` seçilir, `LAN_IP` yox: bot API ilə EYNİ maşında
+#     işləyir, LAN ünvanı isə telefona lazımdır.
+#
+#   • TOKEN. `.env`-dəki `TELEGRAM_BOT_TOKEN` yer tutucudur (`mockBotToken`
+#     içindədir) və `src/bot/index.ts` bu halda "Standby/Test mode" yazıb
+#     DAYANIR — yəni proses dərhal ölür və Telegram-a heç vaxt qoşulmur. Bunu
+#     gizlətmirik: aşağıda loqdan OXUYUB deyirik ki, hansı rejimə düşdü.
+#     Tokeni skript özü YOXLAMIR — o qapı botun öz kodundadır və iki yerdə
+#     təkrarlansa, biri digərindən sürüşəcək.
+#
+# BOT_UZUNÖMÜRLÜDÜR: bir dəfə başladılır, təkrar çağırışlarda təkrar istifadə
+# olunur (API və Metro kimi). Ünvan dəyişibsə yenidən başladılır.
+BOT_API_URL="http://127.0.0.1:${API_PORT}"
+
+bot_pid_alive() {
+  [ -f "$BOT_PID_FILE" ] || return 1
+  kill -0 "$(cat "$BOT_PID_FILE")" 2>/dev/null
+}
+
+bot_is_ours() {
+  bot_pid_alive || return 1
+  [ "$(cat "$BOT_ENV_FILE" 2>/dev/null || true)" = "$BOT_API_URL" ]
+}
+
+# Loqdan oxuyuruq, çünki botun sağlamlığı üçün HTTP yoxlaması YOXDUR: bot
+# port açmır, Telegram-a özü qoşulur. Ən güclü sübut `connected as @` sətridir —
+# o, yalnız polling həqiqətən başlayanda yazılır.
+bot_connected() {
+  grep -q 'connected as @' "$BOT_LOG" 2>/dev/null
+}
+
+bot_in_standby() {
+  grep -q 'Standby/Test mode' "$BOT_LOG" 2>/dev/null
+}
+
+start_bot() {
+  echo "→ Telegram botu başladılır (log: $BOT_LOG)..."
+  # `VAR=val func` forması: dəyər uşağa çatır, funksiyadan sonra xarici dəyər
+  # bərpa olunur. Ölçüldü (18 sentyabr 2026). `export` ilə müqayisədə üstünlüyü:
+  # Metro-nun paketinə bu ünvan SIZMIR.
+  ONETEAM_API_URL="$BOT_API_URL" spawn_detached "$REPO_ROOT" "$BOT_LOG" npm run bot \
+    > "$BOT_PID_FILE"
+  printf '%s' "$BOT_API_URL" > "$BOT_ENV_FILE"
+
+  # Token düzdürsə `getUpdates` ~1-3 saniyə çəkir. Yalançı "hələ hazır deyil"
+  # deməmək üçün gözləyirik.
+  for _ in $(seq 1 10); do
+    if bot_connected || bot_in_standby || ! bot_pid_alive; then break; fi
+    sleep 2
+  done
+
+  if bot_connected; then
+    echo "✓ Telegram botu Telegram-a qoşuldu ($BOT_API_URL)."
+  elif bot_in_standby; then
+    # Bu, XƏTA deyil — konfiqurasiya vəziyyətidir və istifadəçi bunu bilməlidir.
+    echo "⚠️  Telegram botu STANDBY rejimindədir — Telegram-a QOŞULMUR."
+    echo "   Səbəb: .env-dəki TELEGRAM_BOT_TOKEN yer tutucudur (içində 'mockBotToken')."
+    echo "   Lazım olan: @BotFather-dan REAL token → .env → sonra bu skripti təkrar işlət."
+    echo "   Bu arada mobil tətbiq və veb panel işləyir — onlar bu tokenə bağlı deyil."
+  else
+    echo "⚠️  Telegram botunun vəziyyəti bilinmir. Log: $BOT_LOG"
+    tail -n 5 "$BOT_LOG" 2>/dev/null | sed 's/^/     /'
+  fi
+}
+
+if bot_is_ours; then
+  echo "✓ Telegram botu artıq işləyir ($BOT_API_URL)."
+elif bot_pid_alive; then
+  echo "→ Bot başqa API ünvanı ilə işləyir: $(cat "$BOT_ENV_FILE" 2>/dev/null || echo 'bilinmir')"
+  echo "   (istənilən: $BOT_API_URL) — yenidən başladılır."
+  stop_tree "$(cat "$BOT_PID_FILE")"
+  start_bot
+else
+  if [ "$API_UP" = "no" ]; then
+    echo "→ Bot başladılır, AMMA API cavab vermir — Telegram-da sorğular xəta verəcək."
+  fi
+  start_bot
+fi
+
+if bot_connected; then BOT_STATE="connected"; else BOT_STATE="not-connected"; fi
+
+# --- 5. Yekun ---------------------------------------------------------------
 #
 # Seçilmiş nəticəni FAYLA yazırıq. Səbəb: bu skript `run-on-device.sh`-dən və
 # Xcode-un pre-action-ından UŞAQ proses kimi çağırılır, uşaqda təyin edilən
@@ -371,13 +486,14 @@ fi
 #
 # `API_UP` də yazılır: "ünvan belədir" demək "API işləyir" demək DEYİL, və
 # işləməyən API-ni işləyir kimi göstərmək istifadəçini yanlış yönəldərdi.
-if api_is_up; then API_UP="yes"; else API_UP="no"; fi
 {
   printf 'API_PORT=%s\n' "$API_PORT"
   printf 'API_UP=%s\n' "$API_UP"
   printf 'METRO_PORT=%s\n' "$METRO_PORT"
   printf 'LAN_IP=%s\n' "$LAN_IP"
   printf 'API_URL=%s\n' "$WANT_API_URL"
+  # Telegram kanalı hazır ya yox — `run-on-device.sh` bunu istifadəçiyə deyir.
+  printf 'BOT_STATE=%s\n' "$BOT_STATE"
 } > "$STATE_FILE"
 
 echo ""
@@ -386,3 +502,8 @@ if [ "$METRO_JUST_STARTED" = "1" ]; then
   echo "Metro yenicə başladı — ilk paket yığılması 1-2 dəqiqə çəkə bilər."
 fi
 echo "Telefon kompüterlə eyni Wi-Fi-da olmalıdır."
+if [ "$BOT_STATE" = "connected" ]; then
+  echo "Telegram kanalı hazırdır — botdan istifadə edə bilərsiniz."
+else
+  echo "Telegram kanalı HAZIR DEYİL (bot Telegram-a qoşulmur). Mobil və panel işləyir."
+fi

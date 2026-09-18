@@ -39,7 +39,8 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 # çap etmək yanlış olardı: bu maşında 3001-i layihədən olmayan proqram tutur və
 # API 3011-də işləyir. Uşaq prosesdə seçilən port valideynə keçmədiyi üçün
 # həqiqəti öyrənməyin yeganə yolu budur. Ölçüldü (18 sentyabr 2026).
-STATE_FILE="${ONETEAM_DEV_STATE_DIR:-/tmp}/oneteam-dev-servers.env"
+STATE_DIR="${ONETEAM_DEV_STATE_DIR:-/tmp}"
+STATE_FILE="$STATE_DIR/oneteam-dev-servers.env"
 
 echo ""
 echo "=============================================="
@@ -91,8 +92,9 @@ echo "       • Settings → Privacy & Security → Developer Mode → ON"
 echo "       • Tətbiq açılanda kamera, GPS və YERLİ ŞƏBƏKƏ icazələrini ver"
 echo ""
 echo "----------------------------------------------"
-echo " Metro log-u:          tail -f /tmp/oneteam-metro.log"
-echo " API log-u:            tail -f /tmp/oneteam-api.log"
+echo " Metro log-u:          tail -f $STATE_DIR/oneteam-metro.log"
+echo " API log-u:            tail -f $STATE_DIR/oneteam-api.log"
+echo " Bot log-u:            tail -f $STATE_DIR/oneteam-bot.log"
 echo " Serverləri dayandır:  bash scripts/dev/ensure-dev-servers.sh --stop"
 echo "=============================================="
 echo ""
@@ -108,7 +110,16 @@ if [ -f "$STATE_FILE" ]; then
     echo "Tətbiqin danışacağı API: ${API_URL:-bilinmir}"
   else
     echo "⚠️  API cavab vermir — tətbiq açılacaq, amma məlumat gətirməyəcək."
-    echo "   Səbəb üçün loqa bax: /tmp/oneteam-api.log"
+    echo "   Səbəb üçün loqa bax: $STATE_DIR/oneteam-api.log"
+  fi
+  # Telegram kanalı ayrıca deyilir: mobil tətbiq işləyəndə botun da işlədiyi
+  # ehtimal edilə bilər, halbuki ikisi tamam ayrı iki kanaldır və botun
+  # qoşulmamasının səbəbi (token) mobil tərəfə heç aid deyil.
+  if [ "${BOT_STATE:-not-connected}" = "connected" ]; then
+    echo "Telegram kanalı:        hazır"
+  else
+    echo "Telegram kanalı:        HAZIR DEYİL — bot Telegram-a qoşulmur (token yer tutucudur)."
+    echo "                        Detal: $STATE_DIR/oneteam-bot.log"
   fi
 else
   echo "⚠️  Serverlərin seçdiyi ünvan məlum deyil (vəziyyət faylı yoxdur)."
