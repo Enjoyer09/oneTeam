@@ -44,8 +44,9 @@
  * --------
  *     node scripts/dev/verify-dev-servers-survive.mjs
  *
- * Serverləri TOXUNMUR: öz portlarını (3199 / 8181) açıq şəkildə verir, ona görə
- * istifadəçinin 3011/8081-də işləyən serverləri yerində qalır.
+ * Serverləri TOXUNMUR: öz portlarını (3299 / 8181) açıq şəkildə verir, ona görə
+ * istifadəçinin 3011/8081-də işləyən serverləri yerində qalır. 3299 seçilib, çünki
+ * 3199-u `test:break:device-revoke` artıq işlədir (bax: `RULES.md`).
  *
  * CI-da işləmir: `ensure-dev-servers.sh` `CI=true` görəndə dərhal çıxır
  * (serverləri CI-da test skripti özü idarə edir). Ona görə bu, lokal
@@ -75,7 +76,8 @@ const stateFile = path.join(stateDir, 'oneteam-dev-servers.env');
 // Testin öz portları. Açıq verilir ki, (a) istifadəçinin serverlərinə toxunmasın,
 // (b) test deterministik olsun — portu əvvəlcədən bilirik və əvvəlcə boş olduğunu
 // yoxlaya bilirik. Əks halda köhnə bir server "sağ qaldı" kimi görünə bilərdi.
-const API_PORT = 3199;
+// 3199 SEÇİLMƏDİ: onu `test:break:device-revoke` artıq işlədir (bax: `RULES.md`).
+const API_PORT = 3299;
 const METRO_PORT = 8181;
 
 let failures = 0;
