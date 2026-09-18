@@ -32,20 +32,26 @@ set -u
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 API_PORT="${API_PORT:-3001}"
 METRO_PORT="${METRO_PORT:-8081}"
-API_LOG="/tmp/oneteam-api.log"
-METRO_LOG="/tmp/oneteam-metro.log"
-API_PID_FILE="/tmp/oneteam-api.pid"
-METRO_PID_FILE="/tmp/oneteam-metro.pid"
+# Runtime vəziyyətin (loqlar, PID faylları, vəziyyət faylı) yeri. Default
+# `/tmp`-dir. Dəyişdirilə bilər ki, testlər istifadəçinin HƏQİQİ serverlərinin
+# qeydlərini üzərinə yazmasın — yoxsa testdən sonra `run-on-device.sh` testin
+# portunu istifadəçinin portu kimi göstərərdi.
+STATE_DIR="${ONETEAM_DEV_STATE_DIR:-/tmp}"
+mkdir -p "$STATE_DIR"
+API_LOG="$STATE_DIR/oneteam-api.log"
+METRO_LOG="$STATE_DIR/oneteam-metro.log"
+API_PID_FILE="$STATE_DIR/oneteam-api.pid"
+METRO_PID_FILE="$STATE_DIR/oneteam-metro.pid"
 # Metro-nun hansı API ünvanı ilə başladıldığını yazırıq. Səbəb aşağıda, Metro
 # bölməsində izah olunub — bir sətirdə: paket YIĞILARKƏN ünvan ora yazılır,
 # ona görə "işləyən Metro" ilə "düzgün ünvanlı Metro" eyni şey deyil.
-METRO_ENV_FILE="/tmp/oneteam-metro.env"
+METRO_ENV_FILE="$STATE_DIR/oneteam-metro.env"
 # Bu skriptin SEÇDİYİ nəticəni yazırıq (port, ünvan, API cavab verir ya yox).
 # Lazımdır, çünki `run-on-device.sh` bu skripti UŞAQ proses kimi çağırır: uşaqda
 # təyin edilən dəyişən valideynə keçmir, ona görə valideyn seçilmiş portu başqa
 # cür öyrənə bilmir. Əvvəllər `run-on-device.sh` öz defoltunu (3001) çap edirdi,
 # halbuki API 3011-də işləyirdi — yəni ekranda YANLIŞ ünvan görünürdü.
-STATE_FILE="/tmp/oneteam-dev-servers.env"
+STATE_FILE="$STATE_DIR/oneteam-dev-servers.env"
 
 # Xcode pre-action-ı QİYMƏTLƏNDİRMƏ MÜHİTİNDƏ işləyir: PATH yalnız
 # /usr/bin:/bin:/usr/sbin:/sbin olur və `node` tapılmır. Ona görə node-un

@@ -39,7 +39,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 # çap etmək yanlış olardı: bu maşında 3001-i layihədən olmayan proqram tutur və
 # API 3011-də işləyir. Uşaq prosesdə seçilən port valideynə keçmədiyi üçün
 # həqiqəti öyrənməyin yeganə yolu budur. Ölçüldü (18 sentyabr 2026).
-STATE_FILE="/tmp/oneteam-dev-servers.env"
+STATE_FILE="${ONETEAM_DEV_STATE_DIR:-/tmp}/oneteam-dev-servers.env"
 
 echo ""
 echo "=============================================="
