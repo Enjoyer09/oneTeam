@@ -15,6 +15,7 @@
         "CFBundleDevelopmentRegion": "az",
         "NSCameraUsageDescription": "Coca-Cola rəf və soyuducu planogram auditini həyata keçirmək üçün kameradan istifadə tələb olunur.",
         "NSLocationWhenInUseUsageDescription": "Mağazada olduğunuzu təsdiqləmək və saxta auditlərin qarşısını almaq üçün GPS məkân icazəsi tələb olunur.",
+        "NSLocalNetworkUsageDescription": "Telefonda test zamanı tətbiq kompüterdəki Core API-yə və Metro paket serverinə yerli şəbəkə üzərindən qoşulur.",
         "UIRequiredDeviceCapabilities": ["arm64", "location-services", "gps"]
       }
     },
