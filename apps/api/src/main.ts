@@ -1,3 +1,19 @@
+// Loaded before anything else reads `process.env`.
+//
+// WHY THIS LINE EXISTS
+// --------------------
+// The bot loaded `.env` and the API did not, and the difference failed silently.
+// `.env` held `DATABASE_URL`; the bot got its token, while the API came up on the
+// built-in seed data — `/api/health` reported `persistence: "memory"` and a
+// device enrolment answered 503 `ENROLMENT_UNAVAILABLE`, because
+// `issueDeviceToken` refuses to mint a credential it cannot persist. No error was
+// logged anywhere: the phone simply could not sign in, and the reason was only
+// visible to someone who read the health payload.
+//
+// Real environment variables still win — dotenv does not overwrite what is
+// already set, so a container or CI that exports `DATABASE_URL` is unaffected,
+// and a missing `.env` is not an error.
+import 'dotenv/config';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
