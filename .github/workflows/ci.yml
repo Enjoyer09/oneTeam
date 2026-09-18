@@ -254,6 +254,28 @@ jobs:
       - name: Generate the native project
         run: cd mobile && EXPO_NO_TYPESCRIPT_SETUP=1 npx expo prebuild --platform ios --no-install
 
+      # `withDevServers.js` patches the shared scheme so that Xcode's Run button
+      # starts the API and Metro by itself. Prebuild succeeding is NOT proof it
+      # worked: a plugin that is registered but silently inert would also let
+      # prebuild finish, and the scheme would simply carry no <PreActions>.
+      # This asserts the block actually reached the generated file.
+      #
+      # Measured on 2026-09-18: the first version of the plugin returned nothing
+      # from its `withXcodeProject` callback, which broke the mod chain and made
+      # prebuild fail with "Cannot destructure property 'modRequest' of
+      # 'undefined'". The message names the base mod, not the offending file, so
+      # this step failing is the fast signal that the plugin is at fault.
+      - name: Assert the Run pre-action reached the generated scheme
+        run: |
+          set -euo pipefail
+          SCHEME=$(ls mobile/ios/*.xcodeproj/xcshareddata/xcschemes/*.xcscheme | head -1)
+          test -n "$SCHEME"
+          echo "Checking $SCHEME"
+          grep -q '<PreActions>' "$SCHEME"
+          grep -q 'ensure-dev-servers.sh' "$SCHEME"
+          grep -q 'oneTeamFieldAuditUITests' "$SCHEME"
+          xmllint --noout "$SCHEME"
+
       - name: Install CocoaPods dependencies
         run: cd mobile/ios && pod install
 

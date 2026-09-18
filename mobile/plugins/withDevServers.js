@@ -132,6 +132,16 @@ function withDevServers(config) {
     );
 
     patchScheme(schemePath, projectName, appUuid);
+
+    // The mod chain threads the config from one mod to the next: `withMod`'s
+    // `interceptingMod` awaits the action and hands its *return value* on. An
+    // action that returns nothing makes the next mod receive `undefined`, and
+    // prebuild dies with
+    //   "Cannot destructure property 'modRequest' of 'undefined'"
+    // — a message that names the base mod, not this file. `withUITests.js`
+    // ends the same way, and `scripts/dev/verify-dev-servers-plugin.mjs` runs
+    // a real prebuild so this cannot regress silently again.
+    return cfg;
   });
 }
 

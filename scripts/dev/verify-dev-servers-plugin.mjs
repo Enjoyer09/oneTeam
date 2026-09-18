@@ -1,14 +1,22 @@
 #!/usr/bin/env node
 /**
- * `withDevServers` plagininin sxem düzəlişini HƏQİQİ fayl üzərində yoxlayır.
+ * `withDevServers` plaginini iki səviyyədə yoxlayır: sxem düzəlişinin özü
+ * (sürətli, təcrid olunmuş) və plagini HƏQİQİ `expo prebuild`-də işlətməklə.
  *
- * NİYƏ BU TEST VAR
- * ----------------
- * Plagin yalnız `expo prebuild` zamanı işləyir, prebuild isə `ios/`-u sıfırdan
- * yazır. Yəni "plagin işləyir" iddiasını yoxlamaq üçün hər dəfə bütün native
- * layihəni yenidən qurmaq lazım gələrdi — və səhv olsa, bunu CI-ın prebuild
- * addımında öyrənərdik. Bu skript düzəlişin özünü ayırıb həqiqi sxem faylının
- * KOPİYASI üzərində sınayır.
+ * NİYƏ İKİ SƏVİYYƏ — 18 SENTYABR 2026 DƏRSİ
+ * -----------------------------------------
+ * Əvvəlcə bu skript yalnız `patchScheme`-i TƏK BAŞINA çağırırdı və yaşıl idi.
+ * Həmin commit-in CI-ı isə qırmızı oldu:
+ *
+ *     TypeError: [ios.xcodeproj]: withIosXcodeprojBaseMod:
+ *     Cannot destructure property 'modRequest' of 'undefined'
+ *
+ * Səbəb: plaginin `withXcodeProject` geri çağırışı `cfg`-i qaytarmırdı.
+ * `withMod`-un `interceptingMod`-u action-ın QAYTARDIĞI dəyəri növbəti moda
+ * ötürür; `undefined` ötürüləndə zəncir qırılır və xəta mesajı günahkar faylın
+ * adını ÇƏKMİR. Yəni test yaşıl idi, çünki **plagini plagin kimi heç vaxt
+ * işlətmirdi**. Buna görə 7-ci addım əlavə olundu: o, temp qovluqda həqiqi
+ * prebuild işlədir və nəticəni generasiya olunan sxemdə yoxlayır.
  *
  * YOXLADIKLARI
  * ------------
@@ -18,10 +26,12 @@
  *   4. İkinci tətbiq heç nə etmir — iki PreActions bloku yaranmır.
  *   5. `withUITests`-in yazdığı `<Testables>` bloku toxunulmaz qalır.
  *   6. `<LaunchActionEntries>` kimi oxşar adlı element səhvən dəyişdirilmir.
+ *   7. Həqiqi `expo prebuild` uğurla bitir və generasiya olunan sxemdə blok var.
  *
  * İŞLƏTMƏK
  * --------
- *     node scripts/dev/verify-dev-servers-plugin.mjs
+ *     node scripts/dev/verify-dev-servers-plugin.mjs            # hamısı
+ *     node scripts/dev/verify-dev-servers-plugin.mjs --fast     # 7-ci addım yox
  *
  * Uğursuzluqda çıxış kodu 1-dir.
  */
@@ -167,6 +177,113 @@ try {
   check('canlı sxemdə ən çoxu bir PreActions bloku var', liveCount <= 1, `say: ${liveCount}`);
 } finally {
   fs.rmSync(tempDir, { recursive: true, force: true });
+}
+
+// --- 7. Həqiqi prebuild ------------------------------------------------------
+//
+// Yuxarıdakı yoxlamalar plagini PLAQİN KİMİ işlətmir — onlar yalnız
+// `patchScheme` funksiyasını çağırır. Plaginin Expo ilə bağlanma nöqtəsi
+// (`withXcodeProject` geri çağırışının qaytardığı dəyər) isə burada yoxlanılır.
+// 18 sentyabr 2026-da CI məhz bu nöqtədə qırıldı; o vaxt bu addım yox idi.
+//
+// `ios/` generasiya olunduğu üçün real `mobile/` qovluğunda prebuild işlətmək
+// istifadəçinin imzalama parametrlərini silərdi. Buna görə `mobile/` (native
+// qovluq olmadan) temp qovluğa köçürülür, `node_modules` isə symlink edilir —
+// paketlər təkrar quraşdırılmır.
+console.log('\nHəqiqi prebuild (temp qovluqda)');
+
+const mobileDir = path.join(repoRoot, 'mobile');
+
+if (process.argv.includes('--fast')) {
+  console.log('  – --fast verildi, bu addım ötürüldü');
+} else if (!fs.existsSync(path.join(mobileDir, 'node_modules'))) {
+  console.log('  – mobile/node_modules yoxdur — addım ötürüldü (əvvəlcə `cd mobile && npm ci`)');
+} else {
+  const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'oneteam-prebuild-'));
+
+  try {
+    const copy = spawnSync(
+      'rsync',
+      [
+        '-a',
+        '--exclude',
+        'node_modules',
+        '--exclude',
+        'ios',
+        '--exclude',
+        'dist',
+        '--exclude',
+        '.expo',
+        `${mobileDir}/`,
+        `${stage}/`,
+      ],
+      { encoding: 'utf8' },
+    );
+    check('mobil qovluq temp-ə köçürüldü', copy.status === 0, (copy.stderr || '').trim());
+
+    fs.symlinkSync(path.join(mobileDir, 'node_modules'), path.join(stage, 'node_modules'));
+
+    const prebuild = spawnSync('npx', ['expo', 'prebuild', '--platform', 'ios', '--no-install'], {
+      cwd: stage,
+      encoding: 'utf8',
+      env: { ...process.env, CI: 'true', EXPO_NO_TYPESCRIPT_SETUP: '1' },
+    });
+
+    const output = `${prebuild.stdout || ''}${prebuild.stderr || ''}`.trim();
+    const prebuildOk = prebuild.status === 0;
+    check(
+      'prebuild uğurla bitdi',
+      prebuildOk,
+      output.split('\n').slice(-12).join('\n') || `exit ${prebuild.status}`,
+    );
+
+    // Prebuild uğursuzsa `stage/ios` YARIMÇIQ artefaktdır: modların bir qismi
+    // işləyib, qalanı yox. Onun üzərində iddia yoxlamaq "keçdi" deyə bilər və
+    // bu, yalançı yaşıl olar — buna görə yalnız uğurlu prebuilddən sonra
+    // nəticə yoxlanılır.
+    if (!prebuildOk) {
+      console.log('      (prebuild uğursuz olduğu üçün nəticə yoxlanılmır)');
+    } else {
+      const generated = path.join(
+        stage,
+        'ios',
+        `${schemeDir}.xcodeproj`,
+        'xcshareddata',
+        'xcschemes',
+        `${schemeDir}.xcscheme`,
+      );
+
+      if (!fs.existsSync(generated)) {
+        check('generasiya olunan sxem tapıldı', false, generated);
+      } else {
+        const text = fs.readFileSync(generated, 'utf8');
+        check('generasiya olunan sxemdə PreActions var', text.includes('<PreActions>'));
+        check(
+          'generasiya olunan blok ensure-dev-servers.sh-ə işarə edir',
+          text.includes('$SRCROOT/../../scripts/dev/ensure-dev-servers.sh'),
+        );
+        check(
+          'generasiya olunan sxemdə tək PreActions bloku var',
+          (text.match(/<PreActions>/g) || []).length === 1,
+        );
+        // `withUITests` də həmin sxemi düzəldir və bu plaqindən SONRA qeydiyyata
+        // salınıb. Zəncir qırılsa o, heç vaxt işləmir — 18 sentyabr 2026-da
+        // məhz belə oldu, ona görə bu, ayrıca yoxlanılır.
+        check(
+          'generasiya olunan sxemdə UI test hədəfi qorunub',
+          text.includes('oneTeamFieldAuditUITests'),
+        );
+
+        const lint = spawnSync('xmllint', ['--noout', generated], { encoding: 'utf8' });
+        if (!(lint.error && lint.error.code === 'ENOENT')) {
+          check('generasiya olunan XML düzgündür', lint.status === 0, (lint.stderr || '').trim());
+        }
+      }
+    }
+  } finally {
+    // `node_modules` symlink-dir; `rmSync` onu silir, hədəfi yox.
+    fs.rmSync(stage, { recursive: true, force: true });
+  }
 }
 
 console.log('');

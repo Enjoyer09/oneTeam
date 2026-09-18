@@ -23,6 +23,7 @@
     "test:break:credentials": "node scripts/dev/break-detector-credentials.mjs",
     "mobile:check": "node ./node_modules/typescript/bin/tsc --project mobile/tsconfig.json --noEmit",
     "mobile:config": "node scripts/dev/verify-mobile-config.mjs",
+    "test:dev-plugin": "node scripts/dev/verify-dev-servers-plugin.mjs",
     "test:ui-ids": "node scripts/quality/ui-test-ids.mjs && node scripts/quality/ui-test-ids.mjs --self-test",
     "mobile:assets": "python3 scripts/dev/make-mobile-assets.py",
     "api:start": "node apps/api/dist/main.js",
