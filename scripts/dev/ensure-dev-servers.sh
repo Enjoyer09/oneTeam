@@ -40,6 +40,12 @@ METRO_PID_FILE="/tmp/oneteam-metro.pid"
 # bölməsində izah olunub — bir sətirdə: paket YIĞILARKƏN ünvan ora yazılır,
 # ona görə "işləyən Metro" ilə "düzgün ünvanlı Metro" eyni şey deyil.
 METRO_ENV_FILE="/tmp/oneteam-metro.env"
+# Bu skriptin SEÇDİYİ nəticəni yazırıq (port, ünvan, API cavab verir ya yox).
+# Lazımdır, çünki `run-on-device.sh` bu skripti UŞAQ proses kimi çağırır: uşaqda
+# təyin edilən dəyişən valideynə keçmir, ona görə valideyn seçilmiş portu başqa
+# cür öyrənə bilmir. Əvvəllər `run-on-device.sh` öz defoltunu (3001) çap edirdi,
+# halbuki API 3011-də işləyirdi — yəni ekranda YANLIŞ ünvan görünürdü.
+STATE_FILE="/tmp/oneteam-dev-servers.env"
 
 # Xcode pre-action-ı QİYMƏTLƏNDİRMƏ MÜHİTİNDƏ işləyir: PATH yalnız
 # /usr/bin:/bin:/usr/sbin:/sbin olur və `node` tapılmır. Ona görə node-un
@@ -64,6 +70,45 @@ stop_tree() {
   kill "$pid" 2>/dev/null
 }
 
+# --- Fonda başlatma: proses qrupundan QOPMUŞ şəkildə -------------------------
+#
+# `nohup cmd &` KİFAYƏT DEYİL — və bu, ÖLÇÜLDÜ (18 sentyabr 2026).
+#
+# Xcode-un pre-action-ını təqlid edən sınaqda (`env -i` + yalnız
+# /usr/bin:/bin:/usr/sbin:/sbin PATH-i, SRCROOT ilə) API və Metro DÜZGÜN qalxdı,
+# skript "✓ API hazırdır. ✓ Metro hazırdır." yazdı, çıxış kodu 0 oldu — sonra isə
+# hər ikisi skripti çağıran qabıq bitəndə ÖLDÜ. Loqlarda dayanma mesajı yoxdur,
+# PID-lər ölüdür: yəni proseslər xəta ilə deyil, QRUPLA birlikdə ləğv edilib.
+#
+# Səbəb: `nohup` yalnız SIGHUP-ı bloklayır. Proses QRUPLARININ ləğv edilməsi isə
+# siqnal deyil, ona görə `nohup` oradan qorumur. Nəticəsi istifadəçi üçün ən pis
+# cür görünür: server ölür, telefon paketi ala bilmir, ekranda isə səbəb yoxdur.
+#
+# Ona görə prosesi YENİ SESSİYADA başladırıq (`setsid()` semantikası). Node bu
+# maşında mütləqdir — skript onsuz da `npx` işlədir — və `detached: true` elə
+# `setsid()`-dir. Üstünlüyü: qeydə alınan PID WRAPPER deyil, birbaşa prosesdir.
+#
+# Loq "w" rejimində açılır, yəni sıfırlanır: `EADDRINUSE` yoxlaması yalnız BU
+# işə salmaya baxmalıdır, köhnə xəta bizi vaxtsız dayandırmamalıdır.
+spawn_detached() {
+  local cwd="$1" log="$2"
+  shift 2
+  node -e '
+    const { spawn } = require("node:child_process");
+    const fs = require("node:fs");
+    const [cwd, log, cmd, ...args] = process.argv.slice(1);
+    const out = fs.openSync(log, "w");
+    const child = spawn(cmd, args, {
+      cwd,
+      detached: true,                 // = setsid(): yeni sessiya + yeni proses qrupu
+      stdio: ["ignore", out, out],
+      env: process.env,
+    });
+    child.unref();
+    process.stdout.write(String(child.pid));
+  ' "$cwd" "$log" "$@"
+}
+
 if [ "${1:-}" = "--stop" ]; then
   stopped=0
   for file in "$API_PID_FILE" "$METRO_PID_FILE"; do
@@ -83,6 +128,9 @@ if [ "${1:-}" = "--stop" ]; then
   # Metro-nun "hansı API ünvanı ilə başladıldı" qeydi də silinməlidir: köhnə
   # qeyd qalsa, növbəti işə salma onu canlı Metro kimi sayıb yanılardı.
   rm -f "$METRO_ENV_FILE"
+  # Vəziyyət faylı da silinir — qalsa, `run-on-device.sh` dayandırılmış
+  # serverlərin portunu "tətbiqin danışacağı API" kimi çap edərdi.
+  rm -f "$STATE_FILE"
 
   if [ "$stopped" -eq 0 ]; then
     echo "İşləyən server yoxdur."
@@ -200,11 +248,7 @@ else
   echo "→ API başladılır (log: $API_LOG)..."
   # `api:dev` əvvəlcə TypeScript-i yığır. NestJS dekorator metadatası üçün
   # `tsc` lazımdır (`tsx` onu buraxmır), ona görə bu skript `tsx` işlətmir.
-  (
-    cd "$REPO_ROOT" || exit 1
-    nohup npm run api:dev > "$API_LOG" 2>&1 < /dev/null &
-    echo $! > "$API_PID_FILE"
-  )
+  spawn_detached "$REPO_ROOT" "$API_LOG" npm run api:dev > "$API_PID_FILE"
   for _ in $(seq 1 30); do
     if api_is_up; then break; fi
     # API portu tuta bilmirsə, qalan ~60 saniyəni gözləməyin mənası yoxdur.
@@ -266,15 +310,14 @@ stop_metro_holder() {
 }
 
 start_metro() {
-  (
-    cd "$REPO_ROOT/mobile" || exit 1
-    # `--host lan` OLMADAN paket yalnız kompüterin özünə verilir və telefonda
-    # "No script URL provided" görünür.
-    EXPO_PUBLIC_ONETEAM_API_URL="$WANT_API_URL" \
-      EXPO_NO_TYPESCRIPT_SETUP=1 \
-      nohup npx expo start --host lan --port "$METRO_PORT" > "$METRO_LOG" 2>&1 < /dev/null &
-    echo $! > "$METRO_PID_FILE"
-  )
+  # `export` lazımdır: `spawn_detached` uşağa `process.env`-i ötürür, ona görə
+  # paketə yazılacaq ünvan uşaq yaradılmazdan ƏVVƏL mühitdə olmalıdır.
+  export EXPO_PUBLIC_ONETEAM_API_URL="$WANT_API_URL"
+  export EXPO_NO_TYPESCRIPT_SETUP=1
+  # `--host lan` OLMADAN paket yalnız kompüterin özünə verilir və telefonda
+  # "No script URL provided" görünür.
+  spawn_detached "$REPO_ROOT/mobile" "$METRO_LOG" \
+    npx expo start --host lan --port "$METRO_PORT" > "$METRO_PID_FILE"
   printf '%s' "$WANT_API_URL" > "$METRO_ENV_FILE"
 
   # Soyuq Metro ~15-30 saniyə çəkir; gözləməsək tətbiq ondan əvvəl açılıb
@@ -313,6 +356,24 @@ else
 fi
 
 # --- 4. Yekun ---------------------------------------------------------------
+#
+# Seçilmiş nəticəni FAYLA yazırıq. Səbəb: bu skript `run-on-device.sh`-dən və
+# Xcode-un pre-action-ından UŞAQ proses kimi çağırılır, uşaqda təyin edilən
+# dəyişən isə valideynə keçmir. Əvvəllər `run-on-device.sh` öz defoltunu (3001)
+# çap edirdi, halbuki API 3011-də işləyirdi — yəni ekranda YANLIŞ ünvan
+# görünürdü. Ölçüldü (18 sentyabr 2026).
+#
+# `API_UP` də yazılır: "ünvan belədir" demək "API işləyir" demək DEYİL, və
+# işləməyən API-ni işləyir kimi göstərmək istifadəçini yanlış yönəldərdi.
+if api_is_up; then API_UP="yes"; else API_UP="no"; fi
+{
+  printf 'API_PORT=%s\n' "$API_PORT"
+  printf 'API_UP=%s\n' "$API_UP"
+  printf 'METRO_PORT=%s\n' "$METRO_PORT"
+  printf 'LAN_IP=%s\n' "$LAN_IP"
+  printf 'API_URL=%s\n' "$WANT_API_URL"
+} > "$STATE_FILE"
+
 echo ""
 echo "Tətbiqin danışacağı API: http://${LAN_IP}:${API_PORT}"
 if [ "$METRO_JUST_STARTED" = "1" ]; then

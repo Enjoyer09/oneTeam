@@ -35,7 +35,11 @@
 set -u
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-API_PORT="${API_PORT:-3001}"
+# `ensure-dev-servers.sh` SEÇDİYİ nəticəni bu fayla yazır. Öz defoltumuzu (3001)
+# çap etmək yanlış olardı: bu maşında 3001-i layihədən olmayan proqram tutur və
+# API 3011-də işləyir. Uşaq prosesdə seçilən port valideynə keçmədiyi üçün
+# həqiqəti öyrənməyin yeganə yolu budur. Ölçüldü (18 sentyabr 2026).
+STATE_FILE="/tmp/oneteam-dev-servers.env"
 
 echo ""
 echo "=============================================="
@@ -94,6 +98,19 @@ echo "=============================================="
 echo ""
 
 # Tətbiqin hansı API-yə danışacağını tətbiqin öz status ekranı göstərir.
-LAN_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo localhost)"
-echo "Tətbiqin danışacağı API: http://${LAN_IP}:${API_PORT}"
+# Burada isə serverlərin HƏQİQƏTƏN seçdiyi ünvanı göstəririk — öz təxminimizi
+# yox. "Ünvan belədir" demək "API işləyir" demək DEYİL, ona görə ikisi ayrıca
+# yoxlanılır: işləməyən API-ni işləyir kimi göstərmək istifadəçini çaşdırardı.
+if [ -f "$STATE_FILE" ]; then
+  # shellcheck source=/dev/null
+  . "$STATE_FILE"
+  if [ "${API_UP:-no}" = "yes" ]; then
+    echo "Tətbiqin danışacağı API: ${API_URL:-bilinmir}"
+  else
+    echo "⚠️  API cavab vermir — tətbiq açılacaq, amma məlumat gətirməyəcək."
+    echo "   Səbəb üçün loqa bax: /tmp/oneteam-api.log"
+  fi
+else
+  echo "⚠️  Serverlərin seçdiyi ünvan məlum deyil (vəziyyət faylı yoxdur)."
+fi
 echo ""
