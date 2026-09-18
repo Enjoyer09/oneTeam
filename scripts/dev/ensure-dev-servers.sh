@@ -43,14 +43,49 @@ METRO_PID_FILE="/tmp/oneteam-metro.pid"
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 # --- --stop -----------------------------------------------------------------
+#
+# ÖLÇÜLDÜ (18 sentyabr 2026): `npm run` SIGTERM-i öz uşağına ÖTÜRÜR — qeydə
+# alınan PID-i öldürmək serveri həqiqətən dayandırır (sınaqda `npm run web:dev`
+# ilə başlayan `vite` uşağı npm ilə birlikdə getdi və port azad oldu).
+#
+# Buna baxmayaraq uşaqlar da açıq şəkildə öldürülür, iki səbəbə görə:
+#   • `npx expo start` üçün siqnal ötürməsi ÖLÇÜLMƏDİ — `npx` npm-dən fərqli
+#     bir örtükdür və ötürməyə zəmanət yoxdur;
+#   • portu tutan proses uşaqdır, ona görə əmin olmaq istədiyimiz şey elə odur.
+stop_tree() {
+  local pid="$1" child
+  for child in $(pgrep -P "$pid" 2>/dev/null); do
+    stop_tree "$child"
+  done
+  kill "$pid" 2>/dev/null
+}
+
 if [ "${1:-}" = "--stop" ]; then
+  stopped=0
   for file in "$API_PID_FILE" "$METRO_PID_FILE"; do
-    if [ -f "$file" ]; then
-      pid="$(cat "$file")"
-      if kill "$pid" 2>/dev/null; then
-        echo "Dayandırıldı: PID $pid ($(basename "$file"))"
-      fi
-      rm -f "$file"
+    [ -f "$file" ] || continue
+    pid="$(cat "$file")"
+    name="$(basename "$file" .pid)"
+    if kill -0 "$pid" 2>/dev/null; then
+      stop_tree "$pid"
+      echo "✓ Dayandırıldı: $name (PID $pid)"
+      stopped=$((stopped + 1))
+    else
+      echo "– $name artıq işləmirdi (PID $pid)"
+    fi
+    rm -f "$file"
+  done
+
+  if [ "$stopped" -eq 0 ]; then
+    echo "İşləyən server yoxdur."
+  fi
+
+  # "Dayandırdım" demək kifayət deyil — portun həqiqətən azad olduğunu göstər.
+  # Tutulubsa, bunu de: səssiz qalmaq istifadəçini yanlış inandırar.
+  for port in "$API_PORT" "$METRO_PORT"; do
+    if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+      echo "⚠️  Port $port hələ də tutulub (bizim serverimiz olmaya da bilər):"
+      lsof -nP -iTCP:"$port" -sTCP:LISTEN | tail -n +2 | awk '{print "     " $1 " (PID " $2 ")"}'
     fi
   done
   exit 0
