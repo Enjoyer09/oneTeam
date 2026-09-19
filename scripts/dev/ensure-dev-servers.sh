@@ -310,7 +310,19 @@ fi
 #
 # Ona görə indi üç şey yoxlanılır: portda Metro var? onu BİZ başlatmışıq?
 # və istənilən ünvanla? Üçü də "hə" olmasa, Metro yenidən başladılır.
-WANT_API_URL="http://${LAN_IP}:${API_PORT}"
+# Ünvanı ÜSTLÜK vermək olar (`ONETEAM_MOBILE_API_URL`). Lazımdır, çünki telefon
+# bəzən lokal API-yə yox, İSTEHSALATA (Railway) baxmalıdır — məsələn iOS
+# tətbiqini real məlumatla sınamaq üçün. Ünvan paketə YAZILIR, ona görə onu
+# dəyişməyin yeganə yolu Metro-nu yenidən başlatmaqdır; `metro_is_ours` aşağıda
+# elə bunu yoxlayır, yəni üstlük veriləndə köhnə Metro avtomatik əvəz olunur.
+# Verilməzsə davranış əvvəlki kimidir (LAN ünvanı).
+WANT_API_URL="${ONETEAM_MOBILE_API_URL:-http://${LAN_IP}:${API_PORT}}"
+# Tətbiqin danışdığı ünvan LOKAL API-dən fərqlidir ya yox. `run-on-device.sh`
+# və aşağıdaki yekun bunu bilməlidir: lokal API-nin vəziyyəti uzaq ünvana
+# baxan tətbiq üçün heç nə demir, ona görə "API cavab vermir" xəbərdarlığını
+# orada demək istifadəçini yanlış yönəldərdi.
+MOBILE_TARGET_IS_REMOTE=no
+case "$WANT_API_URL" in "http://${LAN_IP}:${API_PORT}") ;; *) MOBILE_TARGET_IS_REMOTE=yes ;; esac
 
 metro_is_ours() {
   [ -f "$METRO_PID_FILE" ] || return 1
@@ -492,12 +504,22 @@ if bot_connected; then BOT_STATE="connected"; else BOT_STATE="not-connected"; fi
   printf 'METRO_PORT=%s\n' "$METRO_PORT"
   printf 'LAN_IP=%s\n' "$LAN_IP"
   printf 'API_URL=%s\n' "$WANT_API_URL"
+  # Tətbiqin ünvanı lokal API-dən fərqlidir ya yox — `run-on-device.sh` bunu
+  # bilməlidir, yoxsa uzaq ünvana baxan tətbiq üçün lokal API-nin vəziyyətini
+  # danışar (mövzuya aid olmayan xəbərdarlıq).
+  printf 'MOBILE_TARGET_IS_REMOTE=%s\n' "$MOBILE_TARGET_IS_REMOTE"
   # Telegram kanalı hazır ya yox — `run-on-device.sh` bunu istifadəçiyə deyir.
   printf 'BOT_STATE=%s\n' "$BOT_STATE"
 } > "$STATE_FILE"
 
 echo ""
-echo "Tətbiqin danışacağı API: http://${LAN_IP}:${API_PORT}"
+# Ünvanı TƏKRAR HESABLAMIRIQ — `$WANT_API_URL`-i çap edirik. Əvvəl burada
+# `http://${LAN_IP}:${API_PORT}` yazılmışdı, yəni üstlük veriləndə ekran
+# tətbiqin danışdığı ünvandan FƏRQLİ bir ünvan göstərərdi.
+echo "Tətbiqin danışacağı API: ${WANT_API_URL}"
+if [ "$MOBILE_TARGET_IS_REMOTE" = "yes" ]; then
+  echo "                         (uzaq ünvan — lokal API bu işə aid deyil)"
+fi
 if [ "$METRO_JUST_STARTED" = "1" ]; then
   echo "Metro yenicə başladı — ilk paket yığılması 1-2 dəqiqə çəkə bilər."
 fi

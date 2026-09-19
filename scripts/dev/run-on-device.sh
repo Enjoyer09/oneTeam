@@ -106,8 +106,14 @@ echo ""
 if [ -f "$STATE_FILE" ]; then
   # shellcheck source=/dev/null
   . "$STATE_FILE"
-  if [ "${API_UP:-no}" = "yes" ]; then
-    echo "Tətbiqin danışacağı API: ${API_URL:-bilinmir}"
+  echo "Tətbiqin danışacağı API: ${API_URL:-bilinmir}"
+  if [ "${MOBILE_TARGET_IS_REMOTE:-no}" = "yes" ]; then
+    # Uzaq ünvan seçilibsə lokal API-nin vəziyyəti bu işə AİD DEYİL. Onu
+    # xəbərdarlıq kimi göstərmək istifadəçini yanlış yerə göndərərdi: telefon
+    # işləyir, ekranda isə "API cavab vermir" yazılır.
+    echo "                         (uzaq ünvan — lokal API bu işə aid deyil)"
+  elif [ "${API_UP:-no}" = "yes" ]; then
+    :
   else
     echo "⚠️  API cavab vermir — tətbiq açılacaq, amma məlumat gətirməyəcək."
     echo "   Səbəb üçün loqa bax: $STATE_DIR/oneteam-api.log"

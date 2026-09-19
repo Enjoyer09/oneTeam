@@ -43,6 +43,9 @@ export interface LoginScreenProps {
 export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
   const [controller] = useState(() => new LoginScreenController());
   const [storeCode, setStoreCode] = useState(controller.getState().storeCodeInput);
+  const [enrollmentSecret, setEnrollmentSecret] = useState(
+    controller.getState().enrollmentSecretInput,
+  );
   const [gps, setGps] = useState<GPSCoordinates | null>(null);
   // The setter is deliberately not destructured: while the fix is simulated
   // below nothing can fail, so `gpsError` stays null. The render branch is kept
@@ -76,6 +79,7 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
     setError(null);
     setLoading(true);
     controller.setStoreCode(storeCode);
+    controller.setEnrollmentSecret(enrollmentSecret);
 
     const result = await controller.authenticateAndVerifyStore();
     setLoading(false);
@@ -89,7 +93,7 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
     } else {
       setError(result.error ?? 'Giriş alınmadı');
     }
-  }, [controller, storeCode, onLoginSuccess]);
+  }, [controller, storeCode, enrollmentSecret, onLoginSuccess]);
 
   const canSubmit = gps !== null && storeCode.trim().length > 0 && !loading;
 
@@ -115,6 +119,33 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
             autoCorrect={false}
             editable={!loading}
           />
+
+          {/* Shown always rather than only when the server complains, because
+              the app cannot ask the API whether a secret is required without
+              first enrolling — the refusal would arrive after the geofence
+              check, as a failed sign-in. An optional field with a one-time
+              hint is the honest version of that.
+
+              `secureTextEntry` is deliberate. This is the deployment's second
+              factor, and the thing it guards against is a worker photographing
+              the screen and installing the app on a second phone. Pasting still
+              works, so hiding it costs the operator nothing. */}
+          <Text style={styles.label}>Quraşdırma açarı (istəyə bağlı)</Text>
+          <TextInput
+            testID="login.enrollmentSecretInput"
+            style={styles.input}
+            value={enrollmentSecret}
+            onChangeText={setEnrollmentSecret}
+            placeholder="Yalnız ilk quraşdırmada"
+            placeholderTextColor="#AAAAAA"
+            autoCapitalize="none"
+            autoCorrect={false}
+            secureTextEntry
+            editable={!loading}
+          />
+          <Text style={styles.fieldHint}>
+            Mağazanız açar tələb edirsə, bir dəfə yazın — uğurlu girişdən sonra yadda saxlanılır.
+          </Text>
 
           <Text style={styles.label}>Cihaz lokasiyası</Text>
           {gps ? (
@@ -223,6 +254,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     color: '#111111',
+  },
+  fieldHint: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#888888',
+    lineHeight: 17,
   },
   gpsRow: {
     flexDirection: 'row',

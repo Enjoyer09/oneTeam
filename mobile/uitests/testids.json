@@ -19,6 +19,11 @@
       "why": "the worker types the store code here before signing in"
     },
     {
+      "id": "login.enrollmentSecretInput",
+      "where": "mobile/src/screens/LoginScreenUI.tsx",
+      "why": "the deployment's enrolment second factor, typed once on first installation"
+    },
+    {
       "id": "login.submitButton",
       "where": "mobile/src/screens/LoginScreenUI.tsx",
       "why": "disabled until a GPS fix exists, so the test must wait for it"

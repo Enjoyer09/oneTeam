@@ -1,10 +1,29 @@
 import { MobileStore, GPSCoordinates, GeofenceResult } from '../types';
 import { verifyStoreGeofence } from '../utils/geofence';
 import { mobileApi, MobileApiError, deviceId, enroll } from '../services/portalApi';
+import { credentialStore } from '../services/credentialStore';
 
 export interface LoginScreenState {
   selectedStore: MobileStore | null;
   storeCodeInput: string;
+  /**
+   * The deployment's enrolment second factor, as typed on this screen.
+   *
+   * WHY IT IS A FIELD AND NOT A BUILD-TIME VALUE
+   * -------------------------------------------
+   * The API's `enroll` resolves the secret as: an explicit argument, then
+   * `credentialStore`, then the environment. Only the second of those can work
+   * on a real phone. The environment one cannot: Metro inlines only
+   * `EXPO_PUBLIC_*` names, and `ONETEAM_ENROLLMENT_SECRET` deliberately does not
+   * have one — it is read through a `process.env` alias, so in a bundle it is
+   * `undefined` (measured, not assumed). Baking it in would also mean compiling
+   * the deployment's second factor into a downloadable bundle, which is the
+   * thing the keychain entry exists to avoid.
+   *
+   * So the operator types it once, it is stored in the keychain, and later
+   * launches leave this empty and still work.
+   */
+  enrollmentSecretInput: string;
   /**
    * The device's position, or null until the platform reports one.
    *
@@ -26,6 +45,7 @@ export class LoginScreenController {
   private state: LoginScreenState = {
     selectedStore: null,
     storeCodeInput: 'BRAVO_YASAMAL_01',
+    enrollmentSecretInput: '',
     userGPS: null,
     geofenceStatus: null,
     errorMessage: null,
@@ -43,6 +63,10 @@ export class LoginScreenController {
 
   setStoreCode(code: string) {
     this.state.storeCodeInput = code;
+  }
+
+  setEnrollmentSecret(secret: string) {
+    this.state.enrollmentSecretInput = secret;
   }
 
   setUserLocation(gps: GPSCoordinates) {
@@ -122,13 +146,40 @@ export class LoginScreenController {
     // same single call the chat channel makes, so both channels agree on who may
     // claim what. This is what issues the credential every later request carries;
     // see `mobileApi.enroll`.
+    const typedSecret = this.state.enrollmentSecretInput.trim();
     try {
       const enrolled = await enroll({
         storeCode: this.state.storeCodeInput,
         fullName: `Sahə işçisi (${deviceId()})`,
+        // Empty means "no secret was typed on this screen" — not "the secret is
+        // empty". Passing `''` through would override a keychain entry that a
+        // previous installation step had already stored, and turn a working
+        // sign-in into a 401 the operator cannot explain.
+        ...(typedSecret ? { enrollmentSecret: typedSecret } : {}),
       });
       this.profileId = enrolled.userId;
       this.claimedTaskCount = enrolled.claimedTaskIds.length;
+
+      // Remembered ONLY after the server accepted it. Storing it up front would
+      // make a typo permanent: every later launch would replay the wrong value
+      // from the keychain, and the operator would have no field left to correct
+      // it in — the failure would look like the store code.
+      //
+      // A storage failure must not fail the sign-in. The device is enrolled
+      // either way, so the session is real; the only cost is retyping the secret
+      // next launch.
+      if (typedSecret) {
+        try {
+          await credentialStore.saveEnrollmentSecret(typedSecret);
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error);
+          console.warn(
+            `⚠️ [oneTeam Mobile] Qeydiyyat uğurlu oldu, amma quraşdırma açarı ` +
+              `yadda saxlanılmadı (${detail}). Bu sessiya işləyəcək; növbəti ` +
+              `açılışda açarı yenidən yazmalı olacaqsınız.`,
+          );
+        }
+      }
     } catch (error) {
       const detail = error instanceof MobileApiError ? error.message : String(error);
       this.state.errorMessage = `❌ Qeydiyyat tamamlanmadı: ${detail}`;
