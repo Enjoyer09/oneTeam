@@ -315,8 +315,27 @@ fi
 # tətbiqini real məlumatla sınamaq üçün. Ünvan paketə YAZILIR, ona görə onu
 # dəyişməyin yeganə yolu Metro-nu yenidən başlatmaqdır; `metro_is_ours` aşağıda
 # elə bunu yoxlayır, yəni üstlük veriləndə köhnə Metro avtomatik əvəz olunur.
-# Verilməzsə davranış əvvəlki kimidir (LAN ünvanı).
-WANT_API_URL="${ONETEAM_MOBILE_API_URL:-http://${LAN_IP}:${API_PORT}}"
+#
+# SEÇİM YAPIŞQANDIR, və bu, ölçülmüş bir tələdir: Xcode-un pre-action-ı bu
+# skripti `$SRCROOT/../../scripts/dev/ensure-dev-servers.sh` kimi, YƏNİ mühit
+# dəyişəni OLMADAN çağırır. Ona görə "bir dəfə istehsalata yönəlt" seçimi Run
+# düyməsini sıxan kimi itərdi: Metro LAN ünvanı ilə yenidən başlar və telefon
+# səhv API-yə danışar — ekranda isə səbəb görünməz.
+#
+# Üstlük verilməzsə ƏVVƏLKİ seçim saxlanılır (`$METRO_ENV_FILE` — Metro-nun
+# hansı ünvanla başladıldığını artıq yazırıq, ikinci qeyd faylı lazım deyil).
+# LAN-a qayıtmaq üçün: `bash scripts/dev/ensure-dev-servers.sh --stop` — o,
+# qeydi də silir və növbəti işə salma defolta (LAN) dönür.
+RECORDED_MOBILE_URL=""
+if [ -f "$METRO_ENV_FILE" ]; then
+  RECORDED_MOBILE_URL="$(cat "$METRO_ENV_FILE" 2>/dev/null || true)"
+fi
+WANT_API_URL="${ONETEAM_MOBILE_API_URL:-${RECORDED_MOBILE_URL:-http://${LAN_IP}:${API_PORT}}}"
+if [ -n "${ONETEAM_MOBILE_API_URL:-}" ]; then
+  echo "→ Tətbiqin API ünvanı üstlüklə seçildi: $WANT_API_URL"
+elif [ -n "$RECORDED_MOBILE_URL" ]; then
+  echo "→ Tətbiqin API ünvanı əvvəlki seçimdən götürüldü: $WANT_API_URL"
+fi
 # Tətbiqin danışdığı ünvan LOKAL API-dən fərqlidir ya yox. `run-on-device.sh`
 # və aşağıdaki yekun bunu bilməlidir: lokal API-nin vəziyyəti uzaq ünvana
 # baxan tətbiq üçün heç nə demir, ona görə "API cavab vermir" xəbərdarlığını

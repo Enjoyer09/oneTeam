@@ -23,6 +23,8 @@
     "test:break:credentials": "node scripts/dev/break-detector-credentials.mjs",
     "mobile:check": "node ./node_modules/typescript/bin/tsc --project mobile/tsconfig.json --noEmit",
     "mobile:config": "node scripts/dev/verify-mobile-config.mjs",
+    "mobile:ios": "bash scripts/dev/run-on-device.sh",
+    "mobile:ios:prod": "ONETEAM_MOBILE_API_URL=https://api-production-c17b.up.railway.app bash scripts/dev/run-on-device.sh",
     "test:dev-plugin": "node scripts/dev/verify-dev-servers-plugin.mjs",
     "test:dev-survive": "node scripts/dev/verify-dev-servers-survive.mjs",
     "demo:accounts": "node scripts/dev/demo-accounts.mjs",
