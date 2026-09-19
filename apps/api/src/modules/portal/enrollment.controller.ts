@@ -55,11 +55,14 @@
 import {
   Body,
   Controller,
+  Get,
+  Headers,
   HttpCode,
   HttpException,
   HttpStatus,
   Logger,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import { Request } from 'express';
@@ -241,6 +244,101 @@ export class EnrollmentController {
   private readonly logger = new Logger(EnrollmentController.name);
 
   constructor(private readonly fieldService: FieldService) {}
+
+  /**
+   * The store a code names, for the app's pre-enrolment geofence check.
+   *
+   * WHY THIS ROUTE HAD TO EXIST
+   * ---------------------------
+   * The mobile login screen resolves the store, verifies the device is really
+   * inside it, and only then enrols. That order is deliberate and documented on
+   * `LoginScreenController.authenticateAndVerifyStore`: enrolling claims the
+   * store's open work, and un-claiming is a supervisor action, so claiming from
+   * a car park hands a merchandiser tasks they cannot do.
+   *
+   * That order needs the store's coordinates BEFORE any credential exists — and
+   * `GET /api/portal/field/store` cannot supply them, because `FieldController`
+   * carries `@UseGuards(AuthGuard)` at the class level and answers 401 until the
+   * device has a token. A device gets its token by enrolling. Measured on
+   * 2026-09-19: the first call of the first sign-in on a fresh installation
+   * therefore always failed, the app showed "Sistemə qoşulmaq mümkün olmadı",
+   * and it could not be signed into at all. No test caught it because the CI UI
+   * test only exercises the REJECTION path, and the full-flow test is skipped
+   * without a backend.
+   *
+   * WHY IT LIVES HERE, AND IS GATED THE SAME WAY AS `enroll`
+   * -------------------------------------------------------
+   * This controller has no class-level guard, which is what makes `enroll`
+   * reachable without a credential. Putting the lookup anywhere else would mean
+   * either a second public controller or an exception carved into the guard.
+   *
+   * It demands the same thing `enroll` demands: when
+   * `ONETEAM_ENROLLMENT_SECRET` is set, the caller must supply it. Deliberate,
+   * not convenient — a lookup that were easier to reach than the enrolment it
+   * precedes would become the cheap way to enumerate store codes, which is the
+   * exact attack the secret exists to stop. Failures are counted in the same
+   * per-address window as enrolment failures, so guessing codes here costs the
+   * same as guessing them there.
+   *
+   * It returns the authenticated route's shape by calling the same service
+   * method. Two shapes for one resource would be two contracts to keep in step,
+   * and the app renders this store as soon as it signs in.
+   */
+  @Get('store-lookup')
+  lookupStoreForEnrolment(
+    @Query('code') code: string | undefined,
+    @Headers('x-enrollment-secret') suppliedSecret: string | undefined,
+    @Req() request: Request,
+  ) {
+    const source = request.ip || request.socket?.remoteAddress || 'unknown';
+
+    const gate = isThrottled(source);
+    if (gate.throttled) {
+      this.logger.warn(`⛔ Store lookup rate limit reached for ${source}`);
+      throw new HttpException(
+        {
+          error: 'TOO_MANY_ATTEMPTS',
+          message: 'Çox cəhd edildi. Zəhmət olmasa bir az sonra yenidən yoxlayın.',
+          retryAfterSeconds: gate.retryAfterSeconds,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    const requiredSecret = process.env.ONETEAM_ENROLLMENT_SECRET?.trim();
+    if (requiredSecret && suppliedSecret?.trim() !== requiredSecret) {
+      recordFailure(source);
+      this.logger.warn(`⛔ Store lookup refused for ${source}: bad or missing enrolment secret.`);
+      throw new HttpException(
+        {
+          error: 'ENROLLMENT_SECRET_REQUIRED',
+          message: 'Qeydiyyat açarı yanlışdır və ya göndərilməyib.',
+        },
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    const trimmed = code?.trim();
+    if (!trimmed) {
+      throw new HttpException(
+        { error: 'STORE_CODE_REQUIRED', message: 'Mağaza kodu tələb olunur.' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const store = this.fieldService.getStoreByCode(trimmed);
+    if (!store) {
+      // Counted, for the same reason `enroll` counts it: a code that does not
+      // exist is what a loop over candidate codes looks like.
+      recordFailure(source);
+      throw new HttpException(
+        { error: 'STORE_NOT_FOUND', message: `Mağaza kodu tapılmadı: ${trimmed}` },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    return { success: true, data: store };
+  }
 
   @Post('enroll')
   @HttpCode(HttpStatus.OK)

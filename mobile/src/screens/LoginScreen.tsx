@@ -106,7 +106,14 @@ export class LoginScreenController {
 
     let store: MobileStore | null;
     try {
-      store = await mobileApi.getStoreByCode(this.state.storeCodeInput);
+      // The secret is passed here as well as to `enroll`, because on a device
+      // that has never enrolled this lookup is the FIRST call and it is gated by
+      // the same secret. Leaving it out would fail the store lookup on exactly
+      // the installations the secret is meant to let through.
+      store = await mobileApi.getStoreByCode(
+        this.state.storeCodeInput,
+        this.state.enrollmentSecretInput,
+      );
     } catch (error) {
       const detail = error instanceof MobileApiError ? error.message : String(error);
       this.state.errorMessage = `❌ Sistemə qoşulmaq mümkün olmadı: ${detail}`;

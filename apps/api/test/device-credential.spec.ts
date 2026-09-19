@@ -27,11 +27,13 @@
  * enrolment returns a token would pass against an API that authorises anything.
  *
  * It also guards the enrolment path itself, because that is where credentials are
- * created out of nothing and it has now failed in two different ways. A burst of
- * first-time enrolments must not lose its writes (they used to race, and a lost
- * credential surfaced as a bare 500), and a store code must not be replayable
+ * created out of nothing and it has now failed in three different ways. A burst
+ * of first-time enrolments must not lose its writes (they used to race, and a
+ * lost credential surfaced as a bare 500), a store code must not be replayable
  * into an unbounded supply of identities (it was, and only failures were
- * rate-limited). Both are covered below.
+ * rate-limited), and the store lookup the login screen makes BEFORE it has a
+ * credential must be reachable without one (it was not, so no fresh install
+ * could sign in at all — see the section below). Both are covered below.
  *
  * It also asserts the opposite direction: the service credential MUST still be
  * able to name any user, because that is what lets the Telegram bot act for
@@ -113,10 +115,11 @@ interface Result {
 async function call(
   method: string,
   path: string,
-  options: { token?: string; body?: unknown } = {},
+  options: { token?: string; body?: unknown; secret?: string } = {},
 ): Promise<Result> {
   const headers: Record<string, string> = {};
   if (options.token) headers.Authorization = `Bearer ${options.token}`;
+  if (options.secret !== undefined) headers['X-Enrollment-Secret'] = options.secret;
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';
 
   const response = await fetch(`${API_BASE}${path}`, {
@@ -213,6 +216,110 @@ async function main(): Promise<void> {
     throw new Error(
       'The API requires ONETEAM_ENROLLMENT_SECRET and the suite does not have it.\n' +
         '       Export the same value the API was started with.',
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // The lookup that happens BEFORE there is a credential
+  // -------------------------------------------------------------------------
+  //
+  // The login screen resolves the store, checks the device is really inside it,
+  // and only then enrols — because enrolling claims the store's open work. So
+  // the FIRST call of the FIRST sign-in has to work with no credential at all.
+  //
+  // It did not. The screen called the authenticated `field/store`, `callApi`
+  // refuses to send a request with no token, and every fresh installation failed
+  // with "Sistemə qoşulmaq mümkün olmadı" whatever the store code was. Nothing
+  // caught it: the CI UI test only drives the rejection path, and the full-flow
+  // test is skipped without a backend. These assertions are what would have.
+  //
+  // The pair matters. Asserting only that the anonymous lookup works would pass
+  // against an API that had simply dropped the guard from the authenticated
+  // route as well.
+  console.log('\nthe store lookup that precedes enrolment');
+
+  const anonymousLookup = await call(
+    'GET',
+    `/api/portal/field/store-lookup?code=${encodeURIComponent(STORE_CODE)}`,
+    ENROLLMENT_SECRET ? { secret: ENROLLMENT_SECRET } : {},
+  );
+  check(
+    'the pre-enrolment store lookup answers with no credential',
+    anonymousLookup.status === 200,
+    anonymousLookup,
+  );
+  check(
+    'and it names the store the code refers to',
+    anonymousLookup.body?.data?.store_code === STORE_CODE,
+    anonymousLookup.body?.data,
+  );
+  check(
+    'and it carries the coordinates the geofence check needs',
+    typeof anonymousLookup.body?.data?.latitude === 'number' &&
+      typeof anonymousLookup.body?.data?.longitude === 'number',
+    anonymousLookup.body?.data,
+  );
+
+  const authenticatedLookup = await call(
+    'GET',
+    `/api/portal/field/store?code=${encodeURIComponent(STORE_CODE)}`,
+  );
+  check(
+    'the authenticated store route still refuses a caller with no credential',
+    authenticatedLookup.status === 401,
+    authenticatedLookup,
+  );
+
+  const lookupNoCode = await call(
+    'GET',
+    '/api/portal/field/store-lookup',
+    ENROLLMENT_SECRET ? { secret: ENROLLMENT_SECRET } : {},
+  );
+  check('a lookup with no code is refused with 400', lookupNoCode.status === 400, lookupNoCode);
+
+  const lookupBadCode = await call(
+    'GET',
+    '/api/portal/field/store-lookup?code=NO_SUCH_STORE_99',
+    ENROLLMENT_SECRET ? { secret: ENROLLMENT_SECRET } : {},
+  );
+  if (lookupBadCode.status === 429) {
+    skip('a lookup for an unknown code is refused with 404', 'failure window exhausted');
+  } else {
+    check(
+      'a lookup for an unknown code is refused with 404',
+      lookupBadCode.status === 404,
+      lookupBadCode,
+    );
+  }
+
+  if (ENROLLMENT_SECRET) {
+    // The lookup must not be the cheap way round the second factor. If it were
+    // reachable without the secret it would be a store-code enumeration oracle
+    // sitting next to an enrolment that is not.
+    const lookupNoSecret = await call(
+      'GET',
+      `/api/portal/field/store-lookup?code=${encodeURIComponent(STORE_CODE)}`,
+    );
+    check(
+      'the lookup demands the enrolment secret when one is configured',
+      lookupNoSecret.status === 401,
+      lookupNoSecret,
+    );
+
+    const lookupWrongSecret = await call(
+      'GET',
+      `/api/portal/field/store-lookup?code=${encodeURIComponent(STORE_CODE)}`,
+      { secret: 'not-the-secret' },
+    );
+    check(
+      'and a wrong secret is refused the same way',
+      lookupWrongSecret.status === 401,
+      lookupWrongSecret,
+    );
+  } else {
+    skip(
+      'the lookup demands the enrolment secret when one is configured',
+      'this API has no ONETEAM_ENROLLMENT_SECRET set',
     );
   }
 

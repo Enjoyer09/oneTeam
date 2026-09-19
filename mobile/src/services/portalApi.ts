@@ -459,12 +459,23 @@ type Envelope<T> = {
  * given its own fetch path so the credential check and the error handling stay
  * in exactly one place — a second copy would be a second chance to forget the
  * token.
+ *
+ * `allowAnonymous` is the one exception, and there is exactly one caller: the
+ * store lookup that runs before this device has any credential (see
+ * `getStoreByCode`). It relaxes the check below rather than skipping this
+ * function, so that exception still goes through the same parsing, the same
+ * timeout and the same error mapping. Nothing else may use it — a second
+ * anonymous call would be a credential-free request nobody intended.
  */
-async function callApi(path: string, init: RequestInit = {}): Promise<Envelope<any>> {
+async function callApi(
+  path: string,
+  init: RequestInit = {},
+  options: { allowAnonymous?: boolean } = {},
+): Promise<Envelope<any>> {
   // Refused here rather than sent unauthenticated and rejected by the API: the
   // caller gets one clear instruction, and no request leaves the device without
   // a credential attached.
-  if (!deviceToken) {
+  if (!deviceToken && !options.allowAnonymous) {
     throw new MobileApiError(
       'Bu cihaz hələ qeydiyyatdan keçməyib. Mağaza kodunu daxil edib yenidən yoxlayın.',
       null,
@@ -480,7 +491,11 @@ async function callApi(path: string, init: RequestInit = {}): Promise<Envelope<a
       ...init,
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${deviceToken}`,
+        // Omitted, not sent empty, on the anonymous call: `Authorization:
+        // Bearer undefined` is a different request from no header at all, and
+        // the API would answer 401 to the first while the second is the
+        // deliberate unauthenticated lookup.
+        ...(deviceToken ? { Authorization: `Bearer ${deviceToken}` } : {}),
         ...(init.headers || {}),
       },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -525,8 +540,12 @@ async function callApi(path: string, init: RequestInit = {}): Promise<Envelope<a
 }
 
 /** The usual entry point: the call's `data`, with everything beside it dropped. */
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const payload = await callApi(path, init);
+async function request<T>(
+  path: string,
+  init: RequestInit = {},
+  options: { allowAnonymous?: boolean } = {},
+): Promise<T> {
+  const payload = await callApi(path, init, options);
   return payload.data as T;
 }
 
@@ -677,14 +696,47 @@ class MobilePortalApi {
   // Reads
   // -------------------------------------------------------------------------
 
-  /** Resolves a store code typed by a field worker. Null when no such store. */
-  async getStoreByCode(storeCode: string): Promise<MobileStore | null> {
+  /**
+   * Resolves a store code typed by a field worker. Null when no such store.
+   *
+   * TWO ROUTES, AND THE CHOICE IS NOT AN OPTIMISATION
+   * ------------------------------------------------
+   * `GET /api/portal/field/store` is authenticated, and the login screen needs
+   * this answer BEFORE it can have a credential — enrolling is what issues one.
+   * Measured on 2026-09-19, that ordering made the first sign-in on a fresh
+   * installation impossible: `callApi` refuses to send a request with no token,
+   * so the screen showed "Sistemə qoşulmaq mümkün olmadı" no matter what the
+   * store code was, and the device could never get past it.
+   *
+   * So a device with no token asks `store-lookup` instead, which sits beside
+   * `enroll` and is gated by the same enrolment secret. A device that already
+   * has a token keeps using the authenticated route: the anonymous one is for
+   * the one moment when no credential exists, not a way to stop sending one.
+   */
+  async getStoreByCode(storeCode: string, enrollmentSecret?: string): Promise<MobileStore | null> {
     const code = storeCode.trim().toUpperCase();
     if (!code) return null;
 
-    const store = await request<ApiStore | null>(
-      `/api/portal/field/store?code=${encodeURIComponent(code)}`,
-    );
+    let store: ApiStore | null;
+    if (deviceToken) {
+      store = await request<ApiStore | null>(
+        `/api/portal/field/store?code=${encodeURIComponent(code)}`,
+      );
+    } else {
+      // The same order `enroll` uses: what the operator typed on this screen,
+      // then what an earlier installation stored, then the harness variable.
+      const secret =
+        enrollmentSecret?.trim() ||
+        (await credentialStore.enrollmentSecret()) ||
+        env.ONETEAM_ENROLLMENT_SECRET ||
+        undefined;
+
+      store = await request<ApiStore | null>(
+        `/api/portal/field/store-lookup?code=${encodeURIComponent(code)}`,
+        { headers: secret ? { 'X-Enrollment-Secret': secret } : {} },
+        { allowAnonymous: true },
+      );
+    }
 
     // A deactivated store must not accept audits even though it still resolves.
     if (!store || store.is_active === false) return null;
