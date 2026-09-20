@@ -63,6 +63,32 @@ const STORE_FORMAT_LABELS: Record<string, string> = {
   convenience: 'Kiçik mağaza',
 };
 
+/**
+ * Turns a `GeolocationPositionError` into something an operator can act on.
+ *
+ * The browser reports three failures with three different remedies — a refused
+ * permission is a settings change, an unavailable position is a device setting,
+ * a timeout is worth retrying. Collapsing them into "mövqe alınmadı" would
+ * leave the operator with nothing to do, which is the same reasoning the mobile
+ * login screen uses for its own three location failures.
+ */
+function describeGeoError(error: unknown): string {
+  const code = (error as { code?: number } | null)?.code;
+  if (code === 1) {
+    return (
+      'Brauzer lokasiya icazəsini rədd etdi. Ünvan sətrindəki kilid işarəsinə klikləyib ' +
+      'bu sayt üçün icazə verin.'
+    );
+  }
+  if (code === 2) {
+    return 'Mövqe müəyyən edilə bilmədi. Cihazın lokasiya xidməti açıqdırmı?';
+  }
+  if (code === 3) {
+    return 'Mövqe 15 saniyə içində alınmadı. Yenidən cəhd edin.';
+  }
+  return `Mövqe alına bilmədi: ${error instanceof Error ? error.message : String(error)}`;
+}
+
 function toFormValues(store: Store): StoreFormValues {
   return {
     store_code: store.store_code,
@@ -92,6 +118,10 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
   const [form, setForm] = useState<StoreFormValues>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  /** The "use my current position" control: busy, and what it last reported. */
+  const [locating, setLocating] = useState(false);
+  const [geoStatus, setGeoStatus] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
 
   const [pendingDelete, setPendingDelete] = useState<Store | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -130,18 +160,21 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
   function openCreate() {
     setForm(EMPTY_FORM);
     setFormError(null);
+    setGeoStatus(null);
     setEditing('new');
   }
 
   function openEdit(store: Store) {
     setForm(toFormValues(store));
     setFormError(null);
+    setGeoStatus(null);
     setEditing(store);
   }
 
   function closeForm() {
     setEditing(null);
     setFormError(null);
+    setGeoStatus(null);
     setSaving(false);
   }
 
@@ -197,6 +230,75 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
     } catch (error) {
       setDeleteError(error instanceof Error ? error.message : String(error));
       setDeleting(false);
+    }
+  }
+
+  /**
+   * Fills the two coordinate fields from the browser's own position.
+   *
+   * WHY THIS EXISTS
+   * ---------------
+   * A store's coordinates decide whether a field worker's audit is accepted:
+   * the geofence compares the device's fix against them, and a wrong pair
+   * rejects every photo from that store with a message the worker cannot act
+   * on. The only way to enter them was to right-click a point in Google Maps
+   * and copy two numbers by hand — and on 2026-09-20 that is exactly how a
+   * demo store ended up at coordinates nobody was standing on, so an operator
+   * testing from their desk was refused with "Siz mağaza ərazisində
+   * deyilsiniz" and could not sign in at all.
+   *
+   * WHAT IT DOES NOT DO
+   * -------------------
+   * It does not relax the check. The values land in the same form, go through
+   * the same `Number()` conversion, and face the same server-side bounds
+   * validation (`PortalService.PLAUSIBLE_BOUNDS`), and the operator still has
+   * to save. All this removes is the transcription step — which is the part
+   * that was wrong.
+   */
+  async function fillFromCurrentPosition() {
+    setLocating(true);
+    setGeoStatus(null);
+
+    // Absent outside a secure context, i.e. an `http://` origin other than
+    // localhost. Saying so is the point: a button that silently does nothing
+    // reads as "the feature is broken" rather than "the page is not https".
+    if (!('geolocation' in navigator)) {
+      setGeoStatus({
+        kind: 'error',
+        text:
+          'Bu səhifə təhlükəsiz (https) deyil, ona görə brauzer lokasiyanı vermir. ' +
+          'Koordinatları Google Maps-dən əl ilə yazın.',
+      });
+      setLocating(false);
+      return;
+    }
+
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 15_000,
+          maximumAge: 0,
+        });
+      });
+
+      // Six decimals, the precision the API's own example uses (`40.385012`).
+      // Rounding here rather than in the input keeps the field readable while
+      // leaving the value exact enough for a 100 m geofence.
+      const latitude = position.coords.latitude.toFixed(6);
+      const longitude = position.coords.longitude.toFixed(6);
+      setForm((previous) => ({ ...previous, latitude, longitude }));
+
+      setGeoStatus({
+        kind: 'ok',
+        text:
+          `Mövqe götürüldü: ${latitude}, ${longitude} ` +
+          `(±${Math.round(position.coords.accuracy)}m). Yadda saxlamağı unutmayın.`,
+      });
+    } catch (error) {
+      setGeoStatus({ kind: 'error', text: describeGeoError(error) });
+    } finally {
+      setLocating(false);
     }
   }
 
@@ -580,6 +682,36 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
                       className={`${inputClass} font-mono`}
                     />
                   </div>
+                </div>
+
+                {/* Fills both fields from the browser's own position. This is
+                    the step that was wrong when the demo store ended up at
+                    coordinates nobody was standing on; see
+                    `fillFromCurrentPosition` for what it does and does not relax. */}
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void fillFromCurrentPosition();
+                    }}
+                    disabled={locating}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-hair bg-[var(--g-card)] px-3 py-2 text-[11px] font-bold text-ink-2 transition hover:border-coke/45 disabled:opacity-50"
+                  >
+                    <MapPin className="h-3.5 w-3.5" />
+                    {locating ? 'Mövqe götürülür…' : 'Cari mövqeyimi götür'}
+                  </button>
+
+                  {geoStatus && (
+                    <p
+                      role={geoStatus.kind === 'error' ? 'alert' : 'status'}
+                      className="min-w-0 flex-1 text-[10.5px] leading-relaxed"
+                      style={{
+                        color: geoStatus.kind === 'error' ? 'var(--bad)' : 'var(--ok)',
+                      }}
+                    >
+                      {geoStatus.text}
+                    </p>
+                  )}
                 </div>
 
                 <p className="rounded-lg border border-hair bg-[var(--g-panel)] px-3 py-2 text-[10.5px] text-muted">
