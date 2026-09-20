@@ -113,7 +113,17 @@ export class CameraAuditController {
         latitude: this.store.latitude,
         longitude: this.store.longitude,
       },
-      ghostOverlayUsed: this.state.ghostOverlayActive,
+      // THE OVERLAY IS ONLY "USED" IF THERE WAS SOMETHING TO OVERLAY.
+      //
+      // This used to be `this.state.ghostOverlayActive` on its own, which meant
+      // every audit recorded `ghost_overlay_used: true` as soon as the toggle
+      // defaulted on — while the screen rendered a badge reading "👻 Ghost
+      // overlay aktiv" and no reference image at all. The audit trail therefore
+      // asserted a planogram comparison that never happened, on every single
+      // submission. A supervisor reading the record could not tell those apart
+      // from the real thing, which is what makes it worth fixing rather than
+      // documenting: the field is only useful if `true` means something.
+      ghostOverlayUsed: this.state.ghostOverlayActive && this.task.reference_image_url !== null,
     });
 
     const photoUri =

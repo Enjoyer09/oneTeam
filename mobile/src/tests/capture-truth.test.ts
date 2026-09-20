@@ -18,11 +18,19 @@
  *     store the demo was built around. The 100 m geofence downstream was
  *     therefore comparing that store against itself.
  *
- * Neither defect was a crash. Both survived a green test suite, a working demo
- * and a shipping build. What they had in common is that nothing anywhere asked
- * the question "did this really happen?".
+ * A THIRD fake turned up while these two were being verified, one layer down
+ * and the same family: the ghost overlay. The toggle was real, the badge was
+ * real, and `ghost_overlay_used: true` was written into every audit — but
+ * `task.reference_image_url` was never drawn. The planogram reference, which is
+ * the whole reason a "smart camera" exists, was never on screen. So the
+ * evidence asserted a comparison the worker had not been offered.
  *
- * So this suite asks it, in two halves, because the defect had two halves:
+ * None of the three was a crash. All three survived a green test suite, a
+ * working demo and a shipping build. What they had in common is that nothing
+ * anywhere asked the question "did this really happen?".
+ *
+ * So this suite asks it in two halves, because each of these fakes had the same
+ * two halves:
  *
  *   PART A — the contract. `CameraAuditController.captureLiveAudit` must report
  *   `simulated: true` when it has no bytes and `false` when it does, and the
@@ -32,8 +40,9 @@
  *   PART B — the wiring. A contract nobody calls proves nothing. Part B reads
  *   the two screens out of the tree and asserts they really import the camera,
  *   really ask `takePictureAsync` for base64, really hand those bytes to the
- *   controller, and really ask the platform for a position instead of naming
- *   one. This is the half that would have caught the actual defect.
+ *   controller, really ask the platform for a position instead of naming one,
+ *   and really draw the planogram reference. This is the half that would have
+ *   caught the actual defect — and it is the half that caught the third one.
  *
  * WHY PART B READS SOURCE INSTEAD OF RENDERING
  * --------------------------------------------
@@ -162,6 +171,18 @@ const TASK: MobileTask = {
   checklist_schema: [],
 };
 
+/**
+ * The same task, but carrying the planogram reference the ghost overlay draws.
+ *
+ * This pair is the point: `ghost_overlay_used` is a claim about a comparison
+ * the worker was shown, so it must depend on whether there was anything to
+ * show — not on the toggle's position alone.
+ */
+const TASK_WITH_REFERENCE: MobileTask = {
+  ...TASK,
+  reference_image_url: 'https://example.test/planogram-cooler.jpg',
+};
+
 const INSIDE_GPS: GPSCoordinates = { latitude: USER_LAT, longitude: USER_LON, accuracy: 3.5 };
 const FAR_GPS: GPSCoordinates = { latitude: FAR_LAT, longitude: FAR_LON, accuracy: 10 };
 
@@ -280,6 +301,28 @@ const PASSES_BYTES_TO_CONTROLLER = /captureLiveAudit\s*\(\s*\{[^}]*\bbase64\s*:/
 /** `if (!shot?.base64) { throw ... }` — the refusal to file a made-up image. */
 const REFUSES_BYTE_LESS_CAPTURE = /if\s*\(\s*!\s*shot\??\.base64\s*\)/;
 
+/**
+ * `source={{ uri: task.reference_image_url }}` — the overlay's actual image.
+ *
+ * Deliberately the SOURCE expression and not the `testID`, because the badge
+ * next to it also carries a `testID` and a condition on `reference_image_url`.
+ * A guard that accepted either would pass on the label alone, which is exactly
+ * the defect: the label was there and the image was not.
+ */
+const GHOST_OVERLAY_IMAGE = /source=\{\{\s*uri:\s*task\.reference_image_url\s*\}\}/;
+
+/**
+ * `{task.reference_image_url ? '👻 Ghost overlay aktiv' : 'Ghost: istinad şəkli yoxdur'}`
+ *
+ * The badge must be able to say "there is nothing to overlay". A single
+ * unconditional label is exactly how the third fake read on screen: a claim
+ * that a comparison was active, with nothing behind it.
+ *
+ * The regex requires a quote immediately after the `?`, which is what keeps it
+ * off the image's own condition (`... && task.reference_image_url ? (`).
+ */
+const GHOST_BADGE_IS_HONEST = /task\.reference_image_url\s*\?\s*'[^']*'\s*:\s*'[^']*'/;
+
 /** A coordinate NAMED in code rather than read from the platform. */
 const INVENTED_COORDINATE = /(latitude|longitude)\s*:\s*-?\d/;
 
@@ -308,6 +351,16 @@ const WIRING_RULES: WiringRule[] = [
     id: 'camera-refuses-a-byte-less-capture',
     what: 'a capture with no bytes must be a failure, not a silent placeholder',
     holds: (c) => REFUSES_BYTE_LESS_CAPTURE.test(c.cameraScreen),
+  },
+  {
+    id: 'camera-renders-the-ghost-overlay',
+    what: 'the ghost overlay must draw the reference image, or ghost_overlay_used claims a comparison nobody saw',
+    holds: (c) => GHOST_OVERLAY_IMAGE.test(c.cameraScreen),
+  },
+  {
+    id: 'camera-badge-does-not-outrun-the-image',
+    what: 'the ghost badge must be able to say "no reference image", or it asserts a comparison that is not happening',
+    holds: (c) => GHOST_BADGE_IS_HONEST.test(c.cameraScreen),
   },
   {
     id: 'login-imports-expo-location',
@@ -444,6 +497,20 @@ const MUTATIONS: Mutation[] = [
     how: 'the byte-less capture is allowed through as a placeholder',
     apply: (s) =>
       replaceIn(s, 'cameraScreen', REFUSES_BYTE_LESS_CAPTURE, 'if (false && !shot?.base64)'),
+  },
+  {
+    // The third fake, reintroduced. The badge survives, so the screen still
+    // SAYS "Ghost overlay aktiv" — which is precisely why this rule is written
+    // against the image's source expression and not against the label.
+    rule: 'camera-renders-the-ghost-overlay',
+    how: 'the overlay keeps its badge but stops drawing the reference image',
+    apply: (s) =>
+      replaceIn(s, 'cameraScreen', /\s*source=\{\{\s*uri:\s*task\.reference_image_url\s*\}\}/, ''),
+  },
+  {
+    rule: 'camera-badge-does-not-outrun-the-image',
+    how: 'the badge becomes an unconditional "Ghost overlay aktiv"',
+    apply: (s) => replaceIn(s, 'cameraScreen', GHOST_BADGE_IS_HONEST, "'👻 Ghost overlay aktiv'"),
   },
   {
     rule: 'login-imports-expo-location',
@@ -748,6 +815,55 @@ async function main() {
     );
   }
 
+  section('A5. The ghost overlay is recorded only when it was really offered');
+
+  {
+    // The third fake of the same family, found on 2026-09-20. The toggle, the
+    // badge and the metadata were all real; the reference image was never
+    // rendered. So `ghost_overlay_used: true` went into the audit trail for
+    // every submission while the worker had been shown nothing to compare
+    // against — a claim in the evidence, not a cosmetic bug.
+    const withoutReference = new CameraAuditController(TASK, STORE);
+    const noReferenceCapture = await withoutReference.captureLiveAudit({
+      source: 'camera',
+      userGPS: INSIDE_GPS,
+      base64: REAL_BYTES,
+    });
+    check(
+      'a task with no reference image records ghost_overlay_used: false, even with the toggle on',
+      noReferenceCapture.metadata.ghost_overlay_used === false,
+      {
+        recorded: noReferenceCapture.metadata.ghost_overlay_used,
+        toggleOn: withoutReference.getState().ghostOverlayActive,
+        reference: TASK.reference_image_url,
+      },
+    );
+
+    const withReference = new CameraAuditController(TASK_WITH_REFERENCE, STORE);
+    const referenceCapture = await withReference.captureLiveAudit({
+      source: 'camera',
+      userGPS: INSIDE_GPS,
+      base64: REAL_BYTES,
+    });
+    check(
+      'a task that carries a reference image records ghost_overlay_used: true',
+      referenceCapture.metadata.ghost_overlay_used === true,
+      referenceCapture.metadata.ghost_overlay_used,
+    );
+
+    withReference.toggleGhost();
+    const toggledOff = await withReference.captureLiveAudit({
+      source: 'camera',
+      userGPS: INSIDE_GPS,
+      base64: REAL_BYTES,
+    });
+    check(
+      'and turning the overlay off records false, so the field tracks the worker not the build',
+      toggledOff.metadata.ghost_overlay_used === false,
+      toggledOff.metadata.ghost_overlay_used,
+    );
+  }
+
   // ===========================================================================
   // PART B — the wiring.
   // ===========================================================================
@@ -794,6 +910,14 @@ async function main() {
     check(
       'it refuses a capture that returned no bytes instead of filing a placeholder',
       REFUSES_BYTE_LESS_CAPTURE.test(clean.cameraScreen),
+    );
+    check(
+      'it actually draws the planogram reference over the preview — the thing ghost_overlay_used claims',
+      GHOST_OVERLAY_IMAGE.test(clean.cameraScreen),
+    );
+    check(
+      'and the ghost badge can say "no reference image", so it cannot outrun the image',
+      GHOST_BADGE_IS_HONEST.test(clean.cameraScreen),
     );
     check(
       'the capture is no longer marked simulated in the UI path',

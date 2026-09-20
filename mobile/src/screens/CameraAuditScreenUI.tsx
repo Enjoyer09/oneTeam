@@ -25,6 +25,18 @@
  * and a capture that returns no bytes is reported as a failure rather than
  * quietly becoming a placeholder.
  *
+ * THE GHOST OVERLAY WAS THE SAME KIND OF FAKE, ONE LAYER DOWN
+ * -----------------------------------------------------------
+ * The toggle was real, the badge was real, and the metadata was real — every
+ * audit recorded `ghost_overlay_used: true` — but `task.reference_image_url`
+ * was never rendered. The planogram reference, which is the entire reason a
+ * "smart camera" exists, was never on screen. So the audit trail asserted a
+ * comparison the worker had not been offered, on every submission.
+ *
+ * Both halves are fixed: the reference image is drawn over the preview at the
+ * controller's opacity, and `ghost_overlay_used` is now false unless the task
+ * actually carries a reference to overlay.
+ *
  * WHY THIS IS A SEPARATE FILE
  * ---------------------------
  * `CameraAuditScreen.tsx` holds `CameraAuditController`, a plain class with no
@@ -215,9 +227,35 @@ export function CameraAuditScreenUI({
           </View>
         ) : null}
 
+        {/* The planogram reference, drawn over the live preview at the
+            controller's opacity. Until 2026-09-20 this area held only a badge
+            reading "👻 Ghost overlay aktiv": no image was ever rendered, while
+            every audit still recorded `ghost_overlay_used: true`. The worker
+            was asked to match a shelf against a reference they could not see,
+            and the audit trail said the comparison had been offered. */}
+        {state.ghostOverlayActive && task.reference_image_url ? (
+          // `pointerEvents` belongs to View, not to Image — putting it on the
+          // Image is a type error, and the grid overlay above already solves it
+          // this way. The wrapper keeps the overlay from swallowing taps meant
+          // for the shutter.
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <Image
+              testID="camera.ghostOverlay"
+              source={{ uri: task.reference_image_url }}
+              style={[StyleSheet.absoluteFill, { opacity: state.ghostOpacity }]}
+              resizeMode="contain"
+            />
+          </View>
+        ) : null}
+
+        {/* The badge reports what is actually on screen. Claiming the overlay
+            is "aktiv" for a task that carries no reference image would be the
+            same lie in a smaller place. */}
         {state.ghostOverlayActive ? (
           <View style={styles.ghostBadge} pointerEvents="none">
-            <Text style={styles.ghostBadgeText}>👻 Ghost overlay aktiv</Text>
+            <Text style={styles.ghostBadgeText}>
+              {task.reference_image_url ? '👻 Ghost overlay aktiv' : 'Ghost: istinad şəkli yoxdur'}
+            </Text>
           </View>
         ) : null}
       </View>

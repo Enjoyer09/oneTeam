@@ -64,6 +64,11 @@
       "why": "takes the shelf photo"
     },
     {
+      "id": "camera.ghostOverlay",
+      "where": "mobile/src/screens/CameraAuditScreenUI.tsx",
+      "why": "the planogram reference drawn over the live preview — the thing ghost_overlay_used claims"
+    },
+    {
       "id": "camera.capturedPreview",
       "where": "mobile/src/screens/CameraAuditScreenUI.tsx",
       "why": "the photo the worker reviews before sending it"
