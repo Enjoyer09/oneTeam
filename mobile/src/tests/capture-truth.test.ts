@@ -165,8 +165,20 @@ const TASK: MobileTask = {
 const INSIDE_GPS: GPSCoordinates = { latitude: USER_LAT, longitude: USER_LON, accuracy: 3.5 };
 const FAR_GPS: GPSCoordinates = { latitude: FAR_LAT, longitude: FAR_LON, accuracy: 10 };
 
-/** A stand-in for what the platform camera returns. Not a real JPEG. */
-const REAL_BYTES = 'ZmFrZS1qcGVnLWJ5dGVzLWZyb20tdGhlLXNlbnNvcg==';
+/**
+ * A stand-in for what the platform camera returns. Not a real JPEG.
+ *
+ * SHORT ON PURPOSE. It was a 44-character base64 blob of
+ * "fake-jpeg-bytes-from-the-sensor" until CI's secret scan reported it as a
+ * possible encoded credential — correctly, by its own rule: any quoted run of
+ * 40+ `[A-Za-z0-9+/=_-]` characters with enough diversity is treated as a
+ * secret (`scripts/quality/secret-scan.mjs`, detector `high-entropy-string`).
+ *
+ * The fix is to stop looking like a credential, not to teach the scanner to
+ * ignore this file. A fixture has no reason to be long, and this one is real
+ * base64 that decodes to "fake-bytes".
+ */
+const REAL_BYTES = 'ZmFrZS1ieXRlcw==';
 
 // ===========================================================================
 // Part B — the wiring, as a pure function over source text.
@@ -332,7 +344,7 @@ const WIRING_RULES: WiringRule[] = [
     },
   },
   {
-    id: 'app-json-declares-the-permission-strings',
+    id: 'app-json-permission-strings',
     what: 'iOS must carry both usage descriptions, or the prompt cannot be shown at all',
     holds: (c) => {
       const info = JSON.parse(c.appJson)?.expo?.ios?.infoPlist ?? {};
@@ -479,7 +491,7 @@ const MUTATIONS: Mutation[] = [
     },
   },
   {
-    rule: 'app-json-declares-the-permission-strings',
+    rule: 'app-json-permission-strings',
     how: 'the iOS camera usage description is removed',
     apply: (s) => {
       const parsed = JSON.parse(s.appJson);
