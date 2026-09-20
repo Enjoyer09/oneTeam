@@ -296,6 +296,20 @@ jobs:
           echo "Using simulator $UDID"
           # Already-booted is not an error here; `xcodebuild test` will use it.
           xcrun simctl boot "$UDID" || echo "already booted"
+
+          # Give the simulator a location BEFORE the tests run. The login screen
+          # asks expo-location for a real fix and correctly refuses to enable
+          # Sign in without one, so a simulator with no location would fail the
+          # UI tests on a rule that is working. 40.4093,49.8671 is the demo
+          # store's position.
+          #
+          # `simctl privacy ... grant location` is deliberately NOT used: it
+          # exits 0 but writes no TCC row for an app that is not installed yet,
+          # and the app is installed by `xcodebuild test` afterwards. The UI test
+          # dismisses the prompt instead — see `allowLocationWhenAsked`.
+          xcrun simctl location "$UDID" set 40.4093,49.8671
+          xcrun simctl location "$UDID" | head -3 || true
+
           echo "destination=id=$UDID" >> "$GITHUB_OUTPUT"
 
       - name: Run the UI tests

@@ -10,18 +10,40 @@
 //
 //   1. The login screen renders with the right identifiers (the contract in
 //      `mobile/uitests/testids.json` is honoured).
-//   2. The "Sign in" button stays disabled until the simulated GPS reports a
-//      fix, then becomes enabled — which is the same gating the controller
-//      enforces against a real geofence.
+//   2. The location status line reports what the platform actually said, and
+//      the Sign in button follows it.
 //   3. After tapping Sign in without a backend the error text appears, which
 //      proves the rejection path is wired to the UI.
 //   4. The task list and task detail screens are NOT reachable before login,
 //      which proves the Root router's gating works.
 //
-// The end-to-end `Login -> Task -> Photo -> Submit` is the part that needs
-// a seeded backend. When the API is reachable the test in
-// `testFullFlowAgainstBackend` will run; otherwise `setUpWithError` skips it
-// with a clear reason, so the suite still tells the truth.
+// THE GPS IS REAL NOW, AND IT CHANGED THIS FILE
+// --------------------------------------------
+// Until 2026-09-20 the login screen returned `{40.4093, 49.8671}` from a
+// `setTimeout` — the coordinates of the store the demo was built around. The
+// button was enabled by a timer, and the assertion below ("disabled, then
+// enabled") was really asserting that a timer fires.
+//
+// The screen now asks `expo-location` for a fix. Two consequences for this
+// file, both of them honest rather than convenient:
+//
+//   * The simulator needs a location. CI sets one before the tests run
+//     (`xcrun simctl location <udid> set 40.4093,49.8671` in the "Pick a
+//     simulator" step). Without it no fix ever arrives and the sign-in button
+//     correctly stays off — a failure of the fixture, not of the app.
+//   * The first launch shows the iOS location prompt. `allowLocationWhenAsked`
+//     dismisses it the way a worker would. `xcrun simctl privacy ... grant`
+//     does NOT work here: measured on 2026-09-20, it exits 0 but writes no TCC
+//     row for an app that is not installed yet, and the app is installed by
+//     `xcodebuild test` long after the simulator is prepared.
+//
+// "Disabled until a fix exists" is still a rule, but it is no longer asserted
+// unconditionally here: on a fast machine the fix can arrive before the first
+// query, which would make the assertion a coin flip rather than a check. The
+// rule is proven unconditionally and deterministically in the headless suite
+// (`mobile/src/tests/mobile-test-runner.ts`, "no fix means no sign-in"), where
+// the absence of a fix is an input rather than a race. What remains here is the
+// part only the real UI can show: the status line and the button agree.
 //
 // A `testID` IS NOT ENOUGH
 // ------------------------
@@ -67,11 +89,42 @@ final class FieldAuditUITests: XCTestCase {
 
   // --- Helpers --------------------------------------------------------------
 
-  /// The simulated GPS reports a fix after a short delay inside the app, and
-  /// the submit button stays disabled until then. Helpers make that explicit.
+  /// The login screen's location line. It exists in every state — looking,
+  /// found, or refused — which is what makes it readable as a check.
   private func storeCodeInput() -> XCUIElement { app.textFields["login.storeCodeInput"] }
+  private func gpsStatus()     -> XCUIElement { app.staticTexts["login.gpsStatus"] }
   private func submitButton()  -> XCUIElement { app.buttons["login.submitButton"] }
   private func errorText()     -> XCUIElement { app.staticTexts["login.errorText"] }
+
+  /// Dismisses the iOS location prompt the way a worker would.
+  ///
+  /// The button titles are the English ones because a CI simulator runs in
+  /// English; the Azerbaijani titles are matched too, so the same helper works
+  /// on a device set to the app's own language. If no prompt appears — a second
+  /// launch of the same install — this is a no-op and says so by returning
+  /// false, which the caller is free to ignore.
+  @discardableResult
+  private func allowLocationWhenAsked(timeout: TimeInterval = 20) -> Bool {
+    let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+    let titles = [
+      "Allow While Using App",
+      "Allow Once",
+      "İstifadə edərkən icazə ver",
+      "Bir dəfə icazə ver",
+    ]
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+      for title in titles {
+        let button = springboard.buttons[title]
+        if button.exists && button.isHittable {
+          button.tap()
+          return true
+        }
+      }
+      usleep(300_000)
+    }
+    return false
+  }
 
   /// Waits for the login screen, and on timeout says what IS on screen.
   ///
@@ -94,36 +147,55 @@ final class FieldAuditUITests: XCTestCase {
     XCTFail("login.storeCodeInput never appeared. Screen was:\n\(shown)", file: file, line: line)
   }
 
+  /// Waits for the sign-in button to become enabled, granting location if the
+  /// platform asks. Fails with the status line in the message, because "still
+  /// looking for a fix" and "the fix was refused" need different fixes.
+  private func waitForSignInToEnable(file: StaticString = #filePath, line: UInt = #line) {
+    allowLocationWhenAsked()
+
+    let enabled = NSPredicate(format: "isEnabled == true")
+    expectation(for: enabled, evaluatedWith: submitButton())
+    waitForExpectations(timeout: 30) { _ in
+      XCTFail(
+        "Sign in never became enabled. Location status was: \"\(self.gpsStatus().label)\"",
+        file: file, line: line)
+    }
+  }
+
   // --- Tests ----------------------------------------------------------------
 
   /// The contract is honoured: the identifiers the Swift test addresses must
   /// exist as `testID`s in the React Native sources.
   func testLoginScreenContract() throws {
     waitForLoginScreen()
+    XCTAssertTrue(gpsStatus().exists,
+      "login.gpsStatus must be on the login screen in every state")
     XCTAssertTrue(submitButton().exists,
       "login.submitButton must be on the login screen")
     XCTAssertTrue(errorText().exists == false,
       "login.errorText must be absent before the user taps Sign in")
   }
 
-  /// The button must stay disabled until a GPS fix arrives — the same gating
-  /// the controller enforces against a real geofence.
-  func testSignInStaysDisabledUntilGpsReports() throws {
+  /// The status line must report what the platform said, and the button must
+  /// follow it — which is the whole of the anti-fraud gate as the worker sees
+  /// it. The unconditional half of the rule lives in the headless suite.
+  func testSignInFollowsTheLocationStatus() throws {
     waitForLoginScreen()
 
-    // The store code is pre-filled by the controller, so the only thing keeping
-    // the button disabled here is the missing GPS fix — which is precisely the
-    // rule under test. Typing a code would be meaningless and would corrupt the
-    // pre-filled value.
-    XCTAssertFalse(submitButton().isEnabled,
-      "Sign in must be disabled before the simulated GPS reports a fix")
+    // Sound rather than convenient: the assertion is only meaningful while no
+    // fix exists, and whether one exists yet depends on how fast the device is.
+    // Asserting it unconditionally would make this a race, and a race that
+    // passes tells you nothing about the rule.
+    let statusBeforeGrant = gpsStatus().label
+    if !statusBeforeGrant.contains("alındı") {
+      XCTAssertFalse(submitButton().isEnabled,
+        "Sign in must be disabled while the location line reads \"\(statusBeforeGrant)\"")
+    }
 
-    let enabled = NSPredicate(format: "isEnabled == true")
-    expectation(for: enabled, evaluatedWith: submitButton())
-    waitForExpectations(timeout: 5)
+    waitForSignInToEnable()
 
-    XCTAssertTrue(submitButton().isEnabled,
-      "Sign in must be enabled once the simulated GPS reports a fix")
+    XCTAssertTrue(gpsStatus().label.contains("alındı"),
+      "The location line must report the fix that enabled Sign in, got: \"\(gpsStatus().label)\"")
   }
 
   /// Without a backend the login attempt rejects; the UI must surface the
@@ -131,16 +203,13 @@ final class FieldAuditUITests: XCTestCase {
   /// simulator can exercise today.
   func testRejectionPathIsWiredToTheUi() throws {
     waitForLoginScreen()
-
-    let enabled = NSPredicate(format: "isEnabled == true")
-    expectation(for: enabled, evaluatedWith: submitButton())
-    waitForExpectations(timeout: 5)
+    waitForSignInToEnable()
 
     submitButton().tap()
 
     let appeared = NSPredicate(format: "exists == true")
     expectation(for: appeared, evaluatedWith: errorText())
-    waitForExpectations(timeout: 10)
+    waitForExpectations(timeout: 20)
 
     XCTAssertTrue(errorText().exists,
       "Sign in rejection must surface through login.errorText")

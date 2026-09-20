@@ -11,10 +11,29 @@
  * WHY THE GPS IS NOT A BUTTON
  * ---------------------------
  * The controller refuses to run without a real fix (`userGPS === null` →
- * error). The screen therefore polls for location automatically and only
- * enables the sign-in button once the platform has reported one. A "get
- * location" button would let the worker press it before the fix is ready and
- * see a confusing error.
+ * error). The screen therefore acquires a fix automatically and only enables
+ * the sign-in button once the platform has reported one. A "get location"
+ * button would let the worker press it before the fix is ready and see a
+ * confusing error.
+ *
+ * THE FIX IS REAL, AND THAT CHANGED WHAT THIS SCREEN DOES
+ * -------------------------------------------------------
+ * Until 2026-09-20 this file did not ask the platform for anything. It waited
+ * 1.5 seconds and then returned `{ latitude: 40.4093, longitude: 49.8671 }` —
+ * the coordinates of the one store the demo was built around. The geofence
+ * comparison downstream was therefore comparing the store against itself, and
+ * could not fail. The button was enabled by a timer, and the check that the
+ * product is sold on ("the worker was really in the shop") verified nothing.
+ *
+ * `expo-location` was declared in `package.json` the whole time and is compiled
+ * into the installed app (see `ios/Podfile.lock`), so nothing had to be built to
+ * make this real — only written.
+ *
+ * The permission is requested on mount rather than behind a button, because the
+ * screen has exactly one job and the worker has already opened it to do that
+ * job. A refusal is reported as itself: no coordinates are invented, and the
+ * sign-in button stays disabled, because a sign-in that cannot prove where it
+ * happened is the thing this screen exists to prevent.
  */
 
 import { useEffect, useState, useCallback } from 'react';
@@ -29,6 +48,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
+import * as Location from 'expo-location';
 import { LoginScreenController } from './LoginScreen';
 import type { MobileStore, GPSCoordinates } from '../types';
 
@@ -47,33 +67,64 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
     controller.getState().enrollmentSecretInput,
   );
   const [gps, setGps] = useState<GPSCoordinates | null>(null);
-  // The setter is deliberately not destructured: while the fix is simulated
-  // below nothing can fail, so `gpsError` stays null. The render branch is kept
-  // because it is the real path once `expo-location` is wired in.
-  const [gpsError] = useState<string | null>(null);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+  const [locating, setLocating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Poll for GPS. In a shipping build this uses expo-location; here we
-  // simulate a fix after a short delay so the screen is testable.
-  useEffect(() => {
-    let cancelled = false;
-    const timer = setTimeout(() => {
-      if (cancelled) return;
-      // Simulated fix — in production, replace with Location.getCurrentPositionAsync
-      const simulated: GPSCoordinates = {
-        latitude: 40.4093,
-        longitude: 49.8671,
-        accuracy: 10,
+  /**
+   * Asks the platform where this device is, and reports every way that can fail
+   * as itself.
+   *
+   * The three failure modes are kept apart on purpose, because they need
+   * different actions from the worker: a refused permission is a settings
+   * change, a device with location services switched off is a different
+   * settings change, and a timeout is worth simply retrying. Collapsing them
+   * into "lokasiya alınmadı" would leave the worker with nothing to do.
+   */
+  const acquireFix = useCallback(async () => {
+    setGpsError(null);
+    setLocating(true);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) {
+        setGps(null);
+        setGpsError(
+          'Lokasiya icazəsi verilməyib. Parametrlər → Gizlilik və Təhlükəsizlik → ' +
+            'Məkan Xidmətləri bölməsindən bu tətbiqə icazə verin.',
+        );
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      // The fix is handed to the controller, which is the only thing allowed to
+      // decide whether it is good enough to sign in with.
+      const fix: GPSCoordinates = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy:
+          typeof position.coords.accuracy === 'number' ? position.coords.accuracy : undefined,
       };
-      setGps(simulated);
-      controller.setUserLocation(simulated);
-    }, 1500);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
+      setGps(fix);
+      controller.setUserLocation(fix);
+    } catch (cause) {
+      setGps(null);
+      setGpsError(
+        'Lokasiya alına bilmədi: ' +
+          (cause instanceof Error ? cause.message : String(cause)) +
+          '. Yenidən cəhd edin.',
+      );
+    } finally {
+      setLocating(false);
+    }
   }, [controller]);
+
+  useEffect(() => {
+    void acquireFix();
+  }, [acquireFix]);
 
   const handleLogin = useCallback(async () => {
     setError(null);
@@ -148,21 +199,38 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
           </Text>
 
           <Text style={styles.label}>Cihaz lokasiyası</Text>
+          {/* One always-present status line, and it carries the `testID`. The UI
+              test reads it as a static text, which it can only do if the element
+              exists in every state — an element that is present only on success
+              makes "still looking" indistinguishable from "the screen is gone". */}
+          <View style={styles.gpsRow}>
+            {gps || gpsError ? null : <ActivityIndicator size="small" color="#0066CC" />}
+            <Text
+              testID="login.gpsStatus"
+              style={gps ? styles.gpsOk : gpsError ? styles.gpsError : styles.gpsLoading}
+            >
+              {gps ? '📍 Lokasiya alındı' : gpsError ? `❌ ${gpsError}` : 'Lokasiya axtarılır…'}
+            </Text>
+          </View>
           {gps ? (
-            <View style={styles.gpsRow}>
-              <Text style={styles.gpsOk}>📍 Lokasiya alındı</Text>
-              <Text style={styles.gpsDetail}>
-                {gps.latitude.toFixed(4)}, {gps.longitude.toFixed(4)} (±{gps.accuracy ?? '?'}m)
-              </Text>
-            </View>
-          ) : gpsError ? (
-            <Text style={styles.gpsError}>❌ {gpsError}</Text>
-          ) : (
-            <View style={styles.gpsRow}>
-              <ActivityIndicator size="small" color="#0066CC" />
-              <Text style={styles.gpsLoading}>Lokasiya axtarılır…</Text>
-            </View>
-          )}
+            <Text style={styles.gpsDetail}>
+              {gps.latitude.toFixed(4)}, {gps.longitude.toFixed(4)}
+              {gps.accuracy === undefined ? '' : ` (±${Math.round(gps.accuracy)}m)`}
+            </Text>
+          ) : null}
+          {gpsError && !locating ? (
+            <TouchableOpacity
+              testID="login.retryLocationButton"
+              accessibilityRole="button"
+              style={styles.retryButton}
+              onPress={() => {
+                void acquireFix();
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.retryButtonText}>Lokasiyanı yenidən yoxla</Text>
+            </TouchableOpacity>
+          ) : null}
 
           {error ? (
             <Text testID="login.errorText" style={styles.errorText}>
@@ -283,6 +351,23 @@ const styles = StyleSheet.create({
   gpsError: {
     fontSize: 15,
     color: '#B00020',
+    // The refusal message is a sentence, not a label, and it sits in a row.
+    // Without this it is laid out at its intrinsic width and runs off the card.
+    flexShrink: 1,
+  },
+  retryButton: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#0066CC',
+  },
+  retryButtonText: {
+    fontSize: 14,
+    color: '#0066CC',
+    fontWeight: '500',
   },
   errorText: {
     marginTop: 16,

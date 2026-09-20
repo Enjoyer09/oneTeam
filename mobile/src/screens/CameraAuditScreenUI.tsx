@@ -4,12 +4,26 @@
  *
  * WHAT THIS IS
  * ------------
- * The screen where the field worker captures the shelf photo. It shows the
- * camera preview (simulated here, since `expo-camera` is not installed yet),
- * the ghost overlay toggle, the grid guide toggle, and the capture button.
+ * The screen where the field worker captures the shelf photo: a live camera
+ * preview, the ghost overlay toggle, the grid guide toggle, and the shutter.
  *
  * After capture, the photo is either uploaded immediately (online) or queued
  * for later (offline). The screen then returns to the task list.
+ *
+ * THE PREVIEW IS A REAL CAMERA, AND THAT IS THE WHOLE POINT
+ * ---------------------------------------------------------
+ * Until 2026-09-20 this screen drew a dark rectangle with a camera glyph in it
+ * and a comment saying `expo-camera` "is not installed yet". It was installed —
+ * declared in `package.json`, listed as a plugin in `app.json`, and compiled
+ * into the app (`ios/Podfile.lock` lists ExpoCamera 57.0.5). The comment was
+ * simply wrong, and it was load-bearing: it is why a photo-audit product could
+ * be demonstrated without taking a photo.
+ *
+ * The capture now goes through `takePictureAsync({ base64: true })`, and the
+ * bytes go to `captureLiveAudit`, which is what makes `simulated` false. The
+ * controller already knew how to receive them; nothing below invents a photo,
+ * and a capture that returns no bytes is reported as a failure rather than
+ * quietly becoming a placeholder.
  *
  * WHY THIS IS A SEPARATE FILE
  * ---------------------------
@@ -18,7 +32,7 @@
  * from tests without pulling in `react-native`.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -26,8 +40,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Image,
   ScrollView,
+  Linking,
 } from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { CameraAuditController, type CapturedPhoto } from './CameraAuditScreen';
 import type { MobileTask, MobileStore, GPSCoordinates } from '../types';
 import type { ChecklistAnswer } from './TaskDetailScreen';
@@ -52,24 +69,63 @@ export function CameraAuditScreenUI({
   const [controller] = useState(() => new CameraAuditController(task, store));
   const [state, setState] = useState(controller.getState());
   const [captured, setCaptured] = useState<CapturedPhoto | null>(null);
+  // The file the platform wrote, kept separately from `captured.photoUri`. The
+  // controller builds a `camera://live/...` identifier to say "these are real
+  // bytes from the sensor", and that is not a path `Image` can open — so the
+  // review screen needs the uri the camera actually returned.
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<string | null>(null);
+
+  const cameraRef = useRef<CameraView | null>(null);
+  const [permission, requestPermission] = useCameraPermissions();
 
   const refreshState = useCallback(() => {
     setState(controller.getState());
   }, [controller]);
 
+  /**
+   * Takes the photo and hands the real bytes to the controller.
+   *
+   * A capture that comes back without base64 is treated as a failure and NOT
+   * retried as a placeholder. Filing a made-up image against a real task is the
+   * one outcome this whole screen exists to prevent, so the honest failure is
+   * the correct one: the worker sees "çəkiliş alınmadı" and takes it again.
+   */
   const handleCapture = useCallback(async () => {
+    const camera = cameraRef.current;
+    if (!camera) {
+      Alert.alert(
+        'Kamera hazır deyil',
+        'Kamera hələ açılmayıb. Bir neçə saniyə gözləyib yenidən cəhd edin.',
+      );
+      return;
+    }
+
     try {
+      const shot = await camera.takePictureAsync({ base64: true, quality: 0.7, exif: false });
+      if (!shot?.base64) {
+        throw new Error(
+          'Kamera şəkil baytlarını qaytarmadı — auditə saxta şəkil yazılmır. Yenidən çəkin.',
+        );
+      }
+
       const result = await controller.captureLiveAudit({
         source: 'camera',
         userGPS,
+        base64: shot.base64,
       });
+      setPreviewUri(shot.uri);
       setCaptured(result);
     } catch (e) {
       Alert.alert('Çəkiliş alınmadı', e instanceof Error ? e.message : String(e));
     }
   }, [controller, userGPS]);
+
+  const handleRetake = useCallback(() => {
+    setCaptured(null);
+    setPreviewUri(null);
+  }, []);
 
   const handleSubmit = useCallback(async () => {
     if (!captured) return;
@@ -104,20 +160,64 @@ export function CameraAuditScreenUI({
     refreshState();
   }, [controller, refreshState]);
 
-  // Simulated camera preview area
+  // Live camera preview, with the guides drawn over it.
   const renderPreview = () => (
     <View style={styles.previewContainer}>
       <View style={styles.preview}>
-        <Text style={styles.previewPlaceholder}>📷 Kamera önizləməsi</Text>
-        <Text style={styles.previewHint}>
-          {state.ghostOverlayActive ? '👻 Ghost overlay aktiv' : 'Ghost overlay söndürülüb'}
-        </Text>
+        {permission?.granted ? (
+          <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
+        ) : (
+          <View style={styles.permissionBlock}>
+            {permission === null ? (
+              <>
+                <ActivityIndicator color="#FFFFFF" />
+                <Text style={styles.previewHint}>Kamera icazəsi yoxlanılır…</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.permissionTitle}>Kamera icazəsi lazımdır</Text>
+                <Text style={styles.permissionBody}>
+                  Rəf auditini yalnız canlı çəkilişlə təsdiqləmək olar — qalereyadan şəkil seçmək
+                  qəbul edilmir. Buna görə kamera icazəsi olmadan audit göndərilə bilməz.
+                </Text>
+                <TouchableOpacity
+                  testID="camera.requestPermissionButton"
+                  accessibilityRole="button"
+                  style={styles.permissionButton}
+                  onPress={() => {
+                    void requestPermission();
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.permissionButtonText}>İcazə ver</Text>
+                </TouchableOpacity>
+                {permission?.canAskAgain === false ? (
+                  <TouchableOpacity
+                    style={styles.permissionLink}
+                    onPress={() => {
+                      void Linking.openSettings();
+                    }}
+                  >
+                    <Text style={styles.permissionLinkText}>Parametrləri aç</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </>
+            )}
+          </View>
+        )}
+
         {state.gridGuideActive ? (
-          <View style={styles.gridOverlay}>
+          <View style={styles.gridOverlay} pointerEvents="none">
             <View style={[styles.gridLine, { left: '33%' }]} />
             <View style={[styles.gridLine, { left: '66%' }]} />
             <View style={[styles.gridLineH, { top: '33%' }]} />
             <View style={[styles.gridLineH, { top: '66%' }]} />
+          </View>
+        ) : null}
+
+        {state.ghostOverlayActive ? (
+          <View style={styles.ghostBadge} pointerEvents="none">
+            <Text style={styles.ghostBadgeText}>👻 Ghost overlay aktiv</Text>
           </View>
         ) : null}
       </View>
@@ -136,14 +236,21 @@ export function CameraAuditScreenUI({
         </TouchableOpacity>
       </View>
 
-      {/* Capture button */}
+      {/* Shutter. Disabled without permission, because there is nothing to
+          capture from — an enabled shutter that can only fail is worse than a
+          shutter that says why it is off. */}
       <TouchableOpacity
         testID="camera.captureButton"
-        style={[styles.captureButton, state.isCapturing && styles.captureButtonDisabled]}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !permission?.granted || state.isCapturing }}
+        style={[
+          styles.captureButton,
+          (!permission?.granted || state.isCapturing) && styles.captureButtonDisabled,
+        ]}
         onPress={() => {
           void handleCapture();
         }}
-        disabled={state.isCapturing}
+        disabled={!permission?.granted || state.isCapturing}
       >
         {state.isCapturing ? (
           <ActivityIndicator color="#FFFFFF" />
@@ -159,10 +266,22 @@ export function CameraAuditScreenUI({
     <ScrollView contentContainerStyle={styles.reviewContent}>
       <Text style={styles.reviewTitle}>✅ Şəkil çəkildi</Text>
 
+      {/* The photo itself, so "review before sending" is actually possible.
+          Before this the worker was asked to confirm a capture they could not
+          see. */}
+      {previewUri ? (
+        <Image
+          testID="camera.capturedPreview"
+          source={{ uri: previewUri }}
+          style={styles.capturedImage}
+          resizeMode="contain"
+        />
+      ) : null}
+
       {captured?.simulated ? (
         <View style={styles.simulatedBanner}>
           <Text style={styles.simulatedText}>
-            ⚠️ Bu, simulyasiya edilmiş çəkilişdir — real kamera modulu quraşdırılmayıb.
+            ⚠️ Bu çəkilişdə kamera baytları yoxdur — audit saxta şəkillə göndərilməyəcək.
           </Text>
         </View>
       ) : null}
@@ -201,7 +320,7 @@ export function CameraAuditScreenUI({
         </View>
       ) : (
         <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.retakeButton} onPress={() => setCaptured(null)}>
+          <TouchableOpacity style={styles.retakeButton} onPress={handleRetake}>
             <Text style={styles.retakeButtonText}>🔄 Yenidən çək</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -283,13 +402,66 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     overflow: 'hidden',
   },
-  previewPlaceholder: {
-    fontSize: 48,
-  },
   previewHint: {
     marginTop: 12,
     fontSize: 14,
     color: '#AAAAAA',
+  },
+  permissionBlock: {
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  permissionTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  permissionBody: {
+    fontSize: 13,
+    color: '#AAAAAA',
+    lineHeight: 19,
+    textAlign: 'center',
+  },
+  permissionButton: {
+    marginTop: 18,
+    paddingVertical: 10,
+    paddingHorizontal: 22,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  permissionButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111111',
+  },
+  permissionLink: {
+    marginTop: 12,
+    padding: 6,
+  },
+  permissionLinkText: {
+    fontSize: 14,
+    color: '#7FB2E5',
+    textDecorationLine: 'underline',
+  },
+  ghostBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  ghostBadgeText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+  },
+  capturedImage: {
+    width: '100%',
+    height: 260,
+    borderRadius: 12,
+    backgroundColor: '#1A1A1A',
   },
   gridOverlay: {
     ...StyleSheet.absoluteFill,
