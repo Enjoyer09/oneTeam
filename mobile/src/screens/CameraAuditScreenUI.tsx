@@ -57,7 +57,12 @@ import {
   Linking,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { CameraAuditController, type CapturedPhoto } from './CameraAuditScreen';
+import * as Location from 'expo-location';
+import {
+  CameraAuditController,
+  resolveCapturePosition,
+  type CapturedPhoto,
+} from './CameraAuditScreen';
 import type { MobileTask, MobileStore, GPSCoordinates } from '../types';
 import type { ChecklistAnswer } from './TaskDetailScreen';
 
@@ -69,6 +74,13 @@ export interface CameraAuditScreenProps {
   onComplete: () => void;
   onCancel: () => void;
 }
+
+/**
+ * Zoom steps as a fraction of the device's maximum (the `expo-camera` `zoom`
+ * prop). Five steps is enough to frame a shelf without turning the control into
+ * a slider the worker has to fiddle with standing in an aisle.
+ */
+const ZOOM_STEPS = [0, 0.25, 0.5, 0.75, 1] as const;
 
 export function CameraAuditScreenUI({
   task,
@@ -91,6 +103,61 @@ export function CameraAuditScreenUI({
 
   const cameraRef = useRef<CameraView | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
+
+  // --- Camera hardware -------------------------------------------------------
+  // A shelf in a small general-trade outlet is photographed at arm's length in
+  // whatever light the shop has, which is often one bulb. Torch and zoom are not
+  // decorations here: without them the worker cannot frame the shelf or read it,
+  // and the photo is unusable however honest the rest of the pipeline is. Both
+  // are real `expo-camera` props on the module already compiled into this app.
+  const [torchOn, setTorchOn] = useState(false);
+
+  // `zoom` is a FRACTION OF THE DEVICE'S MAXIMUM, not a multiplier: 0 means not
+  // zoomed and 1 means maximum. Labelling it "0.25x" would therefore be a lie in
+  // the other direction — it looks like a 4x zoom-out. The steps are held as an
+  // index so the value stays one of a known set and the label can be honest.
+  const [zoomStep, setZoomStep] = useState(0);
+  const zoom = ZOOM_STEPS[zoomStep] ?? 0;
+
+  // Whether the stamped position came from the moment of capture or from
+  // sign-in. Shown to the worker, because the two are not the same claim.
+  const [positionIsFresh, setPositionIsFresh] = useState(false);
+
+  /**
+   * Asks the platform where the device is RIGHT NOW, bounded in time.
+   *
+   * The timeout is not a nicety. `getCurrentPositionAsync` has no timeout of its
+   * own, so on a device that cannot fix — indoors, no signal, location services
+   * off — this would hang the shutter indefinitely and the worker would stand
+   * there holding the phone. Racing it means the worst case is a known delay
+   * followed by an honest fallback.
+   */
+  const acquireFreshFix = useCallback(async (): Promise<GPSCoordinates | null> => {
+    try {
+      const granted = await Location.requestForegroundPermissionsAsync();
+      if (!granted.granted) return null;
+
+      const position = await Promise.race([
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        new Promise<null>((resolve) => {
+          setTimeout(() => resolve(null), 5000);
+        }),
+      ]);
+
+      if (position === null) return null;
+
+      return {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy:
+          typeof position.coords.accuracy === 'number' ? position.coords.accuracy : undefined,
+      };
+    } catch {
+      // A failure to fix is a state, not an error to surface: the caller falls
+      // back to the sign-in position and reports that it did.
+      return null;
+    }
+  }, []);
 
   const refreshState = useCallback(() => {
     setState(controller.getState());
@@ -122,11 +189,19 @@ export function CameraAuditScreenUI({
         );
       }
 
+      // WHERE THE PHOTO WAS TAKEN, not where the worker signed in. The fresh fix
+      // is requested at the moment of capture; if the platform cannot answer, the
+      // sign-in fix is used and the review screen says so. Both are real
+      // positions. Neither is a constant.
+      const freshFix = await acquireFreshFix();
+      const position = resolveCapturePosition(userGPS, freshFix);
+
       const result = await controller.captureLiveAudit({
         source: 'camera',
-        userGPS,
+        userGPS: position.gps,
         base64: shot.base64,
       });
+      setPositionIsFresh(position.isFresh);
       setPreviewUri(shot.uri);
       setCaptured(result);
     } catch (e) {
@@ -137,6 +212,9 @@ export function CameraAuditScreenUI({
   const handleRetake = useCallback(() => {
     setCaptured(null);
     setPreviewUri(null);
+    // The position claim belongs to the capture that was taken, not to the screen
+    // — a retake has no position yet.
+    setPositionIsFresh(false);
   }, []);
 
   const handleSubmit = useCallback(async () => {
@@ -177,7 +255,13 @@ export function CameraAuditScreenUI({
     <View style={styles.previewContainer}>
       <View style={styles.preview}>
         {permission?.granted ? (
-          <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
+          <CameraView
+            ref={cameraRef}
+            style={StyleSheet.absoluteFill}
+            facing="back"
+            enableTorch={torchOn}
+            zoom={zoom}
+          />
         ) : (
           <View style={styles.permissionBlock}>
             {permission === null ? (
@@ -274,6 +358,34 @@ export function CameraAuditScreenUI({
         </TouchableOpacity>
       </View>
 
+      {/* Hardware. Torch because a general-trade outlet is often lit by one
+          bulb, and zoom because a shelf has to fill the frame. Both are real
+          `expo-camera` props — no new dependency, no new permission. */}
+      <View style={styles.controlsRow}>
+        <TouchableOpacity
+          testID="camera.torchButton"
+          accessibilityRole="button"
+          style={[styles.controlButton, torchOn && styles.controlButtonActive]}
+          onPress={() => setTorchOn((on) => !on)}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.controlButtonText, torchOn && styles.controlButtonActiveText]}>
+            {torchOn ? '🔦 İşıq: Açıq' : '🔦 İşıq: Bağlı'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          testID="camera.zoomButton"
+          accessibilityRole="button"
+          style={styles.controlButton}
+          onPress={() => {
+            setZoomStep((step) => (step + 1) % ZOOM_STEPS.length);
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.controlButtonText}>🔍 Zoom: {Math.round(zoom * 100)}%</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Shutter. Disabled without permission, because there is nothing to
           capture from — an enabled shutter that can only fail is worse than a
           shutter that says why it is off. */}
@@ -320,6 +432,19 @@ export function CameraAuditScreenUI({
         <View style={styles.simulatedBanner}>
           <Text style={styles.simulatedText}>
             ⚠️ Bu çəkilişdə kamera baytları yoxdur — audit saxta şəkillə göndərilməyəcək.
+          </Text>
+        </View>
+      ) : null}
+
+      {/* The position is real either way, but a sign-in position is a WEAKER
+          claim than a capture position, and the worker is the one who can tell
+          whether that matters (did they walk to the aisle, or to another shop?).
+          It is stated rather than hidden, for the same reason `simulated` is. */}
+      {!positionIsFresh ? (
+        <View style={styles.stalePositionBanner}>
+          <Text style={styles.stalePositionText}>
+            ⚠️ Çəkiliş anında mövqe yenilənmədi — auditə girişdə təsdiqlənmiş mövqe yazılıb. Siqnal
+            zəifdirsə, mağazada bir az gözləyib yenidən çəkin.
           </Text>
         </View>
       ) : null}
@@ -534,6 +659,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#FFFFFF',
   },
+  // A lit torch is a state the worker must be able to see at a glance, or they
+  // will walk into a customer with the flashlight on.
+  controlButtonActive: {
+    backgroundColor: 'rgba(255,214,10,0.85)',
+  },
+  controlButtonActiveText: {
+    fontSize: 14,
+    color: '#1A1A1A',
+  },
   captureButton: {
     alignSelf: 'center',
     width: 72,
@@ -566,6 +700,18 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: 20,
+  },
+  stalePositionBanner: {
+    marginTop: 10,
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: 'rgba(255,193,7,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,193,7,0.6)',
+  },
+  stalePositionText: {
+    fontSize: 13,
+    color: '#FFC107',
   },
   simulatedBanner: {
     backgroundColor: 'rgba(255,193,7,0.15)',

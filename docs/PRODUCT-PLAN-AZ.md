@@ -1140,13 +1140,13 @@ Sıralama üç meyarla: **(a)** yalanı və ya riski bağlayır, **(b)** indi uc
 
 **Dalğa 0 — Sübutun dürüstlüyü. Model LAZIM DEYİL, hamısı indi edilə bilər.**
 
-| #   | Maddə                                            | Nə edir                                                                                   | Sübut                                               |
-| --- | ------------------------------------------------ | ----------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| 0.1 | Çəkiliş anında **təzə fix** + köhnəlmə yoxlaması | Möhür girişdəki yox, **çəkiliş anındaki** mövqe olur; köhnədirsə xəbərdarlıq              | Guard: köhnə fix → qırmızı; mutasiya ilə pozulur    |
-| 0.2 | **Şəkil keyfiyyəti** qapısı                      | Bulanıqlıq / qaranlıq / parıltı ölçülür; qəbul olunmazsa çəkiliş təkrarlanır              | Sinifdə məlum olan şəkillərlə (bulanıq/kəskin) test |
-| 0.3 | **Təkrarlanma** aşkarlanması                     | Eyni fotonun ikinci dəfə təqdim edilməsi tutulur (perceptual hash)                        | Eyni şəkil iki dəfə → ikincisi rədd                 |
-| 0.4 | **Çəkiliş tamlığı**                              | Tapşırıq hansı baxışları tələb edir (əsas rəf / ikinci vitrin / POSM) və hamısı çəkilibmi | Natamam dəst göndərilə bilmir                       |
-| 0.5 | **Vaxt serverdən**                               | Möhürün vaxtı serverdə qoyulur; telefon saatı dəyişdirilə bilməz                          | Telefon saatı irəli/geri → möhür dəyişmir           |
+| #   | Maddə                                            | Nə edir                                                                                   | Sübut                                                                                 |
+| --- | ------------------------------------------------ | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| 0.1 | Çəkiliş anında **təzə fix** + köhnəlmə yoxlaması | Möhür girişdəki yox, **çəkiliş anındaki** mövqe olur; köhnədirsə xəbərdarlıq              | **EDİLDİ** (21 sentyabr) — `resolveCapturePosition` + `A6`; **56 yoxlama + 24 pozma** |
+| 0.2 | **Şəkil keyfiyyəti** qapısı                      | Bulanıqlıq / qaranlıq / parıltı ölçülür; qəbul olunmazsa çəkiliş təkrarlanır              | Sinifdə məlum olan şəkillərlə (bulanıq/kəskin) test                                   |
+| 0.3 | **Təkrarlanma** aşkarlanması                     | Eyni fotonun ikinci dəfə təqdim edilməsi tutulur (perceptual hash)                        | Eyni şəkil iki dəfə → ikincisi rədd                                                   |
+| 0.4 | **Çəkiliş tamlığı**                              | Tapşırıq hansı baxışları tələb edir (əsas rəf / ikinci vitrin / POSM) və hamısı çəkilibmi | Natamam dəst göndərilə bilmir                                                         |
+| 0.5 | **Vaxt serverdən**                               | Möhürün vaxtı serverdə qoyulur; telefon saatı dəyişdirilə bilməz                          | Telefon saatı irəli/geri → möhür dəyişmir                                             |
 
 **Dalğa 1 — Barkod və kataloq. Model LAZIM DEYİL.**
 

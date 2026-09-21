@@ -219,3 +219,44 @@ export class CameraAuditController {
     return { status: 'uploaded', submission };
   }
 }
+
+// ===========================================================================
+// Where was the photo actually taken?
+// ===========================================================================
+//
+// The position stamped into the evidence used to be a constant, and the fix for
+// that made it the position verified at SIGN-IN. Sign-in was the right place to
+// start — it is the only position the geofence ever checked — but it is not the
+// same question as "where was this photo taken?". A worker can sign in at the
+// store and photograph a shelf somewhere else; the geofence would pass and the
+// evidence would still be wrong, because it records the moment of sign-in.
+//
+// So the capture asks for its own fix. What it does when the platform cannot
+// answer is the part that needs a decision, and the decision here is:
+//
+//   USE THE REAL SIGN-IN FIX, AND SAY THAT YOU DID.
+//
+// Not "use a constant", and not "refuse". Refusing would strand a worker in a
+// basement store with no signal; industry practice is explicit that capture
+// continues without a signal and the evidence is queued. The sign-in fix is a
+// real position the geofence already passed — it is weaker than a fresh fix, and
+// `isFresh: false` says so out loud rather than letting the two look identical.
+//
+// WHAT IS NOT DONE HERE: recording `isFresh` in `AuditMetadata`. That shape is
+// shared with the server, so it changes with the API, not on its own.
+
+export interface CapturePosition {
+  gps: GPSCoordinates;
+  /** True when the platform answered at the moment of capture. */
+  isFresh: boolean;
+}
+
+export function resolveCapturePosition(
+  signIn: GPSCoordinates,
+  fresh: GPSCoordinates | null,
+): CapturePosition {
+  if (fresh === null) {
+    return { gps: signIn, isFresh: false };
+  }
+  return { gps: fresh, isFresh: true };
+}

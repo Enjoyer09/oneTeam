@@ -64,6 +64,16 @@
       "why": "takes the shelf photo"
     },
     {
+      "id": "camera.torchButton",
+      "where": "mobile/src/screens/CameraAuditScreenUI.tsx",
+      "why": "lights the shelf — a general-trade outlet is often lit by one bulb"
+    },
+    {
+      "id": "camera.zoomButton",
+      "where": "mobile/src/screens/CameraAuditScreenUI.tsx",
+      "why": "frames the shelf; steps through fractions of the device's maximum zoom"
+    },
+    {
       "id": "camera.ghostOverlay",
       "where": "mobile/src/screens/CameraAuditScreenUI.tsx",
       "why": "the planogram reference drawn over the live preview — the thing ghost_overlay_used claims"

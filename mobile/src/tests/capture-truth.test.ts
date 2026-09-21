@@ -84,7 +84,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CameraAuditController } from '../screens/CameraAuditScreen';
+import { CameraAuditController, resolveCapturePosition } from '../screens/CameraAuditScreen';
 import { assertLiveCameraCapture } from '../components/SmartCameraOverlay';
 import type { MobileStore, MobileTask, GPSCoordinates } from '../types';
 
@@ -370,6 +370,24 @@ const ROOT_PASSES_THE_FIX_TO_THE_CAMERA = /userGPS=\{\s*screen\.userGPS\s*\}/;
 const TASKDETAIL_CARRIES_THE_FIX = /onOpenCamera\s*\(\s*\{[^}]*\buserGPS\b/;
 
 /**
+ * `enableTorch={torchOn}` — a shelf in a general-trade outlet is often lit by a
+ * single bulb. Without this the photo is unusable however honest the pipeline is.
+ */
+const CAMERA_OFFERS_A_TORCH = /enableTorch=\{/;
+
+/** `zoom={zoom}` — the shelf has to fill the frame. */
+const CAMERA_OFFERS_ZOOM = /zoom=\{zoom\}/;
+
+/** The capture asks the platform where it is, at the moment of capture. */
+const CAPTURE_ASKS_FOR_ITS_OWN_FIX = /\bgetCurrentPositionAsync\b/;
+
+/** `resolveCapturePosition(...)` — the two positions are resolved, not conflated. */
+const CAPTURE_RESOLVES_THE_POSITION = /resolveCapturePosition\s*\(/;
+
+/** `userGPS: position.gps` — the resolved position reaches the controller. */
+const CAPTURE_STAMPS_THE_RESOLVED_POSITION = /userGPS:\s*position\.gps/;
+
+/**
  * `userGPS?:` — an optional escape hatch, which would defeat all of the above.
  *
  * Every rule in this group is about a value that must not be droppable. If it
@@ -403,6 +421,31 @@ const WIRING_RULES: WiringRule[] = [
     id: 'camera-refuses-a-byte-less-capture',
     what: 'a capture with no bytes must be a failure, not a silent placeholder',
     holds: (c) => REFUSES_BYTE_LESS_CAPTURE.test(c.cameraScreen),
+  },
+  {
+    id: 'camera-offers-a-torch',
+    what: 'the camera must be able to light the shelf, or a dim outlet produces unusable evidence',
+    holds: (c) => CAMERA_OFFERS_A_TORCH.test(c.cameraScreen),
+  },
+  {
+    id: 'camera-offers-zoom',
+    what: 'the camera must be able to frame the shelf',
+    holds: (c) => CAMERA_OFFERS_ZOOM.test(c.cameraScreen),
+  },
+  {
+    id: 'capture-asks-for-its-own-fix',
+    what: 'the capture must ask where it is, rather than reusing the sign-in position in silence',
+    holds: (c) => CAPTURE_ASKS_FOR_ITS_OWN_FIX.test(c.cameraScreen),
+  },
+  {
+    id: 'capture-resolves-the-position',
+    what: 'a fresh fix and a sign-in fix must be resolved against each other, not conflated',
+    holds: (c) => CAPTURE_RESOLVES_THE_POSITION.test(c.cameraScreen),
+  },
+  {
+    id: 'capture-stamps-the-resolved-position',
+    what: 'the resolved position must reach captureLiveAudit — resolving it and then ignoring it is the same defect',
+    holds: (c) => CAPTURE_STAMPS_THE_RESOLVED_POSITION.test(c.cameraScreen),
   },
   {
     id: 'camera-renders-the-ghost-overlay',
@@ -581,6 +624,34 @@ const MUTATIONS: Mutation[] = [
     how: 'the byte-less capture is allowed through as a placeholder',
     apply: (s) =>
       replaceIn(s, 'cameraScreen', REFUSES_BYTE_LESS_CAPTURE, 'if (false && !shot?.base64)'),
+  },
+  {
+    rule: 'camera-offers-a-torch',
+    how: 'the torch is unplugged from the camera',
+    apply: (s) => replaceIn(s, 'cameraScreen', /\n\s*enableTorch=\{torchOn\}/, ''),
+  },
+  {
+    rule: 'camera-offers-zoom',
+    how: 'the zoom is pinned to zero, so the shelf cannot be framed',
+    apply: (s) => replaceIn(s, 'cameraScreen', /zoom=\{zoom\}/, 'zoom={0}'),
+  },
+  {
+    rule: 'capture-asks-for-its-own-fix',
+    how: 'the capture stops asking where it is',
+    apply: (s) => replaceIn(s, 'cameraScreen', /\bgetCurrentPositionAsync\b/g, 'getNothing'),
+  },
+  {
+    rule: 'capture-resolves-the-position',
+    how: 'the fresh fix is taken and then thrown away',
+    apply: (s) =>
+      replaceIn(s, 'cameraScreen', /resolveCapturePosition\s*\(/g, 'discardThePosition('),
+  },
+  {
+    // The shape of the thing this whole group guards: resolve it, then ignore
+    // the answer and stamp the sign-in position anyway.
+    rule: 'capture-stamps-the-resolved-position',
+    how: 'the resolved position is ignored and the sign-in position is stamped',
+    apply: (s) => replaceIn(s, 'cameraScreen', /userGPS:\s*position\.gps/, 'userGPS'),
   },
   {
     // The third fake, reintroduced. The badge survives, so the screen still
@@ -988,6 +1059,44 @@ async function main() {
     );
   }
 
+  section('A6. Where the photo was taken, not where the worker signed in');
+
+  {
+    // The sign-in fix is a real position the geofence passed. It is not the same
+    // claim as "the device was here when the shutter opened" — a worker can sign
+    // in at the store and photograph a shelf somewhere else. So the capture asks
+    // for its own fix, and the two must be distinguishable.
+    const fresh: GPSCoordinates = { latitude: 40.3859, longitude: 49.8111, accuracy: 4 };
+
+    const withFreshFix = resolveCapturePosition(INSIDE_GPS, fresh);
+    check(
+      'a fresh fix wins over the sign-in position',
+      withFreshFix.gps === fresh && withFreshFix.isFresh === true,
+      { gps: withFreshFix.gps, isFresh: withFreshFix.isFresh },
+    );
+    check(
+      'and the sign-in position is NOT what gets stamped when a fresh one exists',
+      withFreshFix.gps.latitude !== INSIDE_GPS.latitude,
+      { stamped: withFreshFix.gps.latitude, signIn: INSIDE_GPS.latitude },
+    );
+
+    const withoutFreshFix = resolveCapturePosition(INSIDE_GPS, null);
+    check(
+      'when the platform cannot fix, the sign-in position is used — a real position, not a constant',
+      withoutFreshFix.gps === INSIDE_GPS,
+      withoutFreshFix.gps,
+    );
+    check(
+      'and that is reported as not fresh, so the weaker claim is not dressed up as the stronger one',
+      withoutFreshFix.isFresh === false,
+      withoutFreshFix.isFresh,
+    );
+    check(
+      'the two outcomes differ in both the position AND the flag, so neither can be passed off as the other',
+      withFreshFix.isFresh !== withoutFreshFix.isFresh && withFreshFix.gps !== withoutFreshFix.gps,
+    );
+  }
+
   // ===========================================================================
   // PART B — the wiring.
   // ===========================================================================
@@ -1048,6 +1157,23 @@ async function main() {
     check(
       'the capture is no longer marked simulated in the UI path',
       !/simulated:\s*true/.test(clean.cameraScreen),
+    );
+    check(
+      'the camera can light the shelf — a dim outlet is a field condition, not an edge case',
+      CAMERA_OFFERS_A_TORCH.test(clean.cameraScreen),
+    );
+    check('and frame it', CAMERA_OFFERS_ZOOM.test(clean.cameraScreen));
+    check(
+      'the capture asks where it is, instead of reusing the sign-in position in silence',
+      CAPTURE_ASKS_FOR_ITS_OWN_FIX.test(clean.cameraScreen),
+    );
+    check(
+      'the fresh fix and the sign-in fix are resolved against each other',
+      CAPTURE_RESOLVES_THE_POSITION.test(clean.cameraScreen),
+    );
+    check(
+      'and the RESOLVED position is what reaches the controller',
+      CAPTURE_STAMPS_THE_RESOLVED_POSITION.test(clean.cameraScreen),
     );
   }
 
