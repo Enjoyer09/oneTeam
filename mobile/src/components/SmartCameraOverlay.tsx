@@ -32,8 +32,33 @@ export function stampAuditMetadata(params: {
   deviceModel?: string;
   osVersion?: string;
   appVersion?: string;
+  /**
+   * Barcodes read off the shelf. De-duplicated here rather than at the call
+   * site so that no caller can record the same code twice and make a shelf look
+   * fuller than it is. Empty means "the worker scanned and found nothing";
+   * absent means "no scanning happened" — the stamper preserves the difference.
+   */
+  scannedBarcodes?: readonly string[];
 }): AuditMetadata {
   const distance = calculateDistanceMeters(params.userGPS, params.storeGPS);
+
+  // SCANNED BARCODES — ABSENT WHEN NOTHING WAS SCANNED, NOT EMPTY.
+  //
+  // The type marks the field as optional (`scanned_barcodes?: string[]`) and the
+  // metadata carries it ONLY when the worker actually used the scanner. Empty
+  // would mean "the worker scanned and found nothing", which is a real and
+  // useful claim — but today the only source of that signal is the scanner
+  // itself, which fires when something IS decoded, so "scanned and found nothing"
+  // is operationally indistinguishable from "did not scan". Collapsing them into
+  // `[]` would let a later reader claim the shelf was checked when it was not.
+  //
+  // The list is de-duplicated here, so no caller can record the same code twice
+  // and make a shelf look fuller than it is. Order is kept so the list describes
+  // the sequence the worker walked the shelf in.
+  const scannedBarcodes =
+    params.scannedBarcodes !== undefined && params.scannedBarcodes.length > 0
+      ? Array.from(new Set(params.scannedBarcodes))
+      : undefined;
 
   return {
     gps: {
@@ -48,6 +73,7 @@ export function stampAuditMetadata(params: {
     capture_mode: 'live_camera_only', // Gallery picks are strictly prohibited
     ghost_overlay_used: params.ghostOverlayUsed,
     app_version: params.appVersion || UNKNOWN_DEVICE_FIELD,
+    ...(scannedBarcodes !== undefined ? { scanned_barcodes: scannedBarcodes } : {}),
   };
 }
 

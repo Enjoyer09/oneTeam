@@ -88,6 +88,18 @@ export interface AuditMetadata {
   capture_mode: 'live_camera_only'; // anti-fraud indicator
   ghost_overlay_used: boolean;
   app_version: string;
+  /**
+   * Barcodes read off the shelf while this audit was being captured.
+   *
+   * Absent when nothing was scanned, rather than empty: "no barcodes were
+   * scanned" and "the scanner was never used" are the same thing today, and
+   * collapsing them into `[]` would let a later reader claim the shelf was
+   * checked when it was not.
+   *
+   * Duplicates are removed but ORDER IS KEPT, so the list reads as the sequence
+   * the worker walked the shelf in.
+   */
+  scanned_barcodes?: string[];
 }
 
 export interface QueueItem {

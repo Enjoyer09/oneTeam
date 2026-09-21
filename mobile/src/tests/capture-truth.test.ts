@@ -85,7 +85,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CameraAuditController, resolveCapturePosition } from '../screens/CameraAuditScreen';
-import { assertLiveCameraCapture } from '../components/SmartCameraOverlay';
+import { assertLiveCameraCapture, stampAuditMetadata } from '../components/SmartCameraOverlay';
 import type { MobileStore, MobileTask, GPSCoordinates } from '../types';
 
 const colors = {
@@ -147,6 +147,13 @@ const TASK_DETAIL_SCREEN_PATH = join(SCREEN_DIR, 'TaskDetailScreen.tsx');
 const ROOT_PATH = join(REPO_ROOT, 'mobile', 'Root.tsx');
 const PACKAGE_JSON_PATH = join(REPO_ROOT, 'mobile', 'package.json');
 const APP_JSON_PATH = join(REPO_ROOT, 'mobile', 'app.json');
+const SMART_CAMERA_OVERLAY_PATH = join(
+  REPO_ROOT,
+  'mobile',
+  'src',
+  'components',
+  'SmartCameraOverlay.tsx',
+);
 
 // ---------------------------------------------------------------------------
 // Part A fixtures.
@@ -237,6 +244,7 @@ export interface WiringSources {
   rootScreen: string;
   packageJson: string;
   appJson: string;
+  smartCameraOverlay: string;
 }
 
 /**
@@ -388,6 +396,40 @@ const CAPTURE_RESOLVES_THE_POSITION = /resolveCapturePosition\s*\(/;
 const CAPTURE_STAMPS_THE_RESOLVED_POSITION = /userGPS:\s*position\.gps/;
 
 /**
+ * `barcodeScannerSettings={{ ... }}` — the camera screen must turn the
+ * scanner ON, not just import the type. A camera without a scanner produces
+ * the same audit trail as one where the scanner silently never fires.
+ */
+const BARCODE_SCANNER_ENABLED = /barcodeScannerSettings=\{/;
+
+/** `onBarcodeScanned={handleBarcodeScanned}` — the handler is bound to the camera. */
+const BARCODE_HANDLER_BOUND = /onBarcodeScanned=\{handleBarcodeScanned\}/;
+
+/**
+ * `previous.includes(code)` — the handler must de-duplicate. The same shelf
+ * product in frame fires the handler many times, and counting each fire would
+ * inflate the audit.
+ */
+const BARCODE_HANDLER_DEDUPS = /previous\.includes\(code\)/;
+
+/**
+ * `captureLiveAudit({ ..., scannedBarcodes })` — the list must reach the
+ * controller. Reading barcodes and then dropping them is the same defect as
+ * reading a fix and then dropping it.
+ *
+ * Accepts both the explicit `scannedBarcodes: state` form and the shorthand
+ * `scannedBarcodes` (which the live UI uses because the value is taken from
+ * useState).
+ */
+const SCANNED_BARCODES_FORWARDED = /captureLiveAudit\s*\(\s*\{[^}]*\bscannedBarcodes\s*[:,]/;
+
+/**
+ * `scanned_barcodes: scannedBarcodes` — the stamper must record the list, not
+ * just type the field. A type with no emitter produces no metadata.
+ */
+const STAMP_RECORDS_SCANNED_BARCODES = /scanned_barcodes\s*:\s*scannedBarcodes/;
+
+/**
  * `userGPS?:` — an optional escape hatch, which would defeat all of the above.
  *
  * Every rule in this group is about a value that must not be droppable. If it
@@ -530,6 +572,40 @@ const WIRING_RULES: WiringRule[] = [
       );
     },
   },
+  {
+    // The barcode scanner is the cheapest big win on the shelf: it lets the
+    // audit count SKUs without an AI model, and the rest of the pipeline can
+    // already carry whatever it produces. But it has to be TURNED ON — `expo-
+    // camera`'s default is off, and a silent scanner is the same defect as a
+    // silent camera.
+    id: 'barcode-scanner-is-enabled',
+    what: 'the live preview must enable barcodeScannerSettings, not rely on the default',
+    holds: (c) => BARCODE_SCANNER_ENABLED.test(c.cameraScreen),
+  },
+  {
+    id: 'barcode-handler-is-bound',
+    what: 'the scanner must be wired to a handler, or the decoded codes never reach React',
+    holds: (c) => BARCODE_HANDLER_BOUND.test(c.cameraScreen),
+  },
+  {
+    // The handler fires on every frame the same code is in view, so without
+    // de-duplication a single product inflates the count.
+    id: 'barcode-handler-dedups',
+    what: 'the scanner handler must de-duplicate, or a single product is counted many times',
+    holds: (c) => BARCODE_HANDLER_DEDUPS.test(c.cameraScreen),
+  },
+  {
+    id: 'scanned-barcodes-are-forwarded',
+    what: 'the list of scanned codes must reach captureLiveAudit, or it never reaches the metadata',
+    holds: (c) => SCANNED_BARCODES_FORWARDED.test(c.cameraScreen),
+  },
+  {
+    // The stamper is the one place that decides what to do with the list. If it
+    // does not emit it, the UI may scan correctly and the audit is empty.
+    id: 'stamp-records-scanned-barcodes',
+    what: 'stampAuditMetadata must emit scanned_barcodes when a non-empty list is provided',
+    holds: (c) => STAMP_RECORDS_SCANNED_BARCODES.test(c.smartCameraOverlay),
+  },
 ];
 
 /** Every rule that does NOT hold, as `id: what` lines. */
@@ -541,6 +617,7 @@ export function findWiringProblems(sources: WiringSources): string[] {
     rootScreen: stripComments(sources.rootScreen),
     packageJson: stripComments(sources.packageJson),
     appJson: stripComments(sources.appJson),
+    smartCameraOverlay: stripComments(sources.smartCameraOverlay),
   };
   return WIRING_RULES.filter((rule) => !rule.holds(clean)).map(
     (rule) => `${rule.id}: ${rule.what}`,
@@ -555,6 +632,7 @@ function readTree(): WiringSources {
     rootScreen: readFileSync(ROOT_PATH, 'utf8'),
     packageJson: readFileSync(PACKAGE_JSON_PATH, 'utf8'),
     appJson: readFileSync(APP_JSON_PATH, 'utf8'),
+    smartCameraOverlay: readFileSync(SMART_CAMERA_OVERLAY_PATH, 'utf8'),
   };
 }
 
@@ -760,6 +838,42 @@ const MUTATIONS: Mutation[] = [
       return { ...s, appJson: JSON.stringify(parsed) };
     },
   },
+  {
+    // The barcode scanner was never wired — silently using the default, which is
+    // off — and the audit trail said nothing about the shelf.
+    rule: 'barcode-scanner-is-enabled',
+    how: 'the scanner is left at its default (off), so no shelf code is ever recorded',
+    apply: (s) => replaceIn(s, 'cameraScreen', /\s*barcodeScannerSettings=\{[\s\S]*?\}\s*,?\n/, ''),
+  },
+  {
+    rule: 'barcode-handler-is-bound',
+    how: 'onBarcodeScanned is removed, so decoded codes never reach React',
+    apply: (s) =>
+      replaceIn(s, 'cameraScreen', /\n\s*onBarcodeScanned=\{handleBarcodeScanned\},?\n/, ''),
+  },
+  {
+    // Same defect as `camera-passes-the-bytes-on` was for image bytes: the data
+    // arrives at the screen and is dropped before it can be recorded.
+    rule: 'barcode-handler-dedups',
+    how: 'the handler accepts the same code every frame, so a single product is counted many times',
+    apply: (s) => replaceIn(s, 'cameraScreen', /previous\.includes\(code\)/, 'false'),
+  },
+  {
+    rule: 'scanned-barcodes-are-forwarded',
+    how: 'the list is dropped before reaching captureLiveAudit, so the audit is empty',
+    apply: (s) => replaceIn(s, 'cameraScreen', /\n\s*scannedBarcodes,?/, ''),
+  },
+  {
+    rule: 'stamp-records-scanned-barcodes',
+    how: 'the stamper forgets to emit scanned_barcodes, so the audit never carries the list',
+    apply: (s) =>
+      replaceIn(
+        s,
+        'smartCameraOverlay',
+        /\.\.\.\(scannedBarcodes !== undefined \? \{ scanned_barcodes: scannedBarcodes \} : \{\}\),?/,
+        '',
+      ),
+  },
 ];
 
 function selfTest(realSources: WiringSources): string[] {
@@ -794,6 +908,7 @@ function selfTest(realSources: WiringSources): string[] {
     rootScreen: stripComments(realSources.rootScreen),
     packageJson: stripComments(realSources.packageJson),
     appJson: stripComments(realSources.appJson),
+    smartCameraOverlay: stripComments(realSources.smartCameraOverlay),
   };
 
   for (const mutation of MUTATIONS) {
@@ -1097,6 +1212,64 @@ async function main() {
     );
   }
 
+  section('A7. The stamper records scanned barcodes only when the scanner actually saw them');
+
+  {
+    // The barcode path is the cheapest big win on the shelf: it counts SKUs
+    // without an AI model. What it does NOT do is invent codes — a barcode that
+    // was not scanned must not appear in the audit, and a barcode that was
+    // scanned many times because it sat in frame must appear once.
+    const withList = stampAuditMetadata({
+      userGPS: INSIDE_GPS,
+      storeGPS: { latitude: STORE_LAT, longitude: STORE_LON },
+      ghostOverlayUsed: false,
+      scannedBarcodes: ['5449000000996', '5449000000996', '4014400900040'],
+    });
+    check(
+      'a non-empty list is recorded with duplicates removed and order kept — the walk the worker took',
+      JSON.stringify(withList.scanned_barcodes) ===
+        JSON.stringify(['5449000000996', '4014400900040']),
+      withList.scanned_barcodes,
+    );
+
+    const emptyList = stampAuditMetadata({
+      userGPS: INSIDE_GPS,
+      storeGPS: { latitude: STORE_LAT, longitude: STORE_LON },
+      ghostOverlayUsed: false,
+      scannedBarcodes: [],
+    });
+    check(
+      'an empty list is recorded as absent — "scanned nothing" must not look like "did not scan"',
+      emptyList.scanned_barcodes === undefined,
+      emptyList.scanned_barcodes,
+    );
+
+    const missingList = stampAuditMetadata({
+      userGPS: INSIDE_GPS,
+      storeGPS: { latitude: STORE_LAT, longitude: STORE_LON },
+      ghostOverlayUsed: false,
+    });
+    check(
+      'and a missing list is also absent — the absent case is one state, not two',
+      missingList.scanned_barcodes === undefined,
+      missingList.scanned_barcodes,
+    );
+
+    // Sanity: the rest of the stamp is unchanged, so a caller cannot trade one
+    // field for another by passing barcodes.
+    check(
+      'the other fields are still stamped correctly when barcodes are forwarded',
+      withList.gps.latitude === USER_LAT &&
+        withList.capture_mode === 'live_camera_only' &&
+        withList.ghost_overlay_used === false,
+      {
+        gps: withList.gps.latitude,
+        mode: withList.capture_mode,
+        ghost: withList.ghost_overlay_used,
+      },
+    );
+  }
+
   // ===========================================================================
   // PART B — the wiring.
   // ===========================================================================
@@ -1108,6 +1281,7 @@ async function main() {
     loginScreen: stripComments(sources.loginScreen),
     taskDetailScreen: stripComments(sources.taskDetailScreen),
     rootScreen: stripComments(sources.rootScreen),
+    smartCameraOverlay: stripComments(sources.smartCameraOverlay),
   };
 
   {
@@ -1278,6 +1452,34 @@ async function main() {
       'and iOS carries both usage descriptions, without which the prompt cannot appear',
       typeof parsedApp.expo?.ios?.infoPlist?.NSCameraUsageDescription === 'string' &&
         typeof parsedApp.expo?.ios?.infoPlist?.NSLocationWhenInUseUsageDescription === 'string',
+    );
+  }
+
+  section('B5. The barcode scanner is really wired, end to end');
+
+  {
+    // The same lesson as the camera bug, one feature down: a scanner that the
+    // UI claims to be reading from is a scanner that produces no audit. Every
+    // step has to hold, and the chain has to be unbroken at both.
+    check(
+      'the live preview turns the scanner on — the default is off',
+      BARCODE_SCANNER_ENABLED.test(clean.cameraScreen),
+    );
+    check(
+      'and binds the handler that records the decoded codes',
+      BARCODE_HANDLER_BOUND.test(clean.cameraScreen),
+    );
+    check(
+      'the handler de-duplicates, so a single product in frame is not counted many times',
+      BARCODE_HANDLER_DEDUPS.test(clean.cameraScreen),
+    );
+    check(
+      'and the list is forwarded to captureLiveAudit, not dropped on the screen boundary',
+      SCANNED_BARCODES_FORWARDED.test(clean.cameraScreen),
+    );
+    check(
+      'the stamper is the one place that emits scanned_barcodes, so two callers cannot disagree',
+      STAMP_RECORDS_SCANNED_BARCODES.test(clean.smartCameraOverlay),
     );
   }
 

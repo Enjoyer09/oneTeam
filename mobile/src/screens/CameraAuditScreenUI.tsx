@@ -56,7 +56,7 @@ import {
   ScrollView,
   Linking,
 } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import * as Location from 'expo-location';
 import {
   CameraAuditController,
@@ -123,6 +123,18 @@ export function CameraAuditScreenUI({
   // sign-in. Shown to the worker, because the two are not the same claim.
   const [positionIsFresh, setPositionIsFresh] = useState(false);
 
+  // The list of barcodes decoded by `expo-camera` while the preview was live.
+  // Held in component state because the controller is plain and the scanner
+  // fires continuously — the worker's reading of the shelf is an accumulating
+  // signal, not a single one-shot value at the shutter.
+  //
+  // The list is de-duplicated in `handleBarcodeScanned` (so the same shelf
+  // product is never counted twice) and forwarded to `captureLiveAudit` at the
+  // moment of capture. `stampAuditMetadata` is the one place that decides what
+  // to do with an empty list, so two callers cannot disagree on what "scanned"
+  // means.
+  const [scannedBarcodes, setScannedBarcodes] = useState<string[]>([]);
+
   /**
    * Asks the platform where the device is RIGHT NOW, bounded in time.
    *
@@ -164,6 +176,25 @@ export function CameraAuditScreenUI({
   }, [controller]);
 
   /**
+   * Records a barcode decoded by `expo-camera` while the preview was live.
+   *
+   * `expo-camera` fires `onBarcodeScanned` once per decode, including repeated
+   * decodes of the same code as long as it stays in frame. The same shelf
+   * product would therefore be counted many times in a single frame if the
+   * worker held the phone still, which would inflate the audit. De-duplication
+   * happens HERE, so the rule travels with the data and not with the caller.
+   *
+   * The set comparison keeps order: a new code is appended; a known code is
+   * ignored. Order is the only signal the audit has for which side of the
+   * shelf the worker scanned first.
+   */
+  const handleBarcodeScanned = useCallback((result: BarcodeScanningResult) => {
+    const code = result?.data;
+    if (typeof code !== 'string' || code.length === 0) return;
+    setScannedBarcodes((previous) => (previous.includes(code) ? previous : [...previous, code]));
+  }, []);
+
+  /**
    * Takes the photo and hands the real bytes to the controller.
    *
    * A capture that comes back without base64 is treated as a failure and NOT
@@ -200,6 +231,7 @@ export function CameraAuditScreenUI({
         source: 'camera',
         userGPS: position.gps,
         base64: shot.base64,
+        scannedBarcodes,
       });
       setPositionIsFresh(position.isFresh);
       setPreviewUri(shot.uri);
@@ -207,14 +239,16 @@ export function CameraAuditScreenUI({
     } catch (e) {
       Alert.alert('Çəkiliş alınmadı', e instanceof Error ? e.message : String(e));
     }
-  }, [controller, userGPS]);
+  }, [controller, userGPS, scannedBarcodes]);
 
   const handleRetake = useCallback(() => {
     setCaptured(null);
     setPreviewUri(null);
     // The position claim belongs to the capture that was taken, not to the screen
-    // — a retake has no position yet.
+    // — a retake has no position yet. Same for the scanned list: a fresh attempt
+    // starts with an empty shelf.
     setPositionIsFresh(false);
+    setScannedBarcodes([]);
   }, []);
 
   const handleSubmit = useCallback(async () => {
@@ -261,6 +295,16 @@ export function CameraAuditScreenUI({
             facing="back"
             enableTorch={torchOn}
             zoom={zoom}
+            onBarcodeScanned={handleBarcodeScanned}
+            barcodeScannerSettings={{
+              // The set is the retail-relevant subset of `BarcodeType`. QR is
+              // kept because some chains print a single QR for a multi-pack;
+              // PDF417 and Aztec are omitted because Coca-Cola FMCG shelves do
+              // not use them and the scanner would just keep firing on stray
+              // packaging graphics. Restricting the list also reduces duplicate
+              // fires on visually busy shelves.
+              barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39', 'qr'],
+            }}
           />
         ) : (
           <View style={styles.permissionBlock}>
@@ -384,6 +428,18 @@ export function CameraAuditScreenUI({
         >
           <Text style={styles.controlButtonText}>🔍 Zoom: {Math.round(zoom * 100)}%</Text>
         </TouchableOpacity>
+      </View>
+
+      {/* Barcode tally. Read off the live preview as `expo-camera` decodes
+          each shelf product; counted here so the worker can see what has been
+          captured before pressing the shutter. The field is `testID`ed so the
+          XCUI test can assert the list grew when a known product was framed. */}
+      <View style={styles.barcodeBadge} pointerEvents="none">
+        <Text style={styles.barcodeBadgeText} testID="camera.barcodeBadge">
+          {scannedBarcodes.length === 0
+            ? '📊 Barkod skan edilməyib'
+            : `📊 ${scannedBarcodes.length} barkod skan edildi`}
+        </Text>
       </View>
 
       {/* Shutter. Disabled without permission, because there is nothing to
@@ -667,6 +723,19 @@ const styles = StyleSheet.create({
   controlButtonActiveText: {
     fontSize: 14,
     color: '#1A1A1A',
+  },
+  barcodeBadge: {
+    alignSelf: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  barcodeBadgeText: {
+    fontSize: 13,
+    color: '#FFFFFF',
+    fontWeight: '500',
   },
   captureButton: {
     alignSelf: 'center',

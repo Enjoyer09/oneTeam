@@ -79,6 +79,11 @@
       "why": "the planogram reference drawn over the live preview — the thing ghost_overlay_used claims"
     },
     {
+      "id": "camera.barcodeBadge",
+      "where": "mobile/src/screens/CameraAuditScreenUI.tsx",
+      "why": "the running tally of barcodes decoded by expo-camera while the preview is live; lets the worker see the shelf is being read before the shutter"
+    },
+    {
       "id": "camera.capturedPreview",
       "where": "mobile/src/screens/CameraAuditScreenUI.tsx",
       "why": "the photo the worker reviews before sending it"

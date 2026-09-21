@@ -93,6 +93,12 @@ export class CameraAuditController {
     userGPS: GPSCoordinates;
     /** Real capture bytes, when the platform camera provided them. */
     base64?: string;
+    /**
+     * Barcodes read off the shelf during this capture. De-duplicated by the
+     * stamper, in the order they were read. The list may be absent when the
+     * worker did not scan anything; the stamper preserves that distinction.
+     */
+    scannedBarcodes?: readonly string[];
   }): Promise<CapturedPhoto> {
     // 1. Anti-fraud assertion: must be live camera
     assertLiveCameraCapture(params.source);
@@ -131,6 +137,10 @@ export class CameraAuditController {
       // from the real thing, which is what makes it worth fixing rather than
       // documenting: the field is only useful if `true` means something.
       ghostOverlayUsed: this.state.ghostOverlayActive && this.task.reference_image_url !== null,
+      // The barcode list is forwarded as the worker built it; the stamper is
+      // the one place that decides whether to keep it and how to de-duplicate
+      // it, so two call sites cannot disagree on what "scanned" means.
+      scannedBarcodes: params.scannedBarcodes,
     });
 
     const photoUri =
