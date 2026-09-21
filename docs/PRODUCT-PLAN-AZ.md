@@ -630,9 +630,13 @@ Sonra `node scripts/dev/verify-mobile-config.mjs` ilə konfiqurasiya yenidən yo
 **Nəticə əvvəlcə:** açarın (kredensialın) saxlanması qatı yazıldı və **37 yoxlama** ilə sübut olundu;
 hər qayda **detektoru pozmaqla** yoxlanıldı — 13 pozma, 13-ü də **öz** yoxlamasını qırmızı etdi
 (`npm run test:break:credentials`; harness **repodadır**). Amma
-qəbul meyarının **kamera yarısı icra olunmadı** (`expo-camera` hələ quraşdırılmayıb, çəkiliş hələ də
-`simulated`-dur və bunu açıq deyir) və **əsl iOS açar saxlayıcısı bu mühitdə yoxlanıla bilməz**. Ona
-görə 3.2 ✅ deyil, 🔶-dir.
+qəbul meyarının ~~**kamera yarısı icra olunmadı** (`expo-camera` hələ quraşdırılmayıb, çəkiliş hələ də
+`simulated`-dur və bunu açıq deyir)~~ — **kamera yarısı 20 sentyabr 2026-da icra olundu**: məlum oldu ki
+`expo-camera` (57.0.5) və `expo-location` (57.0.18) **artıq tətbiqə yığılmışdı** (`ios/Podfile.lock`),
+yəni yenidən qurmaq lazım deyildi, yalnız kod. İndi ekran real `CameraView` render edir, baytları
+`captureLiveAudit`-ə ötürür və baytsız çəkiliş **rədd olunur**. Qalan tək maneə: **əsl iOS açar
+saxlayıcısı bu mühitdə yoxlanıla bilməz**. Ona görə 3.2 hələ də ✅ deyil, 🔶-dir — amma səbəb artıq
+kamerasız deyil, **yalnız cihazdaki açar saxlayıcısıdır** (§9.1-dəki dörd saxta məhz bu boşluqda yaşayırdı).
 
 **Ən böyük tapıntı: hər quraşdırma EYNİ cihaz idi.**
 
@@ -1084,7 +1088,129 @@ Onda `required` yenidən `false` olur və panel URL-i bilən hər kəsə **açı
 
 ---
 
-_Plan versiyası: 0.10 — 15 sentyabr 2026 — TƏSDİQLƏNİB, icra davam edir._
+## 9. Dünya praktikası ilə müqayisə və məhsul yol xəritəsi
+
+> **Mənbələr (2026):** Clobotics — retail execution platform müqayisəsi və "evidence integrity" bölməsi;
+> FieldAssist — FMCG rəf auditinin 2026 standartı. **Buradaki bütün rəqəmlər vendor iddialarıdır**,
+> müstəqil ölçmə deyil. Ona görə onları **hədəf** kimi götürürük, **sübut** kimi yox.
+
+### 9.1 Sənayenin iki struktur dərsi
+
+**Dərs 1 — Sübut bütövlüyü, tanımadan ƏVVƏL yoxlanılır.** Clobotics-in öz cümləsi:
+
+> _"A model can identify every visible product correctly and still produce the wrong business
+> conclusion. If an image is old, duplicated, taken from the wrong outlet, or captures only part of
+> the required display, the compliance score is compromised before recognition begins."_
+
+Yəni **model qüsursuz işləsə də, şəkil yalandırsa nəticə yalandır.** Sənayenin yoxladığı siyahı
+dəqiq altı bənddir: **location · time · duplication · quality · completeness · visit integrity.**
+
+Bu, 20–21 sentyabr 2026-da tapdığımız **dörd saxtanın** dərsidir və təsadüf deyil: dördü də məhz bu
+siyahıdan idi. Girişdəki mövqe saxta idi (`location`), auditə yazılan mövqe sabit rəqəm idi
+(`location` yenə), ghost overlay göstərilmədiyi halda `ghost_overlay_used: true` yazılırdı
+(`completeness`), kamera heç çağırılmırdı (`quality`). **Dördünün hamısı "model" qatından aşağıda,
+sübut qatında idi** — və dördü də yaşıl test dəsti ilə birlikdə yaşamışdı.
+
+**Dərs 2 — "Data without a workflow".** Clobotics bunu belə ifadə edir: _"A perfect SKU-level audit
+that doesn't trigger a corrective action in tomorrow's beat plan is data without a workflow."_
+Bizim bugünkü axınımız tam olaraq budur: **işçi auditi göndərir və mağazadan heç nə ilə çıxır.**
+Supervisor sonra paneldən baxır. Sənayedə isə düzəliş **mağaza içində, işçi çıxmamışdan əvvəl**
+qaytarılır (same-visit corrective action) — çünki 3 dəqiqə gecikən nəticə hesabat üçün yararlıdır,
+**düzəliş üçün yox**.
+
+### 9.2 Bizdə nə var, sənayedə nə var (ölçülmüş)
+
+| Sahə                       | Sənaye standartı (2026)                                           | oneTeam bu gün                                            | Boşluq                                      |
+| -------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------- |
+| Foto çəkilişi              | Guided capture + keyfiyyət qapısı                                 | **Real kamera** (`expo-camera`), grid, ghost overlay      | Keyfiyyət/qəbul yoxlaması yox               |
+| Mövqe sübutu               | location + time + visit integrity                                 | Real GPS (`expo-location`) + 100 m geofence               | Çəkiliş anında təzə fix yox; vaxt telefonda |
+| Təkrarlanma                | duplicate detection                                               | Yoxdur                                                    | Şəkil hash-i yoxdur                         |
+| Çəkiliş tamlığı            | completeness (primary / secondary / POSM)                         | Yoxdur                                                    | Tələb olunan baxış siyahısı yox             |
+| SKU tanıma                 | SKU-level detection, kateqoriya üzrə **92–97%**                   | **YOXDUR** — `aiVision.ts` simulyasiyadır, qoşulmamalıdır | **Ən böyük boşluq**                         |
+| Metriklər                  | Share of shelf · OSA · facings · planogram · POSM · qiymət/aksiya | Yoxdur                                                    | Yoxdur                                      |
+| Barkod                     | Skaner (SKU-nu dəqiq tanıyır)                                     | **Modul tətbiqə YIĞILIB, istifadə olunmur**               | Ən ucuz qazanı                              |
+| Dövr (closed loop)         | Same-visit corrective action                                      | Yoxdur — audit göndərilir, işçi heç nə almır              | Yoxdur                                      |
+| Offline                    | Capture continues without signal                                  | Növbə **yazılıb**, real cihazda sübut olunmayıb           | Sübut                                       |
+| Marşrut / beat plan        | Problemli mağaza sabahkı plana düşür                              | Yoxdur                                                    | Yoxdur                                      |
+| Video (uzun rəf, soyuducu) | Guided video → stitch → analiz                                    | Yoxdur                                                    | Yoxdur                                      |
+
+### 9.3 Yol xəritəsi — dörd dalğa
+
+Sıralama üç meyarla: **(a)** yalanı və ya riski bağlayır, **(b)** indi ucuzdur, **(c)** sonrakını açır.
+
+**Dalğa 0 — Sübutun dürüstlüyü. Model LAZIM DEYİL, hamısı indi edilə bilər.**
+
+| #   | Maddə                                            | Nə edir                                                                                   | Sübut                                               |
+| --- | ------------------------------------------------ | ----------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| 0.1 | Çəkiliş anında **təzə fix** + köhnəlmə yoxlaması | Möhür girişdəki yox, **çəkiliş anındaki** mövqe olur; köhnədirsə xəbərdarlıq              | Guard: köhnə fix → qırmızı; mutasiya ilə pozulur    |
+| 0.2 | **Şəkil keyfiyyəti** qapısı                      | Bulanıqlıq / qaranlıq / parıltı ölçülür; qəbul olunmazsa çəkiliş təkrarlanır              | Sinifdə məlum olan şəkillərlə (bulanıq/kəskin) test |
+| 0.3 | **Təkrarlanma** aşkarlanması                     | Eyni fotonun ikinci dəfə təqdim edilməsi tutulur (perceptual hash)                        | Eyni şəkil iki dəfə → ikincisi rədd                 |
+| 0.4 | **Çəkiliş tamlığı**                              | Tapşırıq hansı baxışları tələb edir (əsas rəf / ikinci vitrin / POSM) və hamısı çəkilibmi | Natamam dəst göndərilə bilmir                       |
+| 0.5 | **Vaxt serverdən**                               | Möhürün vaxtı serverdə qoyulur; telefon saatı dəyişdirilə bilməz                          | Telefon saatı irəli/geri → möhür dəyişmir           |
+
+**Dalğa 1 — Barkod və kataloq. Model LAZIM DEYİL.**
+
+| #   | Maddə                       | Nə edir                                                                                                          |
+| --- | --------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 1.1 | Barkod skaneri              | `ExpoCameraBarcodeScanning` **artıq tətbiqə yığılıb** — yeni asılılıq yoxdur. SKU-nu model olmadan dəqiq tanıyır |
+| 1.2 | SKU kataloqu                | Barkod → məhsul (ad, ölçü, variant). Panel CRUD, mövcud CRUD naxışı ilə                                          |
+| 1.3 | Rəf xəritəsi                | Bölmə / səviyyə / mövqe — sonrakı planogram müqayisəsinin bazası                                                 |
+| 1.4 | Əl ilə OSA / share of shelf | İşçi sayır, sistem faizi hesablayır. **Model gələndə müqayisə bazası olur**                                      |
+
+**Dalğa 2 — Tanıma (model). Planın MƏRHƏLƏ 4-ü buradadır.**
+
+| #   | Maddə                | Nə edir                                                                      |
+| --- | -------------------- | ---------------------------------------------------------------------------- |
+| 2.1 | SKU aşkarlama (YOLO) | Şəkildən SKU-ların tapılması — `present / missing / misplaced / under-faced` |
+| 2.2 | Metriklər            | Share of shelf · OSA · facings · planogram uyğunluğu                         |
+| 2.3 | POSM + qiymət/aksiya | Vitrin materiallarının və qiymət etiketlərinin tanınması (OCR)               |
+| 2.4 | Guided video         | Uzun rəflər və sıx soyuducular üçün; kadrlara bölünür, sonra tikilir         |
+
+**Dalğa 3 — Dövrü bağlamaq (closed loop).**
+
+| #   | Maddə                 | Nə edir                                                                   |
+| --- | --------------------- | ------------------------------------------------------------------------- |
+| 3.1 | Mağaza içində düzəliş | Auditdən sonra **işçi çıxmamışdan əvvəl** düzəliş təklifi ekranda görünür |
+| 3.2 | Düzəlişin təsdiqi     | "Əvvəl / sonra" foto cütü — düzəlişin həqiqətən edildiyinin sübutu        |
+| 3.3 | Beat plan             | Uyğunsuz mağaza avtomatik sabahkı marşruta düşür                          |
+| 3.4 | Panel trendləri       | Mağaza / distribyutor üzrə uyğunluq trendi, trade-spend hesabatı          |
+
+### 9.4 Modeli və ya vendoru qiymətləndirmə meyarları
+
+Sənayenin öz xəbərdarlığı: **"ümumi dəqiqlik" aldadıcıdır.** Bir platform 95% ümumi dəqiqlik göstərib,
+gəlirin 60%-ni gətirən üç SKU-da yararsız ola bilər. Ona görə:
+
+- **Kateqoriya səviyyəsində, öz top-30 SKU-nuz üzrə** dəqiqlik tələb olunur — laboratoriya yox, **sahə şəraiti**.
+  Hədəf: **≥ 90%**. Clobotics "soyuq başlanğıc"ı ~70%-dən başlayıb **bir həftə içində >90%** kimi təsvir edir.
+- **Sürət:** 80 facings olan bir şəkil üçün tanıma **5 saniyədən aşağı** (Clobotics). Müqayisə üçün:
+  3 dəqiqəlik nəticə hesabat üçün yararlıdır, **mağaza içində düzəliş üçün gecdir**.
+- **Şərait:** aşağı işıq, sıx rəf, maili bucaq, maneələr (qiymət etiketi, asılmış POSM, müştəri əli).
+  Model bunların hamısında işləməlidir, ideal şəraitdə yox.
+
+### 9.5 Nəyi ETMƏMƏK lazım
+
+- **`aiVision.ts`-i qoşmaq olmaz.** O, simulyasiyadır və koddaki şərhi bunu deyir. Onu "işlək" kimi
+  göstərmək beşinci saxta olardı.
+- **Geofence-i yumşaltmaq olmaz.** O, həm tətbiqdə, həm də `evidence.service.ts`-də serverdə tətbiq
+  olunur. Mağaza uzaq görünürsə, düzgün cavab **radiusu böyütmək deyil, mağazanın koordinatını
+  düzəltməkdir** (bax §9.6).
+- **"Ümumi dəqiqlik"ə arxalanmaq olmaz** — yuxarıdaki meyarlara bax.
+- **Yaşıl test sübut deyil.** Bu planın §7-si bunu artıq deyir; 20–21 sentyabr hadisəsi onu bir daha
+  təsdiqlədi: dörd saxta funksiya **yaşıl test dəsti ilə** birlikdə yaşayırdı.
+
+### 9.6 Dərhal ediləcək əməliyyat işi (kod deyil)
+
+`IPHONE_TEST` mağazası **köhnə demo koordinatlarında** (40.4093 / 49.8671) qeydiyyatdadır. Telefon isə
+realdır: **40.3740, 49.8417**. Fərq **4475 m**-dir və 100 m geofence düzgün olaraq imtina edir.
+Düzəliş: Panel → **Mağazalar Şəbəkəsi** → `IPHONE_TEST` sətrinin sağındaki **qələm ikonu** →
+`Enlem (lat)` = `40.3740`, `Uzunluq (lon)` = `49.8417` → **Yadda saxla**.
+
+> Diqqət: panelin **"Cari mövqeyimi götür"** düyməsi **kompüterin** mövqeyini götürür, telefonun yox.
+> Kompüter telefonla eyni yerdə deyilsə, rəqəmləri **əl ilə** yazmaq lazımdır.
+
+---
+
+_Plan versiyası: 0.11 — 21 sentyabr 2026 — TƏSDİQLƏNİB, icra davam edir._
 
 **CI — həll olundu və bu, planın ən köhnə görünməz borcu idi.** `.github/workflows/ci.yml` **tarixdə ilk
 dəfə** tam yaşıldır (run `34983792832`: Verify 55s · Test 17s · Build 36s). O vaxta qədər hər push 5-ci
@@ -1098,7 +1224,11 @@ izləmədiyi yerli artefakt** sayəsində yaşıl qalır — `mobile`-in gitigno
 3.1 🔶: config hazırdır və yoxlanıldı, `expo prebuild` agent mühitində bloklandığı üçün bahaI-nin
 Terminalında icra olunmalıdır. 3.2 🔶: açarın saxlanması qatı yazıldı və 37 yoxlama + 13 pozma ilə sübut
 olundu; pozma harness-ı **repodadır** (`npm run test:break:credentials`), yəni sübut yenidən icra oluna
-bilir; **kamera yarısı və əsl açar saxlayıcı hələ sübut olunmayıb**. ~~API boşluğu: cihaz açarını ləğv
+bilir; ~~kamera yarısı və əsl açar saxlayıcı hələ sübut olunmayıb~~ — **kamera yarısı BAĞLANDI**
+(20 sentyabr 2026): real `CameraView`, `takePictureAsync({ base64: true })`, baytsız çəkiliş rədd olunur,
+ghost overlay planogram istinadını həqiqətən çəkir. Sübut: `npm run test:capture` — **46 yoxlama + 19
+pozma, hamısı tutulur**; dörd saxta funksiya bu dəstlə bağlandı (§9.1). **Əsl açar saxlayıcı
+(`keychain.ts`) hələ də real cihazda sübut olunmayıb** — yalnız bu qalır. ~~API boşluğu: cihaz açarını ləğv
 edən route yoxdur~~ — **bağlandı**: `GET /api/panel/devices` + `POST /api/panel/devices/:deviceId/revoke`,
 **33 yoxlama + 6 pozma** (`npm run test:break:device-revoke`), harness repodadır. 3.3 🔶 `20a7140`: növbə **yazıldı** (köçürülmədi) və 83 yoxlama + 23 pozma ilə
 sübut olundu; `EXPO_PUBLIC_` borcu bağlandı; pozma harness-ı repoya salındı (`npm run test:break`) —
