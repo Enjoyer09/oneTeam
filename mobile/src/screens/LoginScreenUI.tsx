@@ -57,6 +57,18 @@ export interface LoginScreenProps {
     store: MobileStore;
     tasks: unknown[];
     claimedTaskCount: number;
+    /**
+     * The fix the geofence was evaluated against.
+     *
+     * THIS FIELD EXISTS BECAUSE ITS ABSENCE WAS A DEFECT. The payload used to
+     * carry only the store, so the real fix died at this boundary — and
+     * `Root.tsx` filled the gap with a hardcoded `{40.4093, 49.8671}`, which is
+     * the old fake login's coordinates. Every audit photo was therefore stamped
+     * with a constant no matter where the worker stood, while the geofence at
+     * sign-in was genuinely enforced. Passing the fix on is what makes the
+     * stamp in the evidence the position the worker was actually verified at.
+     */
+    userGPS: GPSCoordinates;
   }) => void;
 }
 
@@ -136,15 +148,25 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
     setLoading(false);
 
     if (result.success && result.store) {
+      // The sign-in button is already gated on a fix (`canSubmit`), so this is
+      // a belt-and-braces check rather than the real guard. It is here because
+      // the alternative — inventing a position, or letting the caller invent
+      // one — is the defect this whole file was rewritten to remove. There is
+      // no fallback coordinate, deliberately.
+      if (gps === null) {
+        setError('Lokasiya olmadan giriş təsdiqlənmir. Yenidən cəhd edin.');
+        return;
+      }
       onLoginSuccess({
         store: result.store,
         tasks: [],
         claimedTaskCount: result.claimedTaskCount ?? 0,
+        userGPS: gps,
       });
     } else {
       setError(result.error ?? 'Giriş alınmadı');
     }
-  }, [controller, storeCode, enrollmentSecret, onLoginSuccess]);
+  }, [controller, storeCode, enrollmentSecret, onLoginSuccess, gps]);
 
   const canSubmit = gps !== null && storeCode.trim().length > 0 && !loading;
 

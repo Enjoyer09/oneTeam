@@ -32,7 +32,7 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import type { MobileTask, MobileStore } from '../types';
+import type { MobileTask, MobileStore, GPSCoordinates } from '../types';
 import type { ChecklistQuestion } from '@oneteam/types';
 import { TaskDetailController } from './TaskListScreen';
 
@@ -45,15 +45,28 @@ export type ChecklistAnswer = {
 export interface TaskDetailScreenProps {
   task: MobileTask;
   store: MobileStore;
+  /**
+   * The fix the sign-in geofence was evaluated against, carried through to the
+   * audit so the evidence records a real position. Required, with no default —
+   * see the note on `Screen` in `Root.tsx` for why.
+   */
+  userGPS: GPSCoordinates;
   onBack: () => void;
   onOpenCamera: (params: {
     task: MobileTask;
     store: MobileStore;
     checklistAnswers: ChecklistAnswer[];
+    userGPS: GPSCoordinates;
   }) => void;
 }
 
-export function TaskDetailScreen({ task, store, onBack, onOpenCamera }: TaskDetailScreenProps) {
+export function TaskDetailScreen({
+  task,
+  store,
+  userGPS,
+  onBack,
+  onOpenCamera,
+}: TaskDetailScreenProps) {
   const controller = new TaskDetailController(task, store);
   const details = controller.getPlanogramDetails();
 
@@ -74,8 +87,8 @@ export function TaskDetailScreen({ task, store, onBack, onOpenCamera }: TaskDeta
       questionText: q.question ?? q.label ?? '',
       answer: answers[q.id]?.trim() ?? '',
     }));
-    onOpenCamera({ task, store, checklistAnswers });
-  }, [allAnswered, answers, details.checklistQuestions, task, store, onOpenCamera]);
+    onOpenCamera({ task, store, checklistAnswers, userGPS });
+  }, [allAnswered, answers, details.checklistQuestions, task, store, userGPS, onOpenCamera]);
 
   return (
     <View style={styles.screen}>

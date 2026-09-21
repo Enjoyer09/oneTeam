@@ -73,13 +73,20 @@ export class CameraAuditController {
    * ----------------------------
    * The anti-gallery rule is real: `assertLiveCameraCapture` refuses a gallery
    * source, and it is the control that stops an old photo being passed off as a
-   * new one. The GPS stamp is real, because it comes from the caller's fix.
+   * new one. The capture is real too, since 2026-09-20: the screen calls
+   * `takePictureAsync({ base64: true })` and hands the bytes in here, and a
+   * capture that returns no bytes is refused rather than filed as a placeholder.
    *
-   * The capture itself is simulated. There is no native camera module in this
-   * harness, so `photoUri` is a plausible-looking path to a file that does not
-   * exist and `base64` is absent. That is stated in the return value rather than
-   * hidden, so the submission records `photo_origin: 'placeholder'` instead of
-   * filing a fabricated image as evidence.
+   * The GPS stamp is real in the sense that it is exactly `params.userGPS` — but
+   * that is only worth anything if the caller's fix is real, and for one commit
+   * it was not. `Root.tsx` passed a hardcoded `{40.4093, 49.8671}` (the old fake
+   * login's coordinates) into this parameter, so every audit carried a constant
+   * position while this method dutifully stamped it. A function that honestly
+   * records whatever it is given is still a source of false evidence if its
+   * caller lies; the fix belongs at the call site, and that is where it was made.
+   *
+   * This is the position verified at sign-in, not a fresh fix taken at the
+   * moment of capture. That distinction is real and is the next thing to close.
    */
   async captureLiveAudit(params: {
     source: 'camera' | 'gallery';

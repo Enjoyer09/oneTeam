@@ -83,11 +83,24 @@ import { TaskListScreenUI } from './src/screens/TaskListScreenUI';
 import { TaskDetailScreen } from './src/screens/TaskDetailScreen';
 import { CameraAuditScreenUI } from './src/screens/CameraAuditScreenUI';
 
+/**
+ * The authenticated screens carry `userGPS` — the fix the sign-in geofence was
+ * evaluated against.
+ *
+ * It is part of every authenticated variant rather than a value `handleOpenCamera`
+ * looks up, so that a future screen cannot silently drop it: TypeScript refuses
+ * to compile a transition that loses it. That matters because the defect being
+ * fixed here was exactly a dropped value — `handleOpenCamera` filled the gap
+ * with a hardcoded `{40.4093, 49.8671}` and stamped it into every audit.
+ *
+ * It is NOT optional, and there is no default. A missing fix must be a
+ * compile error, not a plausible-looking constant.
+ */
 type Screen =
   | { name: 'loading' }
   | { name: 'login' }
-  | { name: 'taskList'; store: MobileStore }
-  | { name: 'taskDetail'; store: MobileStore; task: MobileTask }
+  | { name: 'taskList'; store: MobileStore; userGPS: GPSCoordinates }
+  | { name: 'taskDetail'; store: MobileStore; task: MobileTask; userGPS: GPSCoordinates }
   | {
       name: 'camera';
       store: MobileStore;
@@ -132,8 +145,13 @@ export function Root() {
   }, []);
 
   const handleLoginSuccess = useCallback(
-    (result: { store: MobileStore; tasks: unknown[]; claimedTaskCount: number }) => {
-      setScreen({ name: 'taskList', store: result.store });
+    (result: {
+      store: MobileStore;
+      tasks: unknown[];
+      claimedTaskCount: number;
+      userGPS: GPSCoordinates;
+    }) => {
+      setScreen({ name: 'taskList', store: result.store, userGPS: result.userGPS });
     },
     [],
   );
@@ -141,27 +159,42 @@ export function Root() {
   const handleSelectTask = useCallback((task: MobileTask) => {
     setScreen((prev) => {
       if (prev.name === 'taskList') {
-        return { name: 'taskDetail', store: prev.store, task };
+        return { name: 'taskDetail', store: prev.store, task, userGPS: prev.userGPS };
       }
       return prev;
     });
   }, []);
 
   const handleOpenCamera = useCallback(
-    (params: { task: MobileTask; store: MobileStore; checklistAnswers: ChecklistAnswer[] }) => {
-      // GPS is carried from the login screen's fix. In a shipping build the
-      // camera screen would read a fresh fix; here we reuse the one that passed
-      // the geofence, which is the honest position the worker was verified at.
-      const userGPS: GPSCoordinates = {
-        latitude: 40.4093,
-        longitude: 49.8671,
-        accuracy: 10,
-      };
+    (params: {
+      task: MobileTask;
+      store: MobileStore;
+      checklistAnswers: ChecklistAnswer[];
+      userGPS: GPSCoordinates;
+    }) => {
+      // THE POSITION IS THE ONE THE GEOFENCE PASSED, AND IT IS PASSED IN.
+      //
+      // This used to read:
+      //
+      //     // GPS is carried from the login screen's fix. ... here we reuse the
+      //     // one that passed the geofence, which is the honest position the
+      //     // worker was verified at.
+      //     const userGPS: GPSCoordinates = {
+      //       latitude: 40.4093, longitude: 49.8671, accuracy: 10,
+      //     };
+      //
+      // The comment described the intent and the code did the opposite: those
+      // are the coordinates the OLD FAKE login returned, so every audit photo
+      // was stamped with a constant regardless of where the worker stood. The
+      // real fix was available one component away and never reached here.
+      //
+      // Now it arrives as an argument, it is required by the type, and there is
+      // no fallback. If it is missing, the app does not compile.
       setScreen({
         name: 'camera',
         store: params.store,
         task: params.task,
-        userGPS,
+        userGPS: params.userGPS,
         checklistAnswers: params.checklistAnswers,
       });
     },
@@ -171,7 +204,7 @@ export function Root() {
   const handleBackToTaskList = useCallback(() => {
     setScreen((prev) => {
       if (prev.name === 'taskDetail' || prev.name === 'camera') {
-        return { name: 'taskList', store: prev.store };
+        return { name: 'taskList', store: prev.store, userGPS: prev.userGPS };
       }
       return prev;
     });
@@ -180,7 +213,12 @@ export function Root() {
   const handleBackToTaskDetail = useCallback(() => {
     setScreen((prev) => {
       if (prev.name === 'camera') {
-        return { name: 'taskDetail', store: prev.store, task: prev.task };
+        return {
+          name: 'taskDetail',
+          store: prev.store,
+          task: prev.task,
+          userGPS: prev.userGPS,
+        };
       }
       return prev;
     });
@@ -246,6 +284,7 @@ export function Root() {
             <TaskDetailScreen
               task={screen.task}
               store={screen.store}
+              userGPS={screen.userGPS}
               onBack={handleBackToTaskList}
               onOpenCamera={handleOpenCamera}
             />

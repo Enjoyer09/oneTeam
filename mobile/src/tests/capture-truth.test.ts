@@ -25,9 +25,22 @@
  * the whole reason a "smart camera" exists, was never on screen. So the
  * evidence asserted a comparison the worker had not been offered.
  *
- * None of the three was a crash. All three survived a green test suite, a
- * working demo and a shipping build. What they had in common is that nothing
- * anywhere asked the question "did this really happen?".
+ * A FOURTH fake was found on 2026-09-21, in a screenshot of a real sign-in, and
+ * it is the one that matters most for evidence: `Root.tsx` built the position
+ * stamped into every audit as a hardcoded `{40.4093, 49.8671}` — the OLD FAKE
+ * login's coordinates — under a comment saying it reused the position the
+ * worker had been verified at. The login screen's real fix was one component
+ * away and never arrived. So the geofence at sign-in was genuinely enforced,
+ * while the location written into the evidence was a constant.
+ *
+ * That one lived BETWEEN two screens rather than inside either, in a file
+ * outside `src/screens/`. Every rule in Part B had been reading one screen at a
+ * time, which is why it survived: a guard that watches the parts does not watch
+ * the joint.
+ *
+ * None of the four was a crash. All four survived a green test suite, a working
+ * demo and a shipping build. What they had in common is that nothing anywhere
+ * asked the question "did this really happen?".
  *
  * So this suite asks it in two halves, because each of these fakes had the same
  * two halves:
@@ -38,11 +51,12 @@
  *   the bytes and from nothing else, so it cannot drift back to a timer.
  *
  *   PART B — the wiring. A contract nobody calls proves nothing. Part B reads
- *   the two screens out of the tree and asserts they really import the camera,
- *   really ask `takePictureAsync` for base64, really hand those bytes to the
- *   controller, really ask the platform for a position instead of naming one,
- *   and really draw the planogram reference. This is the half that would have
- *   caught the actual defect — and it is the half that caught the third one.
+ *   the screens — and `Root.tsx`, the file that joins them — and asserts they
+ *   really import the camera, really ask `takePictureAsync` for base64, really
+ *   hand those bytes to the controller, really ask the platform for a position
+ *   instead of naming one, really draw the planogram reference, and really pass
+ *   the verified fix along the whole way to the shutter. This is the half that
+ *   would have caught the actual defect; it caught the third and fourth.
  *
  * WHY PART B READS SOURCE INSTEAD OF RENDERING
  * --------------------------------------------
@@ -124,6 +138,13 @@ const REPO_ROOT = join(__dirname, '..', '..', '..');
 const SCREEN_DIR = join(REPO_ROOT, 'mobile', 'src', 'screens');
 const CAMERA_SCREEN_PATH = join(SCREEN_DIR, 'CameraAuditScreenUI.tsx');
 const LOGIN_SCREEN_PATH = join(SCREEN_DIR, 'LoginScreenUI.tsx');
+const TASK_DETAIL_SCREEN_PATH = join(SCREEN_DIR, 'TaskDetailScreen.tsx');
+/**
+ * `Root.tsx` sits OUTSIDE `src/screens/` — and that is exactly why the fourth
+ * fake lived there for a commit. The guard read the two screens it knew about
+ * and never read the file that joins them.
+ */
+const ROOT_PATH = join(REPO_ROOT, 'mobile', 'Root.tsx');
 const PACKAGE_JSON_PATH = join(REPO_ROOT, 'mobile', 'package.json');
 const APP_JSON_PATH = join(REPO_ROOT, 'mobile', 'app.json');
 
@@ -212,6 +233,8 @@ const REAL_BYTES = 'ZmFrZS1ieXRlcw==';
 export interface WiringSources {
   cameraScreen: string;
   loginScreen: string;
+  taskDetailScreen: string;
+  rootScreen: string;
   packageJson: string;
   appJson: string;
 }
@@ -326,6 +349,35 @@ const GHOST_BADGE_IS_HONEST = /task\.reference_image_url\s*\?\s*'[^']*'\s*:\s*'[
 /** A coordinate NAMED in code rather than read from the platform. */
 const INVENTED_COORDINATE = /(latitude|longitude)\s*:\s*-?\d/;
 
+/**
+ * `onLoginSuccess({ store, tasks, claimedTaskCount, userGPS: gps })`
+ *
+ * The fix must survive the screen boundary. It did not: the payload carried
+ * only the store, so `Root.tsx` had nothing to pass on and invented a position.
+ */
+const LOGIN_HANDS_THE_FIX_ONWARD = /onLoginSuccess\s*\(\s*\{[^}]*\buserGPS\s*:/;
+
+/**
+ * `userGPS={screen.userGPS}` — the screen state, not an object literal.
+ *
+ * Matched loosely on purpose: the point is that the value comes from state
+ * rather than from a constant written at the call site. `root-names-no-coordinate`
+ * below is the rule that makes "rather than a constant" bite.
+ */
+const ROOT_PASSES_THE_FIX_TO_THE_CAMERA = /userGPS=\{\s*screen\.userGPS\s*\}/;
+
+/** `onOpenCamera({ task, store, checklistAnswers, userGPS })` */
+const TASKDETAIL_CARRIES_THE_FIX = /onOpenCamera\s*\(\s*\{[^}]*\buserGPS\b/;
+
+/**
+ * `userGPS?:` — an optional escape hatch, which would defeat all of the above.
+ *
+ * Every rule in this group is about a value that must not be droppable. If it
+ * is optional, a caller can omit it and the compiler will say nothing, which is
+ * how the constant got written in the first place.
+ */
+const OPTIONAL_USER_GPS = /\buserGPS\s*\?\s*:/;
+
 const WIRING_RULES: WiringRule[] = [
   {
     id: 'camera-imports-camera-view',
@@ -378,6 +430,34 @@ const WIRING_RULES: WiringRule[] = [
     holds: (c) => !INVENTED_COORDINATE.test(c.loginScreen),
   },
   {
+    id: 'login-hands-the-fix-onward',
+    what: 'the verified fix must survive the login screen boundary, or its caller has nothing real to pass on',
+    holds: (c) => LOGIN_HANDS_THE_FIX_ONWARD.test(c.loginScreen),
+  },
+  {
+    id: 'root-names-no-coordinate',
+    what: 'Root.tsx must name no coordinate at all — a constant there is stamped into every audit as evidence',
+    holds: (c) => !INVENTED_COORDINATE.test(c.rootScreen),
+  },
+  {
+    id: 'root-passes-the-fix-to-the-camera',
+    what: 'the camera screen must be given the session fix, not an object built at the call site',
+    holds: (c) => ROOT_PASSES_THE_FIX_TO_THE_CAMERA.test(c.rootScreen),
+  },
+  {
+    id: 'taskdetail-carries-the-fix',
+    what: 'the task screen sits between the session and the camera, so it must carry the fix through',
+    holds: (c) => TASKDETAIL_CARRIES_THE_FIX.test(c.taskDetailScreen),
+  },
+  {
+    id: 'user-gps-is-not-optional',
+    what: 'no screen may declare the fix optional — an omittable fix is how a constant gets written',
+    holds: (c) =>
+      !OPTIONAL_USER_GPS.test(c.rootScreen) &&
+      !OPTIONAL_USER_GPS.test(c.taskDetailScreen) &&
+      !OPTIONAL_USER_GPS.test(c.loginScreen),
+  },
+  {
     id: 'package-declares-the-native-modules',
     what: 'expo-camera and expo-location must be declared dependencies',
     holds: (c) => {
@@ -414,6 +494,8 @@ export function findWiringProblems(sources: WiringSources): string[] {
   const clean: WiringSources = {
     cameraScreen: stripComments(sources.cameraScreen),
     loginScreen: stripComments(sources.loginScreen),
+    taskDetailScreen: stripComments(sources.taskDetailScreen),
+    rootScreen: stripComments(sources.rootScreen),
     packageJson: stripComments(sources.packageJson),
     appJson: stripComments(sources.appJson),
   };
@@ -426,6 +508,8 @@ function readTree(): WiringSources {
   return {
     cameraScreen: readFileSync(CAMERA_SCREEN_PATH, 'utf8'),
     loginScreen: readFileSync(LOGIN_SCREEN_PATH, 'utf8'),
+    taskDetailScreen: readFileSync(TASK_DETAIL_SCREEN_PATH, 'utf8'),
+    rootScreen: readFileSync(ROOT_PATH, 'utf8'),
     packageJson: readFileSync(PACKAGE_JSON_PATH, 'utf8'),
     appJson: readFileSync(APP_JSON_PATH, 'utf8'),
   };
@@ -533,6 +617,44 @@ const MUTATIONS: Mutation[] = [
     }),
   },
   {
+    // The fourth fake. The login screen keeps its real fix and simply stops
+    // passing it on — which is the state the code was actually in.
+    rule: 'login-hands-the-fix-onward',
+    how: 'the login payload drops the fix it verified, leaving the caller to invent one',
+    apply: (s) => replaceIn(s, 'loginScreen', /\n\s*userGPS:\s*gps,?/, ''),
+  },
+  {
+    rule: 'root-names-no-coordinate',
+    how: 'the hardcoded demo position is written back into Root.tsx',
+    apply: (s) => ({
+      ...s,
+      rootScreen: `${s.rootScreen}\nconst invented = { latitude: 40.4093, longitude: 49.8671 };\n`,
+    }),
+  },
+  {
+    rule: 'root-passes-the-fix-to-the-camera',
+    how: 'the camera screen stops being given the session fix',
+    apply: (s) =>
+      replaceIn(s, 'rootScreen', /userGPS=\{\s*screen\.userGPS\s*\}/g, 'userGPS={undefined}'),
+  },
+  {
+    rule: 'taskdetail-carries-the-fix',
+    how: 'the task screen drops the fix on its way to the camera',
+    apply: (s) =>
+      replaceIn(
+        s,
+        'taskDetailScreen',
+        /\{\s*task,\s*store,\s*checklistAnswers,\s*userGPS\s*\}/,
+        '{ task, store, checklistAnswers }',
+      ),
+  },
+  {
+    rule: 'user-gps-is-not-optional',
+    how: 'the fix is made optional, so a caller may omit it in silence',
+    apply: (s) =>
+      replaceIn(s, 'rootScreen', /userGPS:\s*GPSCoordinates/, 'userGPS?: GPSCoordinates'),
+  },
+  {
     rule: 'package-declares-the-native-modules',
     how: 'expo-camera is dropped from package.json',
     apply: (s) => {
@@ -597,6 +719,8 @@ function selfTest(realSources: WiringSources): string[] {
   const code: WiringSources = {
     cameraScreen: stripComments(realSources.cameraScreen),
     loginScreen: stripComments(realSources.loginScreen),
+    taskDetailScreen: stripComments(realSources.taskDetailScreen),
+    rootScreen: stripComments(realSources.rootScreen),
     packageJson: stripComments(realSources.packageJson),
     appJson: stripComments(realSources.appJson),
   };
@@ -873,6 +997,8 @@ async function main() {
   const clean = {
     cameraScreen: stripComments(sources.cameraScreen),
     loginScreen: stripComments(sources.loginScreen),
+    taskDetailScreen: stripComments(sources.taskDetailScreen),
+    rootScreen: stripComments(sources.rootScreen),
   };
 
   {
@@ -958,7 +1084,49 @@ async function main() {
     );
   }
 
-  section('B3. The native modules are declared where prebuild reads them');
+  section('B3. The verified fix survives the journey to the camera');
+
+  {
+    // THE FOURTH FAKE. Found on 2026-09-21, from a screenshot of a real sign-in.
+    //
+    // The login screen had a real fix and used it for the geofence — and then
+    // dropped it at the screen boundary. `Root.tsx` filled the gap with the
+    // coordinates of the OLD FAKE LOGIN, under a comment claiming they were
+    // "the honest position the worker was verified at". Every audit photo was
+    // stamped with that constant, wherever the worker stood.
+    //
+    // The lesson is the shape of the gap: every earlier rule read one screen,
+    // and this defect lived BETWEEN two of them, in a file outside
+    // `src/screens/`. A guard that watches the parts does not watch the joint.
+    check(
+      'the login screen passes the fix it verified into its success payload',
+      LOGIN_HANDS_THE_FIX_ONWARD.test(clean.loginScreen),
+    );
+    check(
+      'Root.tsx names no coordinate at all — a constant there becomes evidence',
+      !INVENTED_COORDINATE.test(clean.rootScreen),
+      clean.rootScreen
+        .split('\n')
+        .filter((line) => INVENTED_COORDINATE.test(line))
+        .slice(0, 3),
+    );
+    check(
+      'the camera screen is given the session fix rather than an object built at the call site',
+      ROOT_PASSES_THE_FIX_TO_THE_CAMERA.test(clean.rootScreen),
+    );
+    check(
+      'the task screen carries the fix through to the camera',
+      TASKDETAIL_CARRIES_THE_FIX.test(clean.taskDetailScreen),
+    );
+    check(
+      'and the fix is required everywhere, so no future screen can drop it in silence',
+      !OPTIONAL_USER_GPS.test(clean.rootScreen) &&
+        !OPTIONAL_USER_GPS.test(clean.taskDetailScreen) &&
+        !OPTIONAL_USER_GPS.test(clean.loginScreen),
+    );
+  }
+
+  section('B4. The native modules are declared where prebuild reads them');
 
   {
     const parsedPackage = JSON.parse(sources.packageJson);
