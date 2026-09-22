@@ -430,6 +430,44 @@ const SCANNED_BARCODES_FORWARDED = /captureLiveAudit\s*\(\s*\{[^}]*\bscannedBarc
 const STAMP_RECORDS_SCANNED_BARCODES = /scanned_barcodes\s*:\s*scannedBarcodes/;
 
 /**
+ * `exif: true` — without it the platform returns no EXIF and the quality
+ * heuristic has nothing to read. The gate would still "run" and would report
+ * `no_signal` forever, which looks like a working feature and is not one.
+ */
+const CAPTURE_ASKS_FOR_EXIF = /exif:\s*true/;
+
+/** `assessPhotoQuality(...)` — the heuristic is actually called on the capture. */
+const QUALITY_ASSESSED_AT_CAPTURE = /assessPhotoQuality\(/;
+
+/**
+ * `photoQuality: assessment` — the verdict reaches the controller. Assessing
+ * and then dropping the result is the same defect as reading a fix and
+ * dropping it.
+ */
+const QUALITY_FORWARDED_TO_CONTROLLER = /photoQuality:\s*assessment/;
+
+/** `photo_quality: photoQuality` — the stamper emits the verdict. */
+const STAMP_RECORDS_PHOTO_QUALITY = /photo_quality:\s*photoQuality/;
+
+/**
+ * The UI must branch on the three-valued status, not on `isAcceptable`.
+ *
+ * A photo the heuristic could not judge is `isAcceptable: true` and carries
+ * `no_exif`. Branching on the boolean alone would render it as a pass — the
+ * exact collapse the status field exists to prevent.
+ */
+const QUALITY_UI_USES_THE_STATUS = /photoQualityStatus\(quality\)/;
+
+/** The flagged verdict has a visible, addressable banner. */
+const QUALITY_WARNING_IS_VISIBLE = /testID="camera\.qualityWarning"/;
+
+/**
+ * `if (quality !== null && !quality.isAcceptable)` — sending a flagged photo
+ * stops to ask. Without this the warning is decoration.
+ */
+const SEND_STOPS_WHEN_FLAGGED = /if \(quality !== null && !quality\.isAcceptable\)/;
+
+/**
  * `userGPS?:` — an optional escape hatch, which would defeat all of the above.
  *
  * Every rule in this group is about a value that must not be droppable. If it
@@ -605,6 +643,43 @@ const WIRING_RULES: WiringRule[] = [
     id: 'stamp-records-scanned-barcodes',
     what: 'stampAuditMetadata must emit scanned_barcodes when a non-empty list is provided',
     holds: (c) => STAMP_RECORDS_SCANNED_BARCODES.test(c.smartCameraOverlay),
+  },
+  {
+    // Without EXIF the heuristic can never judge anything, and the feature
+    // would ship as a permanent `no_signal` — a gate that always opens.
+    id: 'capture-asks-for-exif',
+    what: 'takePictureAsync must request exif, or the quality gate has nothing to read',
+    holds: (c) => CAPTURE_ASKS_FOR_EXIF.test(c.cameraScreen),
+  },
+  {
+    id: 'quality-assessed-at-capture',
+    what: 'the capture must run the quality heuristic, not merely import it',
+    holds: (c) => QUALITY_ASSESSED_AT_CAPTURE.test(c.cameraScreen),
+  },
+  {
+    id: 'quality-forwarded-to-controller',
+    what: 'the verdict must reach captureLiveAudit, or it never reaches the metadata',
+    holds: (c) => QUALITY_FORWARDED_TO_CONTROLLER.test(c.cameraScreen),
+  },
+  {
+    id: 'stamp-records-photo-quality',
+    what: 'stampAuditMetadata must emit photo_quality, keeping no_signal distinct from ok',
+    holds: (c) => STAMP_RECORDS_PHOTO_QUALITY.test(c.smartCameraOverlay),
+  },
+  {
+    id: 'quality-ui-uses-the-status',
+    what: 'the review screen must branch on the three-valued status, not on isAcceptable alone',
+    holds: (c) => QUALITY_UI_USES_THE_STATUS.test(c.cameraScreen),
+  },
+  {
+    id: 'quality-warning-is-visible',
+    what: 'a flagged photo must show an addressable warning before it can be sent',
+    holds: (c) => QUALITY_WARNING_IS_VISIBLE.test(c.cameraScreen),
+  },
+  {
+    id: 'send-stops-when-flagged',
+    what: 'sending a flagged photo must stop and ask, or the warning is decoration',
+    holds: (c) => SEND_STOPS_WHEN_FLAGGED.test(c.cameraScreen),
   },
 ];
 
@@ -872,6 +947,67 @@ const MUTATIONS: Mutation[] = [
         'smartCameraOverlay',
         /\.\.\.\(scannedBarcodes !== undefined \? \{ scanned_barcodes: scannedBarcodes \} : \{\}\),?/,
         '',
+      ),
+  },
+  {
+    // The gate still "runs" and reports `no_signal` forever — a feature that
+    // looks alive and judges nothing.
+    rule: 'capture-asks-for-exif',
+    how: 'the capture stops asking for EXIF, so the quality heuristic is permanently blind',
+    apply: (s) => replaceIn(s, 'cameraScreen', /exif:\s*true/, 'exif: false'),
+  },
+  {
+    rule: 'quality-assessed-at-capture',
+    how: 'the heuristic is imported but never called, so no photo is ever judged',
+    apply: (s) => replaceIn(s, 'cameraScreen', /\n[^\n]*assessPhotoQuality\([^\n]*/, ''),
+  },
+  {
+    rule: 'quality-forwarded-to-controller',
+    how: 'the verdict is computed and then dropped on the screen boundary',
+    apply: (s) => replaceIn(s, 'cameraScreen', /\n\s*photoQuality:\s*assessment,?/, ''),
+  },
+  {
+    rule: 'stamp-records-photo-quality',
+    how: 'the stamper forgets to emit photo_quality, so the audit carries no verdict',
+    apply: (s) =>
+      replaceIn(
+        s,
+        'smartCameraOverlay',
+        /\n\s*\.\.\.\(photoQuality !== undefined \? \{ photo_quality: photoQuality \} : \{\}\),?/,
+        '',
+      ),
+  },
+  {
+    // The collapse this rule exists to catch: `no_signal` becomes a pass.
+    //
+    // `/g` is load-bearing. The status is consulted twice (flagged banner and
+    // no_signal banner); a non-global replace would fix one and leave the
+    // other, and the rule would still pass — a mutation that proves nothing
+    // while looking like it proves something.
+    rule: 'quality-ui-uses-the-status',
+    how: 'the UI branches on the boolean, so an unjudged photo renders as a pass',
+    apply: (s) =>
+      replaceIn(
+        s,
+        'cameraScreen',
+        /photoQualityStatus\(quality\)/g,
+        "quality.isAcceptable ? 'ok' : 'flagged'",
+      ),
+  },
+  {
+    rule: 'quality-warning-is-visible',
+    how: 'the flagged banner is removed, so the worker is never told',
+    apply: (s) => replaceIn(s, 'cameraScreen', /\s*testID="camera\.qualityWarning"/, ''),
+  },
+  {
+    rule: 'send-stops-when-flagged',
+    how: 'the confirmation is bypassed, so a flagged photo is sent without the worker knowing',
+    apply: (s) =>
+      replaceIn(
+        s,
+        'cameraScreen',
+        /if \(quality !== null && !quality\.isAcceptable\)/,
+        'if (false)',
       ),
   },
 ];
@@ -1273,6 +1409,93 @@ async function main() {
   // ===========================================================================
   // PART B — the wiring.
   // ===========================================================================
+  section('A9. The quality verdict is recorded, and "not judged" is not recorded as "fine"');
+
+  {
+    // The heuristic returns `isAcceptable: true` for a photo whose EXIF could
+    // not be read. That is the right answer to "block it?" and a catastrophic
+    // answer to "was it assessed?" — so the stamper must carry the three-valued
+    // status and never let `no_signal` arrive at the audit trail as `ok`.
+    const flagged = stampAuditMetadata({
+      userGPS: INSIDE_GPS,
+      storeGPS: { latitude: STORE_LAT, longitude: STORE_LON },
+      ghostOverlayUsed: false,
+      photoQuality: {
+        isAcceptable: false,
+        reasons: ['too_dark', 'slow_shutter'],
+        metrics: { iso: 3200, exposureTimeSeconds: 1 / 15, fNumber: 1.8, brightnessValue: 1 },
+      },
+    });
+    check(
+      'a flagged capture records status: flagged and keeps every reason',
+      flagged.photo_quality?.status === 'flagged' &&
+        JSON.stringify(flagged.photo_quality?.reasons) ===
+          JSON.stringify(['too_dark', 'slow_shutter']),
+      flagged.photo_quality,
+    );
+    check(
+      'and the metric names are translated to the wire shape, not spread through',
+      flagged.photo_quality?.metrics.iso === 3200 &&
+        Math.abs((flagged.photo_quality?.metrics.exposure_time_seconds ?? 0) - 1 / 15) < 1e-9 &&
+        flagged.photo_quality?.metrics.f_number === 1.8 &&
+        flagged.photo_quality?.metrics.brightness_value === 1,
+      flagged.photo_quality?.metrics,
+    );
+
+    const ok = stampAuditMetadata({
+      userGPS: INSIDE_GPS,
+      storeGPS: { latitude: STORE_LAT, longitude: STORE_LON },
+      ghostOverlayUsed: false,
+      photoQuality: { isAcceptable: true, reasons: [], metrics: { iso: 100 } },
+    });
+    check(
+      'a judged-and-fine capture records status: ok',
+      ok.photo_quality?.status === 'ok' && ok.photo_quality.reasons.length === 0,
+      ok.photo_quality,
+    );
+
+    const unjudged = stampAuditMetadata({
+      userGPS: INSIDE_GPS,
+      storeGPS: { latitude: STORE_LAT, longitude: STORE_LON },
+      ghostOverlayUsed: false,
+      photoQuality: { isAcceptable: true, reasons: ['no_exif'], metrics: {} },
+    });
+    check(
+      'an UNJUDGED capture records status: no_signal — NOT ok, despite isAcceptable being true',
+      unjudged.photo_quality?.status === 'no_signal',
+      unjudged.photo_quality,
+    );
+    check(
+      'and the three states are mutually distinct, so no two can be confused',
+      new Set([
+        flagged.photo_quality?.status,
+        ok.photo_quality?.status,
+        unjudged.photo_quality?.status,
+      ]).size === 3,
+      [flagged.photo_quality?.status, ok.photo_quality?.status, unjudged.photo_quality?.status],
+    );
+
+    const notAssessed = stampAuditMetadata({
+      userGPS: INSIDE_GPS,
+      storeGPS: { latitude: STORE_LAT, longitude: STORE_LON },
+      ghostOverlayUsed: false,
+    });
+    check(
+      'a capture that ran no heuristic carries no photo_quality at all, so "not judged" and "judged and fine" differ',
+      notAssessed.photo_quality === undefined && ok.photo_quality !== undefined,
+      notAssessed.photo_quality,
+    );
+
+    // The verdict must not disturb the rest of the stamp — a caller cannot buy
+    // a quality field by giving up the position.
+    check(
+      'and the position is still stamped correctly alongside the verdict',
+      flagged.gps.latitude === USER_LAT &&
+        flagged.distance_from_store_meters === ok.distance_from_store_meters,
+      { gps: flagged.gps.latitude, distance: flagged.distance_from_store_meters },
+    );
+  }
+
   section('B1. The camera screen is really wired to a camera');
 
   const sources = readTree();
@@ -1486,6 +1709,43 @@ async function main() {
   // ===========================================================================
   // PART C — the guard itself.
   // ===========================================================================
+  section('B6. The quality gate is wired from the shutter to the audit trail');
+
+  {
+    // Same structure as the barcode chain: every link has to hold, because a
+    // gate that misses one is a gate that opens. The EXIF link is first for a
+    // reason — without it the rest of the chain is intact and the feature
+    // still judges nothing.
+    check(
+      'the capture asks for EXIF, without which the gate is permanently blind',
+      CAPTURE_ASKS_FOR_EXIF.test(clean.cameraScreen),
+    );
+    check(
+      'the heuristic is actually called on the capture, not merely imported',
+      QUALITY_ASSESSED_AT_CAPTURE.test(clean.cameraScreen),
+    );
+    check(
+      'the verdict reaches the controller instead of staying on the screen',
+      QUALITY_FORWARDED_TO_CONTROLLER.test(clean.cameraScreen),
+    );
+    check(
+      'the stamper emits photo_quality, keeping no_signal distinct from ok',
+      STAMP_RECORDS_PHOTO_QUALITY.test(clean.smartCameraOverlay),
+    );
+    check(
+      'the review screen branches on the three-valued status, not on the boolean',
+      QUALITY_UI_USES_THE_STATUS.test(clean.cameraScreen),
+    );
+    check(
+      'a flagged photo is visible before it can be sent',
+      QUALITY_WARNING_IS_VISIBLE.test(clean.cameraScreen),
+    );
+    check(
+      'and sending it stops to ask, so "send anyway" is a decision rather than an oversight',
+      SEND_STOPS_WHEN_FLAGGED.test(clean.cameraScreen),
+    );
+  }
+
   section('C1. The guard bites: every rule is made to fail on purpose');
 
   {

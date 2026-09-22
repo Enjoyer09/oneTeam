@@ -100,6 +100,32 @@ export interface AuditMetadata {
    * the worker walked the shelf in.
    */
   scanned_barcodes?: string[];
+  /**
+   * What the capture-time quality heuristic made of the photo.
+   *
+   * `status` is three-valued on purpose. `ok` and `flagged` are verdicts;
+   * `no_signal` says the heuristic could not judge at all, because the device
+   * reported no usable EXIF. A single boolean would render `no_signal` as
+   * "fine", which is the one reading it must never get: a supervisor would see
+   * an assessed photo where none was assessed.
+   *
+   * `flagged` does NOT mean the photo was withheld — the worker is warned and
+   * may still send it, because a dark basement photo of the right shelf is
+   * worth more than no evidence. It means a supervisor should look closer.
+   *
+   * Absent when the caller did not run the heuristic at all, so "not judged"
+   * and "judged and fine" stay distinguishable too.
+   */
+  photo_quality?: {
+    status: 'ok' | 'flagged' | 'no_signal';
+    reasons: string[];
+    metrics: {
+      iso?: number;
+      exposure_time_seconds?: number;
+      f_number?: number;
+      brightness_value?: number;
+    };
+  };
 }
 
 export interface QueueItem {

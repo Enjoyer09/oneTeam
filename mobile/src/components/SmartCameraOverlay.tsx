@@ -1,5 +1,6 @@
 import { AuditMetadata, GPSCoordinates } from '../types';
 import { calculateDistanceMeters } from '../utils/geofence';
+import { photoQualityStatus, type PhotoQualityAssessment } from '../utils/photoQuality';
 
 export interface CameraCaptureResult {
   photoUri: string;
@@ -39,6 +40,15 @@ export function stampAuditMetadata(params: {
    * absent means "no scanning happened" — the stamper preserves the difference.
    */
   scannedBarcodes?: readonly string[];
+  /**
+   * The capture-time quality verdict, when the caller ran the heuristic.
+   *
+   * The stamper does not run it: the assessment needs the EXIF the platform
+   * returned with the bytes, and only the screen has that. What the stamper
+   * does is refuse to lose the three-valued status — see `AuditMetadata` for
+   * why `no_signal` must not collapse into `ok`.
+   */
+  photoQuality?: PhotoQualityAssessment;
 }): AuditMetadata {
   const distance = calculateDistanceMeters(params.userGPS, params.storeGPS);
 
@@ -60,6 +70,34 @@ export function stampAuditMetadata(params: {
       ? Array.from(new Set(params.scannedBarcodes))
       : undefined;
 
+  // PHOTO QUALITY — SNAKE_CASE ON THE WIRE, THREE-VALUED ON PURPOSE.
+  //
+  // The metric names are translated here rather than spread through, so the
+  // audit record's field names do not silently follow a rename inside the
+  // heuristic. `no_signal` is carried through unchanged: it is the whole
+  // reason the status has three values instead of two.
+  const photoQuality =
+    params.photoQuality !== undefined
+      ? {
+          status: photoQualityStatus(params.photoQuality),
+          reasons: [...params.photoQuality.reasons],
+          metrics: {
+            ...(params.photoQuality.metrics.iso !== undefined
+              ? { iso: params.photoQuality.metrics.iso }
+              : {}),
+            ...(params.photoQuality.metrics.exposureTimeSeconds !== undefined
+              ? { exposure_time_seconds: params.photoQuality.metrics.exposureTimeSeconds }
+              : {}),
+            ...(params.photoQuality.metrics.fNumber !== undefined
+              ? { f_number: params.photoQuality.metrics.fNumber }
+              : {}),
+            ...(params.photoQuality.metrics.brightnessValue !== undefined
+              ? { brightness_value: params.photoQuality.metrics.brightnessValue }
+              : {}),
+          },
+        }
+      : undefined;
+
   return {
     gps: {
       latitude: params.userGPS.latitude,
@@ -74,6 +112,7 @@ export function stampAuditMetadata(params: {
     ghost_overlay_used: params.ghostOverlayUsed,
     app_version: params.appVersion || UNKNOWN_DEVICE_FIELD,
     ...(scannedBarcodes !== undefined ? { scanned_barcodes: scannedBarcodes } : {}),
+    ...(photoQuality !== undefined ? { photo_quality: photoQuality } : {}),
   };
 }
 

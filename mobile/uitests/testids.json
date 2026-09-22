@@ -89,6 +89,16 @@
       "why": "the photo the worker reviews before sending it"
     },
     {
+      "id": "camera.qualityWarning",
+      "where": "mobile/src/screens/CameraAuditScreenUI.tsx",
+      "why": "the quality gate flagged this photo; the worker is told before they can send it"
+    },
+    {
+      "id": "camera.qualityUnknown",
+      "where": "mobile/src/screens/CameraAuditScreenUI.tsx",
+      "why": "the heuristic could not judge the photo (no EXIF) — a third state, neither pass nor fail"
+    },
+    {
       "id": "camera.submitButton",
       "where": "mobile/src/screens/CameraAuditScreenUI.tsx",
       "why": "sends the audit; the end of the flow"

@@ -63,6 +63,11 @@ import {
   resolveCapturePosition,
   type CapturedPhoto,
 } from './CameraAuditScreen';
+import {
+  assessPhotoQuality,
+  photoQualityStatus,
+  type PhotoQualityAssessment,
+} from '../utils/photoQuality';
 import type { MobileTask, MobileStore, GPSCoordinates } from '../types';
 import type { ChecklistAnswer } from './TaskDetailScreen';
 
@@ -81,6 +86,28 @@ export interface CameraAuditScreenProps {
  * a slider the worker has to fiddle with standing in an aisle.
  */
 const ZOOM_STEPS = [0, 0.25, 0.5, 0.75, 1] as const;
+
+/**
+ * The quality heuristic's reason codes, in the worker's language.
+ *
+ * Kept here and not in `photoQuality.ts` because that module produces codes
+ * for the audit trail, and the audit trail is read by supervisors and machines
+ * — a code that changes with the UI's wording would break both. This map is
+ * the presentation layer, and the fallback is deliberate: an unknown code
+ * shows itself rather than being swallowed, so a new rule cannot ship as a
+ * blank warning.
+ */
+const QUALITY_REASON_TEXT: Record<string, string> = {
+  too_dark: 'şəkil çox qaranlıqdır',
+  overexposed: 'şəkil parıltılıdır (işıq həddindən artıqdır)',
+  high_iso: 'işıq azdır — şəkil dənəli çıxıb',
+  slow_shutter: 'çəkiliş sürəti yavaşdır — şəkil bulanıq ola bilər',
+  no_exif: 'kamera şəkil haqqında məlumat vermədi',
+};
+
+function describeQuality(assessment: PhotoQualityAssessment): string {
+  return assessment.reasons.map((r) => QUALITY_REASON_TEXT[r] ?? r).join(' · ');
+}
 
 export function CameraAuditScreenUI({
   task,
@@ -134,6 +161,13 @@ export function CameraAuditScreenUI({
   // to do with an empty list, so two callers cannot disagree on what "scanned"
   // means.
   const [scannedBarcodes, setScannedBarcodes] = useState<string[]>([]);
+
+  // What the capture-time quality heuristic made of the photo, or null when no
+  // capture has happened yet. `no_signal` is a real outcome and is displayed as
+  // such — see the review screen — because telling a worker their photo is
+  // "fine" when nobody could judge it is the same class of lie the rest of this
+  // screen exists to prevent.
+  const [quality, setQuality] = useState<PhotoQualityAssessment | null>(null);
 
   /**
    * Asks the platform where the device is RIGHT NOW, bounded in time.
@@ -213,12 +247,18 @@ export function CameraAuditScreenUI({
     }
 
     try {
-      const shot = await camera.takePictureAsync({ base64: true, quality: 0.7, exif: false });
+      const shot = await camera.takePictureAsync({ base64: true, quality: 0.7, exif: true });
       if (!shot?.base64) {
         throw new Error(
           'Kamera şəkil baytlarını qaytarmadı — auditə saxta şəkil yazılmır. Yenidən çəkin.',
         );
       }
+
+      // Judged from the EXIF the platform returned with these bytes, before the
+      // photo can be sent. `exif: true` above is what makes this possible; the
+      // assessment is pure and runs on the shutter, so there is no window in
+      // which an unjudged photo is sitting on screen.
+      const assessment = assessPhotoQuality(shot.exif as Record<string, unknown> | undefined);
 
       // WHERE THE PHOTO WAS TAKEN, not where the worker signed in. The fresh fix
       // is requested at the moment of capture; if the platform cannot answer, the
@@ -232,8 +272,10 @@ export function CameraAuditScreenUI({
         userGPS: position.gps,
         base64: shot.base64,
         scannedBarcodes,
+        photoQuality: assessment,
       });
       setPositionIsFresh(position.isFresh);
+      setQuality(assessment);
       setPreviewUri(shot.uri);
       setCaptured(result);
     } catch (e) {
@@ -245,13 +287,19 @@ export function CameraAuditScreenUI({
     setCaptured(null);
     setPreviewUri(null);
     // The position claim belongs to the capture that was taken, not to the screen
-    // — a retake has no position yet. Same for the scanned list: a fresh attempt
-    // starts with an empty shelf.
+    // — a retake has no position yet. Same for the scanned list and the quality
+    // verdict: a fresh attempt starts with an empty shelf and an unjudged photo.
     setPositionIsFresh(false);
     setScannedBarcodes([]);
+    setQuality(null);
   }, []);
 
-  const handleSubmit = useCallback(async () => {
+  /**
+   * The submission itself. Separated from `handleSubmit` because the flagged
+   * path reaches it from an Alert callback, and an async callback inside
+   * `Alert.alert`'s button list is easy to get wrong.
+   */
+  const doSubmit = useCallback(async () => {
     if (!captured) return;
     setSubmitting(true);
     try {
@@ -273,6 +321,41 @@ export function CameraAuditScreenUI({
       setSubmitting(false);
     }
   }, [controller, captured]);
+
+  /**
+   * Sends the audit, stopping to ask first when the quality gate flagged it.
+   *
+   * The gate is not a wall. A dark basement outlet with the right shelf in
+   * frame is still evidence, and refusing to send it would push the worker
+   * towards taking the photo outside or not at all. So the worker is told what
+   * is wrong, offered the retake, and allowed to send anyway — and the verdict
+   * is already stamped into the metadata either way, so a supervisor can see
+   * which audits came in flagged. The confirmation exists so that "send
+   * anyway" is a decision, not an oversight.
+   */
+  const handleSubmit = useCallback(() => {
+    if (!captured) return;
+
+    if (quality !== null && !quality.isAcceptable) {
+      Alert.alert(
+        'Şəkil keyfiyyətsizdir',
+        `${describeQuality(quality)}\n\nYenə də göndərilsin? Audit bunu qeyd edəcək.`,
+        [
+          { text: 'Yenidən çəkəcəyəm', style: 'cancel', onPress: handleRetake },
+          {
+            text: 'Yenə də göndər',
+            style: 'destructive',
+            onPress: () => {
+              void doSubmit();
+            },
+          },
+        ],
+      );
+      return;
+    }
+
+    void doSubmit();
+  }, [captured, quality, handleRetake, doSubmit]);
 
   const handleToggleGhost = useCallback(() => {
     controller.toggleGhost();
@@ -488,6 +571,29 @@ export function CameraAuditScreenUI({
         <View style={styles.simulatedBanner}>
           <Text style={styles.simulatedText}>
             ⚠️ Bu çəkilişdə kamera baytları yoxdur — audit saxta şəkillə göndərilməyəcək.
+          </Text>
+        </View>
+      ) : null}
+
+      {/* The quality gate's verdict, shown before the worker can send. Three
+          states, not two: a photo the heuristic could not judge says so
+          instead of passing as "fine". */}
+      {quality !== null && photoQualityStatus(quality) === 'flagged' ? (
+        <View style={styles.qualityBanner} testID="camera.qualityWarning">
+          <Text style={styles.qualityTitle}>⚠️ Şəklin keyfiyyəti aşağıdır</Text>
+          <Text style={styles.qualityText}>{describeQuality(quality)}</Text>
+          <Text style={styles.qualityHint}>
+            Yenidən çəkmək daha yaxşıdır. Yenə də göndərsəniz, audit bunu qeyd edəcək və supervisor
+            görəcək.
+          </Text>
+        </View>
+      ) : null}
+
+      {quality !== null && photoQualityStatus(quality) === 'no_signal' ? (
+        <View style={styles.qualityUnknownBanner} testID="camera.qualityUnknown">
+          <Text style={styles.qualityUnknownText}>
+            ℹ️ Şəklin keyfiyyəti yoxlanıla bilmədi — kamera lazımi məlumatı vermədi. Bu, şəklin pis
+            olması demək deyil, sadəcə yoxlanılmadığı deməkdir.
           </Text>
         </View>
       ) : null}
@@ -794,6 +900,48 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#FFC107',
     lineHeight: 20,
+  },
+  // Red, not amber: the amber banners elsewhere say "this claim is weaker than
+  // it looks". This one says "do not send this photo" — a different instruction.
+  qualityBanner: {
+    backgroundColor: 'rgba(229,57,53,0.16)',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(229,57,53,0.65)',
+  },
+  qualityTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FF8A80',
+    marginBottom: 6,
+  },
+  qualityText: {
+    fontSize: 14,
+    color: '#FFCDD2',
+    lineHeight: 20,
+  },
+  qualityHint: {
+    marginTop: 8,
+    fontSize: 13,
+    color: '#E0A0A0',
+    lineHeight: 19,
+  },
+  // Neutral, not red and not green: "we did not judge this" is its own outcome
+  // and must not borrow the colour of either verdict.
+  qualityUnknownBanner: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  qualityUnknownText: {
+    fontSize: 13,
+    color: '#CCCCCC',
+    lineHeight: 19,
   },
   section: {
     marginBottom: 20,

@@ -9,6 +9,7 @@ import {
 import { stampAuditMetadata, assertLiveCameraCapture } from '../components/SmartCameraOverlay';
 import { mobileApi, MobileApiError } from '../services/portalApi';
 import { offlineQueueService } from '../services/offlineQueue';
+import type { PhotoQualityAssessment } from '../utils/photoQuality';
 
 export interface CameraScreenState {
   ghostOverlayActive: boolean;
@@ -99,6 +100,13 @@ export class CameraAuditController {
      * worker did not scan anything; the stamper preserves that distinction.
      */
     scannedBarcodes?: readonly string[];
+    /**
+     * The capture-time quality verdict, from the EXIF the platform returned
+     * with the bytes. Optional because a caller that did not ask for EXIF has
+     * nothing to pass — and the stamper keeps "not judged" distinct from
+     * "judged and fine".
+     */
+    photoQuality?: PhotoQualityAssessment;
   }): Promise<CapturedPhoto> {
     // 1. Anti-fraud assertion: must be live camera
     assertLiveCameraCapture(params.source);
@@ -141,6 +149,11 @@ export class CameraAuditController {
       // the one place that decides whether to keep it and how to de-duplicate
       // it, so two call sites cannot disagree on what "scanned" means.
       scannedBarcodes: params.scannedBarcodes,
+      // The verdict travels with the photo. Note that `flagged` does not stop
+      // the submission here — the screen asks the worker to confirm, and this
+      // method records whatever it was told. A controller that silently
+      // dropped a flagged capture would be a controller that loses evidence.
+      photoQuality: params.photoQuality,
     });
 
     const photoUri =
