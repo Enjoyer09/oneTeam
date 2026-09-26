@@ -43,6 +43,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
   );
   const [searchQuery, setSearchQuery] = useState('');
   const [rejectFeedback, setRejectFeedback] = useState('');
+  const [rejectError, setRejectError] = useState<string | null>(null);
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [showBoundingBoxes, setShowBoundingBoxes] = useState(true);
   const [activePhotoView, setActivePhotoView] = useState<'after' | 'before'>('after');
@@ -60,24 +61,18 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
     setSelectedSubmission(null),
   );
 
-  // Auto pre-fill supervisor feedback drawer when Scenario C is selected or score < 60%
+  // Open the reject drawer for low-scoring audits so the supervisor can note a
+  // reason, but start the field from the real reviewer feedback (or empty) —
+  // never from a canned rejection text.
   React.useEffect(() => {
     if (selectedSubmission) {
       setActivePhotoView('after');
       setIsReevaluating(false);
-      if (
-        selectedSubmission.metadata?.scenario === 'scenario_c_missing_sprite' ||
-        (selectedSubmission.ai_score !== null && (selectedSubmission.ai_score ?? 100) < 60)
-      ) {
-        setShowRejectInput(true);
-        setRejectFeedback(
-          selectedSubmission.reviewer_feedback ||
-            'Tələb olunan Sprite 0.5L məhsulları rəfdə tamamilə yoxdur (0/2 facing). Zəhmət olmasa Sprite məhsullarını soyuducunun sağ tərəfinə əlavə edib təkrar audit göndərin.',
-        );
-      } else {
-        setShowRejectInput(false);
-        setRejectFeedback(selectedSubmission.reviewer_feedback || '');
-      }
+      setRejectError(null);
+      const lowScore =
+        selectedSubmission.ai_score !== null && (selectedSubmission.ai_score ?? 100) < 60;
+      setShowRejectInput(lowScore);
+      setRejectFeedback(selectedSubmission.reviewer_feedback || '');
     }
   }, [selectedSubmission]);
 
@@ -145,9 +140,10 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
 
   const handleRejectSubmit = async (id: string) => {
     if (!rejectFeedback.trim()) {
-      alert('Zəhmət olmasa imtina səbəbini qeyd edin.');
+      setRejectError('Zəhmət olmasa imtina səbəbini qeyd edin.');
       return;
     }
+    setRejectError(null);
     try {
       setIsProcessing(true);
       await onReject(id, rejectFeedback.trim());
@@ -293,6 +289,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                       setSelectedSubmission(sub);
                       setShowRejectInput(false);
                       setRejectFeedback('');
+                      setRejectError(null);
                     }}
                     className="w-full py-2 px-3 rounded-lg bg-[var(--g-panel)] hover:bg-[var(--coke-soft)] hover:text-coke text-ink font-bold text-xs transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
                   >
@@ -666,9 +663,18 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                     rows={2}
                     placeholder="Məsələn: Coca-Cola Classic 0.5L alt sırada 2 facing çatışmır və etiketlər düz çevrilməyib..."
                     value={rejectFeedback}
-                    onChange={(e) => setRejectFeedback(e.target.value)}
-                    className="w-full p-2.5 text-xs rounded-lg border border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-500 bg-[var(--g-card)]"
+                    onChange={(e) => {
+                      setRejectFeedback(e.target.value);
+                      if (rejectError) setRejectError(null);
+                    }}
+                    aria-invalid={rejectError ? true : undefined}
+                    className={`w-full p-2.5 text-xs rounded-lg border focus:outline-none focus:ring-2 focus:ring-rose-500 bg-[var(--g-card)] ${
+                      rejectError ? 'border-rose-500' : 'border-rose-300'
+                    }`}
                   />
+                  {rejectError && (
+                    <p className="text-[11px] font-bold text-rose-700">{rejectError}</p>
+                  )}
                 </div>
               )}
 

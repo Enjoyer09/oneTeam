@@ -55,8 +55,28 @@ services:
       # No default. See the header: a silent, well-known password is a bug.
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - copy .env.production.example to .env.production and set it}
       POSTGRES_DB: ${POSTGRES_DB:-oneteam}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+    # ------------------------------------------------------------------------
+    # The database is NOT published to the host by default.
+    # ------------------------------------------------------------------------
+    # The api and bot reach it over the internal `oneteam-network` bridge using
+    # the hostname `postgres`, so no host port is needed for the stack to work.
+    # Publishing 5432 exposes the database to every process on the host and, on
+    # a cloud VM with a permissive firewall, to the internet — an unnecessary
+    # attack surface for a store of production data.
+    #
+    # If you need psql or a backup job from the host, uncomment the block below
+    # (ideally bound to loopback: "127.0.0.1:5432:5432") for as long as you need
+    # it, then comment it out again. The `db-backup.sh` script connects with a
+    # DATABASE_URL and can run from inside the network instead.
+    #
+    # ports:
+    #   - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    # Cap resources so a runaway query or connection storm cannot starve the
+    # host. Honoured by `docker compose up` (unlike `deploy.resources`, which
+    # only applies under swarm / `docker stack deploy`).
+    mem_limit: 1g
+    cpus: "1.0"
+    pids_limit: 256
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # Applied only when the data directory is empty, i.e. on first boot.
@@ -89,6 +109,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # Resource caps — honoured by `docker compose up`. The API holds an
+    # in-memory replica of the dataset, so give it real headroom.
+    mem_limit: 1g
+    cpus: "1.0"
+    pids_limit: 256
     environment:
       NODE_ENV: production
       PORT: 3001
@@ -188,6 +213,10 @@ services:
       API_UPSTREAM: http://api:3001
     depends_on:
       - api
+    # Resource caps — nginx serving static assets needs very little.
+    mem_limit: 256m
+    cpus: "0.5"
+    pids_limit: 128
     ports:
       - "80:80"
       - "5173:80"
@@ -213,6 +242,10 @@ services:
     restart: unless-stopped
     depends_on:
       - api
+    # Resource caps — a single long-lived worker polling Telegram.
+    mem_limit: 512m
+    cpus: "0.5"
+    pids_limit: 128
     environment:
       NODE_ENV: production
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN is required}

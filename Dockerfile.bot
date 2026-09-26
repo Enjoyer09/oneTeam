@@ -1,37 +1,108 @@
 # ==============================================================================
-# oneTeam Telegram Bot Worker — Production Dockerfile
+# oneTeam Telegram Bot Worker — Production Dockerfile (multi-stage)
 # ==============================================================================
 #
-# Node 22: several dependencies require it (see the API Dockerfile for the
+# WHAT CHANGED AND WHY
+# --------------------
+# The previous version shipped the TypeScript sources and ran them through `tsx`
+# at container start. That put the compiler and the whole dev-dependency tree in
+# the production image, compiled on every boot, and ran as root. This file now:
+#
+#   * compiles the bot to plain JavaScript in a throwaway `builder` stage;
+#   * ships only the compiled output plus production dependencies (`--omit=dev`),
+#     so `typescript` and `tsx` never reach the runtime image;
+#   * runs as the unprivileged `node` user rather than root.
+#
+# Node 22: several dependencies require it (see apps/api/Dockerfile for the
 # longer explanation), and .nvmrc pins the same major.
 
-FROM node:22-alpine
+# ------------------------------------------------------------------------------
+# Stage 1 — build: compile the workspace packages and the bot to JavaScript
+# ------------------------------------------------------------------------------
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# ------------------------------------------------------------------------------
-# Dependency manifests
-# ------------------------------------------------------------------------------
-# apps/api/package.json is copied even though the bot never imports it. The root
+# Dependency manifests first, so the (slow) install layer is cached until a
+# manifest actually changes.
+#
+# apps/api/package.json is copied even though the bot never imports it: the root
 # package.json declares `workspaces: ["apps/*", "packages/*"]`, and npm resolves
 # that glob against the filesystem — leaving apps/ absent makes the workspace map
-# depend on a directory that is not there.
-COPY package*.json pnpm-workspace.yaml* turbo.json* ./
+# depend on a directory that is not there. (The old `pnpm-workspace.yaml*` and
+# `turbo.json*` globs were dropped here when those dead config files were deleted
+# from the repo.)
+COPY package*.json ./
 COPY packages/types/package*.json ./packages/types/
 COPY packages/database/package*.json ./packages/database/
 COPY apps/api/package*.json ./apps/api/
 
+# Full install — the build needs the dev dependencies (typescript) that the
+# runtime image will not carry.
 RUN npm install
 
 # Link the workspace packages before the source tree is copied in, so that
-# `@oneteam/*` resolves the same way it does in the API image.
+# `@oneteam/*` resolves the same way it does in the API image. Created
+# explicitly rather than via npm workspace linking because at this point each
+# workspace directory contains only its package.json.
 RUN rm -rf node_modules/@oneteam && \
     mkdir -p node_modules/@oneteam && \
     ln -sfn /app/packages/types node_modules/@oneteam/types && \
     ln -sfn /app/packages/database node_modules/@oneteam/database
 
-# Copy application files
-COPY . ./
+# Sources and TypeScript config needed to compile the bot and its two workspace
+# packages. apps/ is deliberately NOT copied: the bot imports only `@oneteam/*`
+# and the root tsconfig's `apps/**/*` include glob simply matches nothing.
+COPY tsconfig.json ./
+COPY packages/types ./packages/types
+COPY packages/database ./packages/database
+COPY src ./src
 
-# Run bot daemon
-CMD ["node", "./node_modules/tsx/dist/cli.mjs", "src/bot/index.ts"]
+# 1) Compile the workspace packages to their own dist/ (their package.json
+#    `main` points at ./dist/index.js, which is what the runtime resolves).
+RUN npm run build:packages
+
+# 2) Compile the bot. The root tsconfig has rootDir "./" and outDir "./dist",
+#    so src/bot/index.ts is emitted to dist/src/bot/index.js. Its `@oneteam/*`
+#    imports stay as bare specifiers and resolve at runtime through the
+#    node_modules symlinks recreated in the runtime stage.
+RUN node ./node_modules/typescript/bin/tsc
+
+# ------------------------------------------------------------------------------
+# Stage 2 — runtime: production dependencies + compiled JS only
+# ------------------------------------------------------------------------------
+FROM node:22-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Manifests, then a production-only install: no typescript, no tsx, no test
+# tooling. `pg` (a runtime dependency of @oneteam/database) is kept because
+# `--omit=dev` drops devDependencies, not dependencies.
+COPY package*.json ./
+COPY packages/types/package*.json ./packages/types/
+COPY packages/database/package*.json ./packages/database/
+COPY apps/api/package*.json ./apps/api/
+
+RUN npm install --omit=dev
+
+# Compiled workspace packages and the compiled bot.
+COPY --from=builder /app/packages/types/dist ./packages/types/dist
+COPY --from=builder /app/packages/database/dist ./packages/database/dist
+COPY --from=builder /app/dist ./dist
+
+# Re-create the @oneteam links so bare `@oneteam/*` imports resolve to the
+# compiled packages above.
+RUN rm -rf node_modules/@oneteam && \
+    mkdir -p node_modules/@oneteam && \
+    ln -sfn /app/packages/types node_modules/@oneteam/types && \
+    ln -sfn /app/packages/database node_modules/@oneteam/database
+
+# Drop privileges. The `node` user (uid 1000) ships with the base image; the bot
+# only reads its own files and makes outbound calls to Telegram and the API, so
+# no writable paths or chowns are needed.
+USER node
+
+# Run the compiled bot daemon.
+CMD ["node", "dist/src/bot/index.js"]

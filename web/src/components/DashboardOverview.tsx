@@ -95,17 +95,6 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     }
   };
 
-  /* Ssenari çipi — rəng + işarə + mətn birlikdə (yalnız rəngə güvənmirik) */
-  const scenarioChip = (sub: Submission) => {
-    const scenario = sub.metadata?.scenario;
-    if (scenario === 'scenario_a_compliant')
-      return <span className="chip-g chip-a">Ssenari A</span>;
-    if (scenario === 'scenario_b_gap') return <span className="chip-g chip-b">Ssenari B</span>;
-    if (scenario === 'scenario_c_missing_sprite')
-      return <span className="chip-g chip-c">Ssenari C</span>;
-    return null;
-  };
-
   const scoreTone = (score: number) => (score >= 80 ? 'st-ok' : score >= 60 ? 'st-warn' : 'st-bad');
 
   return (
@@ -282,7 +271,6 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
                       <td>
                         <div className="flex flex-wrap items-center gap-1.5">
-                          {scenarioChip(sub)}
                           <p className="text-[12px] font-bold leading-tight tracking-[-.015em] text-ink">
                             {sub.task?.title || 'Rəf Auditi'}
                           </p>

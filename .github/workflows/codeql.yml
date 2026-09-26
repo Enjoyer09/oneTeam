@@ -1,0 +1,63 @@
+# ==============================================================================
+# oneTeam — CodeQL static analysis
+# ==============================================================================
+#
+# Scans the JavaScript/TypeScript across the whole repo (API, bot, web portal,
+# mobile client) for injection, auth and data-flow defects that a linter does
+# not model. Runs on every push and PR to main, and on a weekly schedule so a
+# newly published query catches an old bug even when nothing has changed.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Mondays 05:17 UTC. An odd minute avoids the top-of-hour scheduling crowd.
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+# CodeQL analysis needs to read the code and write results back to the Security
+# tab; nothing else.
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (javascript-typescript)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["javascript-typescript"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          language: ${{ matrix.language }}
+          # `security-and-quality` is the broader pack; drop to
+          # `security-extended` or the default if the queue gets too long.
+          queries: security-and-quality
+
+      # No compiled language here — CodeQL builds its JS/TS database directly
+      # from source, so autobuild is a no-op that is kept only for clarity.
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

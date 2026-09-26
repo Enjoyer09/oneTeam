@@ -102,7 +102,20 @@ export function stampAuditMetadata(params: {
     gps: {
       latitude: params.userGPS.latitude,
       longitude: params.userGPS.longitude,
-      accuracy: params.userGPS.accuracy || 5, // GPS precision in meters
+      // The REAL reported accuracy, or absent when the platform gave none.
+      //
+      // This used to be `params.userGPS.accuracy || 5` — a missing reading was
+      // silently rewritten to a plausible 5 m, which made an unqualified fix look
+      // like a precise one in the audit trail. That is the exact "silently pass a
+      // weak fix" defect the anti-fraud pass exists to close, so the value is
+      // preserved as-is and `submitAudit` flags a low-confidence fix downstream.
+      ...(typeof params.userGPS.accuracy === 'number'
+        ? { accuracy: params.userGPS.accuracy }
+        : {}),
+      // The platform's mock-location flag, when it reported one (Android). Carried
+      // so the server can flag a spoofed position; absent on iOS, where the
+      // platform does not expose it.
+      ...(typeof params.userGPS.mocked === 'boolean' ? { mocked: params.userGPS.mocked } : {}),
     },
     distance_from_store_meters: Math.round(distance),
     device_model: params.deviceModel || UNKNOWN_DEVICE_FIELD,

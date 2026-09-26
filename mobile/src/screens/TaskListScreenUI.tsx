@@ -29,6 +29,8 @@ import {
 } from 'react-native';
 import type { MobileTask, MobileStore } from '../types';
 import { TaskListController } from './TaskListScreen';
+import { mobileApp } from '../App';
+import { offlineQueueService } from '../services/offlineQueue';
 
 export interface TaskListScreenProps {
   store: MobileStore;
@@ -43,6 +45,24 @@ export function TaskListScreenUI({ store, onSelectTask, onLogout }: TaskListScre
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Offline-queue sync state. The queue is device-local, so the count and the
+  // "sync now" action live on the screen rather than coming from the task API.
+  const [pendingSync, setPendingSync] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+
+  // How many audits are waiting to be sent. Read defensively: the queue refuses
+  // to report a count before it has been loaded, and although the app entry loads
+  // it at startup, a guard here keeps the task list from crashing if that order
+  // ever changes.
+  const refreshPending = () => {
+    try {
+      setPendingSync(offlineQueueService.getPendingCount());
+    } catch {
+      setPendingSync(0);
+    }
+  };
+
   const load = async () => {
     try {
       setError(null);
@@ -53,6 +73,40 @@ export function TaskListScreenUI({ store, onSelectTask, onLogout }: TaskListScre
     } finally {
       setLoading(false);
       setRefreshing(false);
+      refreshPending();
+    }
+  };
+
+  /**
+   * Sends everything waiting in the offline queue, on the worker's command.
+   *
+   * `triggerManualSync` waives the automatic retry cap — a person pressing the
+   * button is new information the cap is not there to overrule. The result is
+   * summarised so the worker can see that something happened rather than guessing
+   * from a silent button.
+   */
+  const handleSync = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    setSyncMessage(null);
+    try {
+      const result = await mobileApp.history.triggerManualSync();
+      if (result.reason === 'nothing-pending') {
+        setSyncMessage('Göndəriləcək audit yoxdur.');
+      } else if (result.syncedCount > 0 && result.failedCount === 0) {
+        setSyncMessage(`✅ ${result.syncedCount} audit göndərildi.`);
+      } else if (result.failedCount > 0) {
+        setSyncMessage(
+          `${result.syncedCount} göndərildi, ${result.failedCount} alınmadı — sonra yenidən cəhd edin.`,
+        );
+      } else {
+        setSyncMessage('Sinxronizasiya tamamlandı.');
+      }
+    } catch (e) {
+      setSyncMessage('Sinxronizasiya alınmadı: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setSyncing(false);
+      refreshPending();
     }
   };
 
@@ -73,10 +127,33 @@ export function TaskListScreenUI({ store, onSelectTask, onLogout }: TaskListScre
     <View style={styles.screen}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>{store.name}</Text>
+        <TouchableOpacity
+          testID="taskList.syncButton"
+          accessibilityRole="button"
+          onPress={() => {
+            void handleSync();
+          }}
+          disabled={syncing}
+          style={styles.syncButton}
+        >
+          {syncing ? (
+            <ActivityIndicator size="small" color="#0066CC" />
+          ) : (
+            <Text style={styles.syncText}>
+              Növbəni göndər{pendingSync > 0 ? ` (${pendingSync})` : ''}
+            </Text>
+          )}
+        </TouchableOpacity>
         <TouchableOpacity onPress={onLogout} style={styles.logoutButton}>
           <Text style={styles.logoutText}>Çıxış</Text>
         </TouchableOpacity>
       </View>
+
+      {syncMessage ? (
+        <View style={styles.syncBanner}>
+          <Text style={styles.syncBannerText}>{syncMessage}</Text>
+        </View>
+      ) : null}
 
       {error ? (
         <View style={styles.center}>
@@ -176,6 +253,28 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: 15,
     color: '#B00020',
+  },
+  syncButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    minWidth: 44,
+    alignItems: 'center',
+  },
+  syncText: {
+    fontSize: 15,
+    color: '#0066CC',
+    fontWeight: '600',
+  },
+  syncBanner: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#F0F6FF',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#D6E4FF',
+  },
+  syncBannerText: {
+    fontSize: 13,
+    color: '#0066CC',
   },
   center: {
     flex: 1,

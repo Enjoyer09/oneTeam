@@ -505,6 +505,7 @@ export function App() {
         activeTab={activeTab}
         setActiveTab={handleTabChange}
         pendingCount={metrics.pendingReviews}
+        identity={auth.identity}
         drawerOpen={drawerOpen}
         onCloseDrawer={() => setDrawerOpen(false)}
       />

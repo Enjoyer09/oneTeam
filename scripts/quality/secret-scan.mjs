@@ -310,6 +310,12 @@ const DETECTORS = [
     allowIf: (value, context) => {
       if (/^[0-9a-f]{40}$/i.test(value)) return true; // git SHA
       if (/^[0-9a-f]{64}$/i.test(value)) return true; // sha256
+      // A CSP/SRI hash source (`sha256-<base64>`) is the PUBLIC integrity digest
+      // of an inline script or asset. It is served in a header for the browser
+      // to verify against and is meaningless to an attacker — nginx.conf's CSP
+      // carries exactly one. The grammar is exact (an algorithm prefix, base64,
+      // and up to two '=' of padding), so it cannot hide a random credential.
+      if (/^sha(?:256|384|512)-[A-Za-z0-9+/]+={0,2}$/.test(value)) return true; // CSP/SRI hash
       if (URL_PATH.test(value)) return true; // a route, not a key
       if (context && insideImageLiteral(context.text, context.index)) return true; // base64 photo
       const uniq = new Set(value).size;

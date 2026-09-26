@@ -503,11 +503,16 @@ export async function deleteTemplateRow(pool: Pool, templateId: string): Promise
 /**
  * Deletes one store task, together with everything queued about it.
  *
- * `task_evidences.store_task_id` is `ON DELETE CASCADE`, so this statement also
- * destroys every photo and checklist answer submitted against the task. That is
- * why the caller counts the evidence first and refuses rather than letting a
- * supervisor delete a briefing and lose the field work with it — see
- * `countEvidencesForTask`.
+ * `task_evidences.store_task_id` is `ON DELETE RESTRICT` (migration
+ * 20260920000009), so this statement RAISES rather than destroying the photos
+ * and checklist answers filed against the task. The caller counts the evidence
+ * first and refuses with a readable `HAS_EVIDENCE` before ever reaching here —
+ * see `countEvidencesForTask`. This constraint is the last line of defence for
+ * the race where an audit is submitted between that count and this delete: the
+ * statement fails, the transaction rolls back, and the task is left in place
+ * with its evidence intact, instead of the evidence being silently cascaded
+ * away. Losing a briefing is recoverable; losing the field work filed against
+ * it is not.
  *
  * `notifications.store_task_id` has NO foreign key — the same reasoning as
  * `bot_sessions`, so that a supervisor can delete a task without the outbox
@@ -526,10 +531,9 @@ export async function deleteTemplateRow(pool: Pool, templateId: string): Promise
  * remove the delivered rows within days anyway. One invariant, easy to check:
  * the outbox holds nothing about a task that no longer exists.
  *
- * Both statements in one transaction. The delete is what makes the notice
- * wrong, so a partial outcome is bad either way: notifications gone with the
- * task still present loses a legitimate notice, and the task gone with the
- * notice still queued ships a wrong one.
+ * Both statements in one transaction. If the evidence FK raises on the second
+ * statement, the notifications delete rolls back with it — so a task that
+ * cannot be deleted does not quietly lose its queued notices along the way.
  */
 export async function deleteStoreTaskRow(pool: Pool, taskId: string): Promise<boolean> {
   const client = await pool.connect();

@@ -16,8 +16,9 @@
 import 'dotenv/config';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
-import { Logger } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { AllExceptionsFilter } from './common/http/all-exceptions.filter';
 import { db } from '@oneteam/database';
 
 /**
@@ -90,6 +91,23 @@ async function bootstrap() {
   // and the API starts on in-memory seed data. /api/health reports which mode
   // is in use, so this cannot go unnoticed.
   await db.init();
+
+  // One consistent home for unhandled errors, so a raw throw becomes a safe 500
+  // instead of a stack trace on the wire. Understood HttpExceptions pass through
+  // unchanged — see the filter for why that boundary matters.
+  app.useGlobalFilters(new AllExceptionsFilter());
+
+  // A global validation pipe, ready for the DTOs the controllers are migrating
+  // to. `whitelist` strips properties a DTO does not declare; it is inert for a
+  // body still typed `any` (no class metadata to validate against), so wiring it
+  // now changes nothing today and enforces the contract as DTOs land.
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidUnknownValues: false,
+      transform: false,
+    }),
+  );
 
   const allowedOrigins = resolveAllowedOrigins(logger);
 

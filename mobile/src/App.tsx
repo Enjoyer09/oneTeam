@@ -3,6 +3,7 @@ import { TaskListController } from './screens/TaskListScreen';
 import { CameraAuditController } from './screens/CameraAuditScreen';
 import { AuditHistoryController } from './screens/AuditHistoryScreen';
 import { offlineQueueService } from './services/offlineQueue';
+import type { DrainResult } from './services/offlineQueue';
 import { mobileApi, restoreCredential } from './services/portalApi';
 import { MobileStore, MobileTask, GPSCoordinates } from './types';
 
@@ -109,6 +110,24 @@ export class MobileAppCoordinator {
     if (!this.currentStore) throw new Error('No active store logged in');
     this.selectedTask = task;
     return new CameraAuditController(task, this.currentStore);
+  }
+
+  /**
+   * Drains the offline queue through the registered upload path.
+   *
+   * Called at startup (right after `initializeQueue`) and whenever the app
+   * returns to the foreground — the two moments where the device may be online
+   * and holding audits from a previous session, but no offline→online transition
+   * happened to trigger the reconnection drain. Automatic, so it respects the
+   * retry cap; the worker's own "sync now" button uses the manual path instead.
+   *
+   * `history` (constructed above) registers the upload handler, so by the time
+   * this coordinator exists the queue has a handler to drain with. It never
+   * throws — the queue turns any storage failure into a `storage-failed` result —
+   * so a caller in a lifecycle effect can fire it and forget it.
+   */
+  async drainQueueOnResume(): Promise<DrainResult> {
+    return offlineQueueService.syncNow();
   }
 
   getOfflineQueueService() {

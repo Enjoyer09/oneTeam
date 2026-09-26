@@ -197,6 +197,10 @@ export function CameraAuditScreenUI({
         longitude: position.coords.longitude,
         accuracy:
           typeof position.coords.accuracy === 'number' ? position.coords.accuracy : undefined,
+        // The platform's mock-location flag (Android). Forwarded so a spoofed fix
+        // can be flagged on the submission; `undefined` on iOS, where it is not
+        // exposed.
+        mocked: typeof position.mocked === 'boolean' ? position.mocked : undefined,
       };
     } catch {
       // A failure to fix is a state, not an error to surface: the caller falls

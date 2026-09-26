@@ -9,11 +9,60 @@ import { db, InMemoryEvidence } from '@oneteam/database';
 import { TaskStateService } from '../tasks/task-state.service';
 import { AuthenticatedPrincipal } from '../../common/auth/authenticated-principal';
 
+/** The outcome of a submission — shared by the live path and the idempotent replay. */
+export interface SubmitEvidenceResult {
+  success: boolean;
+  evidence: InMemoryEvidence;
+  distanceMeters: number;
+  taskState: TaskState;
+}
+
 @Injectable()
 export class EvidenceService {
   private readonly logger = new Logger(EvidenceService.name);
 
+  /**
+   * Remembers a submission by its client idempotency key, so a retry returns the
+   * evidence already created instead of making a second one.
+   *
+   * In-memory and per-replica, like the enrolment rate limiter — it closes the
+   * realistic double-submit (offline-queue retry, double tap) on the single-API
+   * deployment this runs on. A shared store would be needed to dedup across
+   * replicas; that is a follow-up tied to the same infra as distributed rate
+   * limiting.
+   */
+  private readonly idempotencyCache = new Map<
+    string,
+    { at: number; result: SubmitEvidenceResult }
+  >();
+  private static readonly IDEMPOTENCY_TTL_MS = 10 * 60 * 1000;
+  private static readonly IDEMPOTENCY_MAX_ENTRIES = 5000;
+
   constructor(private readonly taskStateService: TaskStateService) {}
+
+  private idempotencyGet(key: string): SubmitEvidenceResult | null {
+    const hit = this.idempotencyCache.get(key);
+    if (!hit) return null;
+    if (Date.now() - hit.at > EvidenceService.IDEMPOTENCY_TTL_MS) {
+      this.idempotencyCache.delete(key);
+      return null;
+    }
+    // The evidence could have been deleted since; a stale key must not resurrect it.
+    if (!db.evidences.some((e) => e.id === hit.result.evidence.id)) {
+      this.idempotencyCache.delete(key);
+      return null;
+    }
+    return hit.result;
+  }
+
+  private idempotencyPut(key: string, result: SubmitEvidenceResult): void {
+    if (this.idempotencyCache.size >= EvidenceService.IDEMPOTENCY_MAX_ENTRIES) {
+      // Oldest-first prune. Insertion order is Map's iteration order.
+      const oldest = this.idempotencyCache.keys().next().value;
+      if (oldest !== undefined) this.idempotencyCache.delete(oldest);
+    }
+    this.idempotencyCache.set(key, { at: Date.now(), result });
+  }
 
   /**
    * Submits shelf audit photo evidence with anti-fraud GPS geofence verification (< 100m).
@@ -21,12 +70,18 @@ export class EvidenceService {
   async submitEvidence(
     dto: SubmitEvidenceRequestDto,
     principal: AuthenticatedPrincipal,
-  ): Promise<{
-    success: boolean;
-    evidence: InMemoryEvidence;
-    distanceMeters: number;
-    taskState: TaskState;
-  }> {
+  ): Promise<SubmitEvidenceResult> {
+    const idempotencyKey = dto.idempotencyKey?.trim();
+    if (idempotencyKey) {
+      const cached = this.idempotencyGet(idempotencyKey);
+      if (cached) {
+        this.logger.log(
+          `↩️ [IDEMPOTENT] Reusing evidence ${cached.evidence.id} for a repeated submission.`,
+        );
+        return cached;
+      }
+    }
+
     const task = db.getTask(dto.storeTaskId);
     if (!task) {
       throw new HttpException(`Tapşırıq tapılmadı: ${dto.storeTaskId}`, HttpStatus.NOT_FOUND);
@@ -298,11 +353,15 @@ export class EvidenceService {
       `✅ [EVIDENCE ACCEPTED] Evidence ${evidenceRecord.id} (${photoType}) verified and stored (${geofence.distanceMeters}m from store)`,
     );
 
-    return {
+    const result: SubmitEvidenceResult = {
       success: true,
       evidence: evidenceRecord,
       distanceMeters: geofence.distanceMeters,
       taskState: task.status,
     };
+
+    if (idempotencyKey) this.idempotencyPut(idempotencyKey, result);
+
+    return result;
   }
 }

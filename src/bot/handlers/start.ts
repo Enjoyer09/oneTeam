@@ -30,13 +30,24 @@ export async function handleStart(ctx: BotContext) {
 
   ctx.session.step = 'awaiting_store_code';
 
-  // The examples are real store codes from the seeded catalogue. A made-up one
-  // is worse than none: a merchandiser who types the example and is told the
-  // store does not exist has been sent to a dead end by the bot itself.
+  // The prompt shows the *shape* of a code, never a working one.
+  //
+  // In this system the store code is not a hint, it is the claim: binding to a
+  // store assigns that store's open work to whoever sent the code (see
+  // `FieldService.bind`). Printing a real, live code here — as this once did —
+  // hands a working enrolment credential to anyone who opens the bot, which is
+  // the opposite of what a claim credential is for.
+  //
+  // A made-up code that *looks* typeable is the other trap: a merchandiser who
+  // types it is told the store does not exist and has been sent to a dead end.
+  // So the example is a labelled format (CHAIN_BRANCH_NUMBER), clearly a
+  // template rather than something to type, and the real code comes from the
+  // supervisor who assigned the store — not from the bot.
   const welcomeMessage =
     `👋 *oneTeam — Rəf Monitorinq Sisteminə Xoş Gəlmisiniz!* (Coca-Cola FMCG)\n\n` +
     `Platformadan istifadə etmək üçün zəhmət olmasa təmsil etdiyiniz *Mağaza Kodunu* göndərin.\n\n` +
-    `💡 *Nümunə:* \`BRAVO_YASAMAL_01\` və ya \`ARAZ_GENJLIK_02\``;
+    `💡 *Kodun formatı:* \`ŞƏBƏKƏ_FİLİAL_NÖMRƏ\` (məsələn şəbəkə adı, filial və sıra nömrəsi).\n` +
+    `Dəqiq mağaza kodunuzu sizə mağazanı təyin edən *nəzarətçiniz* verir.`;
 
   // No keyboard on purpose: at this point the only useful action is to type a
   // store code, and a "📋 Tapşırıqlar" button that answers "no store
@@ -69,7 +80,8 @@ export async function handleStoreCodeInput(ctx: BotContext) {
   if (!store) {
     await ctx.reply(
       `❌ *Mağaza kodu tapılmadı:* \`${text}\`\n\n` +
-        `Zəhmət olmasa, mağaza kodunun düzgünlüyünü yoxlayın və yenidən daxil edin (Məsələn: \`BRAVO_YASAMAL_01\`).`,
+        `Zəhmət olmasa, mağaza kodunun düzgünlüyünü yoxlayın və yenidən daxil edin. ` +
+        `Kodu bilmirsinizsə, sizə mağazanı təyin edən nəzarətçinizlə əlaqə saxlayın.`,
       { parse_mode: 'Markdown' },
     );
     return;

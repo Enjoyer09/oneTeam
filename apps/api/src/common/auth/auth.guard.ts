@@ -7,7 +7,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Request } from 'express';
-import { UserRole } from '@oneteam/types';
+import { UserRole, verifyServiceCredential } from '@oneteam/types';
 import { AuthenticatedPrincipal, PrincipalSource } from './authenticated-principal';
 import { db, isDeviceToken, isPanelToken, matchesPanelBootstrapKey } from '@oneteam/database';
 
@@ -175,8 +175,43 @@ export class AuthGuard implements CanActivate {
       return this.fromPanelToken(token, request);
     }
 
-    const userId = token.startsWith('oneteam-user:') ? token.slice('oneteam-user:'.length) : null;
-    return userId ? this.fromUserId(userId, 'service') : null;
+    // The service credential — `oneteam-user:<userId>`, which can name any user
+    // and which the bot and edge hold. Two shapes are accepted: a signed,
+    // expiring token (verified against ONETEAM_SERVICE_SIGNING_SECRET) and, only
+    // while legacy is still permitted, the old unsigned form. See
+    // `verifyServiceCredential` for the migration switch.
+    const service = verifyServiceCredential(token, {
+      signingSecret: process.env.ONETEAM_SERVICE_SIGNING_SECRET ?? null,
+      allowLegacy: this.legacyServiceTokenAllowed(),
+    });
+    if (service) {
+      if (!service.signed) this.warnLegacyServiceCredentialOnce();
+      return this.fromUserId(service.userId, 'service');
+    }
+    return null;
+  }
+
+  /**
+   * Whether an unsigned `oneteam-user:<id>` is still honoured.
+   *
+   * No signing secret configured → yes, so upgrading changes nothing until an
+   * operator opts in. Secret configured → no, unless the operator has explicitly
+   * left the escape hatch open for a rollout window.
+   */
+  private legacyServiceTokenAllowed(): boolean {
+    const secret = (process.env.ONETEAM_SERVICE_SIGNING_SECRET || '').trim();
+    if (!secret) return true;
+    return process.env.ONETEAM_ALLOW_LEGACY_SERVICE_TOKEN === 'true';
+  }
+
+  private legacyServiceWarned = false;
+  private warnLegacyServiceCredentialOnce(): void {
+    if (this.legacyServiceWarned) return;
+    this.legacyServiceWarned = true;
+    this.logger.warn(
+      '⚠️  An unsigned service credential was accepted. Set ONETEAM_SERVICE_SIGNING_SECRET ' +
+        'and have callers mint signed, expiring tokens (signServiceCredential) to close this.',
+    );
   }
 
   /**

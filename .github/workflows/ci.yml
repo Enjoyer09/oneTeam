@@ -316,3 +316,198 @@ jobs:
         run: bash scripts/dev/test-ios.sh
         env:
           ONETEAM_UI_TEST_DESTINATION: ${{ steps.sim.outputs.destination }}
+
+  # ---------------------------------------------------------------------------
+  # Job 5 — dependency audit. NON-BLOCKING on purpose.
+  #
+  # The install steps everywhere use `--no-audit` to keep them fast and
+  # deterministic; this job is where the audit actually happens, on its own,
+  # so a newly disclosed advisory is surfaced without turning every unrelated
+  # push red. `--audit-level=high` reports high and critical only, and the
+  # `|| true` plus `continue-on-error` make the result informational — read it,
+  # do not let it gate a merge. Promote it to blocking once the baseline is
+  # clean and someone owns triage.
+  # ---------------------------------------------------------------------------
+  audit:
+    name: Dependency audit (non-blocking)
+    runs-on: ubuntu-latest
+    needs: verify
+    timeout-minutes: 10
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: npm audit (root workspaces)
+        run: npm audit --audit-level=high || true
+
+      - name: npm audit (web portal)
+        run: cd web && npm ci --no-audit --no-fund && npm audit --audit-level=high || true
+
+      - name: npm audit (mobile client)
+        run: cd mobile && npm ci --no-audit --no-fund && npm audit --audit-level=high || true
+
+  # ---------------------------------------------------------------------------
+  # Job 6 — DB-backed live tests + break detectors.
+  #
+  # WHAT THIS PROVES THAT `test` DOES NOT
+  # -------------------------------------
+  # The `test` job runs `test:all`, which is the in-memory tier — it never opens
+  # a socket to Postgres or to a running API. The suites below (`test:live`) talk
+  # HTTP to a compiled API that is talking to a real PostgreSQL, which is the only
+  # place the write-through persistence, the migration runner, device/panel token
+  # tables and the cross-replica refresh are actually exercised. The break
+  # detectors then prove those suites still bite by reintroducing each defect.
+  #
+  # WHY IT IS GATED (continue-on-error: true)
+  # -----------------------------------------
+  # This is a new integration job. It stands up Postgres, seeds it, boots the
+  # API, and drives a dozen suites plus three break detectors — several of which
+  # spawn their own API on their own port and have real external touch-points
+  # (the bot, the mobile runner). Its steady-state green has not yet been
+  # established in CI, so it is deliberately NON-BLOCKING for now: it produces a
+  # signal on every run without failing the pipeline while it is stabilised.
+  # Flip `continue-on-error` to false (and drop the `if: always()` escape on the
+  # break-detector steps if you want strict ordering) once it is reliably green.
+  # ---------------------------------------------------------------------------
+  live-tests:
+    name: Live tests (Postgres + break detectors)
+    runs-on: ubuntu-latest
+    needs: verify
+    timeout-minutes: 30
+    continue-on-error: true
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: oneteam
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Points at the service container above.
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/oneteam
+      PGPASSWORD: postgres
+      # Where the suites and the bot look for the API, and the seeded admin the
+      # service credential names.
+      ONETEAM_API_URL: http://localhost:3001
+      ONETEAM_API_TOKEN: oneteam-user:usr-admin-001
+      VITE_API_BASE_URL: http://localhost:3001
+      # The API boots fine without a real bot token (webhooks answer 503, which
+      # these suites do not use). A value is supplied so nothing logs a fatal on
+      # start-up. NOT a real credential.
+      TELEGRAM_BOT_TOKEN: "ci-not-a-real-bot-token"
+      TELEGRAM_WEBHOOK_SECRET: "ci-not-a-real-webhook-secret"
+      CORS_ALLOWED_ORIGINS: "http://localhost,http://localhost:5173"
+      # Some suites route through localhost; keep any runner proxy out of the way.
+      NO_PROXY: "localhost,127.0.0.1"
+      no_proxy: "localhost,127.0.0.1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      # `web` and `mobile` are not workspace members and carry their own
+      # lockfiles; `web:test` and `mobile:test` (both part of `test:live`) need
+      # their trees present, exactly as the verify/build jobs install them.
+      - name: Install web portal dependencies
+        run: cd web && npm ci --no-audit --no-fund
+
+      - name: Install mobile dependencies
+        run: cd mobile && npm ci --no-audit --no-fund
+
+      # Compiles packages/* and apps/api to apps/api/dist/main.js, which every
+      # step below runs directly (the break detectors rebuild it themselves).
+      - name: Build packages and API
+        run: |
+          npm run build:packages
+          npm run api:build
+
+      # Create the base schema and seed rows directly. The API's start-up
+      # migration runner then re-applies the (idempotent) schema and applies
+      # db/migrations/*.sql on top, recording them in schema_migrations. Doing
+      # the seed here — rather than letting the API do it — is what puts
+      # usr-admin-001 in the database so the service credential resolves.
+      - name: Provision database (schema + seed)
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/api-schema.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/api-seed.sql
+
+      - name: Run DB-backed live suites
+        run: |
+          set -euo pipefail
+          echo "Starting API against Postgres..."
+          node apps/api/dist/main.js > "$RUNNER_TEMP/api.log" 2>&1 &
+          API_PID=$!
+          trap 'kill "$API_PID" 2>/dev/null || true' EXIT
+
+          # Wait for /api/health (the API applies migrations on the way up).
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:3001/api/health >/dev/null 2>&1; then
+              echo "API healthy after ${i} attempt(s)."
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "::error::API did not become healthy within ~120s"
+              cat "$RUNNER_TEMP/api.log" || true
+              exit 1
+            fi
+            sleep 2
+          done
+
+          npm run test:live
+
+      # The break detectors are the "green test is not proof" gate. They run
+      # regardless of the live-suite outcome so a failure there does not hide
+      # them. `test:break` and `test:break:credentials` patch mobile source and
+      # restore it; `test:break:device-revoke` needs DATABASE_URL and stands up
+      # its own API on its own port.
+      - name: Break detector — offline queue
+        if: always()
+        run: npm run test:break
+
+      - name: Break detector — credential policy
+        if: always()
+        run: npm run test:break:credentials
+
+      - name: Break detector — device revocation (DB-backed)
+        if: always()
+        run: npm run test:break:device-revoke
+
+      - name: Upload API log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-tests-api-log
+          path: ${{ runner.temp }}/api.log
+          if-no-files-found: ignore
+          retention-days: 7
+

@@ -67,7 +67,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, AppState } from 'react-native';
 
 import { mobileApp } from './src/App';
 import { credentialStore } from './src/services/credentialStore';
@@ -129,6 +129,15 @@ export function Root() {
         if (queueIsPersistent) offlineQueueService.useStorage(asyncStorageQueue);
         await mobileApp.initializeQueue();
 
+        // A drain attempt at startup. There is NO connectivity library in this
+        // build (neither `@react-native-community/netinfo` nor `expo-network` is
+        // installed), so `setOnlineStatus` is never driven by a real listener and
+        // the reconnection-edge drain never fires on its own. Instead the queue is
+        // drained here at startup and again on every foreground (below), plus by
+        // the explicit "Növbəni göndər" button on the task list. Fire-and-forget:
+        // it must not block reaching the login screen, and it never throws.
+        void mobileApp.drainQueueOnResume();
+
         if (!cancelled) {
           setScreen({ name: 'login' });
         }
@@ -141,6 +150,26 @@ export function Root() {
 
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  // Drain the offline queue whenever the app comes back to the foreground.
+  //
+  // This is the substitute for a connectivity listener. With no netinfo/
+  // expo-network dependency in the build there is nothing watching the radio, so
+  // "the worker walked out of the basement and the signal came back" is not an
+  // event this app can observe directly. Foregrounding is the closest reachable
+  // proxy — the worker reopening the app after moving — and together with the
+  // startup drain and the manual button it keeps queued audits from being
+  // stranded. `drainQueueOnResume` respects the retry cap and never throws.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next === 'active') {
+        void mobileApp.drainQueueOnResume();
+      }
+    });
+    return () => {
+      subscription.remove();
     };
   }, []);
 

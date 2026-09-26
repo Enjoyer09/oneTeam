@@ -46,6 +46,7 @@
 
 import dotenv from 'dotenv';
 import type { FieldFlowPayload } from '@oneteam/types';
+import { isServiceCredential, signServiceCredential } from '@oneteam/types';
 import { StoreRecord, TaskRecord, SubmissionRecord, PendingNotification } from '../bot/types';
 
 dotenv.config();
@@ -67,11 +68,60 @@ const API_BASE_URL = (
 /**
  * The service credential, in the API's `oneteam-user:<userId>` form.
  *
- * The default names the seeded admin so a fresh local checkout works without
- * configuration. Production sets it explicitly, which is also what makes it
- * rotatable without rebuilding the image.
+ * SIGNED AND EXPIRING WHEN POSSIBLE
+ * ---------------------------------
+ * When `ONETEAM_SERVICE_SIGNING_SECRET` is configured (shared with the API), the
+ * bot mints a *signed, short-lived* credential for every request via
+ * `signServiceCredential`. A leaked request header is then replayable only until
+ * it expires — minutes — instead of forever, which is what the unsigned form
+ * allowed.
+ *
+ * When no secret is set the bot sends the static `ONETEAM_API_TOKEN` (legacy),
+ * so upgrading changes nothing until the operator opts in.
+ *
+ * The hardcoded `usr-admin-001` default has been removed: shipping an implicit
+ * admin credential in the image is exactly the risk this is closing. A build
+ * with nothing configured refuses to start in production and only falls back to
+ * the dev admin locally, loudly.
  */
-const API_TOKEN = process.env.ONETEAM_API_TOKEN || 'oneteam-user:usr-admin-001';
+const SERVICE_SIGNING_SECRET = (process.env.ONETEAM_SERVICE_SIGNING_SECRET || '').trim();
+const STATIC_API_TOKEN = (process.env.ONETEAM_API_TOKEN || '').trim();
+
+/** The user the bot acts as for its service calls — never assumed to be admin. */
+function resolveServiceUserId(): string | null {
+  const explicit = (process.env.ONETEAM_SERVICE_USER_ID || '').trim();
+  if (explicit) return explicit;
+  if (isServiceCredential(STATIC_API_TOKEN)) {
+    return STATIC_API_TOKEN.slice('oneteam-user:'.length).trim() || null;
+  }
+  return null;
+}
+
+const SERVICE_USER_ID = resolveServiceUserId();
+const CAN_SIGN = Boolean(SERVICE_SIGNING_SECRET && SERVICE_USER_ID);
+const CAN_AUTHENTICATE = CAN_SIGN || Boolean(STATIC_API_TOKEN);
+const DEV_FALLBACK_TOKEN = 'oneteam-user:usr-admin-001';
+
+if (!CAN_AUTHENTICATE) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'oneTeam bot: set ONETEAM_API_TOKEN, or ONETEAM_SERVICE_SIGNING_SECRET + ' +
+        'ONETEAM_SERVICE_USER_ID. Refusing to start with an implicit admin credential.',
+    );
+  }
+  // eslint-disable-next-line no-console
+  console.warn(
+    '⚠️  oneTeam bot: no credential configured; using the dev admin fallback. ' +
+      'Never deploy this — set ONETEAM_SERVICE_SIGNING_SECRET + ONETEAM_SERVICE_USER_ID.',
+  );
+}
+
+/** The bearer for a single request: signed + expiring when possible, else static. */
+function authToken(): string {
+  if (CAN_SIGN) return signServiceCredential(SERVICE_USER_ID as string, SERVICE_SIGNING_SECRET);
+  if (STATIC_API_TOKEN) return STATIC_API_TOKEN;
+  return DEV_FALLBACK_TOKEN;
+}
 
 /** Long enough for a cold container, short enough that a chat is never left hanging. */
 const REQUEST_TIMEOUT_MS = 20_000;
@@ -154,7 +204,7 @@ async function request<T>(
       ...init,
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${API_TOKEN}`,
+        Authorization: `Bearer ${authToken()}`,
         ...(init.headers || {}),
       },
       signal: AbortSignal.timeout(timeoutMs),

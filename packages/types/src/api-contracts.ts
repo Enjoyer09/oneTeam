@@ -111,6 +111,16 @@ export interface SubmitEvidenceRequestDto {
    * were fine. The mobile client does not set it and keeps the full check.
    */
   checklistNotCollected?: boolean;
+  /**
+   * A client-generated key that makes a submission safe to retry.
+   *
+   * The mobile offline queue and a double-tapped button both resend the same
+   * audit; without this each resend created a *new* evidence row and advanced
+   * the task twice. When the same key arrives again the server returns the
+   * evidence it already created instead of making another. Optional: a caller
+   * that omits it keeps the old at-least-once behaviour.
+   */
+  idempotencyKey?: string;
   aiScore?: number;
   aiDetections?: any[];
   aiSummary?: string;

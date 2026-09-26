@@ -1,432 +1,280 @@
-# oneTeam — Retail Shelf Monitoring Platform (FMCG Coca-Cola Distribution)
+# oneTeam — Retail Shelf Monitoring Platform (FMCG / Coca-Cola Distribution)
 
 ![oneTeam Logo](./logo.jpg)
 
-**oneTeam** is a modern retail shelf monitoring and planogram compliance platform designed for FMCG operations (specifically Coca-Cola distribution in retail chains such as Bravo, Araz, Bazarstore, and Rahat).
+**oneTeam** is a retail shelf-monitoring and planogram-compliance platform for
+FMCG operations (Coca-Cola distribution across chains such as Bravo, Araz,
+Bazarstore and Rahat). Supervisors dispatch merchandising tasks and planograms
+to stores; field merchandisers submit shelf-audit photos and telemetry from a
+Telegram bot or an iOS app; supervisors review and approve them from a web
+portal.
 
-The platform enables FMCG supervisors to dispatch visual merchandising tasks and planograms to stores, while merchandisers and store staff submit real-time shelf audit photos and telemetry via Telegram Bot or mobile apps.
+> **Architecture note (read this if you knew the old README).** oneTeam is
+> **not** a Supabase / BaaS application. Every client talks to a first-party
+> **NestJS API** (`apps/api`). Supabase — PostgREST, Supabase Auth/Storage, RLS
+> — has been fully removed; nothing reads `SUPABASE_*`. The database is plain
+> **PostgreSQL 16**.
 
 ---
 
-## Tech Stack & Architecture
-
-- **Backend / BaaS**: [Supabase](https://supabase.com) (PostgreSQL 15+, Supabase Storage, PostgREST API, Supabase Auth)
-- **Language & Runtime**: TypeScript / Node.js
-- **Bot Engine**: Telegram Bot API (webhook or polling with chat ID binding)
-- **Object Storage**: Supabase Storage (`shelf-images` bucket with CDN caching)
-- **Security**: PostgreSQL Row Level Security (RLS) policies + PostgreSQL triggers
-
----
-
-## Database Architecture Overview
+## Architecture
 
 ```
-+-----------------------------------------------------------------------------------+
-|                                 SUPABASE AUTH                                     |
-|                                  auth.users                                       |
-+-----------------------------------------------------------------------------------+
-                                         | 1:1
-                                         v
-+-----------------------------------------------------------------------------------+
-|                                    PROFILES                                       |
-| id (PK, FK auth.users) | full_name | role (user_role) | telegram_chat_id (UK)      |
-+-----------------------------------------------------------------------------------+
-       | 1:N (created_by)                                | 1:N (submitted_by)
-       v                                                 v
-+------------------------+                     +------------------------------------+
-|         TASKS          |                     |            SUBMISSIONS             |
-| id (PK)                |                     | id (PK)                            |
-| title, description     |                     | task_id (FK)                       |
-| reference_image_url    |                     | store_id (FK)                      |
-| priority, status       |                     | submitted_by (FK)                  |
-| deadline               |                     | photo_url (Storage)                |
-+------------------------+                     | status (pending_review/approved/..) |
-       | 1:N                                   | metadata (JSONB: GPS, device, etc) |
-       v                                       +------------------------------------+
-+------------------------+                                       ^
-|    TASK_ASSIGNMENTS    |                                       |
-| id (PK)                |                                       |
-| task_id (FK)           |                                       |
-| store_id (FK)          |                                       |
-+------------------------+                                       |
-       | N:1                                                     |
-       v                                                         |
-+----------------------------------------------------------------+
-|                                     STORES                                        |
-| id (PK) | store_code (UK) | name | address | city | latitude | longitude | active |
-+-----------------------------------------------------------------------------------+
+        ┌─────────────┐   ┌─────────────┐   ┌──────────────┐
+        │  Web portal │   │ Telegram bot│   │  iOS mobile  │
+        │  (React/Vite)│  │  (grammY)   │   │  (Expo/RN)   │
+        └──────┬──────┘   └──────┬──────┘   └──────┬───────┘
+               │ HTTPS /api/*    │ HTTPS /api/*    │ HTTPS /api/*
+               └─────────────────┼─────────────────┘
+                                 ▼
+                    ┌───────────────────────────┐
+                    │   NestJS Core API (apps/api)│
+                    │   in-memory replica +       │
+                    │   write-through persistence │
+                    └──────────────┬──────────────┘
+                                   ▼
+                        ┌────────────────────┐
+                        │   PostgreSQL 16     │
+                        │   db/api-schema.sql │
+                        │   db/migrations/*   │
+                        └────────────────────┘
 ```
 
-### Domain Models
-
-| Entity                 | Description                                                                                                                                                                                                                    |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **`profiles`**         | Extends `auth.users`. Contains user display names, platform roles (`admin`, `supervisor`, `store_staff`, `merchandiser`), phone numbers, and unique `telegram_chat_id` for instant Telegram Bot association.                   |
-| **`stores`**           | Physical retail store locations (e.g. Bravo 28 Mall, Araz Ganjlik) with GPS coordinates (`latitude`, `longitude`), unique store codes, and active flags.                                                                       |
-| **`tasks`**            | Audit missions created by supervisors containing merchandising guidelines, sample planogram URLs, priority (`low`, `medium`, `high`, `urgent`), deadline, and status (`draft`, `published`, `completed`, `archived`).          |
-| **`task_assignments`** | Many-to-many junction linking specific tasks to target retail stores with unique constraint `(task_id, store_id)`.                                                                                                             |
-| **`submissions`**      | Shelf photos uploaded by field staff. Includes audit status (`pending_review`, `approved`, `rejected`), supervisor feedback, and rich `metadata` (JSONB) storing GPS coordinates, capture timestamp, and Telegram message IDs. |
-
-### Enums
-
-- **`user_role`**: `'admin'`, `'supervisor'`, `'store_staff'`, `'merchandiser'`
-- **`task_priority`**: `'low'`, `'medium'`, `'high'`, `'urgent'`
-- **`task_status`**: `'draft'`, `'published'`, `'completed'`, `'archived'`
-- **`submission_status`**: `'pending_review'`, `'approved'`, `'rejected'`
+- **The API is the only component that touches the database.** The web portal,
+  the bot and the mobile app are all API clients — none of them opens a database
+  connection of its own.
+- **In-memory-first with write-through.** On start-up the API hydrates in-memory
+  arrays from PostgreSQL; reads are served from that snapshot, and every mutation
+  is written through to the database. If more than one API replica runs, a poll
+  of a change counter (`ONETEAM_REFRESH_MS`) bounds how stale a replica can be.
+- **Self-applying schema.** On boot the API applies `db/api-schema.sql` and every
+  file in `db/migrations/*.sql` through a transactional migration runner
+  (`packages/database/src/migrations.ts`), tracked in a `schema_migrations`
+  table. A fresh managed database becomes usable without a manual migration step.
+- **Runs without a database too.** With `DATABASE_URL` unset the API serves its
+  built-in in-memory seed — which is what the local demo and the `test:all`
+  suite use. `GET /api/health` reports which persistence mode is active.
 
 ---
 
-## Storage & Security (RLS)
-
-### Storage Bucket: `shelf-images`
-
-- Stores high-resolution shelf audit photos submitted from the field.
-- Public read access enabled for fast image loading on dashboards and mobile clients.
-- Upload policy restricted to authenticated users.
-- Max file size: 10MB (supports JPEG, PNG, WEBP, HEIC).
-
-### Row Level Security (RLS) Summary
-
-- **Profiles**: All authenticated users can view member profiles. Users can only update their own profile; admins have full management.
-- **Stores**: All authenticated users can view active retail stores. Supervisors/admins can create or edit stores.
-- **Tasks**: Merchandisers see published tasks. Supervisors and admins can see drafts and manage all tasks.
-- **Task Assignments**: Read-accessible to authenticated users; manageable by supervisors and admins.
-- **Submissions**: Field staff view their own submissions; supervisors and admins can review, approve, or reject submissions and add audit feedback.
-
----
-
-## Setup & Deployment Instructions
-
-### 1. Environment Configuration
-
-Copy `.env.example` to `.env` and fill in your Supabase credentials:
-
-```bash
-cp .env.example .env
-```
-
-Required variables:
-
-- `SUPABASE_URL`: Your Supabase Project URL (`https://xyzcompany.supabase.co`)
-- `SUPABASE_ANON_KEY`: Supabase anon/public key (client-side calls)
-- `SUPABASE_SERVICE_ROLE_KEY`: Supabase service_role key (server-side/Telegram bot calls)
-- `DATABASE_URL`: Direct PostgreSQL connection string
-- `TELEGRAM_BOT_TOKEN`: Field bot token from `@BotFather`
-
----
-
-### 2. Executing the Database Migration (`init_schema.sql`)
-
-You can run the schema migration using any of the following methods:
-
-#### Option A: Supabase Web Dashboard (Easiest)
-
-1. Open your project on [database.new](https://database.new) or [Supabase Dashboard](https://app.supabase.com).
-2. Go to the **SQL Editor** tab on the left navigation bar.
-3. Click **New Query**.
-4. Copy the entire contents of [`init_schema.sql`](./init_schema.sql) and paste it into the editor.
-5. Click **Run** (or `Cmd + Enter`).
-6. The tables, enums, triggers, storage bucket, and RLS policies will be created.
-
-#### Option B: Supabase CLI (Recommended for Development)
-
-If using Supabase CLI locally:
-
-```bash
-# Initialize and start local Supabase instance
-npx supabase start
-
-# Apply migrations
-npx supabase db reset
-# or
-npx supabase migration up
-```
-
-#### Option C: Direct PostgreSQL CLI (`psql`)
-
-```bash
-psql "$DATABASE_URL" -f init_schema.sql
-```
-
----
-
-### 3. Loading Seed Data (`seed.sql`)
-
-Once `init_schema.sql` has executed successfully, apply the sample data:
-
-#### Via Supabase SQL Editor:
-
-1. In the **SQL Editor**, open a new query.
-2. Paste the contents of [`seed.sql`](./seed.sql).
-3. Click **Run**.
-
-#### Via `psql`:
-
-```bash
-psql "$DATABASE_URL" -f seed.sql
-```
-
-#### What gets seeded:
-
-- **Supervisor Profile**: Default system supervisor account (`supervisor@oneteam.az`).
-- **2 Retail Stores**:
-  - `BRAVO_28MAY_01`: Bravo Supermarket - 28 Mall (Nasimi, Baku)
-  - `ARAZ_GENJLIK_02`: Araz Superstore - Ganjlik (Narimanov, Baku)
-- **1 Audit Task**: _"Coca-Cola 0.5L Cooler Placement Check"_ with planogram criteria, temperature requirements, and facing rules.
-- **Task Assignments**: The audit task is assigned to both sample stores.
-
----
-
-## TypeScript Type Safety
-
-Strongly-typed database interfaces are available in [`types/database.types.ts`](./types/database.types.ts).
-
-To update types automatically from your live Supabase project:
-
-```bash
-npx supabase gen types typescript --project-id <your-project-id> > types/database.types.ts
-```
-
-Example usage in TypeScript:
-
-```typescript
-import { createClient } from '@supabase/supabase-js';
-import { Database } from './types/database.types';
-
-const supabase = createClient<Database>(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
-
-// Fully type-safe query
-const { data: stores, error } = await supabase.from('stores').select('*').eq('is_active', true);
-```
-
----
-
-## Telegram Bot Service (`src/bot/`)
-
-A TypeScript-first Telegram bot built with **grammY** for field merchandisers and retail store staff.
-
-### Capabilities & Commands
-
-1. **`/start` — Registration & Store Binding**:
-   - Greets staff in Azerbaijani (`👋 oneTeam — Rəf Monitorinq Sisteminə Xoş Gəlmisiniz!`).
-   - Requests and validates store code (e.g. `BRAVO_28MAY_01`).
-   - Binds `telegram_chat_id` to user profile and saves store context in session.
-   - Provides an interactive Azerbaijani keyboard (`📋 Tapşırıqlar`, `📊 Statusum`).
-
-2. **`/tasks` or `📋 Tapşırıqlar` — Planogram Retrieval**:
-   - Queries active published audit tasks assigned to the store.
-   - Displays task title, priority, deadline, facing instructions, and sends planogram reference image.
-   - Provides an inline button: `"📸 Rəf Şəklini Göndər"`.
-
-3. **Photo Upload & Storage Submission**:
-   - Downloads highest-resolution image from Telegram servers.
-   - Uploads to Supabase Storage bucket `shelf-images` at `audits/<store_id>/<task_id>_<timestamp>.jpg`.
-   - Records audit in `submissions` with status `pending_review` and telemetry metadata (GPS, Telegram ID, device).
-   - Confirms receipt in Azerbaijani: _"Təşəkkür edirik! Rəf şəkli supervayzer yoxlaması üçün qeydə alındı."_
-
-4. **`/mystatus` or `📊 Statusum` — Audit History & Feedback**:
-   - Shows recent submissions, review statuses (`pending_review`, `approved`, `rejected`), and supervisor comments.
-
----
-
-## Supervisor & Admin Web Portal (`web/`)
-
-A modern, responsive React + TypeScript web application built with **Vite** and **Tailwind CSS** featuring custom Coca-Cola branding and Azerbaijani localization.
-
-### Modules & Capabilities
-
-1. **Dashboard Overview (Metrics & Analytics)**:
-   - Real-time KPI Cards: Total Stores, Active Tasks, Pending Reviews, and Compliance Rate (% of approved shelf photos).
-   - Live stream of recent shelf photo submissions with status indicators and quick-review actions.
-
-2. **Shelf Audit Review & Approval Center (Core Feature)**:
-   - Filterable gallery/grid view: All (`Bütün`), Pending (`Gözləyən`), Approved (`Təsdiqlənmiş`), Rejected (`İmtina Edilmiş`).
-   - Search by store name, store code, or planogram title.
-   - **Side-by-Side Comparison Modal**:
-     - **Left**: Reference Planogram photo (Ideal Layout) with instruction checklist.
-     - **Right**: Field staff's uploaded shelf photo with submitter identity and timestamp.
-   - **Action Controls**:
-     - `"✅ Təsdiq Et"` (Approve): Instantly updates status to `approved`.
-     - `"❌ İmtina Et"` (Reject): Opens feedback input drawer, records supervisor comment (e.g. _"Coca-Cola 1L facing missing on bottom shelf"_), and sets status to `rejected`.
-
-3. **Task & Planogram Management**:
-   - List of all published, draft, or completed merchandising missions.
-   - **"Yeni Təlimat Yarat" (Create New Task) Modal**:
-     - Planogram title, facing & cooling instructions.
-     - Priority selector (`low`, `medium`, `high`, `urgent`).
-     - Baku-time deadline picker.
-     - Reference photo URL / planogram uploader.
-     - Multi-store assignment selector (assign to "Bütün Mağazalar" or select specific stores like Bravo, Araz, etc.).
-
-4. **Store Directory**:
-   - Comprehensive partner retail chain directory (Bravo, Araz, Bazarstore, Rahat Gourmet).
-   - Displays unique Store Codes, Baku addresses, total audits count, and live compliance percentage progress bars.
-
----
-
-## iOS Field Audit Mobile Client (`mobile/`)
-
-An iOS-ready mobile field application designed for Coca-Cola in-store merchandisers and retail auditors.
-
-### Key Modules & Technical Capabilities
-
-1. **Anti-Fraud GPS Geofencing (100m Perimeter)**:
-   - Verifies field auditor's real-time Core Location GPS coordinates against the target retail store's coordinates (`latitude`, `longitude`) using the **Haversine formula**.
-   - If distance > 100 meters, audit submission is strictly blocked with an anti-fraud warning:
-     ```
-     ⚠️ Siz mağaza ərazisində deyilsiniz (Məsafə: Xm). Rəf auditi yalnız mağaza daxilində (100m radius) təsdiqlənə bilər.
-     ```
-
-2. **Active Tasks & Planogram Visualizer**:
-   - Visualizes assigned planograms for the active store with priority flags (`urgent`, `high`, etc.).
-   - Displays clear shelf layout instructions, SKU facing numbers (e.g. 3 facings), and strict cooling requirements (`≤ 4°C`).
-
-3. **Smart Camera & Ghost Overlay (AR Guide)**:
-   - Semi-transparent "Ghost View" planogram overlay directly over the live camera viewfinder.
-   - Allows field merchandisers to align bottle angles, shelf tiers, and brand labels accurately.
-   - **Anti-Fraud Gallery Restriction**: Strictly restricts selecting photos from the device camera roll or gallery — enforces 100% live in-app camera capture.
-   - Stamps rich telemetry onto every capture: GPS coordinates, accuracy, distance from store center, timestamp, and device model.
-
-4. **In-Store Offline Queue & Background Sync**:
-   - Resilient offline capability for basement supermarkets with zero cellular connectivity.
-   - Submissions are queued on the device in `AsyncStorage`, written before the capture is reported as saved, and read back on the next launch.
-   - Reconnection drains the queue automatically, in order, one audit at a time, using the same acknowledgement-then-upload path a manual sync uses.
-   - The queue holds 50 MB. A new audit that would exceed that is **refused with a message**, never silently swapped in for an older one — the oldest item is somebody's work.
-   - Two things it does **not** do, stated here because this section used to claim otherwise: there is no background retry timer (retries follow a reconnection, or a worker pressing sync), and `AsyncStorage` is not encrypted — a queued audit is protected by the iOS app sandbox, not by a key. See `mobile/src/services/queueStorage.ts`.
-
-5. **iOS Native Configuration**:
-   - [`mobile/app.json`](./mobile/app.json) is the single source of truth: bundle identifier, icon, splash, the three Expo config plugins (`expo-camera`, `expo-location`, `expo-secure-store`) and the Azerbaijani privacy strings (`NSCameraUsageDescription`, `NSLocationWhenInUseUsageDescription`).
-   - `mobile/ios/` is **generated**, not committed — `npx expo prebuild --platform ios` writes it from `app.json`. Regenerate it after any config change; do not hand-edit it, because the next prebuild overwrites it.
-   - The icon and splash mark are built from the repo's `logo.jpg` by [`scripts/dev/make-mobile-assets.py`](./scripts/dev/make-mobile-assets.py), which pads the non-square logo onto a square canvas of its own measured background colour.
-
----
-
-## Running Automated Tests Across All Platforms
-
-### Run Complete Platform Test Suite (Bot + Web + Mobile):
-
-```bash
-npm run test:all
-```
-
-### Run Individual Test Suites:
-
-```bash
-# 1. Telegram Bot E2E User Journey (7 steps)
-npm run bot:test
-
-# 2. Supervisor Web Portal Service & Data Test
-npm run web:test
-
-# 3. iOS Mobile Field Client (Geofence, Camera, Offline Queue)
-npm run mobile:test
-
-# 4. Device credential policy (identity minted once, survives a restart)
-npm run test:credentials
-
-# 5. Offline queue policy (durability, the 50 MB limit, reconnection drain)
-npm run test:queue
-```
-
-### Prove the suites actually guard what they claim:
-
-```bash
-npm run test:break
-```
-
-This is not a test suite — it is the tool that decides whether the suites are
-evidence. It deliberately reintroduces each defect the queue suite claims to catch,
-one at a time, and checks that **the matching check** goes red. A case counts only
-if the patch landed **and** the target reached its summary line; a patch that
-silently failed to apply, or a target killed by a syntax error, is reported as
-**not evidence** rather than as a pass. It restores every file afterwards and
-re-runs both suites to prove the restore was clean, then exits non-zero if any
-break failed to redden its own check.
-
-It is kept out of `npm run quality` on purpose: it **writes to source files**, so it
-is a deliberate, supervised action, not something a build step should trigger.
-
----
-
-## Complete Repository Architecture
+## Repository layout
 
 ```
 oneTeam/
-├── .env                                              # Local environment variables
-├── .env.example                                      # Environment variables template
-├── init_schema.sql                                   # Primary SQL migration script
-├── seed.sql                                          # Sample stores, tasks, & assignments seed
-├── package.json                                      # Dependencies & scripts (bot, web, mobile, tests)
-├── tsconfig.json                                     # Root TypeScript configuration
-├── logo.jpg                                          # oneTeam platform branding
-├── README.md                                         # Project setup & architecture documentation
-├── src/                                              # Telegram Bot Service (Task 2)
-│   ├── bot/
-│   │   ├── index.ts                                  # Grammy Bot entrypoint & command router
-│   │   ├── types.ts                                  # Grammy context & session types
-│   │   ├── test-runner.ts                            # Automated E2E test runner
-│   │   └── handlers/
-│   │       ├── start.ts                              # /start & store code binding
-│   │       ├── tasks.ts                              # /tasks & planogram view
-│   │       ├── submission.ts                         # Photo download, storage upload, audit DB insert
-│   │       └── status.ts                             # /mystatus & supervisor review feedback
-│   └── services/
-│       └── supabase.ts                               # Supabase client & offline fallback layer
-├── web/                                              # Supervisor & Admin Web Portal (Task 3)
-│   ├── index.html                                    # Web portal HTML entrypoint
-│   ├── package.json                                  # Web dependencies (React, Vite, Tailwind)
-│   ├── vite.config.ts                                # Vite configuration
-│   ├── tailwind.config.js                            # Coca-Cola brand theme configuration
-│   ├── tsconfig.json                                 # Web TypeScript configuration
-│   └── src/
-│       ├── App.tsx                                   # Main dashboard application
-│       ├── main.tsx                                  # React DOM entrypoint
-│       ├── index.css                                 # Tailwind styling & custom scrollbars
-│       ├── smoke-test.ts                             # Automated web service smoke test
-│       ├── components/
-│       │   ├── Sidebar.tsx                           # Navigation sidebar with pending badges
-│       │   ├── Header.tsx                            # Header with Baku clock & quick actions
-│       │   ├── DashboardOverview.tsx                 # KPI cards & recent submissions feed
-│       │   ├── AuditReviewCenter.tsx                 # Side-by-side planogram comparison modal
-│       │   ├── TaskManager.tsx                       # Task catalog & creation modal
-│       │   └── StoreDirectory.tsx                    # Retail stores & compliance progress
-│       ├── lib/
-│       │   └── supabase.ts                           # Supabase web client & mock fallback
-│       └── types/
-│           └── index.ts                              # Web data models & TypeScript interfaces
-├── mobile/                                           # iOS Field Audit Mobile Client (Task 4)
-│   ├── package.json                                  # Mobile dependencies & test scripts
-│   ├── tsconfig.json                                 # Mobile TypeScript configuration
-│   ├── app.json                                      # Mobile app descriptor & iOS permissions
-│   ├── ios/
-│   │   ├── Podfile                                   # iOS CocoaPods platform configuration
-│   │   └── oneTeam/
-│   │       └── Info.plist                            # iOS Camera & Location permission descriptors
-│   └── src/
-│       ├── App.tsx                                   # Mobile application coordinator
-│       ├── types/index.ts                            # Mobile interfaces & geofence types
-│       ├── utils/geofence.ts                         # Haversine distance & 100m geofence validator
-│       ├── services/
-│       │   ├── portalApi.ts                          # Core API data layer (device-credentialled)
-│       │   ├── credentialStore.ts                    # Identity + credential policy (storage is a seam)
-│       │   ├── keychain.ts                           # The iOS keychain, as that seam (native import)
-│       │   ├── offlineQueue.ts                       # Offline queue policy (storage is a seam)
-│       │   ├── queueStorage.ts                       # AsyncStorage, as that seam (native import)
-│       │   ├── credentialStore.test.ts               # 37 checks over the credential policy
-│       │   └── offlineQueue.test.ts                  # 83 checks over the queue policy
-│       ├── components/
-│       │   └── SmartCameraOverlay.tsx                # Ghost overlay & live camera capture
-│       ├── screens/
-│       │   ├── LoginScreen.tsx                       # Store code login & GPS verification
-│       │   ├── TaskListScreen.tsx                    # Active planograms view
-│       │   ├── CameraAuditScreen.tsx                 # Smart camera capture & submission
-│       │   └── AuditHistoryScreen.tsx                # Submissions history & reviewer notes
-│       └── tests/
-│           └── mobile-test-runner.ts                 # Automated mobile verification suite
-├── supabase/
-│   ├── migrations/
-│   │   └── 20260912000001_init_schema.sql            # Versioned migration for Supabase CLI
-│   └── seed.sql                                      # Versioned seed file for Supabase CLI
-└── types/
-    └── database.types.ts                             # Auto-generated & typed database models
+├── apps/api/                 # NestJS Core API — the only DB client
+│   ├── src/modules/          #   health, tasks, portal, evidences, storage, notifications
+│   ├── src/common/auth/      #   bearer-token AuthGuard (see "Authentication")
+│   ├── test/*.spec.ts        #   DB-backed HTTP integration suites (test:live)
+│   └── Dockerfile            #   multi-stage production image
+├── packages/
+│   ├── types/                # @oneteam/types — shared domain types
+│   └── database/             # @oneteam/database — replica, write-through, migration runner
+├── src/                      # Telegram bot worker (grammY)
+│   ├── bot/                  #   entrypoint, router, handlers, session storage
+│   └── services/             #   API client used by the bot
+├── web/                      # Supervisor web portal (React + Vite + Tailwind); own lockfile
+├── mobile/                   # iOS field client (Expo / React Native); own lockfile
+├── db/
+│   ├── api-schema.sql        # API schema (the schema the API actually uses)
+│   ├── api-seed.sql          # Seed rows (users, region, stores, campaign, tasks)
+│   └── migrations/*.sql      # Ordered migrations applied at boot
+├── scripts/
+│   ├── ops/db-backup.sh      # pg_dump backup with retention
+│   ├── dev/                  # break detectors, mobile/ios helpers
+│   └── quality/              # secret scanner, UI-test-id guard
+├── docker-compose.prod.yml   # Postgres + API + web + bot
+├── Dockerfile.bot            # bot worker image (multi-stage)
+├── Dockerfile.postgres       # Postgres image that seeds schema+data on first boot
+└── .github/workflows/        # ci, codeql, deploy, db-backup
 ```
+
+> `init_schema.sql` / `seed.sql` / the `supabase/` tree describe the **old**
+> Supabase product (profiles / tasks / submissions with RLS). They are kept for
+> history only; the API does not use them, and they cannot share a database with
+> `db/api-schema.sql` (both define an incompatible `stores` table).
+
+---
+
+## Prerequisites
+
+- **Node.js 22** (pinned in `.nvmrc`). `nvm use` picks it up.
+- **npm** (the repo uses npm workspaces for `apps/*` and `packages/*`).
+- **PostgreSQL 16** — optional for local dev (the API falls back to in-memory),
+  required for `test:live` and production. Docker is the easy way to get one.
+- **Xcode + CocoaPods** — only to build/run the iOS mobile client.
+
+---
+
+## Install
+
+`web` and `mobile` are **not** workspace members (each has its own lockfile), so
+they are installed separately.
+
+```bash
+nvm use                 # Node 22
+npm ci                  # root workspaces: apps/api, packages/*, the bot
+cd web && npm ci && cd ..     # web portal (only if you work on it)
+cd mobile && npm ci && cd ..  # mobile client (only if you work on it)
+```
+
+---
+
+## Environment variables
+
+Copy `.env.example` to `.env` (local) or `.env.production.example` to
+`.env.production` (deploy) and fill in values. Names only below — never commit
+real secrets; the platform dashboard is the place for them.
+
+| Variable                   | Used by     | Purpose                                                                 |
+| -------------------------- | ----------- | ----------------------------------------------------------------------- |
+| `DATABASE_URL`             | API, bot    | PostgreSQL connection string. Empty ⇒ API runs on in-memory seed.       |
+| `NODE_ENV`                 | all         | `development` / `production`.                                           |
+| `PORT` / `API_PORT`        | API         | API listen port (defaults to 3001; `PORT` wins).                        |
+| `TELEGRAM_BOT_TOKEN`       | API, bot    | Bot token from @BotFather. Treat as a password.                         |
+| `TELEGRAM_WEBHOOK_SECRET`  | API         | Verifies inbound Telegram webhooks; API returns 503 for webhooks if unset. |
+| `ONETEAM_API_URL`          | bot         | Where the bot finds the API (`http://localhost:3001` locally).          |
+| `ONETEAM_API_TOKEN`        | bot         | Bot's service credential, `oneteam-user:<userId>` form.                 |
+| `CORS_ALLOWED_ORIGINS`     | API         | Comma-separated exact origins. No `*`. Empty ⇒ no browser origin allowed. |
+| `VITE_API_BASE_URL`        | web (build) | Baked into the SPA at build time. Empty ⇒ portal calls `/api` on its own origin. |
+| `GEOFENCE_RADIUS_METERS`   | API/mobile  | Anti-fraud geofence radius (default 100).                               |
+| `STORAGE_DRIVER` + `S3_*`  | API         | Optional. `s3` uploads photos to a bucket; default stores them inline.  |
+| `ONETEAM_ENROLLMENT_SECRET`| API         | Optional. Turns a store code into username+password for device enrolment. |
+| `ONETEAM_AUTO_MIGRATE`     | API         | `1` (default) applies schema+migrations on boot; `0` to manage manually. |
+| `ONETEAM_REFRESH_MS`       | API         | Replica staleness poll interval; `0` disables (single-replica only).    |
+
+---
+
+## Running
+
+### Everything at once (local demo)
+
+```bash
+npm start        # builds+starts the API, then the web portal and the bot
+```
+
+### Individually
+
+```bash
+# Core API (compiled, NestJS)
+npm run api:dev              # build + start on :3001
+#   or: npm run api:build && npm run api:start
+
+# Telegram bot worker (grammY) — needs the API reachable at ONETEAM_API_URL
+npm run bot
+
+# Web portal (Vite dev server)
+npm run web:dev              # from ./web deps; build with: npm run web:build
+
+# iOS mobile client (device/simulator; needs Xcode)
+npm run mobile:ios
+npm run mobile:config        # static config guard (no Expo tree needed)
+npm run mobile:check         # mobile type-check
+```
+
+The API exposes routes under `/api/*`: `api/health`, `api/tasks`,
+`api/portal`, `api/portal/field`, `api/panel`, `api/evidences`, `api/webhooks`.
+The bot handles `/start`, `/tasks`, `/mystatus`, `/help`.
+
+---
+
+## Authentication
+
+The API uses **bearer tokens**, distinguished by prefix — each carries different
+authority (`apps/api/src/common/auth/auth.guard.ts`):
+
+- `oneteam-user:<userId>` — **service credential.** Names the user the caller
+  acts as. The bot holds one and identifies the real person by Telegram chat id;
+  nginx injects one at the edge for the panel before any panel key exists.
+- `otd_<random>` — **device credential.** A mobile install enrols with its
+  store code and is issued one; it resolves to exactly one user.
+- `otp_<random>` — **panel key.** A supervisor's own key. Once any panel key
+  exists, the edge service credential is **refused** on the supervisor routes, so
+  the login becomes the only door.
+
+There is no Supabase Auth and no RLS; authorisation is enforced in the API guard.
+
+---
+
+## Testing
+
+```bash
+npm run test:all     # in-memory tier: secrets, API core/phase2/storage, AI, mobile units
+npm run test:live    # DB-backed HTTP suites — needs a running API + PostgreSQL
+npm run quality      # format:check + mobile guards + lint + type-check + test:all
+```
+
+- **`test:all`** opens no sockets — it is the fast, in-memory tier the `test` CI
+  job runs.
+- **`test:live`** drives a compiled API over HTTP against a real PostgreSQL
+  (panel/stores/tasks/roles/device/revoke/replica/flow/notify/router + bot/web/
+  mobile). Provide `DATABASE_URL` and start the API first (`npm run api:dev`);
+  some suites spawn their own API on their own port. The CI `live-tests` job
+  wires this up against a Postgres service container.
+- **Break detectors** (`npm run test:break`, `test:break:credentials`,
+  `test:break:device-revoke`) prove the suites still bite: each reintroduces a
+  defect and insists the matching check goes red. They write to source files and
+  restore them, so they are kept out of `quality` on purpose.
+
+---
+
+## Docker & deployment
+
+### Local / self-hosted stack
+
+```bash
+cp .env.production.example .env.production   # fill in required secrets
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d
+```
+
+Four services: `postgres`, `api`, `web`, `bot`. Compose refuses to start without
+`POSTGRES_PASSWORD`, `DATABASE_URL`, `TELEGRAM_BOT_TOKEN` and
+`TELEGRAM_WEBHOOK_SECRET` (no insecure defaults). The Postgres port is **not**
+published to the host by default; each service has memory/CPU caps. Images run as
+non-root where the runtime allows it.
+
+Images:
+
+| Image              | Dockerfile            | Notes                                        |
+| ------------------ | --------------------- | -------------------------------------------- |
+| API                | `apps/api/Dockerfile` | multi-stage; runs as `node`; ships `db/`      |
+| Bot                | `Dockerfile.bot`      | multi-stage; compiled JS, `--omit=dev`, `node` |
+| Web                | `web/Dockerfile`      | Vite build → nginx; workers run as `nginx`    |
+| Postgres (seeding) | `Dockerfile.postgres` | seeds `db/api-schema.sql` + `db/api-seed.sql` on first boot |
+
+### Managed platform (Railway)
+
+The deploy target is **Railway** with managed PostgreSQL (no in-repo Railway
+config). On a managed database the API's boot-time migration runner is the only
+mechanism that creates the schema — `ONETEAM_AUTO_MIGRATE` defaults on precisely
+for this. Point the bot at the API over the private network
+(`ONETEAM_API_URL=http://api.railway.internal:3001`).
+
+### CI / CD
+
+GitHub Actions under `.github/workflows/`:
+
+- **`ci.yml`** — verify (secrets/types/lint/format), test (`test:all`), build
+  (web bundle), UI tests (iOS), a non-blocking dependency `audit`, and a gated
+  DB-backed `live-tests` job (Postgres service + `test:live` + break detectors).
+- **`codeql.yml`** — CodeQL static analysis (javascript-typescript), push/PR to
+  main + weekly.
+- **`deploy.yml`** — builds the API/bot/web images and pushes them to GHCR on
+  push to `main` and on `v*` tags. The Railway release step is a documented,
+  commented-out block gated on a `RAILWAY_TOKEN` secret.
+- **`db-backup.yml`** — nightly `pg_dump` via `scripts/ops/db-backup.sh`
+  (needs a `DATABASE_URL` secret reachable from the runner).
+
+---
+
+## Operations docs
+
+- **Backup & restore:** [`docs/BACKUP-RESTORE.md`](./docs/BACKUP-RESTORE.md)
+- **Observability (recommendations):** [`docs/OBSERVABILITY.md`](./docs/OBSERVABILITY.md)
+- **Engineering standards:** [`docs/ENGINEERING-STANDARDS.md`](./docs/ENGINEERING-STANDARDS.md)
+
+---
+
+## License
+
+UNLICENSED — proprietary. See `package.json`.
+

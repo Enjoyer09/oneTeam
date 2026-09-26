@@ -44,6 +44,24 @@ RUN npm run build
 # Stage 2: Lightweight Nginx server for static asset delivery
 FROM nginx:alpine AS runner
 
+# ------------------------------------------------------------------------------
+# Privilege posture
+# ------------------------------------------------------------------------------
+# nginx already splits its privileges: the master process runs as root only so
+# it can bind the privileged port 80, and it immediately drops the worker
+# processes — the ones that actually parse requests and touch the network — to
+# the unprivileged `nginx` user declared by `user nginx;` in the base image's
+# /etc/nginx/nginx.conf. A `USER nginx` line here would instead make the master
+# run as nginx too, and it would then fail to bind port 80 and could not write
+# its pid file, so the container would not start.
+#
+# A fully rootless image is possible with `nginxinc/nginx-unprivileged`, but it
+# listens on 8080 rather than 80, which means editing web/nginx.conf and the
+# published-port/healthcheck wiring. That config file is owned by another part
+# of the project, so the rootless switch is left as a documented follow-up
+# rather than a half-applied change. The request-handling workers are already
+# non-root today.
+
 # Clean default Nginx welcome assets
 RUN rm -rf /usr/share/nginx/html/*
 

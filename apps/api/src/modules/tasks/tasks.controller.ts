@@ -6,6 +6,7 @@ import {
   Body,
   HttpCode,
   HttpStatus,
+  NotFoundException,
   Request,
   UseGuards,
 } from '@nestjs/common';
@@ -48,11 +49,18 @@ export class TasksController {
   ) {
     const principal = getPrincipal(request);
     const task = db.getTask(id);
-    if (!task) {
-      return { success: false, data: undefined };
-    }
-    if (!db.canUserAccessTask(principal.userId, principal.role, id)) {
-      return { success: false, data: undefined };
+    // A missing task, and a task this caller may not read, both answer 404 — not
+    // an HTTP 200 with `success:false`, which lied about the outcome to every
+    // client that checks the status line. The two cases are deliberately
+    // indistinguishable: a distinct 403 would confirm the task exists to someone
+    // not allowed to know that. The body still carries `success:false` for
+    // clients that read it.
+    if (!task || !db.canUserAccessTask(principal.userId, principal.role, id)) {
+      throw new NotFoundException({
+        success: false,
+        error: 'TASK_NOT_FOUND',
+        message: 'Tapşırıq tapılmadı və ya ona giriş yoxdur.',
+      });
     }
     return {
       success: true,

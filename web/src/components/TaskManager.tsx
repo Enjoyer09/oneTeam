@@ -135,15 +135,16 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [referenceImageUrl, setReferenceImageUrl] = useState(
-    'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=800&q=80',
-  );
+  const [referenceImageUrl, setReferenceImageUrl] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
   const [deadline, setDeadline] = useState(
     new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
   );
   const [selectedStores, setSelectedStores] = useState<string[]>(['all']);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  /* Yaratma formasının inline xətası — alert() əvəzinə, redaktə modalındakı
+     `editError` ilə eyni pattern. */
+  const [createError, setCreateError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   /* ------------------------------------------------------------------------ */
@@ -247,9 +248,10 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        alert('Şəkil ölçüsü 5 MB-dan çox ola bilməz.');
+        setCreateError('Şəkil ölçüsü 5 MB-dan çox ola bilməz.');
         return;
       }
+      setCreateError(null);
       const reader = new FileReader();
       reader.onloadend = () => {
         if (typeof reader.result === 'string') {
@@ -272,12 +274,29 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
   const [bulkChain, setBulkChain] = useState<string>('all');
   const [bulkFormat, setBulkFormat] = useState<string>('all');
   const [bulkRegion, setBulkRegion] = useState<string>('all');
-  const [bulkTemplate, setBulkTemplate] = useState<string>('tmpl-cooler-check');
+  /* Kütləvi göndərmə məzmunu — əvvəllər hardcoded şablonlardan gəlirdi, indi
+     supervayzer özü yazır (yaratma formasındakı kimi). */
+  const [bulkTitle, setBulkTitle] = useState('');
+  const [bulkDescription, setBulkDescription] = useState('');
+  const [bulkRequiresBeforeAfter, setBulkRequiresBeforeAfter] = useState(false);
   const [bulkPriority, setBulkPriority] = useState<TaskPriority>('high');
   const [bulkDeadline, setBulkDeadline] = useState(
     new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
   );
   const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+
+  /* Filtr seçimləri həqiqi mağaza məlumatından qurulur — sabit kodlanmış
+     şəbəkə/region siyahısı deyil. Mağazalarda olmayan bir dəyər seçilə bilməz. */
+  const chainOptions = Array.from(
+    new Set(stores.map((s) => s.chain_name).filter((v): v is string => !!v)),
+  ).sort();
+  const formatOptions = Array.from(
+    new Set(stores.map((s) => s.store_format).filter((v): v is string => !!v)),
+  ).sort();
+  const regionOptions = Array.from(
+    new Set(stores.map((s) => s.region_id).filter((v): v is string => !!v)),
+  ).sort();
 
   // Compute matched stores in real time based on active filters
   const matchedStores = stores.filter((s) => {
@@ -297,29 +316,27 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
   const handleBulkSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (matchedStores.length === 0) {
-      alert('Seçilmiş filtrlərə uyğun aktiv mağaza yoxdur.');
+      setBulkError('Seçilmiş filtrlərə uyğun aktiv mağaza yoxdur.');
       return;
     }
+    if (!bulkTitle.trim() || !bulkDescription.trim()) {
+      setBulkError('Zəhmət olmasa təlimat başlığını və məzmununu doldurun.');
+      return;
+    }
+    setBulkError(null);
 
     try {
       setIsBulkSubmitting(true);
-      const isCooler = bulkTemplate === 'tmpl-cooler-check';
       const taskData = {
-        title: isCooler
-          ? 'Cooler Check (0.5L Ön Vitrin Soyuducusu Auditi)'
-          : 'Eye-Level Placement (Göz Səviyyəsi Rəf Düzülüşü)',
-        description: isCooler
-          ? 'Təlimat: 1. Coca-Cola Classic, Zero Sugar, Sprite və Fanta 0.5L məhsulları mütləq ön vitrin soyuducusunda yerləşdirilməlidir.\n2. Minimum 3 facing təmin edilməlidir.\n3. Soyuducu temperaturu <= 4°C olmalıdır.\n4. Before və After foto çəkilməlidir.'
-          : 'Təlimat: 1L və 1.5L PET şüşələrin alıcının göz səviyyəsində fasiləsiz düzülüşü. Boşluqlar dərhal depodan doldurulmalıdır.',
-        reference_image_url: isCooler
-          ? 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=800&q=80'
-          : 'https://images.unsplash.com/photo-1554866585-cd94860890b7?auto=format&fit=crop&w=800&q=80',
+        title: bulkTitle.trim(),
+        description: bulkDescription.trim(),
+        reference_image_url: referenceImageUrl,
         priority: bulkPriority,
         deadline: new Date(bulkDeadline).toISOString(),
         chainName: bulkChain,
         storeFormat: bulkFormat,
         regionId: bulkRegion,
-        requires_before_after_photo: isCooler,
+        requires_before_after_photo: bulkRequiresBeforeAfter,
         assigned_stores: matchedStores.map((s) => s.id),
       };
 
@@ -354,9 +371,10 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !description.trim()) {
-      alert('Zəhmət olmasa başlıq və təlimat mətnini doldurun.');
+      setCreateError('Zəhmət olmasa başlıq və təlimat mətnini doldurun.');
       return;
     }
+    setCreateError(null);
 
     try {
       setIsSubmitting(true);
@@ -612,13 +630,18 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       </label>
                       <select
                         value={bulkChain}
-                        onChange={(e) => setBulkChain(e.target.value)}
+                        onChange={(e) => {
+                          setBulkChain(e.target.value);
+                          if (bulkError) setBulkError(null);
+                        }}
                         className="w-full px-3 py-2 border border-hair rounded-lg text-xs bg-[var(--g-card)] text-ink font-semibold focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
                       >
                         <option value="all">Bütün Şəbəkələr (All)</option>
-                        <option value="Bravo">Bravo</option>
-                        <option value="Araz">Araz Superstore</option>
-                        <option value="Bazarstore">Bazarstore Gourmet</option>
+                        {chainOptions.map((chain) => (
+                          <option key={chain} value={chain}>
+                            {chain}
+                          </option>
+                        ))}
                       </select>
                     </div>
 
@@ -629,12 +652,18 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       </label>
                       <select
                         value={bulkFormat}
-                        onChange={(e) => setBulkFormat(e.target.value)}
+                        onChange={(e) => {
+                          setBulkFormat(e.target.value);
+                          if (bulkError) setBulkError(null);
+                        }}
                         className="w-full px-3 py-2 border border-hair rounded-lg text-xs bg-[var(--g-card)] text-ink font-semibold focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
                       >
                         <option value="all">Bütün Formatlar</option>
-                        <option value="hypermarket">Hypermarket</option>
-                        <option value="supermarket">Supermarket</option>
+                        {formatOptions.map((format) => (
+                          <option key={format} value={format}>
+                            {format}
+                          </option>
+                        ))}
                       </select>
                     </div>
 
@@ -645,11 +674,18 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       </label>
                       <select
                         value={bulkRegion}
-                        onChange={(e) => setBulkRegion(e.target.value)}
+                        onChange={(e) => {
+                          setBulkRegion(e.target.value);
+                          if (bulkError) setBulkError(null);
+                        }}
                         className="w-full px-3 py-2 border border-hair rounded-lg text-xs bg-[var(--g-card)] text-ink font-semibold focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
                       >
                         <option value="all">Bütün Regionlar</option>
-                        <option value="reg-baku-central">Bakı Şəhəri və Ətraf</option>
+                        {regionOptions.map((region) => (
+                          <option key={region} value={region}>
+                            {region}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -680,78 +716,48 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   </div>
                 </div>
 
-                {/* SECTION 2: Template Selection */}
-                <div>
-                  <label className="block text-xs font-bold text-ink mb-1.5 uppercase tracking-wider">
-                    2. Təlimat Şablonu Seçin:
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Preset 1: Cooler Check */}
-                    <div
-                      onClick={() => setBulkTemplate('tmpl-cooler-check')}
-                      className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
-                        bulkTemplate === 'tmpl-cooler-check'
-                          ? 'border-coke-500 bg-coke-50/40'
-                          : 'border-hair hover:border-hair bg-[var(--g-card)]'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-bold text-ink">
-                          Cooler Check (0.5L Ön Vitrin)
-                        </span>
-                        {bulkTemplate === 'tmpl-cooler-check' && (
-                          <span className="w-4 h-4 rounded-full bg-coke-600 text-white flex items-center justify-center text-[10px] font-bold">
-                            ✓
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-ink-2 line-clamp-2">
-                        0.5L PET şüşələrin soyuducuda front-facing düzülüşü, temperatur yoxlanışı və
-                        Before/After fotoları.
-                      </p>
-                      <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-indigo-100 text-indigo-800">
-                          📸 Before & After Tələbi
-                        </span>
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-100 text-blue-800">
-                          📋 3 Çeklist Sualı (&lt;=4°C, POSM)
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Preset 2: Eye Level */}
-                    <div
-                      onClick={() => setBulkTemplate('tmpl-eye-level')}
-                      className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
-                        bulkTemplate === 'tmpl-eye-level'
-                          ? 'border-coke-500 bg-coke-50/40'
-                          : 'border-hair hover:border-hair bg-[var(--g-card)]'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-bold text-ink">
-                          Eye-Level Placement (Rəf Auditi)
-                        </span>
-                        {bulkTemplate === 'tmpl-eye-level' && (
-                          <span className="w-4 h-4 rounded-full bg-coke-600 text-white flex items-center justify-center text-[10px] font-bold">
-                            ✓
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-ink-2 line-clamp-2">
-                        1L və 1.5L PET şüşələrin göz səviyyəsində fasiləsiz düzülüşü və sarı promo
-                        qiymət kağızlarının yoxlanması.
-                      </p>
-                      <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-800">
-                          ⚡ Standart Rəf Auditi
-                        </span>
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-100 text-blue-800">
-                          📋 1 Çeklist Sualı
-                        </span>
-                      </div>
-                    </div>
+                {/* SECTION 2: Briefing content (title, instruction, options) */}
+                <div className="space-y-3.5">
+                  <div>
+                    <label className="block text-xs font-bold text-ink mb-1.5 uppercase tracking-wider">
+                      2. Təlimat Məzmunu
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Tapşırığın başlığı (məs: 0.5L Ön Vitrin Soyuducusu Auditi)"
+                      value={bulkTitle}
+                      onChange={(e) => {
+                        setBulkTitle(e.target.value);
+                        if (bulkError) setBulkError(null);
+                      }}
+                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
+                    />
                   </div>
+                  <div>
+                    <textarea
+                      rows={3}
+                      required
+                      placeholder="Düzülüş təlimatı və facing qaydaları..."
+                      value={bulkDescription}
+                      onChange={(e) => {
+                        setBulkDescription(e.target.value);
+                        if (bulkError) setBulkError(null);
+                      }}
+                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
+                    />
+                  </div>
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={bulkRequiresBeforeAfter}
+                      onChange={(e) => setBulkRequiresBeforeAfter(e.target.checked)}
+                      className="w-4 h-4 rounded border-hair accent-[var(--coke-500)] cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-ink-2">
+                      Before &amp; After fotosu tələb olunsun
+                    </span>
+                  </label>
                 </div>
 
                 {/* SECTION 3: Priority & Deadline */}
@@ -785,6 +791,13 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                     />
                   </div>
                 </div>
+
+                {bulkError && (
+                  <div className="flex items-start gap-2.5 rounded-xl border border-[rgba(200,60,60,.28)] bg-[rgba(200,60,60,.08)] px-3.5 py-2.5">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[#b23b3b] mt-[1px]" />
+                    <p className="text-[11.5px] leading-relaxed text-ink">{bulkError}</p>
+                  </div>
+                )}
 
                 {/* Modal Actions */}
                 <div className="pt-4 border-t border-hair flex items-center justify-between">
@@ -865,7 +878,10 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                     required
                     placeholder="Məs: Coca-Cola Zero Sugar Promo Stand Check"
                     value={title}
-                    onChange={(e) => setTitle(e.target.value)}
+                    onChange={(e) => {
+                      setTitle(e.target.value);
+                      if (createError) setCreateError(null);
+                    }}
                     className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45 bg-[var(--g-card)]"
                   />
                 </div>
@@ -880,7 +896,10 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                     required
                     placeholder="Məs: Bütün Coca-Cola 0.5L şüşələri soyuducunun 1-ci rəfində tələb olunan sayda..."
                     value={description}
-                    onChange={(e) => setDescription(e.target.value)}
+                    onChange={(e) => {
+                      setDescription(e.target.value);
+                      if (createError) setCreateError(null);
+                    }}
                     className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45 bg-[var(--g-card)]"
                   />
                 </div>
@@ -944,7 +963,10 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                         type="text"
                         placeholder="https://.../planogram.jpg və ya kompüterdən seçin"
                         value={referenceImageUrl}
-                        onChange={(e) => setReferenceImageUrl(e.target.value)}
+                        onChange={(e) => {
+                          setReferenceImageUrl(e.target.value);
+                          if (createError) setCreateError(null);
+                        }}
                         className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45 truncate"
                       />
                     </div>
@@ -1005,6 +1027,13 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                     })}
                   </div>
                 </div>
+
+                {createError && (
+                  <div className="flex items-start gap-2.5 rounded-xl border border-[rgba(200,60,60,.28)] bg-[rgba(200,60,60,.08)] px-3.5 py-2.5">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[#b23b3b] mt-[1px]" />
+                    <p className="text-[11.5px] leading-relaxed text-ink">{createError}</p>
+                  </div>
+                )}
 
                 {/* Modal Submit Actions */}
                 <div className="pt-3 border-t border-hair flex items-center justify-end space-x-2.5">

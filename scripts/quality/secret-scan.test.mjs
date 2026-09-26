@@ -257,6 +257,16 @@ const CASES = [
       `  '${j('Hh0aHBwgJC4nICIsIxwcKDcpLDAx', 'NDQ0Hyc5PTgyPC4zNDI=')}';`,
     ].join('\n'),
   },
+  {
+    name: 'csp-sha256-hash-source',
+    mustFire: false,
+    why: 'a CSP/SRI hash is a public integrity digest served in a header, not a secret',
+    body: `add_header Content-Security-Policy "script-src 'self' '${j(
+      'sha256-',
+      'NxvTC/dARrj02zNc8V9u5Rui1',
+      'mcE5DEySgyUiCTVNSk=',
+    )}'";`,
+  },
 ];
 
 // ---------------------------------------------------------------------------

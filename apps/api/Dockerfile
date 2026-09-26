@@ -21,8 +21,15 @@ WORKDIR /app
 # Install build tools
 RUN apk add --no-cache python3 make g++
 
-# Copy workspace package manifests
-COPY package*.json pnpm-workspace.yaml* turbo.json* ./
+# Copy workspace package manifests.
+#
+# Only package*.json is copied now. The old `pnpm-workspace.yaml*` and
+# `turbo.json*` globs were removed when those files were deleted from the
+# repository (npm workspaces is the only monorepo tool in use; turbo was never
+# installed and turbo.json used the deprecated "pipeline" key). The trailing `*`
+# made them optional, so their removal does not change the build — the lines are
+# gone to stop implying a tool that is not here.
+COPY package*.json ./
 COPY packages/types/package*.json ./packages/types/
 COPY packages/database/package*.json ./packages/database/
 COPY apps/api/package*.json ./apps/api/
@@ -129,6 +136,17 @@ COPY --from=builder /app/db ./db
 
 # Expose API port
 EXPOSE 3001
+
+# ------------------------------------------------------------------------------
+# Drop privileges — run as the unprivileged `node` user, not root.
+# ------------------------------------------------------------------------------
+# The node:22-alpine image ships a `node` user (uid 1000) for exactly this. The
+# API needs only to read its own files (compiled JS, node_modules and the db/
+# SQL it applies at start-up), all of which COPY leaves world-readable, so no
+# chown is required. Photos are stored inline in the database by default, so the
+# runtime writes nothing to the image filesystem. Running as root would hand a
+# compromised process the run of the container for no operational gain.
+USER node
 
 # Container healthcheck.
 #

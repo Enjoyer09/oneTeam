@@ -61,6 +61,16 @@ export interface GPSCoordinates {
   latitude: number;
   longitude: number;
   accuracy?: number; // in meters
+  /**
+   * Whether the platform reported this fix as a MOCK location.
+   *
+   * `expo-location` sets this on Android when a fake-GPS app produced the fix; on
+   * iOS the platform does not expose it, so it stays `undefined` there. Carried
+   * through so the server can flag a spoofed position rather than the client
+   * silently trusting it. `undefined` means "the platform did not say", which is
+   * deliberately distinct from `false` ("the platform said it is genuine").
+   */
+  mocked?: boolean;
 }
 
 export interface GeofenceResult {
@@ -68,6 +78,19 @@ export interface GeofenceResult {
   distanceMeters: number;
   thresholdMeters: number;
   message: string;
+  /**
+   * The reported accuracy of the fix the check ran against, in meters, when the
+   * platform gave one. Surfaced rather than dropped so a low-confidence pass is
+   * visible instead of looking identical to a precise one.
+   */
+  accuracyMeters?: number;
+  /**
+   * True when the fix is missing an accuracy reading or its accuracy is worse
+   * than the low-confidence threshold. A low-confidence fix does NOT fail the
+   * geofence on its own — the distance still decides — but it is flagged so the
+   * submission can be marked weaker evidence.
+   */
+  locationLowConfidence?: boolean;
 }
 
 /**

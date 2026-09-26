@@ -55,6 +55,7 @@ import {
   TaskStatus,
 } from '../types';
 import { credentialStore } from './credentialStore';
+import { isLowConfidenceFix } from '../utils/geofence';
 
 /**
  * The harness-only variable names, read through an alias.
@@ -871,6 +872,25 @@ class MobilePortalApi {
     const hasFix =
       typeof params.gps?.latitude === 'number' && typeof params.gps?.longitude === 'number';
 
+    // Anti-fraud location quality, sent alongside the fix rather than instead of
+    // it. These are ADDED fields — the server reads them when present and older
+    // deployments ignore them — so the existing `latitude`/`longitude`/
+    // `locationUnverified` shape is unchanged.
+    //
+    //   - `locationAccuracy`  — the reported accuracy in meters, so a precise fix
+    //     and a vague one are no longer indistinguishable on the server.
+    //   - `locationLowConfidence` — the fix is missing an accuracy reading or is
+    //     worse than the threshold. A low-confidence fix is NOT refused (a
+    //     basement audit is still evidence), it is flagged as weaker.
+    //   - `locationMocked` — the platform reported this as a mock/spoofed fix
+    //     (Android only; absent on iOS). Only sent when the platform actually
+    //     said something, so `undefined` is never asserted as "genuine".
+    const accuracyMeters =
+      hasFix && typeof params.gps?.accuracy === 'number' ? params.gps.accuracy : undefined;
+    const locationLowConfidence = hasFix ? isLowConfidenceFix(params.gps!) : undefined;
+    const locationMocked =
+      hasFix && typeof params.gps?.mocked === 'boolean' ? params.gps.mocked : undefined;
+
     const envelope = await callApi('/api/portal/field/submissions', {
       method: 'POST',
       body: JSON.stringify({
@@ -881,6 +901,9 @@ class MobilePortalApi {
         latitude: hasFix ? params.gps!.latitude : undefined,
         longitude: hasFix ? params.gps!.longitude : undefined,
         locationUnverified: !hasFix,
+        locationAccuracy: accuracyMeters,
+        locationLowConfidence,
+        locationMocked,
         checklistAnswers: params.checklistAnswers ?? [],
         metadata: {
           ...(params.metadata ?? {}),

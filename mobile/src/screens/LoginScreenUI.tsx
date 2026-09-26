@@ -119,6 +119,9 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
         longitude: position.coords.longitude,
         accuracy:
           typeof position.coords.accuracy === 'number' ? position.coords.accuracy : undefined,
+        // The platform's mock-location flag (Android). Carried through so a
+        // spoofed sign-in fix can be flagged; `undefined` on iOS.
+        mocked: typeof position.mocked === 'boolean' ? position.mocked : undefined,
       };
       setGps(fix);
       controller.setUserLocation(fix);

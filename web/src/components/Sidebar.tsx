@@ -6,6 +6,7 @@ import {
   Store as StoreIcon,
   ShieldCheck,
 } from 'lucide-react';
+import type { PanelIdentity } from '../lib/panelAuth';
 
 export type TabType = 'dashboard' | 'review' | 'tasks' | 'stores';
 
@@ -13,10 +14,30 @@ interface SidebarProps {
   activeTab: TabType;
   setActiveTab: (tab: TabType) => void;
   pendingCount: number;
+  /**
+   * Who the API says is calling, or null when it could not be asked. The footer
+   * shows this real person; when it is unknown the footer is hidden rather than
+   * inventing a name.
+   */
+  identity?: PanelIdentity | null;
   /** Telefon ölçüsündə off-canvas çekmecenin açıq olub-olmaması */
   drawerOpen?: boolean;
   /** Çekmece bağlananda çağırılır (menyu seçimi, Escape, fon klik) */
   onCloseDrawer?: () => void;
+}
+
+/* Header-dəki eyni ad-cədvəli — rolun kodu deyil, oxunaqlı adı göstərilir. */
+const ROLE_LABEL: Record<string, string> = {
+  ADMIN: 'Administrator',
+  SUPERVISOR: 'Supervayzer',
+  MERCHANDISER: 'Merchandiser',
+};
+
+/** Ad → baş hərflər (ilk iki söz). Ad yoxdursa neytral bir işarə. */
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).slice(0, 2);
+  const letters = parts.map((w) => w[0]?.toUpperCase() ?? '').join('');
+  return letters || '?';
 }
 
 /* Naviqasiya elementlərinin həndəsəsi — sürüşən göstərici bunlara əsaslanır.
@@ -40,6 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   setActiveTab,
   pendingCount,
+  identity,
   drawerOpen = false,
   onCloseDrawer,
 }) => {
@@ -165,24 +187,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {/* ── İstifadəçi ────────────────────────────────────────────────────── */}
-      <div className="border-t border-hair px-2.5 py-3 md:px-2 xl:px-3.5">
-        <div className="flex items-center gap-2.5 md:justify-center xl:justify-start">
-          <div
-            className="w-9 h-9 rounded-full glass-panel flex items-center justify-center
-                       font-extrabold text-[11px] text-ink-2 flex-shrink-0"
-            aria-hidden="true"
-          >
-            SA
-          </div>
-          <div className="flex-1 min-w-0 md:hidden xl:block">
-            <p className="text-[11.5px] font-bold text-ink truncate">Supervayzer Admin</p>
-            <p className="text-[10px] text-muted truncate flex items-center gap-1 mt-px">
-              <ShieldCheck className="w-3 h-3 text-ok flex-shrink-0" />
-              FMCG Supervisor
-            </p>
+      {identity && (
+        <div className="border-t border-hair px-2.5 py-3 md:px-2 xl:px-3.5">
+          <div className="flex items-center gap-2.5 md:justify-center xl:justify-start">
+            <div
+              className="w-9 h-9 rounded-full glass-panel flex items-center justify-center
+                         font-extrabold text-[11px] text-ink-2 flex-shrink-0"
+              aria-hidden="true"
+            >
+              {identity.fullName ? initialsOf(identity.fullName) : '?'}
+            </div>
+            <div className="flex-1 min-w-0 md:hidden xl:block">
+              <p className="text-[11.5px] font-bold text-ink truncate">
+                {identity.fullName ?? 'Kimlik bilinmir'}
+              </p>
+              <p className="text-[10px] text-muted truncate flex items-center gap-1 mt-px">
+                <ShieldCheck className="w-3 h-3 text-ok flex-shrink-0" />
+                {ROLE_LABEL[identity.role] ?? identity.role}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </aside>
   );
 };

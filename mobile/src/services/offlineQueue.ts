@@ -467,6 +467,29 @@ export class OfflineQueueManager {
   }
 
   /**
+   * Drains on demand through the registered handler, respecting the retry cap.
+   *
+   * The reconnection path (`setOnlineStatus`) and this share `triggerAutoSync`:
+   * both are automatic drains, and both must return a value rather than throw,
+   * because both are called from places that cannot handle a rejection — a
+   * connectivity listener, an app-foreground handler, a startup effect. The
+   * reason it exists SEPARATELY from `setOnlineStatus` is that there is no
+   * offline→online transition to hang a drain on at startup or on foreground:
+   * the device may have been online the whole time and still hold audits a
+   * previous session queued and never sent. Without this, a queue only ever
+   * drained on a reconnection edge, so a worker who never toggled connectivity
+   * kept their audits forever — the same class of stranding the empty
+   * `triggerAutoSync` used to cause.
+   *
+   * A person pressing the sync button goes through
+   * `processQueue(..., { manual: true })` instead, which waives the cap because
+   * a person asking is new information the cap is not there to overrule.
+   */
+  async syncNow(): Promise<DrainResult> {
+    return this.triggerAutoSync();
+  }
+
+  /**
    * The drain that reconnection started, or null if none has been.
    *
    * `await service.autoSync` is how the suite proves reconnection actually

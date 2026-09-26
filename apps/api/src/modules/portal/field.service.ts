@@ -748,8 +748,14 @@ export class FieldService {
     latitude?: number;
     longitude?: number;
     locationUnverified?: boolean;
+    /** GPS horizontal accuracy in metres, when the client reports it. */
+    accuracy?: number;
+    /** True when the device flagged the fix as mock/simulated (Android exposes this). */
+    locationMocked?: boolean;
     checklistAnswers?: Array<{ questionId: string; value: boolean | number | string }>;
     metadata?: Record<string, unknown>;
+    /** Client-supplied key that makes a resend return the same evidence. */
+    idempotencyKey?: string;
   }) {
     const actor = this.requireActor({ chatId: payload.chatId, deviceId: payload.deviceId });
 
@@ -833,6 +839,47 @@ export class FieldService {
       });
     }
 
+    // Location-integrity signals. These do NOT reject the audit — a legitimate
+    // fix can be low-accuracy indoors, and rejecting would punish honest work —
+    // but a mock location or a wildly imprecise one is exactly what a reviewer
+    // needs to see, so each is recorded as its own audit event and carried in
+    // the channel metadata. `metadata` is checked as a fallback because a client
+    // may fold these into it rather than sending them at the top level.
+    const meta = (payload.metadata ?? {}) as Record<string, unknown>;
+    const locationMocked =
+      payload.locationMocked === true || meta.mocked === true || meta.locationMocked === true;
+    const accuracyMeters =
+      typeof payload.accuracy === 'number'
+        ? payload.accuracy
+        : typeof meta.accuracy === 'number'
+          ? (meta.accuracy as number)
+          : null;
+    const LOW_CONFIDENCE_ACCURACY_M = 100;
+    const lowConfidenceFix =
+      hasRealFix && accuracyMeters !== null && accuracyMeters > LOW_CONFIDENCE_ACCURACY_M;
+
+    if (locationMocked) {
+      db.logAuditEvent({
+        entityType: 'task_evidence',
+        entityId: payload.storeTaskId,
+        action: 'LOCATION_MOCKED',
+        actorId: actor.userId,
+        payload: {
+          reason: 'Cihaz mövqeyi saxta/simulyasiya kimi işarələdi.',
+          accuracyMeters,
+        },
+      });
+    }
+    if (lowConfidenceFix) {
+      db.logAuditEvent({
+        entityType: 'task_evidence',
+        entityId: payload.storeTaskId,
+        action: 'GEOFENCE_LOW_CONFIDENCE',
+        actorId: actor.userId,
+        payload: { accuracyMeters, thresholdMeters: LOW_CONFIDENCE_ACCURACY_M },
+      });
+    }
+
     // Delegated: geofence, checklist validation and the before/after pipeline
     // all live in EvidenceService and must not be duplicated here.
     //
@@ -860,6 +907,7 @@ export class FieldService {
         checklistNotCollected: answers.length === 0,
         latitude: hasRealFix ? (payload.latitude as number) : store.latitude,
         longitude: hasRealFix ? (payload.longitude as number) : store.longitude,
+        idempotencyKey: payload.idempotencyKey,
       },
       actor,
     );
@@ -881,15 +929,21 @@ export class FieldService {
       },
     });
 
-    if (payload.metadata && Object.keys(payload.metadata).length > 0) {
+    if (
+      (payload.metadata && Object.keys(payload.metadata).length > 0) ||
+      locationMocked ||
+      accuracyMeters !== null
+    ) {
       db.logAuditEvent({
         entityType: 'task_evidence',
         entityId: result.evidence.id,
         action: 'EVIDENCE_CHANNEL_METADATA',
         actorId: actor.userId,
         payload: {
-          ...payload.metadata,
+          ...(payload.metadata ?? {}),
           location_verified: hasRealFix,
+          location_mocked: locationMocked,
+          accuracy_meters: accuracyMeters,
         },
       });
     }
