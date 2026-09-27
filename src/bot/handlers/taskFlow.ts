@@ -258,6 +258,43 @@ async function continueAfterLocation(ctx: BotContext): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /**
+ * How a question is answered: with buttons, or by typing.
+ *
+ * WHY THIS IS RESOLVED IN ONE PLACE — A DEADLOCK ON TYPE-LESS QUESTIONS
+ * --------------------------------------------------------------------
+ * `packages/types` declares `type` as required, but the API never sets it: a
+ * question authored in the panel is stored as `{ id, label }` with no `type`
+ * at all (`PortalService.readChecklistSchema` validates `label` and passes the
+ * rest through untouched — the same open-contract gap as #73, one field over).
+ *
+ * The old code read `question.type` directly in the two functions below, and
+ * they DISAGREED about a type-less question. `askNextChecklistQuestion` fell
+ * through to the number branch and printed "type a number" with no buttons;
+ * `handleChecklistText` saw `type !== 'number'` and answered "use the buttons
+ * above" — but there were none. The result was a checklist step that could not
+ * be passed at all: nothing to tap, and every typed answer refused. To a
+ * merchandiser that is a task whose button "does nothing", which is exactly
+ * what was reported on a panel-authored task (IPHONE_TEST — three `{id,label}`
+ * questions, no `type`).
+ *
+ * Deciding the mode once removes the disagreement. A question with no
+ * recognised type becomes free text: it is universally answerable, it assumes
+ * nothing about intent (a type-less question is NOT necessarily yes/no), and
+ * `EvidenceService` applies no type validation to it, so a typed string is
+ * accepted on submission. Declaring `type: 'boolean'` in the schema is still
+ * the way to get one-tap buttons — that is a schema decision, not a guess this
+ * layer is entitled to make.
+ */
+type AnswerMode = 'boolean' | 'single_choice' | 'number' | 'text';
+
+function answerMode(question: ChecklistQuestion): AnswerMode {
+  if (question.type === 'boolean') return 'boolean';
+  if (question.type === 'single_choice' && question.options?.length) return 'single_choice';
+  if (question.type === 'number') return 'number';
+  return 'text';
+}
+
+/**
  * Asks the question at the session cursor, or moves on when there are none
  * left. Called both to start the checklist and after every answer, so the
  * "what comes next" decision exists in exactly one place.
@@ -279,7 +316,9 @@ export async function askNextChecklistQuestion(ctx: BotContext): Promise<void> {
     `*${escapeMarkdown(questionText(question))}*` +
     (question.unit ? ` _(${escapeMarkdown(question.unit)})_` : '');
 
-  if (question.type === 'boolean') {
+  const mode = answerMode(question);
+
+  if (mode === 'boolean') {
     await ctx.reply(header, {
       parse_mode: 'Markdown',
       reply_markup: new InlineKeyboard()
@@ -291,9 +330,9 @@ export async function askNextChecklistQuestion(ctx: BotContext): Promise<void> {
     return;
   }
 
-  if (question.type === 'single_choice' && question.options?.length) {
+  if (mode === 'single_choice') {
     const keyboard = new InlineKeyboard();
-    question.options.forEach((option, optionIndex) => {
+    (question.options ?? []).forEach((option, optionIndex) => {
       keyboard.text(option, encodeCallback('chk', encodeChecklistAnswer(index, optionIndex))).row();
     });
     keyboard.append(flowNavKeyboard(ctx.session.activeTaskId));
@@ -301,9 +340,22 @@ export async function askNextChecklistQuestion(ctx: BotContext): Promise<void> {
     return;
   }
 
-  // A number question has no buttons: the answer is a typed value, which is why
-  // `handleChecklistText` exists and why the session stays in this step.
-  await ctx.reply(`${header}${numberHint(question)}\n\n✍️ Cavabı rəqəmlə yazıb göndərin.`, {
+  if (mode === 'number') {
+    // A number question has no buttons: the answer is a typed value, which is
+    // why `handleChecklistText` exists and why the session stays in this step.
+    await ctx.reply(`${header}${numberHint(question)}\n\n✍️ Cavabı rəqəmlə yazıb göndərin.`, {
+      parse_mode: 'Markdown',
+      reply_markup: flowNavKeyboard(ctx.session.activeTaskId),
+    });
+    return;
+  }
+
+  // Free text — the fallback for a question the template gave no answer TYPE
+  // (see `answerMode`). Like a number question it has no buttons and is
+  // answered by typing, but it accepts any text rather than only a number.
+  // A panel-authored `{ id, label }` question lands here, and before this
+  // branch existed it had nowhere to land — the checklist could not be passed.
+  await ctx.reply(`${header}\n\n✍️ Cavabı yazıb göndərin.`, {
     parse_mode: 'Markdown',
     reply_markup: flowNavKeyboard(ctx.session.activeTaskId),
   });
@@ -383,14 +435,32 @@ export async function handleChecklistText(ctx: BotContext): Promise<boolean> {
   const question = questions[index];
   if (!question) return false;
 
-  // Typed text on a question that has buttons means the merchandiser typed
-  // instead of tapping. Saying so is better than silently ignoring the message.
-  if (question.type !== 'number') {
+  const mode = answerMode(question);
+
+  // A tapped-answer question (boolean / single_choice) has buttons, so a typed
+  // message means the merchandiser typed instead of tapping. Saying so is
+  // better than silently ignoring the message.
+  if (mode === 'boolean' || mode === 'single_choice') {
     await ctx.reply(`ℹ️ Zəhmət olmasa yuxarıdaki düymələrdən birini seçin.`);
     return true;
   }
 
   const text = ctx.message?.text?.trim() ?? '';
+
+  // A free-text question takes the message verbatim. This is the branch a
+  // type-less panel question reaches; before it existed the message was refused
+  // with "use the buttons above" and the flow could not advance — see
+  // `answerMode`.
+  if (mode === 'text') {
+    if (!text) {
+      await ctx.reply(`✍️ Zəhmət olmasa cavabı yazıb göndərin.`);
+      return true;
+    }
+    await recordChecklistAnswer(ctx, question, text);
+    return true;
+  }
+
+  // mode === 'number' from here on.
   // A comma is the decimal separator in Azerbaijani, so "3,5" is a number here
   // even though `Number("3,5")` is NaN.
   const value = Number(text.replace(',', '.'));
