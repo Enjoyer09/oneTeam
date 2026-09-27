@@ -161,6 +161,43 @@ export async function handleOpenTask(
 
   await answer();
 
+  // Claim the store's open work for this chat before touching the task.
+  //
+  // WHY THIS IS HERE AND NOT ONLY AT /start
+  // ---------------------------------------
+  // "The store code is the claim": binding to a store assigns that store's
+  // unassigned open tasks to whoever sent the code (see `FieldService.bind` →
+  // `claimStoreTasks`). But that claim runs once, at bind time. A task a
+  // supervisor publishes in the panel AFTER the merchandiser bound is never
+  // claimed, so its `assignedUserId` stays empty — and `canUserAccessTask` then
+  // refuses both the acknowledge below and the eventual photo submission with
+  // `403 Bu tapşırıq üçün icazə yoxdur`. The task-open button opens the card and
+  // then quietly fails to file anything: the exact IPHONE_TEST symptom seen in
+  // the production logs as repeated 403s on `task-panel-…`.
+  //
+  // Re-binding for the session's store closes that temporal gap. It is
+  // idempotent, it only ever claims unassigned open work at the store this chat
+  // is already bound to, and a failure is non-fatal — the acknowledge below will
+  // surface any real permission problem, and the merchandiser is not blocked
+  // from trying. It is skipped when no store is bound, so it can never claim on
+  // behalf of a chat that has not proven store presence.
+  if (ctx.session.storeId) {
+    try {
+      const from = ctx.from;
+      const fullName =
+        [from?.first_name, from?.last_name].filter(Boolean).join(' ') || 'Merchandiser';
+      await portalApi.bindTelegramUser({
+        telegramChatId: ctx.chat!.id,
+        fullName,
+        username: from?.username,
+        storeId: ctx.session.storeId,
+      });
+    } catch (error) {
+      const detail = error instanceof PortalApiError ? error.message : String(error);
+      console.error(`[oneTeam Bot] Re-claim on open failed for ${task.id}:`, detail);
+    }
+  }
+
   // Opening the task is the chat's equivalent of tapping "Acknowledge" on the
   // notification. The lifecycle only lets a supervisor review a SUBMITTED task,
   // and only an ACKNOWLEDGED task can become SUBMITTED — so skipping this would
