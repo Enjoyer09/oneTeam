@@ -49,7 +49,8 @@ import { MENU_HOME_LABEL, mainMenuKeyboard } from '../keyboards';
 type PendingPhoto = NonNullable<BotContext['session']['pendingPhoto']>;
 
 export async function handlePhotoArrival(ctx: BotContext): Promise<void> {
-  if (!ctx.session.storeId) {
+  const storeId = ctx.session.storeId;
+  if (!storeId) {
     await ctx.reply(
       `⚠️ *Əvvəlcə mağaza qeydiyyatından keçin!*\n\nZəhmət olmasa /start əmri ilə mağaza kodunuzu daxil edin.`,
       { parse_mode: 'Markdown' },
@@ -59,12 +60,12 @@ export async function handlePhotoArrival(ctx: BotContext): Promise<void> {
 
   const taskId = ctx.session.activeTaskId;
 
+  // A photo with no task open. The photo is the LAST step of the guided flow, so
+  // there is genuinely nothing to attach this one to yet — but rather than a dead
+  // end, offer the store's own tasks right here so the merchandiser can select
+  // one in a single tap instead of hunting through the menu.
   if (!taskId) {
-    await ctx.reply(
-      `⚠️ *Hansı tapşırıq üçün şəkil göndərdiyiniz seçilməyib!*\n\n` +
-        `Zəhmət olmasa əvvəlcə tapşırıqlar siyahısından müvafiq tapşırığı seçin.`,
-      { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard() },
-    );
+    await promptTaskSelectionForPhoto(ctx, storeId);
     return;
   }
 
@@ -137,6 +138,83 @@ export async function handlePhotoArrival(ctx: BotContext): Promise<void> {
       .row()
       .text('🔄 Yenidən çək', encodeCallback('retake', taskId))
       .text(MENU_HOME_LABEL, encodeCallback('menu', 'home')),
+  });
+}
+
+/**
+ * A photo arrived with no task open — turn the dead end into a task picker.
+ *
+ * WHY THIS REPLACED A ONE-LINE REFUSAL
+ * ------------------------------------
+ * The photo is the last step of the guided flow, so a photo sent before a task
+ * is opened has nothing to attach to. The old reply said "select a task from the
+ * list first" and handed back the reply keyboard — which lists *Tapşırıqlar* and
+ * *Statusum*, not the tasks themselves. So a merchandiser standing at the shelf,
+ * having just taken a photo, was refused and pointed at a menu, from which they
+ * had to open the task list, find the right task, and only then start the flow.
+ * It reads as the bot rejecting a perfectly good photo for no reason, and it is
+ * the most common complaint about this channel.
+ *
+ * So the store's own active tasks are offered right here, each as a one-tap
+ * button carrying the same `open:` action a task card does. Tapping one selects
+ * the task and starts the guided flow (location → checklist → photo), exactly as
+ * opening it from `/tasks` would.
+ *
+ * WHY THE PHOTO IS NOT AUTO-ATTACHED
+ * ----------------------------------
+ * Even when there is only one active task, the photo is not filed against it.
+ * Attaching a photo to a task the merchandiser did not choose is the misfiled-
+ * evidence failure the rest of this flow exists to prevent, and the location and
+ * checklist have not been collected yet — the photo must still come last. One
+ * tap to confirm which task is cheap; a wrong audit is not. The photo just sent
+ * is re-sent at the photo step, where the merchandiser is already standing.
+ */
+async function promptTaskSelectionForPhoto(ctx: BotContext, storeId: string): Promise<void> {
+  let tasks;
+  try {
+    tasks = await portalApi.getTasksForStore(storeId);
+  } catch (error) {
+    const detail = error instanceof PortalApiError ? error.message : String(error);
+    console.error(`[oneTeam Bot] Task lookup for an unattached photo failed (${storeId}):`, detail);
+    await ctx.reply(
+      `⚠️ *Şəkil üçün tapşırıq seçilməyib.*\n\n` +
+        `Tapşırıqları indi yükləyə bilmədim. Zəhmət olmasa aşağıdaki *"📋 Tapşırıqlar"* düyməsi ilə yenidən cəhd edin.`,
+      { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard() },
+    );
+    return;
+  }
+
+  if (tasks.length === 0) {
+    await ctx.reply(
+      `📭 *Şəkil üçün açıq tapşırıq yoxdur.*\n\n` +
+        `Hazırda mağazanız üçün aktiv rəf tapşırığı görünmür. Yeni tapşırıq təyin olunanda bu çatda bildiriş alacaqsınız.`,
+      { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard() },
+    );
+    return;
+  }
+
+  // Telegram inline keyboards get unwieldy past a handful of rows; show the first
+  // few and offer the full list as a fallback so a store with many tasks is not
+  // truncated silently.
+  const MAX_BUTTONS = 8;
+  const shown = tasks.slice(0, MAX_BUTTONS);
+
+  const keyboard = new InlineKeyboard();
+  for (const task of shown) {
+    keyboard.text(`📸 ${task.title}`, encodeCallback('open', task.id)).row();
+  }
+  if (tasks.length > MAX_BUTTONS) {
+    keyboard.text('📋 Bütün tapşırıqlar', encodeCallback('tasks', 'list')).row();
+  }
+
+  const lead =
+    tasks.length === 1
+      ? `Şəkli hansı tapşırıq üçün göndərdiyinizi bilməliyəm. Aşağıdaki tapşırığa toxunun — sizi lokasiya və çeklist addımlarından keçirəcəyəm, sonra şəkli yenidən göndərəcəksiniz.`
+      : `Şəkli hansı tapşırıq üçün göndərdiyinizi seçin. Tapşırığa toxunduqdan sonra sizi lokasiya və çeklist addımlarından keçirib şəkli yenidən istəyəcəyəm.`;
+
+  await ctx.reply(`📌 *Əvvəlcə tapşırığı seçin*\n\n${lead}`, {
+    parse_mode: 'Markdown',
+    reply_markup: keyboard,
   });
 }
 
