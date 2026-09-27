@@ -38,6 +38,7 @@ import { BotContext, SubmissionRecord, TaskRecord } from '../types';
 import { portalApi, PortalApiError } from '../../services/portalApi';
 import { encodeCallback } from '../callbacks';
 import { mainMenuKeyboard } from '../keyboards';
+import { escapeMarkdown } from '../markdown';
 
 /** How many one-tap task shortcuts to show before falling back to the full list. */
 const MAX_TASK_SHORTCUTS = 6;
@@ -140,7 +141,7 @@ export async function handleToday(ctx: BotContext): Promise<void> {
     for (const sub of todays.slice(0, 5)) {
       const icon = STATUS_ICONS[sub.status] ?? '•';
       const title = sub.task?.title ?? 'Rəf yoxlanışı';
-      block += `   ${icon} ${title}\n`;
+      block += `   ${icon} ${escapeMarkdown(title)}\n`;
     }
     // A rejected audit is the one thing worth nudging on: it needs re-shooting.
     if (rejected > 0) {
@@ -150,7 +151,7 @@ export async function handleToday(ctx: BotContext): Promise<void> {
   }
 
   const overview =
-    `🗓 *Bugün — ${ctx.session.storeName ?? 'Mağaza'}*\n` +
+    `🗓 *Bugün — ${escapeMarkdown(ctx.session.storeName ?? 'Mağaza')}*\n` +
     `_${dateStr}_\n\n` +
     `${tasksLine}\n\n` +
     `${submittedBlock}`;

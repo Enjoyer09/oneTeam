@@ -67,17 +67,7 @@ import {
   mainMenuInline,
   mainMenuKeyboard,
 } from '../keyboards';
-
-/**
- * Escapes the characters Telegram's legacy Markdown treats as formatting.
- *
- * Question text is authored by a supervisor in the panel, so it can contain
- * anything. An unescaped `_` or `*` makes Telegram reject the whole message with
- * a 400, which would present as "the bot is broken" for one specific question.
- */
-function escapeMarkdown(text: string): string {
-  return text.replace(/[_*`[\]]/g, (char) => `\\${char}`);
-}
+import { escapeMarkdown } from '../markdown';
 
 /**
  * The text of a checklist question.

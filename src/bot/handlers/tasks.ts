@@ -3,6 +3,7 @@ import { AnswerCallback, BotContext, TaskRecord } from '../types';
 import { portalApi, PortalApiError } from '../../services/portalApi';
 import { encodeCallback } from '../callbacks';
 import { mainMenuKeyboard } from '../keyboards';
+import { escapeMarkdown } from '../markdown';
 import { beginTaskFlow, resumeCurrentStep } from './taskFlow';
 
 export async function handleTasks(ctx: BotContext) {
@@ -29,7 +30,7 @@ export async function handleTasks(ctx: BotContext) {
 
   if (tasks.length === 0) {
     await ctx.reply(
-      `ℹ️ *${ctx.session.storeName}* mağazası üçün hazırda aktiv rəf tapşırığı yoxdur.`,
+      `ℹ️ *${escapeMarkdown(ctx.session.storeName ?? '')}* mağazası üçün hazırda aktiv rəf tapşırığı yoxdur.`,
       { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard() },
     );
     return;
@@ -39,10 +40,13 @@ export async function handleTasks(ctx: BotContext) {
   // arrived here by typing `/tasks` has the buttons back under the message box.
   // The task cards below carry their own inline `open:` buttons, which belong
   // to the card they are on.
-  await ctx.reply(`📋 *${ctx.session.storeName}* üçün aktiv tapşırıqlar (${tasks.length}):`, {
-    parse_mode: 'Markdown',
-    reply_markup: mainMenuKeyboard(),
-  });
+  await ctx.reply(
+    `📋 *${escapeMarkdown(ctx.session.storeName ?? '')}* üçün aktiv tapşırıqlar (${tasks.length}):`,
+    {
+      parse_mode: 'Markdown',
+      reply_markup: mainMenuKeyboard(),
+    },
+  );
 
   for (const task of tasks) {
     await sendTaskDetails(ctx, task);
@@ -75,11 +79,11 @@ export async function sendTaskDetails(ctx: BotContext, task: TaskRecord) {
   const checklistLine = questionCount > 0 ? `📋 *Çeklist:* ${questionCount} sual\n` : '';
 
   const messageText =
-    `📌 *${task.title}*\n\n` +
+    `📌 *${escapeMarkdown(task.title)}*\n\n` +
     `⚡ *Prioritet:* ${priorityLabel}\n` +
     `⏰ *Son tarix:* ${deadlineStr}\n` +
     checklistLine +
-    `\n📝 *Təlimat:*\n${task.description}`;
+    `\n📝 *Təlimat:*\n${escapeMarkdown(task.description ?? '')}`;
 
   const keyboard = new InlineKeyboard().text(
     '📸 Rəf Şəklini Göndər',
@@ -185,7 +189,9 @@ export async function handleOpenTask(
     );
   }
 
-  await ctx.reply(`📌 *Seçilmiş tapşırıq:* ${task.title}`, { parse_mode: 'Markdown' });
+  await ctx.reply(`📌 *Seçilmiş tapşırıq:* ${escapeMarkdown(task.title)}`, {
+    parse_mode: 'Markdown',
+  });
 
   // Straight into the guided flow: location, then checklist, then the photo.
   // The old behaviour — jumping to "send a photo" — is what produced submissions

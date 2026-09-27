@@ -44,6 +44,7 @@ import { AnswerCallback, BotContext } from '../types';
 import { portalApi, PortalApiError } from '../../services/portalApi';
 import { encodeCallback } from '../callbacks';
 import { MENU_HOME_LABEL, mainMenuKeyboard } from '../keyboards';
+import { escapeMarkdown } from '../markdown';
 
 /** What is held between the photo arriving and the merchandiser confirming it. */
 type PendingPhoto = NonNullable<BotContext['session']['pendingPhoto']>;
@@ -122,7 +123,7 @@ export async function handlePhotoArrival(ctx: BotContext): Promise<void> {
   await ctx.replyWithPhoto(highestResPhoto.file_id, {
     caption:
       (replacing ? `🔄 *Şəkil dəyişdirildi.*\n\n` : `📸 *Şəkli yoxlayın.*\n\n`) +
-      `📌 *${ctx.session.activeTaskTitle ?? 'Tapşırıq'}*\n` +
+      `📌 *${escapeMarkdown(ctx.session.activeTaskTitle ?? 'Tapşırıq')}*\n` +
       checklistLine +
       locationLine +
       `\nBu şəkil nəzarətçiyə göndəriləcək. Aydındırsa *✅ Təsdiqlə və göndər* düyməsinə basın.\n` +
@@ -435,7 +436,7 @@ async function filePhoto(
 
   const confirmationText =
     `✅ *Təşəkkür edirik! Rəf şəkli nəzarətçi yoxlaması üçün qeydə alındı.*\n\n` +
-    `🏪 *Mağaza:* ${ctx.session.storeName}\n` +
+    `🏪 *Mağaza:* ${escapeMarkdown(ctx.session.storeName ?? '')}\n` +
     `📦 *Status:* ⏳ Yoxlama gözləyir\n` +
     locationLine +
     checklistLine +

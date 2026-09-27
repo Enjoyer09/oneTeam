@@ -1,6 +1,7 @@
 import { BotContext } from '../types';
 import { portalApi, PortalApiError } from '../../services/portalApi';
 import { mainMenuKeyboard } from '../keyboards';
+import { escapeMarkdown } from '../markdown';
 
 /**
  * `/mystatus`, and the "📊 Statusum" button.
@@ -59,13 +60,13 @@ export async function handleMyStatus(ctx: BotContext) {
       minute: '2-digit',
     });
 
-    statusText += `${i + 1}. *${taskTitle}*\n`;
-    statusText += `   🏪 ${storeName}\n`;
+    statusText += `${i + 1}. *${escapeMarkdown(taskTitle)}*\n`;
+    statusText += `   🏪 ${escapeMarkdown(storeName)}\n`;
     statusText += `   🕒 ${dateStr}\n`;
     statusText += `   📌 *Status:* ${statusLabel}\n`;
 
     if (sub.reviewer_feedback) {
-      statusText += `   💬 *Supervayzer rəyi:* _"${sub.reviewer_feedback}"_\n`;
+      statusText += `   💬 *Supervayzer rəyi:* _"${escapeMarkdown(sub.reviewer_feedback)}"_\n`;
     }
 
     // Only http(s) photos can be linked.

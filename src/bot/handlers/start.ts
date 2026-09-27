@@ -1,6 +1,7 @@
 import { BotContext, AnswerCallback } from '../types';
 import { portalApi, PortalApiError } from '../../services/portalApi';
 import { mainMenuKeyboard } from '../keyboards';
+import { escapeMarkdown } from '../markdown';
 import { handleMenuHome } from './help';
 import { handleOpenTask } from './tasks';
 
@@ -187,10 +188,10 @@ export async function handleStoreCodeInput(ctx: BotContext) {
 
   const successMessage =
     `✅ *Mağaza uğurla təsdiqləndi!*\n\n` +
-    `🏪 *Mağaza:* ${store.name}\n` +
+    `🏪 *Mağaza:* ${escapeMarkdown(store.name)}\n` +
     `🏷 *Kod:* \`${store.store_code}\`\n` +
-    `📍 *Ünvan:* ${store.address || store.city}\n` +
-    `👤 *Təmsilçi:* ${fullName}\n` +
+    `📍 *Ünvan:* ${escapeMarkdown(store.address || store.city || '')}\n` +
+    `👤 *Təmsilçi:* ${escapeMarkdown(fullName)}\n` +
     claimLine +
     `\nPlanogram və rəf tapşırıqlarını görmək üçün aşağıdakı menyudan *📋 Tapşırıqlar* seçin və ya /tasks yazın.`;
 

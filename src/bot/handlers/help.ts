@@ -32,6 +32,7 @@
 
 import { BotContext } from '../types';
 import { mainMenuKeyboard } from '../keyboards';
+import { escapeMarkdown } from '../markdown';
 
 /** The six steps, in the order the flow runs them. */
 const FLOW_SUMMARY =
@@ -80,7 +81,7 @@ export async function handleHelp(ctx: BotContext): Promise<void> {
  */
 export async function handleMenuHome(ctx: BotContext): Promise<void> {
   const where = ctx.session.storeName
-    ? `🏪 *${ctx.session.storeName}*`
+    ? `🏪 *${escapeMarkdown(ctx.session.storeName)}*`
     : `🏪 Mağaza seçilməyib — /start ilə mağaza kodunuzu daxil edin.`;
 
   // How to switch stores has to be said somewhere, and this is the only screen
@@ -92,7 +93,7 @@ export async function handleMenuHome(ctx: BotContext): Promise<void> {
     : '';
 
   const inProgress = ctx.session.activeTaskTitle
-    ? `\n\n⏳ *Davam edən iş:* ${ctx.session.activeTaskTitle}`
+    ? `\n\n⏳ *Davam edən iş:* ${escapeMarkdown(ctx.session.activeTaskTitle)}`
     : '';
 
   await ctx.reply(`${where}${switchHint}${inProgress}\n\nNə etmək istəyirsiniz?`, {
