@@ -35,9 +35,10 @@
 import { Bot } from 'grammy';
 import { AnswerCallback, BotContext } from './types';
 import { parseCallback } from './callbacks';
-import { MENU_STATUS_LABEL, MENU_TASKS_LABEL } from './keyboards';
+import { MENU_STATUS_LABEL, MENU_TASKS_LABEL, MENU_TODAY_LABEL } from './keyboards';
 import { handleStart, handleStoreCodeInput } from './handlers/start';
 import { handleTasks, handleOpenTask } from './handlers/tasks';
+import { handleToday } from './handlers/today';
 import {
   handleChecklistAnswer,
   handleChecklistText,
@@ -60,12 +61,14 @@ export function registerRoutes(bot: Bot<BotContext>): void {
   // Commands first. Phase 2.4 requires them to keep working even if every
   // button were unavailable, so they are the floor the rest is built on.
   bot.command('start', handleStart);
+  bot.command('bugun', handleToday);
   bot.command('tasks', handleTasks);
   bot.command('mystatus', handleMyStatus);
   bot.command('help', handleHelp);
 
-  // The reply keyboard's two buttons, kept for the same reason. They are heard
-  // by exact label, so the constants are shared rather than retyped.
+  // The reply keyboard's buttons, kept for the same reason. They are heard by
+  // exact label, so the constants are shared rather than retyped.
+  bot.hears(MENU_TODAY_LABEL, handleToday);
   bot.hears(MENU_TASKS_LABEL, handleTasks);
   bot.hears(MENU_STATUS_LABEL, handleMyStatus);
 
@@ -152,6 +155,10 @@ export async function handleCallbackQuery(ctx: BotContext): Promise<void> {
       case 'menu':
         await answer();
         await handleMenuHome(ctx);
+        return;
+      case 'today':
+        await answer();
+        await handleToday(ctx);
         return;
       case 'tasks':
         await answer();

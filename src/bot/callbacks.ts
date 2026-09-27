@@ -59,6 +59,8 @@
 export const CALLBACK_ACTIONS = [
   /** `menu:home` — the main menu, as an inline keyboard. */
   'menu',
+  /** `today:me` — the day at a glance: active tasks and today's submissions. */
+  'today',
   /** `tasks:list` — the store's active tasks. */
   'tasks',
   /** `open:<taskId>` — open a task and start the guided flow. */

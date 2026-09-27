@@ -58,19 +58,36 @@ import { encodeCallback } from './callbacks';
  */
 export const LOCATION_SKIP_LABEL = '⏭️ Lokasiya olmadan davam et';
 
+/** The label on the reply-keyboard button that opens the day-at-a-glance view. */
+export const MENU_TODAY_LABEL = '🗓 Bugün';
+
 /** The label on the reply-keyboard button that lists the store's tasks. */
 export const MENU_TASKS_LABEL = '📋 Tapşırıqlar';
 
 /** The label on the reply-keyboard button that shows recent audits. */
 export const MENU_STATUS_LABEL = '📊 Statusum';
 
-/** The everyday menu: the two things a merchandiser does most. */
+/**
+ * The everyday menu.
+ *
+ * "🗓 Bugün" sits on its own row at the top because it is the screen a
+ * merchandiser opens first each shift — the day's active tasks and what they
+ * have already sent today, in one message. The two originals stay on the row
+ * below: the task list, and the status of past submissions. All three are
+ * durable reply-keyboard buttons for the reason the file header gives — they are
+ * the only kind that survives a scroll and can be brought back by typing.
+ */
 export function mainMenuKeyboard(): Keyboard {
-  return new Keyboard().text(MENU_TASKS_LABEL).text(MENU_STATUS_LABEL).resized();
+  return new Keyboard()
+    .text(MENU_TODAY_LABEL)
+    .row()
+    .text(MENU_TASKS_LABEL)
+    .text(MENU_STATUS_LABEL)
+    .resized();
 }
 
 /**
- * The same two things as inline buttons.
+ * The same actions as inline buttons.
  *
  * Sent with the messages the flow produces, so that a merchandiser who has
  * scrolled away from the reply keyboard — which happens as soon as a checklist
@@ -78,6 +95,8 @@ export function mainMenuKeyboard(): Keyboard {
  */
 export function mainMenuInline(): InlineKeyboard {
   return new InlineKeyboard()
+    .text(MENU_TODAY_LABEL, encodeCallback('today', 'me'))
+    .row()
     .text('📋 Tapşırıqlar', encodeCallback('tasks', 'list'))
     .text('📊 Statusum', encodeCallback('status', 'me'))
     .row()

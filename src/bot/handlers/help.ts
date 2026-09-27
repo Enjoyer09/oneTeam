@@ -59,6 +59,7 @@ export async function handleHelp(ctx: BotContext): Promise<void> {
       FLOW_SUMMARY +
       `\n\n⬇️ *Menyu* mesaj qutusunun altındadır — istənilən vaxt oradan davam edə bilərsiniz.\n\n` +
       `*Əmrlər (könüllü):*\n` +
+      `• /bugun — bugünkü tapşırıqlar və göndərdikləriniz\n` +
       `• /tasks — aktiv tapşırıqlar\n` +
       `• /mystatus — son göndərdiyiniz şəkillərin statusu\n` +
       `• /start — mağazanı dəyişmək\n` +

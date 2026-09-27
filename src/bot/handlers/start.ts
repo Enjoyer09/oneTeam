@@ -1,10 +1,26 @@
-import { BotContext } from '../types';
+import { BotContext, AnswerCallback } from '../types';
 import { portalApi, PortalApiError } from '../../services/portalApi';
 import { mainMenuKeyboard } from '../keyboards';
 import { handleMenuHome } from './help';
+import { handleOpenTask } from './tasks';
 
 /**
- * `/start` — enrolment, or the home screen.
+ * A deep-link payload that opens a task directly.
+ *
+ * Telegram delivers `t.me/<bot>?start=<payload>` as `/start <payload>`, and
+ * grammy hands the payload to a command handler as `ctx.match`. A supervisor (or
+ * the panel) can therefore hand a merchandiser a link that drops them straight
+ * into a task's guided flow instead of "open the bot, tap Tasks, find it, tap
+ * it". The payload we mint is `task_<storeTaskId>`; anything else is treated as a
+ * plain `/start`.
+ *
+ * The store-task id is a UUID, so `task_` + 36 chars is well under Telegram's
+ * 64-byte start-payload limit.
+ */
+const DEEP_LINK_TASK_PREFIX = 'task_';
+
+/**
+ * `/start` — enrolment, the home screen, or a deep-linked task.
  *
  * `/start` IS NOT ALWAYS A NEW USER
  * ---------------------------------
@@ -23,11 +39,31 @@ import { handleMenuHome } from './help';
  * prompt is the only thing that can help and it is what they get.
  */
 export async function handleStart(ctx: BotContext) {
+  // A deep-link payload rides in on `ctx.match` for a command. `.trim()` because
+  // some clients append a trailing space; the type guard because `ctx.match` is
+  // only a string on a command update.
+  const payload = typeof ctx.match === 'string' ? ctx.match.trim() : '';
+
   if (ctx.session.storeId) {
+    // Enrolled. A `task_<id>` deep link means "take me into this task now"; any
+    // other `/start` means "take me home".
+    if (payload.startsWith(DEEP_LINK_TASK_PREFIX)) {
+      const taskId = payload.slice(DEEP_LINK_TASK_PREFIX.length);
+      if (taskId) {
+        await openDeepLinkedTask(ctx, taskId);
+        return;
+      }
+    }
     await handleMenuHome(ctx);
     return;
   }
 
+  // Not enrolled. A deep link cannot open a task before a store is bound — the
+  // task belongs to a store the bot does not yet know this chat works at — so
+  // the code prompt is still the only thing that can help, and it is what they
+  // get. (The payload is not stashed: persisting it would need a new session
+  // field the API must also learn to store, and the merchandiser reaches their
+  // tasks in one tap from the menu the moment they enrol.)
   ctx.session.step = 'awaiting_store_code';
 
   // The prompt shows the *shape* of a code, never a working one.
@@ -53,6 +89,27 @@ export async function handleStart(ctx: BotContext) {
   // store code, and a "📋 Tapşırıqlar" button that answers "no store
   // registration" teaches a new user that the buttons here do not work.
   await ctx.reply(welcomeMessage, { parse_mode: 'Markdown' });
+}
+
+/**
+ * Opens a task reached through a `task_<id>` deep link.
+ *
+ * The real work — fetch, acknowledge, start the guided flow — is `handleOpenTask`,
+ * which was written for a button tap and so speaks to the merchandiser through
+ * the callback answerer (a toast). There is no callback query behind a `/start`,
+ * so this passes an answerer that turns those toasts into chat replies: a
+ * successful open calls `answer()` with no text and stays silent (the flow's own
+ * messages take over), while "Tapşırıq tapılmadı!" and the like become a visible
+ * message instead of vanishing. That is what keeps a stale or wrong link from
+ * reading as the bot ignoring the tap.
+ */
+async function openDeepLinkedTask(ctx: BotContext, taskId: string): Promise<void> {
+  const replyAnswer: AnswerCallback = async (toast?: string) => {
+    if (toast) {
+      await ctx.reply(`ℹ️ ${toast}`, { reply_markup: mainMenuKeyboard() });
+    }
+  };
+  await handleOpenTask(ctx, taskId, replyAnswer);
 }
 
 export async function handleStoreCodeInput(ctx: BotContext) {

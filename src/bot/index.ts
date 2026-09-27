@@ -4,6 +4,7 @@ import { BotContext, SessionData } from './types';
 import { ApiSessionStorage, FlowStorageError } from './sessionStorage';
 import { NotificationDrain } from './notifications';
 import { registerRoutes } from './router';
+import { publishCommandMenu } from './commands';
 
 dotenv.config();
 
@@ -180,6 +181,12 @@ if (process.env.NODE_ENV !== 'test') {
       // Telegram while it runs.
       const drain = new NotificationDrain(bot);
       drain.start();
+
+      // Publish the "/" command menu so the commands are discoverable, not just
+      // typeable. A live Telegram call, so it lives here — not in `createBot`,
+      // which the test suites use — and it never throws: a bot that could not
+      // publish its menu still polls and works.
+      void publishCommandMenu(bot);
 
       startPollingWithRetry(bot).catch((error) => {
         console.error('⛔ [oneTeam Bot] Polling stopped:', error);
