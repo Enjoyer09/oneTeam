@@ -42,6 +42,7 @@ import {
   decodeDataUrl,
   isInlineDataUrl,
   signS3Put,
+  signS3PresignedPut,
 } from '../src/modules/storage/s3-signature';
 
 let passed = 0;
@@ -170,6 +171,68 @@ function testDataUrlHelpers() {
   check(decodeDataUrl('data:image/png;base64,') === null, 'refuses an empty payload');
 }
 
+/** Tier 1: the presigned direct-upload URL, and a lock on its current shape. */
+function testPresigner() {
+  console.log('\n🔗 Tier 1 — presigned upload URL\n');
+
+  const presigned = signS3PresignedPut({
+    target: FIXED_TARGET,
+    key: 'tasks/task-1/photo.jpg',
+    expiresSeconds: 300,
+    now: new Date('2026-01-02T03:04:05Z'),
+  });
+
+  check(
+    presigned.url.startsWith('https://s3.example.com/photos/tasks/task-1/photo.jpg?'),
+    'presigns a path-style URL for the object',
+    presigned.url,
+  );
+
+  check(
+    presigned.url.includes('X-Amz-Algorithm=AWS4-HMAC-SHA256') &&
+      presigned.url.includes('X-Amz-Expires=300') &&
+      presigned.url.includes('X-Amz-SignedHeaders=host'),
+    'carries the SigV4 query parameters, signing only host',
+    presigned.url,
+  );
+
+  check(
+    presigned.url.includes('X-Amz-Credential=AKIDEXAMPLE%2F20260102%2Feu-central-1%2Fs3%2Faws4_request'),
+    'percent-encodes the slashes in the credential scope',
+    presigned.url,
+  );
+
+  // Regression lock — see the note at the top of this file. Produced by this
+  // implementation; catches a change to presign canonicalisation, does not
+  // prove the algorithm. Tier 2 is what proves it against a real bucket.
+  check(
+    presigned.url.endsWith(
+      '&X-Amz-Signature=72ac66f3bf5d2a628d72d5dc1069af748a49059f2e88b2632521312baedaf56d',
+    ),
+    'presigned signature is unchanged for fixed inputs (regression lock)',
+    presigned.url,
+  );
+
+  check(
+    presigned.expiresAt === '2026-01-02T03:09:05.000Z',
+    'reports the expiry as now + expiresSeconds',
+    presigned.expiresAt,
+  );
+
+  // Virtual-host style puts the bucket in the authority, not the path.
+  const virtual = signS3PresignedPut({
+    target: { ...FIXED_TARGET, forcePathStyle: false },
+    key: 'a.jpg',
+    expiresSeconds: 60,
+    now: new Date('2026-01-02T03:04:05Z'),
+  });
+  check(
+    virtual.url.startsWith('https://photos.s3.example.com/a.jpg?'),
+    'presigns a virtual-host URL with the bucket in the authority',
+    virtual.url,
+  );
+}
+
 /**
  * Tier 2 — a real bucket, and the only tier that proves anything.
  *
@@ -273,6 +336,91 @@ async function testAgainstRealBucket() {
     untouched.url === 'https://example.com/a.jpg' && untouched.driver === 's3',
     'leaves an already-uploaded URL alone',
   );
+
+  // ------------------------------------------------------- PRESIGNED UPLOAD
+  // The direct path: mint a presigned PUT, upload the bytes to it with a plain
+  // fetch (no signing on this side, as a client would), and read them back.
+  const realTarget: S3Target = {
+    endpoint,
+    region: process.env.S3_REGION!,
+    bucket,
+    accessKeyId,
+    secretAccessKey,
+    forcePathStyle: true,
+  };
+  const pngBytes = new Uint8Array(Buffer.from(png, 'base64'));
+
+  const presigned = signS3PresignedPut({
+    target: realTarget,
+    key: 'tests/presigned.png',
+    expiresSeconds: 300,
+  });
+  const put = await fetch(presigned.url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'image/png' },
+    body: pngBytes,
+  });
+  check(put.ok, 'a presigned PUT is accepted by the bucket', `HTTP ${put.status}`);
+
+  const readBack = await fetch(`${endpoint}/${bucket}/tests/presigned.png`);
+  check(readBack.ok, 'the presigned object is readable', `HTTP ${readBack.status}`);
+  if (readBack.ok) {
+    const got = Buffer.from(await readBack.arrayBuffer());
+    check(got.equals(Buffer.from(png, 'base64')), 'presigned bytes round-trip unchanged');
+  }
+
+  // Negative control: a presigned URL signed with the wrong secret is REFUSED —
+  // without this, "the PUT worked" could mean the bucket is not checking at all.
+  const badPresigned = signS3PresignedPut({
+    target: { ...realTarget, secretAccessKey: 'definitely-not-the-secret' },
+    key: 'tests/presigned-bad.png',
+    expiresSeconds: 300,
+  });
+  const badPut = await fetch(badPresigned.url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'image/png' },
+    body: pngBytes,
+  });
+  check(
+    !badPut.ok,
+    'a presigned PUT signed with the wrong secret is REFUSED (the control)',
+    `HTTP ${badPut.status}`,
+  );
+}
+
+/** Tier 1: `ownsPublicUrl`, the guard for a client-supplied photo URL. */
+function testOwnsPublicUrl() {
+  console.log('\n🛡️  ownsPublicUrl — the client-URL guard\n');
+
+  // With an explicit public base — how R2 typically serves reads.
+  process.env.STORAGE_DRIVER = 's3';
+  process.env.S3_ENDPOINT = 'https://acct.r2.cloudflarestorage.com';
+  process.env.S3_REGION = 'auto';
+  process.env.S3_BUCKET = 'oneteam-photos';
+  process.env.S3_ACCESS_KEY_ID = 'k';
+  process.env.S3_SECRET_ACCESS_KEY = 's';
+  process.env.S3_PUBLIC_BASE_URL = 'https://cdn.oneteam.az';
+  const withBase = new StorageService();
+  check(withBase.ownsPublicUrl('https://cdn.oneteam.az/tasks/x/a.jpg'), 'accepts a URL under the public base');
+  check(!withBase.ownsPublicUrl('https://evil.example.com/a.jpg'), 'rejects an external URL');
+  check(!withBase.ownsPublicUrl(''), 'rejects an empty URL');
+
+  // Without a public base: falls back to the endpoint/bucket prefix.
+  delete process.env.S3_PUBLIC_BASE_URL;
+  const noBase = new StorageService();
+  check(
+    noBase.ownsPublicUrl('https://acct.r2.cloudflarestorage.com/oneteam-photos/tasks/x/a.jpg'),
+    'accepts a URL under the endpoint/bucket prefix',
+  );
+  check(
+    !noBase.ownsPublicUrl('https://acct.r2.cloudflarestorage.com/other-bucket/a.jpg'),
+    'rejects a URL in a different bucket',
+  );
+
+  // Inline storage owns no URL — there is no bucket to own one.
+  process.env.STORAGE_DRIVER = 'inline';
+  const inline = new StorageService();
+  check(!inline.ownsPublicUrl('https://cdn.oneteam.az/a.jpg'), 'inline storage owns no URL');
 }
 
 async function run() {
@@ -281,7 +429,9 @@ async function run() {
   console.log('========================================================================');
 
   testSigner();
+  testPresigner();
   testDataUrlHelpers();
+  testOwnsPublicUrl();
   await testAgainstRealBucket();
 
   console.log('\n------------------------------------------------------------------------');

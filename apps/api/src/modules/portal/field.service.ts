@@ -1248,4 +1248,37 @@ export class FieldService {
       );
     }
   }
+
+  /**
+   * Mints a presigned direct-upload URL so a client PUTs the photo straight to
+   * the bucket, and the bytes never travel through the API (see
+   * docs/PRESIGNED-UPLOAD-PLAN-AZ.md). The client then submits the returned
+   * `publicUrl` as its `photoUrl`.
+   *
+   * Refused with the same clear reason as `uploadPhoto` when there is no object
+   * store: presigning is meaningless in inline mode.
+   */
+  createPresignedUpload(payload: { contentType?: string; scope?: string }) {
+    const { driver, detail } = this.storage.description;
+
+    if (driver !== 's3') {
+      throw new HttpException(
+        {
+          error: 'STORAGE_NOT_CONFIGURED',
+          message:
+            'Obyekt anbarı konfiqurasiya edilməyib. Şəkli birbaşa hesabatla ' +
+            '(photoUrl sahəsində) göndərin.',
+          detail,
+        },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    const presigned = this.storage.createPresignedUpload({
+      contentType: payload.contentType || 'image/jpeg',
+      scope: payload.scope,
+    });
+
+    return { success: true, data: presigned };
+  }
 }

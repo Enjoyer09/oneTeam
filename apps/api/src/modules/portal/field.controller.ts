@@ -408,4 +408,27 @@ export class FieldController {
       scope: body.scope,
     });
   }
+
+  /**
+   * Presigned direct upload.
+   *
+   * Returns a short-lived URL the client PUTs the bytes to DIRECTLY, so the
+   * image never travels through the API. The client then submits the returned
+   * `publicUrl` as its `photoUrl`. Unlike `POST photos` (which proxies base64
+   * through the API), this keeps megabytes off the API entirely. Service actor
+   * only, like the rest of the direct-upload surface. See
+   * docs/PRESIGNED-UPLOAD-PLAN-AZ.md.
+   */
+  @Post('photos/presign')
+  @HttpCode(HttpStatus.CREATED)
+  presignPhotoUpload(
+    @Request() request: AuthedRequest,
+    @Body() body: { contentType?: string; scope?: string },
+  ) {
+    this.requireServiceActor(getPrincipal(request));
+    return this.fieldService.createPresignedUpload({
+      contentType: body?.contentType,
+      scope: body?.scope,
+    });
+  }
 }

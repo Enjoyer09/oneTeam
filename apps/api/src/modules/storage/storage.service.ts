@@ -53,7 +53,13 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { S3Target, decodeDataUrl, isInlineDataUrl, signS3Put } from './s3-signature';
+import {
+  S3Target,
+  decodeDataUrl,
+  isInlineDataUrl,
+  signS3Put,
+  signS3PresignedPut,
+} from './s3-signature';
 
 export type StorageDriver = 'inline' | 's3';
 
@@ -76,8 +82,13 @@ export class StorageService {
   private readonly publicBaseUrl: string | null;
   /** Why the driver is what it is — reported through /api/health. */
   private readonly reason: string;
+  /** How long a presigned upload URL stays valid, in seconds. */
+  private readonly presignExpirySeconds: number;
 
   constructor() {
+    // Assigned first, so both the inline early-return and the s3 path have it.
+    this.presignExpirySeconds = resolvePresignExpiry(process.env.S3_PRESIGN_EXPIRY_SECONDS);
+
     const requested = (process.env.STORAGE_DRIVER || 'inline').trim().toLowerCase();
 
     if (requested !== 's3') {
@@ -270,6 +281,65 @@ export class StorageService {
   }
 
   /**
+   * Mints a presigned PUT URL so a client uploads the bytes DIRECTLY to the
+   * bucket, and the API never proxies the image (see
+   * docs/PRESIGNED-UPLOAD-PLAN-AZ.md).
+   *
+   * The key is minted HERE, not chosen by the caller: a client that could name
+   * its own key could overwrite another object. The caller submits the returned
+   * `publicUrl` afterwards, which `ownsPublicUrl` can then verify belongs to us.
+   */
+  createPresignedUpload(params: {
+    contentType: string;
+    scope?: string;
+    expiresSeconds?: number;
+  }): {
+    uploadUrl: string;
+    publicUrl: string;
+    key: string;
+    expiresAt: string;
+    requiredHeaders: Record<string, string>;
+  } {
+    if (!this.target) {
+      throw new Error('Storage is not configured for uploads (STORAGE_DRIVER is not "s3").');
+    }
+
+    const contentType = params.contentType?.trim() || 'image/jpeg';
+    const key = this.mintKey(params.scope, contentType);
+    const { url, expiresAt } = signS3PresignedPut({
+      target: this.target,
+      key,
+      expiresSeconds: params.expiresSeconds ?? this.presignExpirySeconds,
+    });
+
+    return {
+      uploadUrl: url,
+      publicUrl: this.publicUrlFor(key),
+      key,
+      expiresAt,
+      // `host` is the only signed header, so the client just sends the bytes.
+      // `Content-Type` is unsigned and stored by the bucket as sent.
+      requiredHeaders: { 'Content-Type': contentType },
+    };
+  }
+
+  /**
+   * Whether a URL points into our own bucket.
+   *
+   * The guard for accepting a client-supplied `photoUrl` once clients upload
+   * directly: a client that presigned then submits sends a URL we minted, so it
+   * must start with the same public base the upload path produces; an arbitrary
+   * external URL does not and can be refused. Compared against `publicUrlFor('')`
+   * so it can never drift from how upload URLs are actually built.
+   */
+  ownsPublicUrl(url: string): boolean {
+    if (typeof url !== 'string' || !url) return false;
+    if (!this.target && !this.publicBaseUrl) return false;
+    const prefix = this.publicUrlFor('');
+    return prefix.length > 0 && url.startsWith(prefix);
+  }
+
+  /**
    * Builds an object key: optional scope, a sortable timestamp, a random suffix,
    * and the extension implied by the media type.
    *
@@ -302,4 +372,17 @@ function extensionFor(contentType: string): string {
     'image/gif': '.gif',
   };
   return map[contentType.toLowerCase()] ?? '.bin';
+}
+
+/**
+ * Presigned URL lifetime, in seconds, from `S3_PRESIGN_EXPIRY_SECONDS`.
+ *
+ * Defaults to 5 minutes and is clamped to a sane band: long enough for a slow
+ * mobile connection to finish a PUT, short enough that a leaked URL is useless
+ * quickly. SigV4 itself allows up to 7 days; nothing here needs that.
+ */
+function resolvePresignExpiry(raw: string | undefined): number {
+  const parsed = Number.parseInt((raw ?? '').trim(), 10);
+  if (!Number.isFinite(parsed)) return 300;
+  return Math.min(3600, Math.max(30, parsed));
 }

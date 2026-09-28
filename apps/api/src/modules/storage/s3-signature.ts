@@ -208,6 +208,99 @@ export function signS3Put(params: {
   return { url: `${scheme}//${requestHost}${path}`, headers };
 }
 
+export interface PresignedUpload {
+  /** The URL a client PUTs the bytes to directly. Carries the signature in its query. */
+  url: string;
+  /** ISO instant the URL stops being valid. */
+  expiresAt: string;
+}
+
+/**
+ * Builds a presigned PUT URL, so a client uploads the bytes DIRECTLY to the
+ * bucket and the API never holds the image.
+ *
+ * SAME MACHINERY, TWO DIFFERENCES FROM `signS3Put`
+ * ------------------------------------------------
+ * The canonical request, string-to-sign and signing key are computed exactly as
+ * for a header-signed PUT. What changes:
+ *
+ *   1. The signature travels in the QUERY STRING (`X-Amz-Signature`) rather than
+ *      in an `Authorization` header — that is what lets a plain `PUT url` work
+ *      with no signing on the client.
+ *   2. The payload is signed as the literal `UNSIGNED-PAYLOAD`, because the
+ *      bytes are not known when the URL is minted.
+ *
+ * ONLY `host` IS SIGNED
+ * ---------------------
+ * `host` is the single signed header. `Content-Type` is deliberately left
+ * unsigned: the client may send any body and any content type without having to
+ * reproduce a header byte-identically, which removes the most common way a
+ * presigned upload earns a silent 403. The bucket still stores whatever
+ * `Content-Type` the client sends.
+ */
+export function signS3PresignedPut(params: {
+  target: S3Target;
+  key: string;
+  expiresSeconds: number;
+  now?: Date;
+}): PresignedUpload {
+  const { target, key, expiresSeconds } = params;
+  const now = params.now ?? new Date();
+
+  const { scheme, host, prefix } = parseEndpoint(target.endpoint);
+  const encodedKey = encodePath(key);
+
+  const requestHost = target.forcePathStyle ? host : `${target.bucket}.${host}`;
+  const path = target.forcePathStyle
+    ? `${prefix}/${uriEncode(target.bucket)}/${encodedKey}`
+    : `${prefix}/${encodedKey}`;
+
+  const { full, short } = amzDate(now);
+  const scope = `${short}/${target.region}/s3/aws4_request`;
+  const signedHeaders = 'host';
+
+  // Every query parameter is set BEFORE signing and folded into the canonical
+  // query string; `X-Amz-Signature` is the only one appended afterwards.
+  const query: Record<string, string> = {
+    'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
+    'X-Amz-Credential': `${target.accessKeyId}/${scope}`,
+    'X-Amz-Date': full,
+    'X-Amz-Expires': String(expiresSeconds),
+    'X-Amz-SignedHeaders': signedHeaders,
+  };
+
+  // Canonical query string: keys sorted, both name and value RFC-3986 encoded
+  // (so the `/`s inside the credential become `%2F`, as the signature expects).
+  const canonicalQuery = Object.keys(query)
+    .sort()
+    .map((name) => `${uriEncode(name)}=${uriEncode(query[name])}`)
+    .join('&');
+
+  const canonicalHeaders = `host:${requestHost}\n`;
+
+  const canonicalRequest = [
+    'PUT',
+    path,
+    canonicalQuery,
+    canonicalHeaders,
+    signedHeaders,
+    'UNSIGNED-PAYLOAD',
+  ].join('\n');
+
+  const stringToSign = ['AWS4-HMAC-SHA256', full, scope, sha256Hex(canonicalRequest)].join('\n');
+
+  const signingKey = hmac(
+    hmac(hmac(hmac('AWS4' + target.secretAccessKey, short), target.region), 's3'),
+    'aws4_request',
+  );
+  const signature = createHmac('sha256', signingKey).update(stringToSign, 'utf8').digest('hex');
+
+  return {
+    url: `${scheme}//${requestHost}${path}?${canonicalQuery}&X-Amz-Signature=${signature}`,
+    expiresAt: new Date(now.getTime() + expiresSeconds * 1000).toISOString(),
+  };
+}
+
 /**
  * The canonical form of a header value.
  *
