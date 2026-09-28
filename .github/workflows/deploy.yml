@@ -24,10 +24,16 @@
 name: Deploy
 
 on:
-  push:
-    branches: [main]
-    tags: ["v*"]
+  # Automatic runs are disabled to stay within the free GitHub Actions
+  # allowance. These images are published to GHCR, but Railway deploys the
+  # services independently and never consumes them, so building three Docker
+  # images on every push was pure metered-minute cost. The workflow can still
+  # be run by hand from the Actions tab. To restore push/tag builds, uncomment
+  # the `push:` block below.
   workflow_dispatch:
+  # push:
+  #   branches: [main]
+  #   tags: ["v*"]
 
 concurrency:
   group: deploy-${{ github.ref }}

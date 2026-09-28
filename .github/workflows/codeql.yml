@@ -9,14 +9,19 @@
 name: CodeQL
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  # Weekly-only to stay within the free GitHub Actions allowance. The per-push
+  # and per-PR runs were the expensive part; the Monday schedule still scans the
+  # whole tree so a newly published query catches an old bug. Run on demand from
+  # the Actions tab any time, or uncomment the push/PR triggers below to restore
+  # per-change scanning.
   schedule:
     # Mondays 05:17 UTC. An odd minute avoids the top-of-hour scheduling crowd.
     - cron: "17 5 * * 1"
   workflow_dispatch:
+  # push:
+  #   branches: [main]
+  # pull_request:
+  #   branches: [main]
 
 # CodeQL analysis needs to read the code and write results back to the Security
 # tab; nothing else.
