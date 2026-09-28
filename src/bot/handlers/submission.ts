@@ -334,11 +334,11 @@ async function filePhoto(
     fileBuffer = Buffer.from(`mock-binary-photo-data-${pending.fileId}`);
   }
 
-  // Prepare the photo for transport.
+  // Get the photo into storage and get back the URL to submit.
   //
-  // There is no object store yet, so this returns an inline `data:` URL rather
-  // than a hosted link. See portalApi.uploadShelfPhoto for what that costs and
-  // why it is temporary.
+  // Preferred path is a presigned direct upload straight to the bucket (R2);
+  // it falls back to an inline `data:` URL when no bucket is configured or the
+  // direct upload fails. See portalApi.uploadShelfPhoto for the whole picture.
   const fileName = `audits/${storeId}/${taskId}_${Date.now()}.jpg`;
   const photoUrl = await portalApi.uploadShelfPhoto({
     fileBuffer,

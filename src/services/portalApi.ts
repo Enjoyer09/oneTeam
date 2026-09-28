@@ -30,18 +30,25 @@
  *
  * WHERE THE PHOTOS GO
  * -------------------
- * Nowhere durable yet, and this is the honest weak point of the channel.
+ * Into an S3-compatible bucket (Cloudflare R2 in production), by the shortest
+ * path the deployment allows:
  *
- * There is no object store configured for this project, so `uploadShelfPhoto`
- * returns a `data:` URL and the image travels inline in the submission. Telegram
- * compresses field photos to roughly 50-150 KB, which base64 inflates by about a
- * third, so it fits inside the API's 1.5 MB cap with room to spare.
+ *   1. Preferred — a PRESIGNED DIRECT UPLOAD. `uploadShelfPhoto` asks the API
+ *      for a short-lived signed URL (`POST photos/presign`), PUTs the bytes
+ *      STRAIGHT to the bucket, and returns only the resulting public URL. The
+ *      image never travels through the API, so it is not bounded by the API's
+ *      JSON body limit and no megabytes cross the API twice.
  *
- * It will not survive a thousand stores submitting daily: every database backup
- * would carry every photo, and listing evidences would drag megabytes through
- * the connection. The fix is object storage with only the URL stored here. The
- * size check below exists so the wrong answer cannot grow without bound before
- * that happens.
+ *   2. Fallback — an inline `data:` URL, exactly the pre-presigned behaviour.
+ *      Used when the API has no bucket configured (it answers
+ *      `STORAGE_NOT_CONFIGURED`), or when the direct PUT fails for a reason the
+ *      merchandiser cannot act on. The API then offloads that data URL to the
+ *      bucket on its own side, or keeps it inline where no bucket exists. This
+ *      path still carries the base64 in the request body, so the `MAX_PHOTO_BYTES`
+ *      cap below stays load-bearing for it.
+ *
+ * The fallback is why an audit is never lost to a storage hiccup: the worst case
+ * is one photo taking the slower, size-capped inline route instead of failing.
  */
 
 import dotenv from 'dotenv';
@@ -246,6 +253,76 @@ async function request<T>(
   }
 
   return payload.data as T;
+}
+
+/** What `POST photos/presign` hands back — a signed URL and the address to submit. */
+interface PresignedUpload {
+  /** The short-lived signed URL to PUT the bytes to, directly on the bucket. */
+  uploadUrl: string;
+  /** The address the object will be readable at — this is what becomes `photoUrl`. */
+  publicUrl: string;
+  key: string;
+  expiresAt: string;
+  /** The headers the URL was signed to expect — just `Content-Type` today. */
+  requiredHeaders: Record<string, string>;
+}
+
+/** Asks the API for a short-lived signed URL to upload one photo straight to the bucket. */
+async function requestPresignedUpload(params: {
+  contentType: string;
+  scope?: string;
+}): Promise<PresignedUpload> {
+  return request<PresignedUpload>('/api/portal/field/photos/presign', {
+    method: 'POST',
+    body: JSON.stringify({ contentType: params.contentType, scope: params.scope }),
+  });
+}
+
+/** True when the API answered that it has no object store configured (dev / inline). */
+function isStorageNotConfigured(error: unknown): boolean {
+  return error instanceof PortalApiError && error.code === 'STORAGE_NOT_CONFIGURED';
+}
+
+/**
+ * PUTs the photo bytes straight to the presigned URL.
+ *
+ * A raw `fetch`, deliberately NOT the `request()` helper above: the URL is the
+ * bucket's rather than the API's, the signature already rides in the query
+ * string so there is no `Authorization` header, and the body is binary rather
+ * than JSON. The only header the bucket expects is the `Content-Type` the URL
+ * was signed to allow, which the API returns as `requiredHeaders`.
+ */
+async function putToPresignedUrl(
+  presigned: PresignedUpload,
+  fileBuffer: Buffer,
+  contentType: string,
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(presigned.uploadUrl, {
+      method: 'PUT',
+      headers: presigned.requiredHeaders ?? { 'Content-Type': contentType },
+      body: new Uint8Array(fileBuffer),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (cause) {
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    throw new PortalApiError(
+      `Şəkli anbara birbaşa yükləmək mümkün olmadı. Səbəb: ${reason}`,
+      null,
+      'DIRECT_UPLOAD_UNREACHABLE',
+    );
+  }
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new PortalApiError(
+      `Şəkil anbara yüklənmədi (HTTP ${response.status})` +
+        (detail ? `: ${detail.slice(0, 300)}` : ''),
+      response.status,
+      'DIRECT_UPLOAD_FAILED',
+    );
+  }
 }
 
 class PortalApiClient {
@@ -553,20 +630,52 @@ class PortalApiClient {
   }
 
   /**
-   * Prepares a shelf photo for submission.
+   * Gets a shelf photo into storage and returns the URL to submit.
    *
-   * Returns a `data:` URL rather than uploading anywhere, because there is no
-   * object store yet — see the file header. The `fileName` the caller would
-   * have used as a storage key is not discarded: the handler records it in the
-   * submission metadata as `storage_path`, so the photo can be moved into real
-   * storage later without guessing where it came from.
+   * Tries the presigned direct upload first: the API mints a short-lived signed
+   * URL, the bot PUTs the bytes STRAIGHT to the bucket, and the returned public
+   * URL is what gets submitted — the image never passes through the API.
+   *
+   * Falls back to an inline `data:` URL when the API has no bucket configured,
+   * or when the direct PUT fails for a reason the merchandiser cannot act on.
+   * That path is the pre-presigned behaviour and is bounded by `MAX_PHOTO_BYTES`
+   * because the base64 still travels in the submission body — see the file
+   * header for the whole picture.
+   *
+   * The `fileName` the caller passes is the intended storage path; the server
+   * mints the final key itself, but its directory is honoured as the `scope` so
+   * a store's evidence stays grouped in the bucket.
    */
   async uploadShelfPhoto(params: {
     fileBuffer: Buffer;
     fileName: string;
     contentType?: string;
   }): Promise<string> {
-    const { fileBuffer, contentType = 'image/jpeg' } = params;
+    const { fileBuffer, fileName, contentType = 'image/jpeg' } = params;
+
+    const scope = fileName?.includes('/') ? fileName.replace(/\/[^/]*$/, '') : undefined;
+
+    try {
+      const presigned = await requestPresignedUpload({ contentType, scope });
+      await putToPresignedUrl(presigned, fileBuffer, contentType);
+      return presigned.publicUrl;
+    } catch (error) {
+      if (!isStorageNotConfigured(error)) {
+        // Not "no bucket" — a real failure of the direct path (bucket
+        // unreachable, signature refused). Fall through to inline rather than
+        // lose the audit: the API still offloads a data URL to the bucket on
+        // its side. Logged so a persistently broken direct path is visible
+        // instead of silently costing the body limit on every submission.
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[oneTeam Bot] Presigned upload failed, falling back to inline: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+      // STORAGE_NOT_CONFIGURED is expected on a deployment without a bucket;
+      // inline is the correct answer there and needs no warning.
+    }
 
     const dataUrl = `data:${contentType};base64,${fileBuffer.toString('base64')}`;
 
