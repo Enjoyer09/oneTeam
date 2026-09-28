@@ -68,6 +68,7 @@ import {
   mainMenuKeyboard,
 } from '../keyboards';
 import { escapeMarkdown } from '../markdown';
+import { portalApi } from '../../services/portalApi';
 
 /**
  * The text of a checklist question.
@@ -267,13 +268,23 @@ async function continueAfterLocation(ctx: BotContext): Promise<void> {
  * what was reported on a panel-authored task (IPHONE_TEST — three `{id,label}`
  * questions, no `type`).
  *
- * Deciding the mode once removes the disagreement. A question with no
- * recognised type becomes free text: it is universally answerable, it assumes
- * nothing about intent (a type-less question is NOT necessarily yes/no), and
- * `EvidenceService` applies no type validation to it, so a typed string is
- * accepted on submission. Declaring `type: 'boolean'` in the schema is still
- * the way to get one-tap buttons — that is a schema decision, not a guess this
- * layer is entitled to make.
+ * Deciding the mode once removes the disagreement. What a MISSING type should
+ * become was, at first, free text — the universally-answerable choice made
+ * before the panel could set a type. That is no longer the right default: the
+ * panel now forces a type on every new question and defaults it to `boolean`
+ * (Hə/Yox), so a type-less question is only ever a LEGACY row authored before
+ * the selector existed, and the product's own default for it is Hə/Yox. Making
+ * the bot's fallback disagree with the panel's default is exactly what left an
+ * obvious yes/no question ("Raf tam doldurulub?") showing a "type your answer"
+ * prompt with no buttons.
+ *
+ * So a type-less question now becomes `boolean`, matching the panel. This is
+ * safe on submission: `EvidenceService` applies type validation only when the
+ * stored question HAS a `type` (`evidence.service.ts`), so a boolean answer to
+ * a type-less question is accepted. A legacy question that is really a number
+ * or free-text answer is retyped in the panel — which stamps the real type and
+ * takes it off this fallback. An EXPLICIT `type: 'text'` still means free text;
+ * only the absence of a type flips to Hə/Yox.
  */
 type AnswerMode = 'boolean' | 'single_choice' | 'number' | 'text';
 
@@ -281,7 +292,10 @@ function answerMode(question: ChecklistQuestion): AnswerMode {
   if (question.type === 'boolean') return 'boolean';
   if (question.type === 'single_choice' && question.options?.length) return 'single_choice';
   if (question.type === 'number') return 'number';
-  return 'text';
+  if (question.type === 'text') return 'text';
+  // No type saved (a legacy `{ id, label }` panel question) → Hə/Yox, the same
+  // default the panel applies to every new question. See the note above.
+  return 'boolean';
 }
 
 /**
@@ -340,11 +354,9 @@ export async function askNextChecklistQuestion(ctx: BotContext): Promise<void> {
     return;
   }
 
-  // Free text — the fallback for a question the template gave no answer TYPE
-  // (see `answerMode`). Like a number question it has no buttons and is
-  // answered by typing, but it accepts any text rather than only a number.
-  // A panel-authored `{ id, label }` question lands here, and before this
-  // branch existed it had nowhere to land — the checklist could not be passed.
+  // Free text — reached only for an EXPLICIT `type: 'text'` question now (a
+  // type-less question defaults to Hə/Yox in `answerMode`). Like a number
+  // question it has no buttons and is answered by typing, accepting any text.
   await ctx.reply(`${header}\n\n✍️ Cavabı yazıb göndərin.`, {
     parse_mode: 'Markdown',
     reply_markup: flowNavKeyboard(ctx.session.activeTaskId),
@@ -437,10 +449,9 @@ export async function handleChecklistText(ctx: BotContext): Promise<boolean> {
 
   const text = ctx.message?.text?.trim() ?? '';
 
-  // A free-text question takes the message verbatim. This is the branch a
-  // type-less panel question reaches; before it existed the message was refused
-  // with "use the buttons above" and the flow could not advance — see
-  // `answerMode`.
+  // A free-text question takes the message verbatim. Reached only for an
+  // explicit `type: 'text'` question — a type-less question is answered by
+  // tapping Hə/Yox and is handled by the branch above.
   if (mode === 'text') {
     if (!text) {
       await ctx.reply(`✍️ Zəhmət olmasa cavabı yazıb göndərin.`);
@@ -555,7 +566,19 @@ export async function handleRestartTask(
 
   await answer();
 
-  const questions = ctx.session.checklistQuestions ?? [];
+  // Re-fetch the task so a restart picks up any template edit made since the
+  // task was opened — the reason "Yenidən başla" is often tapped is that the
+  // questions looked wrong, e.g. a checklist that was just retyped in the panel
+  // to use Hə/Yox. Reusing the cached `checklistQuestions` would replay the
+  // stale schema and the edit would appear to have done nothing. On any fetch
+  // failure we fall back to the cached copy so a restart never dead-ends.
+  let questions = ctx.session.checklistQuestions ?? [];
+  try {
+    const fresh = await portalApi.getTaskById(taskId);
+    if (fresh) questions = fresh.checklist_schema ?? [];
+  } catch {
+    // Keep the cached questions — a restart must still work offline.
+  }
   await beginTaskFlow(ctx, questions, { restarted: true });
 }
 

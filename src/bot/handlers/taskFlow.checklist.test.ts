@@ -3,35 +3,39 @@
  * Tests for the checklist step's handling of a question with NO answer `type`.
  * ============================================================================
  *
- * THE BUG THIS GUARDS AGAINST
- * ---------------------------
+ * WHAT THIS GUARDS
+ * ----------------
  * `packages/types` declares `ChecklistQuestion.type` as required, but the API
- * never sets it: a question authored in the panel is stored as `{ id, label }`
- * with no `type` (`PortalService.readChecklistSchema` validates `label` and
- * passes the rest through). The two functions in `taskFlow.ts` then DISAGREED
- * about such a question — `askNextChecklistQuestion` printed "type a number"
- * with no buttons, while `handleChecklistText` answered "use the buttons above"
- * for anything that was not a number, and there were no buttons. The result was
- * a checklist step that could not be passed at all: nothing to tap, and every
- * typed answer refused. To a merchandiser that is a task whose button "does
- * nothing" — reported on store IPHONE_TEST, whose three questions are all
- * `{ id, label }` with no type.
+ * never sets it: a legacy question authored before the panel had a type
+ * selector is stored as `{ id, label }` with no `type` (`readChecklistSchema`
+ * validates `label` and passes the rest through). `answerMode` maps such a
+ * type-less question to `boolean` — the SAME default the panel now applies to
+ * every new question — so it renders one-tap Hə/Yox buttons instead of a
+ * free-text prompt with nothing to tap. This was reported on store IPHONE_TEST,
+ * whose three questions are all `{ id, label }` with no type and were showing
+ * "Cavabı yazıb göndərin" where an obvious yes/no question wanted buttons.
+ *
+ * This is safe on submission: `EvidenceService` validates an answer's type only
+ * when the stored question HAS a `type`, so a boolean answer to a type-less
+ * question is accepted. A question that is really number/text is retyped in the
+ * panel, which stamps the real type and takes it off this fallback.
  *
  * WHY THIS SUITE AND NOT `router.test.ts` OR `bot:test`
  * -----------------------------------------------------
- * Both of those build their fixture with an EXPLICIT `type` on every question
- * (`type: 'boolean'`, `type: 'number'`), so neither ever exercised a type-less
- * question — which is precisely how the deadlock reached production while the
- * suites were green. This one drives `askNextChecklistQuestion` and
- * `handleChecklistText` directly with a type-less schema, so it needs neither a
- * database nor a running API.
+ * Both of those build their fixture with an EXPLICIT `type` on every question,
+ * so neither ever exercises a type-less question. This one drives
+ * `askNextChecklistQuestion`, `handleChecklistAnswer` and `handleChecklistText`
+ * directly with a type-less schema, so it needs neither a database nor a
+ * running API.
  *
  *   npm run test:checklist-type
  */
 import { ChecklistQuestion } from '@oneteam/types';
 import { BotContext } from '../types';
+import { encodeChecklistAnswer } from '../callbacks';
 import {
   askNextChecklistQuestion,
+  handleChecklistAnswer,
   handleChecklistText,
 } from './taskFlow';
 
@@ -86,7 +90,7 @@ function inlineData(markup: any): string[] {
 }
 
 async function main(): Promise<void> {
-  console.log('taskFlow — a checklist question with no `type`\n');
+  console.log('taskFlow — a checklist question with no `type` defaults to Hə/Yox\n');
 
   // Three questions shaped exactly as the API returns a panel-authored task:
   // an id and a label, and no `type`, `required` or `options`.
@@ -97,45 +101,44 @@ async function main(): Promise<void> {
   ];
 
   const { ctx, replies } = makeCtx(typeless);
+  // handleChecklistAnswer needs a toast callback; capture what it says.
+  const toasts: string[] = [];
+  const toast = async (msg?: string) => {
+    toasts.push(msg ?? '');
+  };
 
-  // 1. The question is ASKED — and as a typed-answer question, not a dead end.
+  // 1. The question is ASKED with one-tap Hə/Yox buttons, not a "type it" prompt.
   await askNextChecklistQuestion(ctx);
   const first = replies.at(-1)!;
   check('the type-less question is shown', first.text.includes('Raf tam doldurulub?'), first.text);
   check(
-    'it is presented as a typed answer, not "type a number"',
-    first.text.includes('Cavabı yazıb göndərin') && !first.text.includes('rəqəmlə'),
+    'it is NOT presented as a free-text question',
+    !first.text.includes('Cavabı yazıb göndərin'),
     first.text,
   );
   check(
-    'it offers no chk: answer buttons (there is no fixed set of answers)',
-    !inlineData(first.markup).some((data) => data.startsWith('chk:')),
+    'it offers Bəli/Xeyr answer buttons (chk:)',
+    inlineData(first.markup).some((data) => data.startsWith('chk:')),
     JSON.stringify(inlineData(first.markup)),
   );
   check(
-    'but it still offers a way back to the menu',
+    'and it still offers a way back to the menu',
     inlineData(first.markup).some((data) => data.startsWith('menu:')),
     JSON.stringify(inlineData(first.markup)),
   );
 
-  // 2. A typed answer is ACCEPTED and advances the flow — the deadlock is gone.
-  //    "Bəli" is a word, not a number: before the fix this was refused.
-  ctx.message!.text = 'Bəli';
-  const claimed1 = await handleChecklistText(ctx);
-  check('a typed answer is claimed by the checklist handler', claimed1 === true);
+  // 2. Tapping "Bəli" is ACCEPTED as a boolean and advances the flow.
+  await handleChecklistAnswer(ctx, encodeChecklistAnswer(0, true), toast);
   check(
-    'the typed answer is stored verbatim',
-    ctx.session.checklistAnswers?.some((a) => a.questionId === 'q1' && a.value === 'Bəli') === true,
+    'the tapped answer is stored as a boolean true',
+    ctx.session.checklistAnswers?.some((a) => a.questionId === 'q1' && a.value === true) === true,
     JSON.stringify(ctx.session.checklistAnswers),
   );
   check('and the checklist advances', ctx.session.checklistIndex === 1, String(ctx.session.checklistIndex));
 
-  // 3. Answering the remaining questions reaches the photo step rather than
-  //    stalling — the whole point: a type-less checklist can be completed.
-  ctx.message!.text = 'Xeyr';
-  await handleChecklistText(ctx);
-  ctx.message!.text = 'Bəli';
-  await handleChecklistText(ctx);
+  // 3. Answering the remaining questions by tapping reaches the photo step.
+  await handleChecklistAnswer(ctx, encodeChecklistAnswer(1, false), toast);
+  await handleChecklistAnswer(ctx, encodeChecklistAnswer(2, true), toast);
 
   check('all three answers are recorded', ctx.session.checklistAnswers?.length === 3, JSON.stringify(ctx.session.checklistAnswers));
   check(
@@ -147,6 +150,45 @@ async function main(): Promise<void> {
     'and the photo prompt is shown',
     replies.at(-1)!.text.includes('Addım 3/3'),
     replies.at(-1)!.text,
+  );
+
+  // 3b. Typing on a type-less (now boolean) question is redirected to the
+  //     buttons rather than filed as free text.
+  const typed = makeCtx(typeless);
+  await askNextChecklistQuestion(typed.ctx);
+  typed.ctx.message!.text = 'Bəli';
+  const claimedTyped = await handleChecklistText(typed.ctx);
+  check('a typed message is still claimed by the checklist handler', claimedTyped === true);
+  check(
+    'but typing on a type-less question is redirected to the buttons',
+    typed.replies.at(-1)!.text.includes('düymələrdən birini seçin'),
+    typed.replies.at(-1)!.text,
+  );
+  check(
+    'and typing does not advance a type-less question',
+    typed.ctx.session.checklistIndex === 0,
+    String(typed.ctx.session.checklistIndex),
+  );
+
+  // 3c. An EXPLICIT `type: 'text'` still means free text — only the ABSENCE of
+  //     a type flips to Hə/Yox, so a deliberate text question is untouched.
+  const textQ: ChecklistQuestion[] = [
+    { id: 't1', label: 'Əlavə qeyd?', type: 'text' } as ChecklistQuestion,
+  ];
+  const textCtx = makeCtx(textQ);
+  await askNextChecklistQuestion(textCtx.ctx);
+  check(
+    'an explicit text question is still free text',
+    textCtx.replies.at(-1)!.text.includes('Cavabı yazıb göndərin') &&
+      !inlineData(textCtx.replies.at(-1)!.markup).some((d) => d.startsWith('chk:')),
+    textCtx.replies.at(-1)!.text,
+  );
+  textCtx.ctx.message!.text = 'əlavə məlumat';
+  await handleChecklistText(textCtx.ctx);
+  check(
+    'and a typed answer to a text question is stored verbatim',
+    textCtx.ctx.session.checklistAnswers?.some((a) => a.questionId === 't1' && a.value === 'əlavə məlumat') === true,
+    JSON.stringify(textCtx.ctx.session.checklistAnswers),
   );
 
   // 4. Regression guard: an explicit `boolean` still uses buttons and refuses a
