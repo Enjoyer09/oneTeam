@@ -97,8 +97,15 @@ export const DEFAULT_YOLO_TIMEOUT_MS = 180_000;
  *
  * Carried on the evaluation because a result that came from the simulation must
  * not be indistinguishable from one that came from the detector.
+ *
+ * `vision-llm` and `hybrid` are produced by the provider seam in `./vision`, not
+ * by this file: `vision-llm` is a vision model's own judgement, and `hybrid` is
+ * the YOLO-then-LLM orchestrator's verdict. They live in this union so that a
+ * `VisionAnalysis.engine` can never be a value the record's audit trail cannot
+ * name — the whole point of carrying the engine is that no layer masquerades as
+ * another.
  */
-export type AnalysisEngine = 'ultralytics-yolo' | 'simulation';
+export type AnalysisEngine = 'ultralytics-yolo' | 'simulation' | 'vision-llm' | 'hybrid';
 
 export interface PlanogramRequirement {
   sku: CocaColaSKU;
