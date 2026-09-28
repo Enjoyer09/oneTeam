@@ -17,6 +17,7 @@ import 'dotenv/config';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/http/all-exceptions.filter';
 import { db } from '@oneteam/database';
@@ -78,7 +79,29 @@ function resolveAllowedOrigins(logger: Logger): string[] {
 
 async function bootstrap() {
   const logger = new Logger('oneTeam-API');
-  const app = await NestFactory.create(AppModule);
+  // `bodyParser: false` so we register the JSON/urlencoded parsers ourselves
+  // with a raised size limit (below). Express's default JSON limit is 100kb,
+  // and a field submission carries the shelf photo INLINE as a base64 `data:`
+  // URL — there is no object store yet, so `POST /api/portal/field/submissions`
+  // ships the whole image in the body (see `uploadShelfPhoto` in the bot's
+  // portalApi). A real photo blew past 100kb and the parser rejected it with
+  // `PayloadTooLargeError: request entity too large`, surfacing to the
+  // merchandiser as "şəkil qeydə alına bilmədi, daxili server xətası".
+  //
+  // If Nest's own parsers were left on (the default), they would run FIRST at
+  // 100kb and throw before any raised-limit parser we add could see the body —
+  // hence `bodyParser: false` here and explicit registration once, below.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bodyParser: false,
+  });
+
+  // 5mb comfortably covers the bot's own MAX_PHOTO_BYTES cap (~1.5mb for the
+  // data URL) plus the checklist answers, metadata and AI verdict sent
+  // alongside it, while still bounding the body so an oversized payload is
+  // rejected rather than read without limit. The bot's 1.5mb cap is the real
+  // gate on photo size; this is the transport ceiling behind it.
+  app.useBodyParser('json', { limit: '5mb' });
+  app.useBodyParser('urlencoded', { extended: true, limit: '5mb' });
 
   // Load persisted state BEFORE the HTTP listener opens.
   //
