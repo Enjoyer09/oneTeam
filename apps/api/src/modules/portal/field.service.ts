@@ -57,6 +57,33 @@ import { AuthenticatedPrincipal } from '../../common/auth/authenticated-principa
 const MAX_PHOTO_BYTES = 1_500_000;
 
 /**
+ * The floor an AI verdict must clear to be auto-approved without a human.
+ *
+ * Chosen by the operator ("auto-approve high confidence"). It is deliberately
+ * higher than the rule-based auto-approver's 70: a machine approving a shelf
+ * with no human in the loop should be *sure*, and the cost of being wrong here
+ * is an unearned pass, whereas the cost of being cautious is only a supervisor
+ * glance. Everything below this — or any unsure verdict — waits for a human.
+ */
+const AI_AUTO_APPROVE_MIN_SCORE = 85;
+
+/**
+ * Who the API acts as when it auto-approves on the vision engine's behalf.
+ *
+ * A synthetic SUPERVISOR: `reviewSubmission` refuses anyone who is not a
+ * reviewer, and the merchandiser the bot speaks for is not one (they may not
+ * approve their own audit). This principal never authenticates a request — it
+ * exists only inside this process to name the actor on the state change, so the
+ * audit trail reads "system-ai-vision" rather than a real person for a decision
+ * no person made. `via: 'service'` matches how the trusted server acts.
+ */
+const AI_REVIEWER_PRINCIPAL: AuthenticatedPrincipal = {
+  userId: 'system-ai-vision',
+  role: UserRole.SUPERVISOR,
+  via: 'service',
+};
+
+/**
  * How a channel names the person who is acting.
  *
  * The bot is one server serving every chat, so it identifies the acting person
@@ -859,6 +886,25 @@ export class FieldService {
     metadata?: Record<string, unknown>;
     /** Client-supplied key that makes a resend return the same evidence. */
     idempotencyKey?: string;
+    /**
+     * The vision engine's read of this photo, when one ran in the bot.
+     *
+     * TRUSTED, AND WHY THAT IS SAFE HERE
+     * ----------------------------------
+     * These come from the bot, which holds the service credential — not from a
+     * chat. A merchandiser cannot set them: they send a photo, the bot runs the
+     * engine, and only the bot reaches this route. So the score that drives
+     * auto-approval is produced by our own server, never by the person being
+     * judged. (Absent entirely when vision is off — then the record is pending,
+     * exactly as before.)
+     */
+    aiScore?: number;
+    aiSummary?: string;
+    aiDetections?: unknown[];
+    aiConfidence?: number;
+    aiNeedsHumanReview?: boolean;
+    aiEngine?: string;
+    aiModel?: string;
   }) {
     const actor = this.requireActor({ chatId: payload.chatId, deviceId: payload.deviceId });
 
@@ -1051,11 +1097,88 @@ export class FieldService {
       });
     }
 
+    // --- AI verdict: persist it, and auto-approve ONLY a high-confidence pass -
+    //
+    // Policy (chosen by the operator): a submission is auto-approved when the
+    // engine scored it ≥ 85 AND stood behind that answer (it did not ask for a
+    // human, and — when it reports one — its self-confidence is ≥ 0.5).
+    // Everything else is left pending for a supervisor. This never auto-REJECTS:
+    // a low or unsure score is a reason to look, not a reason to fail honest
+    // work on a model's say-so.
+    //
+    // The approval is done here, server-side, with a system reviewer — NOT by
+    // the bot calling the review endpoint. The bot acts as the merchandiser, and
+    // a merchandiser may not approve their own audit (see `requireReviewer`).
+    let effectiveTaskState = result.taskState;
+    if (typeof payload.aiScore === 'number') {
+      const score = Math.max(0, Math.min(100, Math.round(payload.aiScore)));
+      const confidencePct =
+        typeof payload.aiConfidence === 'number'
+          ? `${Math.round(payload.aiConfidence * 100)}%`
+          : 'naməlum';
+      const engineLabel = payload.aiModel
+        ? `${payload.aiEngine ?? 'vision'}/${payload.aiModel}`
+        : (payload.aiEngine ?? 'vision');
+      // A self-describing summary: the reviewer sees the score, how sure the
+      // engine was, and which engine, without opening the audit log.
+      const composedSummary =
+        `🤖 AI (${engineLabel}) — bal ${score}/100, əminlik ${confidencePct}. ` +
+        (payload.aiSummary?.trim() || 'Xülasə verilmədi.');
+
+      db.updateEvidence(result.evidence.id, {
+        aiScore: score,
+        aiSummary: composedSummary,
+        aiDetections: (payload.aiDetections as any[]) ?? [],
+      });
+
+      const confident =
+        payload.aiNeedsHumanReview !== true &&
+        (typeof payload.aiConfidence !== 'number' || payload.aiConfidence >= 0.5);
+      const qualifies = score >= AI_AUTO_APPROVE_MIN_SCORE && confident;
+
+      db.logAuditEvent({
+        entityType: 'task_evidence',
+        entityId: result.evidence.id,
+        action: qualifies ? 'AI_AUTO_APPROVE_ELIGIBLE' : 'AI_REVIEW_PENDING',
+        actorId: AI_REVIEWER_PRINCIPAL.userId,
+        payload: {
+          score,
+          confidence: payload.aiConfidence ?? null,
+          needsHumanReview: payload.aiNeedsHumanReview ?? null,
+          engine: payload.aiEngine ?? null,
+          model: payload.aiModel ?? null,
+          minScore: AI_AUTO_APPROVE_MIN_SCORE,
+        },
+      });
+
+      if (qualifies) {
+        try {
+          const decision = await this.portal.reviewSubmission(
+            result.evidence.id,
+            { status: 'approved', feedback: composedSummary },
+            AI_REVIEWER_PRINCIPAL,
+          );
+          effectiveTaskState = decision.data.currentState as typeof effectiveTaskState;
+          this.logger.log(
+            `🤖 [AI AUTO-APPROVE] Evidence ${result.evidence.id} approved (score ${score}, confidence ${confidencePct}).`,
+          );
+        } catch (error) {
+          // A transition that cannot run (e.g. a lone "before" photo that never
+          // reached SUBMITTED) is not a failure of the submission — the audit is
+          // recorded and simply waits for a human. Never let this throw out.
+          const reason = error instanceof Error ? error.message : String(error);
+          this.logger.warn(
+            `🤖 [AI AUTO-APPROVE SKIPPED] Evidence ${result.evidence.id}: ${reason}`,
+          );
+        }
+      }
+    }
+
     return {
       success: true,
       data: this.portal.toPanelSubmission(result.evidence),
       distanceMeters: result.distanceMeters,
-      taskState: result.taskState,
+      taskState: effectiveTaskState,
       locationVerified: hasRealFix,
       // Stated explicitly rather than left for the caller to infer from the URL.
       // A client that has just sent a data URL needs to know whether the image

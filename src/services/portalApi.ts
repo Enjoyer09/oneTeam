@@ -613,6 +613,24 @@ class PortalApiClient {
     longitude?: number;
     checklistAnswers?: Array<{ questionId: string; value: boolean | number | string }>;
     metadata?: Record<string, unknown>;
+    /**
+     * The vision engine's read of this photo, when one ran (see
+     * `handlers/submission.ts`). Sent so the API persists it on the evidence and
+     * can auto-approve a high-confidence pass without a human. Omitted entirely
+     * when vision is off, which is exactly the pre-vision behaviour.
+     *
+     * These are trusted because the sender is the bot's service credential, not
+     * a chat: a merchandiser cannot forge them — they can only send a photo.
+     */
+    ai?: {
+      score: number;
+      summary: string;
+      detections?: unknown[];
+      confidence: number;
+      needsHumanReview: boolean;
+      engine?: string;
+      model?: string;
+    };
   }): Promise<SubmissionRecord> {
     const hasFix = typeof params.latitude === 'number' && typeof params.longitude === 'number';
 
@@ -628,6 +646,19 @@ class PortalApiClient {
         locationUnverified: !hasFix,
         checklistAnswers: params.checklistAnswers ?? [],
         metadata: params.metadata ?? {},
+        // Flattened rather than nested so the API's `body: any` handler can read
+        // each field without reaching into an object that may be absent.
+        ...(params.ai
+          ? {
+              aiScore: params.ai.score,
+              aiSummary: params.ai.summary,
+              aiDetections: params.ai.detections ?? [],
+              aiConfidence: params.ai.confidence,
+              aiNeedsHumanReview: params.ai.needsHumanReview,
+              aiEngine: params.ai.engine,
+              aiModel: params.ai.model,
+            }
+          : {}),
       }),
     });
 

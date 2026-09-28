@@ -42,6 +42,7 @@
 import { InlineKeyboard } from 'grammy';
 import { AnswerCallback, BotContext } from '../types';
 import { portalApi, PortalApiError } from '../../services/portalApi';
+import { resolveVisionProvider, type VisionAnalysis } from '../../services/vision';
 import { encodeCallback } from '../callbacks';
 import { MENU_HOME_LABEL, mainMenuKeyboard } from '../keyboards';
 import { escapeMarkdown } from '../markdown';
@@ -359,6 +360,41 @@ async function filePhoto(
   const location = ctx.session.location;
   const checklistAnswers = ctx.session.checklistAnswers ?? [];
 
+  // --- AI vision pass (Phase 2.2) ------------------------------------------
+  //
+  // Runs HERE, in the bot, because this is where the decoded bytes already are:
+  // `fileBuffer` was just downloaded from Telegram, so the engine inlines it
+  // without a second fetch and without the photo leaving this process a second
+  // time. Which engine runs — or whether any does — is chosen by env on THIS
+  // service (`ONETEAM_VISION_PROVIDER`); the default is `off`, and then
+  // `resolveVisionProvider` returns null and everything below is exactly the
+  // pre-vision flow: no score, human review.
+  //
+  // A slow or failing model must never cost a merchandiser a real audit. Any
+  // throw is caught and treated as "no AI read", which the API records as a
+  // pending human review — never a fabricated verdict.
+  let ai: VisionAnalysis | null = null;
+  const visionProvider = resolveVisionProvider(process.env);
+  if (visionProvider) {
+    await ctx
+      .reply('🔍 *Süni intellekt rəf şəklini yoxlayır...*', { parse_mode: 'Markdown' })
+      .catch(() => undefined);
+    try {
+      ai = await visionProvider.analyze({
+        photoUrl,
+        imageBuffer: fileBuffer,
+        taskTitle: ctx.session.activeTaskTitle,
+      });
+    } catch (error) {
+      console.warn(
+        `[oneTeam Bot] Vision analysis failed for task ${taskId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      ai = null;
+    }
+  }
+
   const submission = await portalApi.createSubmission({
     storeTaskId: taskId,
     chatId: ctx.chat!.id,
@@ -366,6 +402,17 @@ async function filePhoto(
     latitude: location?.latitude,
     longitude: location?.longitude,
     checklistAnswers,
+    ai: ai
+      ? {
+          score: ai.complianceScore,
+          summary: ai.summary,
+          detections: ai.detections,
+          confidence: ai.confidence,
+          needsHumanReview: ai.needsHumanReview,
+          engine: ai.engine,
+          model: ai.model,
+        }
+      : undefined,
     metadata: {
       telegram_user_id: ctx.from?.id,
       telegram_chat_id: ctx.chat?.id,
@@ -434,10 +481,43 @@ async function filePhoto(
       ? `📋 *Çeklist:* ✅ ${checklistAnswers.length} sual cavablandırıldı\n`
       : `📋 *Çeklist:* ⚠️ Cavabsız qeydə alındı\n`;
 
+  // The AI read, shown only when an engine actually ran. `submission.ai_score`
+  // is the API's persisted value (authoritative), so it is preferred over the
+  // local `ai`; the local object is the fallback and the flag for "vision was
+  // attempted". When vision is off there is no line at all — the same message a
+  // pre-vision submission produced.
+  const aiScore = submission.ai_score ?? ai?.complianceScore;
+  const aiSummary = submission.ai_summary ?? ai?.summary;
+  let aiLine = '';
+  if (typeof aiScore === 'number') {
+    const summaryText = aiSummary ? `\n_${escapeMarkdown(aiSummary)}_` : '';
+    aiLine = `🤖 *AI qiyməti:* ${Math.round(aiScore)}/100${summaryText}\n`;
+  } else if (visionProvider) {
+    // An engine was configured but returned nothing (failure / rate limit).
+    // Said plainly rather than hidden: the audit is safe, a human will look.
+    aiLine = `🤖 *AI yoxlanışı:* ⚠️ tamamlanmadı — nəzarətçi yoxlayacaq\n`;
+  }
+
+  // The verdict comes from the API, not from the bot: the auto-approve decision
+  // is made server-side (score ≥ 85 and the model was confident), and the bot
+  // only reports what came back so the two can never disagree.
+  const statusLine =
+    submission.status === 'approved'
+      ? `📦 *Status:* ✅ Avtomatik təsdiqləndi\n`
+      : submission.status === 'rejected'
+        ? `📦 *Status:* ❌ İmtina edildi\n`
+        : `📦 *Status:* ⏳ Yoxlama gözləyir\n`;
+
+  const headerLine =
+    submission.status === 'approved'
+      ? `✅ *Əla! Rəf şəkliniz süni intellekt tərəfindən təsdiqləndi.*`
+      : `✅ *Təşəkkür edirik! Rəf şəkli qeydə alındı.*`;
+
   const confirmationText =
-    `✅ *Təşəkkür edirik! Rəf şəkli nəzarətçi yoxlaması üçün qeydə alındı.*\n\n` +
+    `${headerLine}\n\n` +
     `🏪 *Mağaza:* ${escapeMarkdown(ctx.session.storeName ?? '')}\n` +
-    `📦 *Status:* ⏳ Yoxlama gözləyir\n` +
+    statusLine +
+    aiLine +
     locationLine +
     checklistLine +
     `\nStatusunuzu yoxlamaq üçün istənilən vaxt aşağıdaki menyudan istifadə edə bilərsiniz.`;
