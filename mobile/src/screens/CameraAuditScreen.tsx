@@ -221,8 +221,11 @@ export class CameraAuditController {
       console.error(`[oneTeam Mobile] Acknowledge failed for ${this.task.id}:`, detail);
     }
 
-    // No object store yet, so this returns a `data:` URL. When there is none to
-    // send it throws rather than inventing one — see mobileApi.uploadPhoto.
+    // A real capture goes straight to the bucket via a presigned URL and this
+    // gets back the `publicUrl`; with no bucket (or a failed PUT) it falls back
+    // to a `data:` URL. When there is no capture at all it throws rather than
+    // inventing one — see mobileApi.uploadPhoto. The `fileName` directory
+    // becomes the upload scope.
     const { photoUrl, origin } = await mobileApi.uploadPhoto({
       base64: params.base64,
       fileName: `audits/${this.store.id}/${this.task.id}_${Date.now()}.jpg`,

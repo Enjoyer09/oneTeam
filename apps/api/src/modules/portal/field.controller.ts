@@ -415,17 +415,39 @@ export class FieldController {
    * Returns a short-lived URL the client PUTs the bytes to DIRECTLY, so the
    * image never travels through the API. The client then submits the returned
    * `publicUrl` as its `photoUrl`. Unlike `POST photos` (which proxies base64
-   * through the API), this keeps megabytes off the API entirely. Service actor
-   * only, like the rest of the direct-upload surface. See
+   * through the API), this keeps megabytes off the API entirely. See
    * docs/PRESIGNED-UPLOAD-PLAN-AZ.md.
+   *
+   * OPEN TO ANY AUTHENTICATED FIELD ACTOR — NOT SERVICE-ONLY
+   * --------------------------------------------------------
+   * The sibling write endpoints above (`ack`, `submissions`, notifications)
+   * carry `requireServiceActor`, so it is worth being explicit about why this
+   * one deliberately does not: the mobile client authenticates as a DEVICE, not
+   * a service, and `mayActAsAnotherUser` is true only for the service `via`, so
+   * a `requireServiceActor` here would 403 (`ACTOR_SCOPE_VIOLATION`) every phone
+   * — and the whole point of this endpoint is to move the phone's photo off the
+   * API body. So the mobile presigned rollout (plan §3.1, step 3) relaxes it.
+   *
+   * The relaxation is safe on its own terms, and none of the reasons the other
+   * endpoints are service-only apply here:
+   *   - AuthGuard still runs, so an unauthenticated request is still 401 — this
+   *     opens the door to a wider set of *authenticated* actors, not to anyone.
+   *   - The body carries NO actor field. `requireServiceActor` guards the
+   *     "act as another user" surface; this endpoint has none to guard.
+   *   - The object KEY is minted server-side (`StorageService.mintKey`), so the
+   *     caller cannot choose a path, overwrite a sibling's object, or traverse.
+   *   - A device can ALREADY put bytes in the same bucket two other ways with no
+   *     stricter check: `POST submissions` offloads its inline data URL, and
+   *     `POST photos` (right above) has no actor check at all. This endpoint is
+   *     a cheaper transport for a capability the device already holds, not a new
+   *     one — so it does not widen what a compromised device token can reach.
+   *
+   * No `@Request()` param: with the actor gate gone there is nothing left to
+   * read off the principal here.
    */
   @Post('photos/presign')
   @HttpCode(HttpStatus.CREATED)
-  presignPhotoUpload(
-    @Request() request: AuthedRequest,
-    @Body() body: { contentType?: string; scope?: string },
-  ) {
-    this.requireServiceActor(getPrincipal(request));
+  presignPhotoUpload(@Body() body: { contentType?: string; scope?: string }) {
     return this.fieldService.createPresignedUpload({
       contentType: body?.contentType,
       scope: body?.scope,

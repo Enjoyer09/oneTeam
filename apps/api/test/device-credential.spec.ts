@@ -500,6 +500,58 @@ async function main(): Promise<void> {
   }
 
   // -------------------------------------------------------------------------
+  // Presign is open to a device — the one place the actor scope is relaxed
+  // -------------------------------------------------------------------------
+  // Every check above proves a device is boxed into its own installation. This
+  // one proves the single deliberate exception: `POST photos/presign` dropped
+  // `requireServiceActor` so the phone can move its photo off the API body
+  // (plan §3.1, step 3). The regression that would matter is a silent return of
+  // the gate — the device getting the same 403/ACTOR_SCOPE_VIOLATION as above.
+  // So the check is precisely "not that": a real answer is 201 (a bucket is
+  // configured and it minted a URL) or 503 STORAGE_NOT_CONFIGURED (inline mode);
+  // either is fine, a 403 is the failure.
+  console.log('\npresign is open to a device credential');
+
+  const devicePresign = await call('POST', '/api/portal/field/photos/presign', {
+    token,
+    body: { contentType: 'image/jpeg', scope: 'audits/regression' },
+  });
+  check(
+    'a device may presign — it is NOT refused with 403',
+    devicePresign.status !== 403,
+    devicePresign,
+  );
+  check(
+    'presign answers either 201 (minted) or 503 (no bucket), never the actor gate',
+    devicePresign.status === 201 || devicePresign.status === 503,
+    devicePresign,
+  );
+  if (devicePresign.status === 201) {
+    check(
+      'a minted presign carries an uploadUrl and a publicUrl',
+      typeof devicePresign.body?.data?.uploadUrl === 'string' &&
+        typeof devicePresign.body?.data?.publicUrl === 'string',
+      devicePresign.body?.data,
+    );
+  } else {
+    check(
+      'the no-bucket answer is identified as STORAGE_NOT_CONFIGURED',
+      (devicePresign.body?.error ?? devicePresign.body?.message?.error) ===
+        'STORAGE_NOT_CONFIGURED',
+      devicePresign.body,
+    );
+  }
+
+  const anonPresign = await call('POST', '/api/portal/field/photos/presign', {
+    body: { contentType: 'image/jpeg' },
+  });
+  check(
+    'presign still requires a credential — no token is 401',
+    anonPresign.status === 401,
+    anonPresign,
+  );
+
+  // -------------------------------------------------------------------------
   // Unknown, revoked, and laundered tokens
   // -------------------------------------------------------------------------
   console.log('\nunknown and revoked tokens');

@@ -39,9 +39,16 @@
  *
  * WHERE THE PHOTOS GO
  * -------------------
- * To object storage when the API is configured with a bucket, and into the
- * database as a `data:` URL when it is not. Either way this client sends the
- * image inline and lets the API decide — see `StorageService` in the API.
+ * When the API is configured with a bucket, a real capture is PUT straight to
+ * that bucket through a short-lived presigned URL the API mints — the bytes
+ * never travel through the API body, and this client submits the returned
+ * `publicUrl`. See `uploadPhoto` below and the matching code in the Telegram
+ * bot's `src/services/portalApi.ts`; the two clients mirror each other on
+ * purpose. Two things send a capture back to the inline `data:` URL instead:
+ * an API that reports no bucket (`STORAGE_NOT_CONFIGURED` — the correct answer
+ * in inline mode), and a direct PUT that fails (the API still offloads the
+ * data URL on its side, so the audit is never lost). The placeholder marker
+ * always goes inline — it is not worth a bucket object.
  */
 
 import {
@@ -551,6 +558,118 @@ async function request<T>(
 }
 
 // ---------------------------------------------------------------------------
+// Presigned direct upload
+//
+// The photo can reach the bucket two ways, and this client prefers the one that
+// keeps the megabytes off the API: ask the API for a short-lived signed URL,
+// then PUT the bytes straight to the bucket. The API only mints the URL and
+// stores the `publicUrl` we hand back on the submission. This mirrors the bot's
+// `src/services/portalApi.ts` deliberately — one shape, kept correct in two
+// places. See docs/PRESIGNED-UPLOAD-PLAN-AZ.md.
+// ---------------------------------------------------------------------------
+
+/** What `POST photos/presign` hands back — a signed URL plus the address to submit. */
+interface PresignedUpload {
+  /** The short-lived signed URL to PUT the bytes to, directly on the bucket. */
+  uploadUrl: string;
+  /** The address the object will be readable at — this becomes the `photoUrl`. */
+  publicUrl: string;
+  key: string;
+  expiresAt: string;
+  /** The headers the URL was signed to expect — just `Content-Type` today. */
+  requiredHeaders?: Record<string, string>;
+}
+
+/** Asks the API for a short-lived signed URL to upload one photo straight to the bucket. */
+async function requestPresignedUpload(params: {
+  contentType: string;
+  scope?: string;
+}): Promise<PresignedUpload> {
+  return request<PresignedUpload>('/api/portal/field/photos/presign', {
+    method: 'POST',
+    body: JSON.stringify({ contentType: params.contentType, scope: params.scope }),
+  });
+}
+
+/**
+ * True when the API answered that it has no object store — the expected reply in
+ * inline mode, and the one case where falling back to a `data:` URL is correct
+ * rather than a symptom. `callApi` copies the envelope's `error` onto the
+ * MobileApiError `code`, so this reads that.
+ */
+function isStorageNotConfigured(error: unknown): boolean {
+  return error instanceof MobileApiError && error.code === 'STORAGE_NOT_CONFIGURED';
+}
+
+/**
+ * Decodes a base64 payload to the raw bytes a binary PUT needs.
+ *
+ * `Buffer` when it exists (the Node harness), `atob` otherwise (Hermes on the
+ * device). Both produce the same bytes; the split is only about which global is
+ * present. A `data:` URL is never sent to the bucket — the presigned PUT stores
+ * exactly these bytes under the `Content-Type` the URL was signed for.
+ */
+function base64ToBytes(base64: string): Uint8Array {
+  if (typeof Buffer !== 'undefined') {
+    return new Uint8Array(Buffer.from(base64, 'base64'));
+  }
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/**
+ * PUTs the photo bytes straight to the presigned URL.
+ *
+ * A raw `fetch`, deliberately NOT `callApi`/`request`: the target is the
+ * bucket's URL rather than the API's, the signature already rides in its query
+ * string so there is no `Authorization` header to add, and the body is binary
+ * rather than JSON. The only header the bucket expects is the `Content-Type` the
+ * URL was signed to allow, which the API returns as `requiredHeaders`.
+ */
+async function putToPresignedUrl(
+  presigned: PresignedUpload,
+  base64: string,
+  contentType: string,
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(presigned.uploadUrl, {
+      method: 'PUT',
+      headers: presigned.requiredHeaders ?? { 'Content-Type': contentType },
+      // The bytes, not a data URL — the bucket stores exactly these. The cast is
+      // a TS-5.7-ism only: `Uint8Array<ArrayBufferLike>` no longer matches the
+      // DOM `BodyInit`'s `ArrayBufferView<ArrayBuffer>`, though both RN's and
+      // Node's `fetch` accept the view unchanged at runtime (the bot PUTs the
+      // same way). A Blob would sidestep the cast but let fetch overwrite the
+      // Content-Type, so the plain view is the closer-to-honest choice.
+      body: base64ToBytes(base64) as unknown as BodyInit,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (cause) {
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    throw new MobileApiError(
+      `Şəkli birbaşa anbara yükləmək mümkün olmadı. Səbəb: ${reason}`,
+      null,
+      'DIRECT_UPLOAD_UNREACHABLE',
+    );
+  }
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new MobileApiError(
+      `Şəkil anbara yüklənmədi (HTTP ${response.status})` +
+        (detail ? `: ${detail.slice(0, 300)}` : ''),
+      response.status,
+      'DIRECT_UPLOAD_FAILED',
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Response shapes
 //
 // These mirror the API's `PanelStore` / `PanelTask` / `PanelSubmission`. They are
@@ -817,6 +936,16 @@ class MobilePortalApi {
    *
    * Passing neither throws. There is no third option where an image appears from
    * nowhere.
+   *
+   * HOW A REAL CAPTURE TRAVELS
+   * --------------------------
+   * A real capture (`base64` present) is PUT straight to the bucket through a
+   * presigned URL, so the megabytes never cross the API body, and the returned
+   * `publicUrl` becomes the `photoUrl`. Two things send it to the inline `data:`
+   * path instead: an API with no bucket (`STORAGE_NOT_CONFIGURED`, the correct
+   * answer in inline mode — silent) and a direct PUT that fails (logged, and the
+   * API still offloads the data URL on its side, so the audit is never lost).
+   * The placeholder is never presigned — it always goes inline.
    */
   async uploadPhoto(params: {
     base64?: string;
@@ -833,6 +962,28 @@ class MobilePortalApi {
         400,
         'CAPTURE_NOT_AVAILABLE',
       );
+    }
+
+    // Prefer the presigned direct upload for a real capture. On STORAGE_NOT_CONFIGURED
+    // this is expected and silent; on any other failure we log and fall through to
+    // inline rather than lose the audit (the API offloads the data URL on its side).
+    if (base64) {
+      const scope = fileName?.includes('/') ? fileName.replace(/\/[^/]*$/, '') : undefined;
+      try {
+        const presigned = await requestPresignedUpload({ contentType, scope });
+        await putToPresignedUrl(presigned, base64, contentType);
+        return { photoUrl: presigned.publicUrl, origin: 'device' };
+      } catch (error) {
+        if (!isStorageNotConfigured(error)) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[oneTeam Mobile] Presigned upload failed, falling back to inline: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+        // fall through to the inline data URL below
+      }
     }
 
     const payload = base64 ?? PLACEHOLDER_JPEG_BASE64;
