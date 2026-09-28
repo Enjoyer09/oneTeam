@@ -1152,7 +1152,39 @@ export class PortalService {
           HttpStatus.BAD_REQUEST,
         );
       }
-      return { ...record, id: record.id ?? `q${index + 1}`, label: String(label).trim() };
+      const normalized: Record<string, unknown> = {
+        ...record,
+        id: record.id ?? `q${index + 1}`,
+        label: String(label).trim(),
+      };
+      // Normalize the answer type so a bad value cannot reach the bot's answer-mode
+      // switch and render a question with no usable buttons. An absent type stays
+      // absent — the bot treats that as free text, which is the existing behaviour.
+      if (record.type !== undefined) {
+        const type = String(record.type);
+        if (type !== 'boolean' && type !== 'single_choice' && type !== 'number' && type !== 'text') {
+          throw new HttpException(
+            `Çeklistin ${index + 1}-ci bəndində naməlum cavab tipi: ${type}`,
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+        normalized.type = type;
+        if (type === 'single_choice') {
+          const options = Array.isArray(record.options)
+            ? record.options.map((o) => String(o).trim()).filter(Boolean)
+            : [];
+          if (options.length < 2) {
+            throw new HttpException(
+              `Çeklistin ${index + 1}-ci bəndi (Seçim) ən azı iki cavab variantı tələb edir`,
+              HttpStatus.BAD_REQUEST,
+            );
+          }
+          normalized.options = options;
+        } else {
+          delete normalized.options;
+        }
+      }
+      return normalized;
     });
   }
 

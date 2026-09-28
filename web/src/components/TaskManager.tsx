@@ -27,13 +27,62 @@ import { useModalA11y } from '../lib/useModalA11y';
  * `deadline` is a `datetime-local` string, so it carries a time. The create
  * forms are still date-only; upgrading them is a separate, smaller change.
  */
+/**
+ * How the bot renders the answer UI for a checklist question.
+ *
+ * `boolean` → ✅ Bəli / ❌ Xeyr buttons; `single_choice` → one button per option;
+ * `number` → typed number; `text` → free text. This is the field the bot's
+ * `answerMode()` switches on, so a question authored here without a type would
+ * fall back to free text and show no preset buttons — which is exactly the gap
+ * this selector closes. New questions default to `boolean` (Hə/Yox).
+ */
+export type ChecklistQuestionType = 'boolean' | 'single_choice' | 'number' | 'text';
+
+export interface ChecklistItem {
+  id: string;
+  label: string;
+  type: ChecklistQuestionType;
+  /** Only meaningful for `single_choice`; the one-tap answer buttons. */
+  options?: string[];
+}
+
 export interface TaskEditValues {
   title: string;
   description: string;
   priority: TaskPriority;
   deadline: string;
   requires_before_after_photo: boolean;
-  checklist_schema: Array<{ id: string; label: string }>;
+  checklist_schema: ChecklistItem[];
+}
+
+const CHECKLIST_TYPES: ReadonlyArray<{ value: ChecklistQuestionType; label: string }> = [
+  { value: 'boolean', label: 'Hə/Yox' },
+  { value: 'single_choice', label: 'Seçim' },
+  { value: 'number', label: 'Rəqəm' },
+  { value: 'text', label: 'Mətn' },
+];
+
+const isChecklistType = (v: unknown): v is ChecklistQuestionType =>
+  v === 'boolean' || v === 'single_choice' || v === 'number' || v === 'text';
+
+/**
+ * Normalize a stored checklist row into the editor's shape.
+ *
+ * A row saved before this editor had a type selector has no `type`, so it
+ * defaults to `boolean` — re-saving such a task is what turns its plain
+ * questions into Hə/Yox presets. A row seeded with a real type keeps it.
+ */
+function normalizeChecklistItem(item: any, index: number): ChecklistItem {
+  const type = isChecklistType(item?.type) ? item.type : 'boolean';
+  const options = Array.isArray(item?.options)
+    ? item.options.map((o: unknown) => String(o))
+    : undefined;
+  return {
+    id: String(item?.id ?? `q${index + 1}`),
+    label: String(item?.label ?? item?.text ?? ''),
+    type,
+    ...(type === 'single_choice' ? { options: options ?? [] } : {}),
+  };
 }
 
 /**
@@ -184,10 +233,9 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
       priority: (task.priority ?? 'medium') as TaskPriority,
       deadline: toLocalInput(task.deadline),
       requires_before_after_photo: task.requires_before_after_photo ?? false,
-      checklist_schema: (task.checklist_schema ?? []).map((item: any, index: number) => ({
-        id: String(item?.id ?? `q${index + 1}`),
-        label: String(item?.label ?? item?.text ?? ''),
-      })),
+      checklist_schema: (task.checklist_schema ?? []).map((item: any, index: number) =>
+        normalizeChecklistItem(item, index),
+      ),
     });
     setEditError(null);
     setEditingTask(task);
@@ -212,15 +260,37 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
       setEditError(`Çeklistin ${blankItem + 1}-ci bəndində sual mətni boşdur`);
       return;
     }
+    // A "Seçim" question with fewer than two real options gives the merchandiser
+    // nothing to tap, so it is refused rather than shipped as a dead button row.
+    const badChoice = editValues.checklist_schema.findIndex(
+      (item) =>
+        item.type === 'single_choice' &&
+        (item.options ?? []).filter((o) => o.trim()).length < 2,
+    );
+    if (badChoice !== -1) {
+      setEditError(`Çeklistin ${badChoice + 1}-ci bəndi (Seçim) ən azı iki cavab variantı tələb edir`);
+      return;
+    }
 
     setIsSavingEdit(true);
     setEditError(null);
     try {
+      // Trim labels and drop empty options; only single_choice carries options,
+      // so the other types are sent clean (no stray `options` the bot ignores).
+      const checklist_schema = editValues.checklist_schema.map((item) => ({
+        id: item.id,
+        label: item.label.trim(),
+        type: item.type,
+        ...(item.type === 'single_choice'
+          ? { options: (item.options ?? []).map((o) => o.trim()).filter(Boolean) }
+          : {}),
+      }));
       // Resolves with how many rows the content change reached; the caller
       // reports that, so it is not swallowed here.
       await onUpdateTask(editingTask.id, {
         ...editValues,
         title: editValues.title.trim(),
+        checklist_schema,
       });
       closeEdit();
     } catch (error) {
@@ -1196,7 +1266,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                           ...editValues,
                           checklist_schema: [
                             ...editValues.checklist_schema,
-                            { id: `q${Date.now()}`, label: '' },
+                            { id: `q${Date.now()}`, label: '', type: 'boolean' },
                           ],
                         })
                       }
@@ -1212,36 +1282,81 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   ) : (
                     <div className="space-y-2">
                       {editValues.checklist_schema.map((item, index) => (
-                        <div key={item.id} className="flex items-center gap-2">
-                          <span className="w-5 flex-shrink-0 text-[11px] font-bold text-muted">
-                            {index + 1}
-                          </span>
-                          <input
-                            type="text"
-                            value={item.label}
-                            placeholder="Sual mətni (məsələn: Rəfdə boşluq var?)"
-                            onChange={(e) => {
-                              const next = [...editValues.checklist_schema];
-                              next[index] = { ...next[index], label: e.target.value };
-                              setEditValues({ ...editValues, checklist_schema: next });
-                            }}
-                            className="flex-1 px-3 py-1.5 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)]"
-                          />
-                          <button
-                            type="button"
-                            aria-label={`${index + 1}-ci sualı sil`}
-                            onClick={() =>
-                              setEditValues({
-                                ...editValues,
-                                checklist_schema: editValues.checklist_schema.filter(
-                                  (_, i) => i !== index,
-                                ),
-                              })
-                            }
-                            className="p-1.5 rounded-lg text-muted hover:text-[#b23b3b] hover:bg-[rgba(200,60,60,.08)] cursor-pointer"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
+                        <div
+                          key={item.id}
+                          className="rounded-lg border border-hair bg-[var(--g-card)] p-2 space-y-1.5"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 flex-shrink-0 text-[11px] font-bold text-muted">
+                              {index + 1}
+                            </span>
+                            <input
+                              type="text"
+                              value={item.label}
+                              placeholder="Sual mətni (məsələn: Raf tam doludurmu?)"
+                              onChange={(e) => {
+                                const next = [...editValues.checklist_schema];
+                                next[index] = { ...next[index], label: e.target.value };
+                                setEditValues({ ...editValues, checklist_schema: next });
+                              }}
+                              className="flex-1 px-3 py-1.5 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)]"
+                            />
+                            <select
+                              value={item.type}
+                              aria-label={`${index + 1}-ci sualın cavab tipi`}
+                              onChange={(e) => {
+                                const type = e.target.value as ChecklistQuestionType;
+                                const next = [...editValues.checklist_schema];
+                                next[index] = {
+                                  ...next[index],
+                                  type,
+                                  ...(type === 'single_choice'
+                                    ? { options: next[index].options ?? [] }
+                                    : { options: undefined }),
+                                };
+                                setEditValues({ ...editValues, checklist_schema: next });
+                              }}
+                              className="flex-shrink-0 px-2 py-1.5 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] cursor-pointer"
+                            >
+                              {CHECKLIST_TYPES.map((t) => (
+                                <option key={t.value} value={t.value}>
+                                  {t.label}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              aria-label={`${index + 1}-ci sualı sil`}
+                              onClick={() =>
+                                setEditValues({
+                                  ...editValues,
+                                  checklist_schema: editValues.checklist_schema.filter(
+                                    (_, i) => i !== index,
+                                  ),
+                                })
+                              }
+                              className="p-1.5 rounded-lg text-muted hover:text-[#b23b3b] hover:bg-[rgba(200,60,60,.08)] cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          {item.type === 'single_choice' && (
+                            <input
+                              type="text"
+                              value={(item.options ?? []).join(', ')}
+                              placeholder="Seçimlər (vergüllə ayır): Var, Yoxdur, Qismən"
+                              onChange={(e) => {
+                                const next = [...editValues.checklist_schema];
+                                next[index] = {
+                                  ...next[index],
+                                  options: e.target.value.split(',').map((o) => o.trim()),
+                                };
+                                setEditValues({ ...editValues, checklist_schema: next });
+                              }}
+                              className="w-full ml-7 px-3 py-1.5 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)]"
+                              style={{ width: 'calc(100% - 1.75rem)' }}
+                            />
+                          )}
                         </div>
                       ))}
                     </div>

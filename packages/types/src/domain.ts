@@ -71,7 +71,7 @@ export interface PlanogramRule {
   shelfRow?: number;
 }
 
-export type ChecklistQuestionType = 'boolean' | 'number' | 'single_choice';
+export type ChecklistQuestionType = 'boolean' | 'number' | 'single_choice' | 'text';
 
 export interface ChecklistQuestion {
   id: string;
