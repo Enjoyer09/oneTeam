@@ -65,6 +65,7 @@ class HttpVisionLLMClient implements VisionLLMClient {
     private readonly apiKey: string,
     model: string,
     label?: string,
+    private readonly timeoutMs = 20000,
   ) {
     this.model = model;
     this.label = label ?? `vision-llm:${model}`;
@@ -74,27 +75,44 @@ class HttpVisionLLMClient implements VisionLLMClient {
     const dataUrl = await this.toDataUrl(input);
     const prompt = this.buildPrompt(input);
 
-    const response = await fetch(this.endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: this.model,
-        temperature: 0,
-        response_format: { type: 'json_object' },
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: dataUrl } },
-            ],
-          },
-        ],
-      }),
-    });
+    // A vision model that hangs must not hang the caller (the bot's photo
+    // handler awaits this). Bound the call and turn a timeout into a normal
+    // throw, so VisionLLMProvider degrades it to needsHumanReview like any other
+    // transport failure rather than blocking the submission forever.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    let response: Response;
+    try {
+      response = await fetch(this.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.model,
+          temperature: 0,
+          response_format: { type: 'json_object' },
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: prompt },
+                { type: 'image_url', image_url: { url: dataUrl } },
+              ],
+            },
+          ],
+        }),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if ((err as Error)?.name === 'AbortError') {
+        throw new Error(`Vision-LLM HTTP 000: client timeout ${this.timeoutMs}ms`);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!response.ok) {
       // The body may echo request detail; keep it short and never include the key.
@@ -188,7 +206,12 @@ function buildLLMClientFromEnv(env: NodeJS.ProcessEnv): VisionLLMClient | null {
   const model = env.ONETEAM_VISION_LLM_MODEL;
   const key = env.ONETEAM_VISION_LLM_KEY;
   if (!url || !model || !key) return null;
-  return new HttpVisionLLMClient(url, key, model, env.ONETEAM_VISION_LLM_LABEL);
+  // Optional per-call ceiling (ms). Defaults to 20s: long enough for a slow
+  // reasoning model, short enough that a hung call escalates to a human instead
+  // of stalling the bot's photo handler. A non-positive/NaN value keeps 20s.
+  const t = Number(env.ONETEAM_VISION_LLM_TIMEOUT_MS);
+  const timeoutMs = Number.isFinite(t) && t > 0 ? t : 20000;
+  return new HttpVisionLLMClient(url, key, model, env.ONETEAM_VISION_LLM_LABEL, timeoutMs);
 }
 
 function hybridThresholdsFromEnv(env: NodeJS.ProcessEnv): HybridThresholds | undefined {
