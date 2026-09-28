@@ -346,6 +346,33 @@ class PortalApiClient {
     );
   }
 
+  /**
+   * Claims a single store task for the chat before it acts on it.
+   *
+   * `bindTelegramUser` only claims a store's *unassigned* open work; this takes
+   * on the specific task being opened even when the panel pre-assigned it to
+   * someone else, because whoever holds the store code is the person in the
+   * store. The API refuses to take a task already in progress elsewhere and
+   * audits every takeover — see `FieldService.claimStoreTask`. Non-fatal: a
+   * failure is logged and the open flow continues.
+   */
+  async claimTask(
+    taskId: string,
+    chatId: number | string,
+    storeId: string,
+  ): Promise<{
+    taskId: string;
+    assignedUserId: string | null;
+    claimed: boolean;
+    previousAssignee?: string | null;
+    reason?: string;
+  }> {
+    return request(`/api/portal/field/tasks/${encodeURIComponent(taskId)}/claim`, {
+      method: 'POST',
+      body: JSON.stringify({ chatId, storeId }),
+    });
+  }
+
   // -------------------------------------------------------------------------
   // The guided flow's position
   //

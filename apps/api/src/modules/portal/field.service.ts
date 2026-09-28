@@ -644,6 +644,109 @@ export class FieldService {
     return { success: true, data: { taskId, currentState: state, advanced: true } };
   }
 
+  /**
+   * Claims a single store task for the actor standing in the store.
+   *
+   * WHY THIS EXISTS ALONGSIDE `claimStoreTasks`
+   * -------------------------------------------
+   * The bind-time claim (`claimStoreTasks`) takes a store's *unassigned* open
+   * work and never disturbs a task that already belongs to someone — that guard
+   * is deliberate, so a supervisor can hand a specific task to a specific person.
+   *
+   * But it left a hole. The panel can dispatch a task with an assignee already
+   * chosen (or a task created before dispatch stopped defaulting one), and that
+   * assignee need not be the person actually standing in the store. For that
+   * chat, bind claims nothing, `canUserAccessTask` stays false, and BOTH the
+   * acknowledge and the eventual photo submission `403` — permanently. The task
+   * card opens and then quietly files nothing. That was the live IPHONE_TEST
+   * symptom: repeated 403s on a `task-panel-…` id with no `[FIELD CLAIM]` line.
+   *
+   * The store code is the authority here. Binding proved store presence (a
+   * validated /start produced this `storeId`), and this platform's whole field
+   * model is "whoever holds the code is in the store, and the store's open work
+   * is theirs". So opening a task is a deliberate act of taking it on, and this
+   * makes that act stick even over a stale panel assignment.
+   *
+   * WHAT IT WILL NOT DO
+   * -------------------
+   * It will not take a task someone has actually started: IN_PROGRESS (a
+   * checklist mid-answer) or SUBMITTED and beyond (evidence already filed) stay
+   * with their owner, because taking one would discard real field work — the one
+   * failure this platform must never cause. Only the not-yet-started open states
+   * (PUBLISHED / DELIVERED / ACKNOWLEDGED) are takeable, and the task must belong
+   * to the very store the caller named. Every takeover is audited with the
+   * assignee it replaced.
+   */
+  claimStoreTask(key: FieldActorKey, taskId: string, storeId: string) {
+    const actor = this.requireActor(key);
+
+    const task = db.getTask(taskId);
+    if (!task) {
+      throw new HttpException(`Tapşırıq tapılmadı: ${taskId}`, HttpStatus.NOT_FOUND);
+    }
+
+    // The claim is only ever for the store the caller named, and the task must
+    // belong to it — the same trust the bind path already places in a storeId a
+    // validated /start produced.
+    if (task.storeId !== storeId) {
+      throw new HttpException(
+        { error: 'TASK_NOT_AT_STORE', message: 'Bu tapşırıq sizin mağazanıza aid deyil.' },
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    // Already the caller's — nothing to do, and say so rather than re-writing it.
+    if (task.assignedUserId === actor.userId) {
+      return {
+        success: true,
+        data: { taskId, assignedUserId: actor.userId, claimed: false, reason: 'already-owner' },
+      };
+    }
+
+    // Someone else has started this one: leave it theirs and let the normal
+    // access check surface the block. Work in progress is not up for grabs.
+    const takeable = new Set(['PUBLISHED', 'DELIVERED', 'ACKNOWLEDGED']);
+    if (task.assignedUserId && !takeable.has(task.status)) {
+      return {
+        success: true,
+        data: {
+          taskId,
+          assignedUserId: task.assignedUserId,
+          claimed: false,
+          reason: 'in-progress-elsewhere',
+        },
+      };
+    }
+
+    const previousAssignee = task.assignedUserId ?? null;
+    db.assignStoreTask(taskId, actor.userId);
+
+    db.logAuditEvent({
+      entityType: 'store_task',
+      entityId: taskId,
+      action: 'TASK_SELF_ASSIGNED',
+      actorId: actor.userId,
+      payload: {
+        storeId,
+        via: 'field-open',
+        previousAssignee,
+        reason: previousAssignee
+          ? 'Mağaza kodu ilə: işçi bu mağazadakı tapşırığı öz üzərinə götürdü (əvvəlki təyinat dəyişdirildi).'
+          : 'Mağaza kodu ilə: işçi bu mağazanın açıq tapşırığını öz üzərinə götürdü.',
+      },
+    });
+
+    this.logger.log(
+      `📌 [FIELD CLAIM-ONE] ${actor.userId} claimed task ${taskId} at store ${storeId}` +
+        (previousAssignee ? ` (was ${previousAssignee})` : ''),
+    );
+
+    return {
+      success: true,
+      data: { taskId, assignedUserId: actor.userId, claimed: true, previousAssignee },
+    };
+  }
+
   getStoreByCode(code: string): PanelStore | null {
     const store = db.getStoreByCode(code);
     return store ? this.portal.toPanelStore(store) : null;

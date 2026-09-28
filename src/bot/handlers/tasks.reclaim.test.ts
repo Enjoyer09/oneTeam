@@ -16,13 +16,13 @@
  * files nothing: the live IPHONE_TEST symptom, seen in the bot logs as repeated
  * `403` on `task-panel-1789826089870-msxtx6`.
  *
- * The fix re-binds (re-claims) for the session's store inside `handleOpenTask`,
- * before acknowledging, so a freshly-published task is claimed the moment the
- * merchandiser opens it. These checks drive `handleOpenTask` with the two API
- * calls stubbed and assert:
- *   - the re-claim happens, for the session's store, BEFORE the acknowledge;
+ * The fix claims the specific task being opened for the session's store inside
+ * `handleOpenTask`, before acknowledging — even when the panel pre-assigned it
+ * to someone else — so a merchandiser holding the store code can take it on.
+ * These checks drive `handleOpenTask` with the two API calls stubbed and assert:
+ *   - the claim happens, for the session's store, BEFORE the acknowledge;
  *   - it is skipped when no store is bound (never claim without store presence);
- *   - a failing re-claim is non-fatal — the flow still proceeds.
+ *   - a failing claim is non-fatal — the flow still proceeds.
  *
  *   npm run test:reclaim-on-open
  */
@@ -80,19 +80,19 @@ async function main(): Promise<void> {
 
   const originalGet = portalApi.getTaskById;
   const originalAck = portalApi.acknowledgeTask;
-  const originalBind = portalApi.bindTelegramUser;
+  const originalClaim = portalApi.claimTask;
 
   (portalApi as any).getTaskById = async () => unclaimedPanelTask();
 
   try {
-    // 1. Store bound: the re-claim runs, for that store, before the acknowledge.
+    // 1. Store bound: the claim runs, for that store, before the acknowledge.
     {
       const calls: string[] = [];
-      let boundStoreId = '';
-      (portalApi as any).bindTelegramUser = async (params: any) => {
-        calls.push('bind');
-        boundStoreId = params.storeId;
-        return { id: 'usr-tg-42', role: 'MERCHANDISER', claimedTaskIds: [params.storeId] };
+      let claimedStoreId = '';
+      (portalApi as any).claimTask = async (_taskId: string, _chatId: unknown, storeId: string) => {
+        calls.push('claim');
+        claimedStoreId = storeId;
+        return { taskId: _taskId, assignedUserId: 'usr-tg-42', claimed: true, previousAssignee: 'usr-seed-1' };
       };
       (portalApi as any).acknowledgeTask = async () => {
         calls.push('ack');
@@ -109,13 +109,13 @@ async function main(): Promise<void> {
       }
 
       check('handleOpenTask does not throw', threw === false);
-      check('the store is re-claimed on open', calls.includes('bind'), JSON.stringify(calls));
-      check('the claim names the session store', boundStoreId === 'str-iphone-test', boundStoreId);
+      check('the task is claimed on open', calls.includes('claim'), JSON.stringify(calls));
+      check('the claim names the session store', claimedStoreId === 'str-iphone-test', claimedStoreId);
       check(
         'the claim happens BEFORE the acknowledge',
-        calls.indexOf('bind') !== -1 &&
+        calls.indexOf('claim') !== -1 &&
           calls.indexOf('ack') !== -1 &&
-          calls.indexOf('bind') < calls.indexOf('ack'),
+          calls.indexOf('claim') < calls.indexOf('ack'),
         JSON.stringify(calls),
       );
     }
@@ -123,9 +123,9 @@ async function main(): Promise<void> {
     // 2. No store bound: never claim on behalf of a chat with no store presence.
     {
       const calls: string[] = [];
-      (portalApi as any).bindTelegramUser = async () => {
-        calls.push('bind');
-        return { id: 'usr-tg-42', role: 'MERCHANDISER', claimedTaskIds: [] };
+      (portalApi as any).claimTask = async () => {
+        calls.push('claim');
+        return { taskId: 'x', assignedUserId: 'usr-tg-42', claimed: true };
       };
       (portalApi as any).acknowledgeTask = async () => {
         calls.push('ack');
@@ -134,14 +134,14 @@ async function main(): Promise<void> {
 
       const { ctx } = makeCtx(); // no storeId
       await handleOpenTask(ctx, 'task-panel-1789826089870-msxtx6', async () => {});
-      check('no re-claim without a bound store', !calls.includes('bind'), JSON.stringify(calls));
+      check('no claim without a bound store', !calls.includes('claim'), JSON.stringify(calls));
     }
 
-    // 3. A failing re-claim is non-fatal — the flow still proceeds to acknowledge.
+    // 3. A failing claim is non-fatal — the flow still proceeds to acknowledge.
     {
       const calls: string[] = [];
-      (portalApi as any).bindTelegramUser = async () => {
-        throw new Error('bind unreachable');
+      (portalApi as any).claimTask = async () => {
+        throw new Error('claim unreachable');
       };
       (portalApi as any).acknowledgeTask = async () => {
         calls.push('ack');
@@ -155,13 +155,13 @@ async function main(): Promise<void> {
       } catch {
         threw = true;
       }
-      check('a failing re-claim does not throw', threw === false);
+      check('a failing claim does not throw', threw === false);
       check('the flow still reaches the acknowledge', calls.includes('ack'), JSON.stringify(calls));
     }
   } finally {
     (portalApi as any).getTaskById = originalGet;
     (portalApi as any).acknowledgeTask = originalAck;
-    (portalApi as any).bindTelegramUser = originalBind;
+    (portalApi as any).claimTask = originalClaim;
   }
 
   console.log(`\n${passed + failed} checks: ${passed} passed, ${failed} failed`);

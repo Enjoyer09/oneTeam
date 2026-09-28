@@ -161,40 +161,38 @@ export async function handleOpenTask(
 
   await answer();
 
-  // Claim the store's open work for this chat before touching the task.
+  // Claim the task being opened for this chat's store before touching it.
   //
   // WHY THIS IS HERE AND NOT ONLY AT /start
   // ---------------------------------------
   // "The store code is the claim": binding to a store assigns that store's
-  // unassigned open tasks to whoever sent the code (see `FieldService.bind` →
-  // `claimStoreTasks`). But that claim runs once, at bind time. A task a
-  // supervisor publishes in the panel AFTER the merchandiser bound is never
-  // claimed, so its `assignedUserId` stays empty — and `canUserAccessTask` then
-  // refuses both the acknowledge below and the eventual photo submission with
-  // `403 Bu tapşırıq üçün icazə yoxdur`. The task-open button opens the card and
-  // then quietly fails to file anything: the exact IPHONE_TEST symptom seen in
-  // the production logs as repeated 403s on `task-panel-…`.
+  // *unassigned* open tasks to whoever sent the code (see `FieldService.bind` →
+  // `claimStoreTasks`). But that claim runs once, at bind time, and it never
+  // touches a task that already has an assignee. A task the panel dispatched
+  // with an assignee chosen — or one created before dispatch stopped defaulting
+  // one — is therefore owned by a user who need not be the person standing in
+  // the store. For that chat `canUserAccessTask` stays false, and both the
+  // acknowledge below and the eventual photo submission `403` forever: the card
+  // opens and quietly files nothing. That was the live IPHONE_TEST symptom —
+  // repeated 403s on `task-panel-…` with no claim ever recorded.
   //
-  // Re-binding for the session's store closes that temporal gap. It is
-  // idempotent, it only ever claims unassigned open work at the store this chat
-  // is already bound to, and a failure is non-fatal — the acknowledge below will
-  // surface any real permission problem, and the merchandiser is not blocked
-  // from trying. It is skipped when no store is bound, so it can never claim on
-  // behalf of a chat that has not proven store presence.
+  // `claimTask` closes that gap. The store code is the authority: whoever holds
+  // it is in the store, so opening the task is taking it on. The API scopes the
+  // claim to this store, refuses to take a task already in progress elsewhere,
+  // and audits every takeover. It is skipped when no store is bound, so it can
+  // never claim on behalf of a chat that has not proven store presence, and a
+  // failure is non-fatal — the acknowledge below still surfaces any real block.
   if (ctx.session.storeId) {
     try {
-      const from = ctx.from;
-      const fullName =
-        [from?.first_name, from?.last_name].filter(Boolean).join(' ') || 'Merchandiser';
-      await portalApi.bindTelegramUser({
-        telegramChatId: ctx.chat!.id,
-        fullName,
-        username: from?.username,
-        storeId: ctx.session.storeId,
-      });
+      const result = await portalApi.claimTask(task.id, ctx.chat!.id, ctx.session.storeId);
+      console.log(
+        `[oneTeam Bot] Claim on open for ${task.id}: claimed=${result.claimed}` +
+          (result.reason ? ` (${result.reason})` : '') +
+          (result.previousAssignee ? ` was=${result.previousAssignee}` : ''),
+      );
     } catch (error) {
       const detail = error instanceof PortalApiError ? error.message : String(error);
-      console.error(`[oneTeam Bot] Re-claim on open failed for ${task.id}:`, detail);
+      console.error(`[oneTeam Bot] Claim on open failed for ${task.id}:`, detail);
     }
   }
 

@@ -261,6 +261,26 @@ export class FieldController {
     return this.fieldService.acknowledgeTask(key, id);
   }
 
+  /**
+   * Claims a single store task for the caller standing in the store.
+   *
+   * The bot calls this when a merchandiser opens a task, so a task the panel
+   * pre-assigned to someone else can still be taken on by whoever holds the
+   * store code — see `FieldService.claimStoreTask` for why the store code is the
+   * authority and what it refuses to take.
+   */
+  @Post('tasks/:id/claim')
+  @HttpCode(HttpStatus.OK)
+  claimTask(
+    @Request() request: AuthedRequest,
+    @Param('id') id: string,
+    @Body() body: { chatId?: string | number; deviceId?: string; storeId?: string },
+  ) {
+    if (!body.storeId) throw new BadRequestException('storeId tələb olunur');
+    const key = enforceActorScope(getPrincipal(request), requireActorKey(actorKeyFrom(body)));
+    return this.fieldService.claimStoreTask(key, id, body.storeId);
+  }
+
   @Get('submissions')
   getSubmissions(
     @Request() request: AuthedRequest,
