@@ -29,11 +29,11 @@ qarşı mexanizmlər (geofence, canlı kamera məcburiyyəti, metadata) məhsulu
 
 ## 2. ÜÇ KANAL VƏ ROLLARI
 
-| Kanal | Kim istifadə edir | Nə edir |
-|---|---|---|
-| **Veb panel** (`web/`) | Supervayzer, Admin | Mağaza/tapşırıq yaratmaq, auditlərə baxıb təsdiq/rədd etmək, istifadəçi və açar idarəsi |
-| **iOS mobil** (`mobile/`) | Sahə merchandiser | Mağaza kodla giriş, tapşırıq siyahısı, çeklist, **canlı kamera ilə rəf auditi**, barkod skanı |
-| **Telegram bot** (`src/bot/`) | Sahə işçisi (əsas kanal) | Eyni işi chat içində: tapşırığı aç, şəkil göndər, çeklisti cavabla |
+| Kanal                         | Kim istifadə edir        | Nə edir                                                                                       |
+| ----------------------------- | ------------------------ | --------------------------------------------------------------------------------------------- |
+| **Veb panel** (`web/`)        | Supervayzer, Admin       | Mağaza/tapşırıq yaratmaq, auditlərə baxıb təsdiq/rədd etmək, istifadəçi və açar idarəsi       |
+| **iOS mobil** (`mobile/`)     | Sahə merchandiser        | Mağaza kodla giriş, tapşırıq siyahısı, çeklist, **canlı kamera ilə rəf auditi**, barkod skanı |
+| **Telegram bot** (`src/bot/`) | Sahə işçisi (əsas kanal) | Eyni işi chat içində: tapşırığı aç, şəkil göndər, çeklisti cavabla                            |
 
 **Ən vacib qayda:** üç kanalın heç biri birbaşa verilənlər bazası ilə danışmır.
 **Tək həqiqət mənbəyi Core API-dir** (`apps/api`, NestJS). Hər üç kanal yalnız API-yə
@@ -47,13 +47,16 @@ Sxema: `packages/database/prisma/schema.prisma`. Sütun adları `snake_case`-dir
 (Prisma `@map` ilə). Cədvəllər:
 
 ### `users`
+
 `id` (uuid), `email` (unique), `full_name`, `role` (enum), `telegram_chat_id` (unique,
 nullable), `phone`, `created_at`, `updated_at`
 
 ### `regions`
+
 `id`, `name`, `code` (unique), zaman damğaları
 
 ### `stores`
+
 `id`, `store_code` (unique), `name`, `region_id` (FK), `chain_name` (default `Bravo`),
 `store_format` (default `supermarket`), `address`, `city` (default `Baku`),
 `latitude` (Float), `longitude` (Float), `is_active`
@@ -61,14 +64,17 @@ nullable), `phone`, `created_at`, `updated_at`
 > **Koordinatlar məcburidir.** Geofence iki real mövqe olmadan işləyə bilməz.
 
 ### `campaigns`
+
 `id`, `name`, `description`, `start_date`, `end_date`, `is_active`
 
 ### `task_templates` (şablon — mağazaya görə DEYİL)
+
 `id`, `campaign_id` (nullable FK), `title`, `description`, `reference_image_url`,
 `priority` (enum), `planogram_rules` (Json), `requires_before_after_photo` (bool),
 `checklist_schema` (Json)
 
 ### `store_tasks` (şablonun bir mağazaya təyinatı)
+
 `id`, `template_id` (FK), `store_id` (FK), `assigned_user_id` (nullable FK),
 `status` (enum `TaskState`, default `DRAFT`), `deadline`,
 `published_at`, `delivered_at`, `acknowledged_at`, `submitted_at`, `reviewed_at`
@@ -79,15 +85,18 @@ nullable), `phone`, `created_at`, `updated_at`
 > dəyişmək yalnız ona təsir edir. **`task_type` adlı sütun yoxdur.**
 
 ### `task_evidences` (göndərilən sübut)
+
 `id`, `store_task_id` (FK, Cascade), `submitted_by_id` (FK), `photo_url`, `photo_type`,
 `checklist_answers` (Json), `latitude`, `longitude`, `gps_distance_meters`,
 `ai_score`, `ai_detections` (Json), `ai_summary`, `reviewer_feedback`, `submitted_at`
 
 ### `audit_logs`
+
 `id`, `entity_type`, `entity_id`, `action`, `from_state`, `to_state`, `actor_id`,
 `payload` (Json), `created_at`
 
 ### Enum-lar
+
 - `UserRole`: `ADMIN`, `SUPERVISOR`, `MERCHANDISER`, `STORE_STAFF`
 - `TaskPriority`: `LOW`, `MEDIUM`, `HIGH`, `URGENT`
 - `TaskState`: `DRAFT`, `PUBLISHED`, `DELIVERED`, `ACKNOWLEDGED`, `IN_PROGRESS`,
@@ -120,11 +129,11 @@ vacibdir: sahə işçisi düzəliş edib yenidən çəkir.
 
 Hər sorğu `Authorization: Bearer <token>` daşıyır. Üç növ var:
 
-| Token | Format | Kim daşıyır | Səlahiyyət |
-|---|---|---|---|
+| Token       | Format                   | Kim daşıyır            | Səlahiyyət                                                                |
+| ----------- | ------------------------ | ---------------------- | ------------------------------------------------------------------------- |
 | **service** | `oneteam-user:<user_id>` | Server (Telegram botu) | **Başqa istifadəçi adından danışa bilər** — hansı istifadəçini göstərirsə |
-| **device** | `otd_<43 simvol>` | Bir mobil qurğu | Yalnız öz istifadəçisi |
-| **panel** | `otp_<43 simvol>` | Bir insan, brauzerdə | Yalnız öz istifadəçisi |
+| **device**  | `otd_<43 simvol>`        | Bir mobil qurğu        | Yalnız öz istifadəçisi                                                    |
+| **panel**   | `otp_<43 simvol>`        | Bir insan, brauzerdə   | Yalnız öz istifadəçisi                                                    |
 
 API hər sorğuda `AuthenticatedPrincipal` yaradır:
 `{ userId, role, telegramChatId?, via: 'service'|'device'|'panel', deviceId? }`
@@ -133,23 +142,27 @@ API hər sorğuda `AuthenticatedPrincipal` yaradır:
 danışa bilər. `device` və `panel` bunu edə bilməz — cəhd etsə 403 alır.
 
 ### Üç qapı (hamısı serverdə)
+
 1. **`mayUseRoute`** — hansı kredensial hansı yola daxil ola bilər. Məsələn, panel
    açarı sahə (field) yollarına girə bilməz.
 2. **`canUserAccessTask`** — istifadəçi bu tapşırığa daxil ola bilərmi.
 3. **`require*Editor`** — yazma hüququ (mağaza/tapşırıq redaktəsi admin+supervayzer).
 
 ### Panel girişi
+
 Panel ilk dəfə **açıqdır** (heç bir açar yoxdursa giriş tələb olunmur) və bu ekranda
 açıq şəkildə yazılır. İlk açar `ONETEAM_PANEL_BOOTSTRAP_KEY` ilə yaradılır.
 **Bu açar daimi kredensialdır — `.env` faylına yazılmaz.**
 
 ### Mobil cihaz qeydiyyatı (enroll)
+
 Mobil tətbiq ilk açılışda mağaza kodu + qeydiyyat sirri ilə özünü tanıdır və
 `otd_` token alır. **Qeydiyyat sirri paketə yazıla bilməz** (Metro yalnız
 `EXPO_PUBLIC_*` dəyişənlərini göndərir) — ona görə ekranda sahə var, token isə
 keychain-də saxlanır.
 
 ### Telegram
+
 Bot kanalı **sirrsiz işləyir**: mağaza kodunu bilən hər kəs həmin mağazanın açıq
 tapşırığını götürə bilər. Bu, məlum və qəbul edilmiş bir zəiflikdir.
 
@@ -161,10 +174,12 @@ Baza prefiksi: `/api`. Modullar: `portal`, `tasks`, `evidences`, `storage`,
 `notifications`, `health`.
 
 ### Sağlamlıq
+
 - `GET /api/health` → `{ status, persistence, ... }`. `persistence` sahəsi deyir ki,
   API həqiqətən Postgres-ə yazır, yoxsa yaddaşa düşüb.
 
 ### Panel (supervayzer/admin) — `/api/portal`
+
 - `GET /api/portal/bootstrap`
 - `GET|POST /api/portal/stores`, `PATCH|DELETE /api/portal/stores/:id`
 - `GET /api/portal/tasks`, `POST /api/portal/tasks`, `PATCH|DELETE /api/portal/tasks/:id`
@@ -174,6 +189,7 @@ Baza prefiksi: `/api`. Modullar: `portal`, `tasks`, `evidences`, `storage`,
 - `GET /api/portal/metrics`
 
 ### Panel autentifikasiyası və idarəsi — `/api/panel`
+
 - `GET /api/panel/auth-status`, `GET /api/panel/me`, `POST /api/panel/logout`
 - `GET|POST /api/panel/keys`, `POST /api/panel/keys/:prefix/revoke`
 - `POST /api/panel/users/:userId/revoke-keys`
@@ -181,6 +197,7 @@ Baza prefiksi: `/api`. Modullar: `portal`, `tasks`, `evidences`, `storage`,
 - `GET|POST /api/panel/users`, `PATCH|DELETE /api/panel/users/:userId`
 
 ### Sahə (mobil + bot) — `/api/portal/field`
+
 - `GET /api/portal/field/store` · `GET /api/portal/field/store-lookup`
 - `GET /api/portal/field/whoami` · `GET /api/portal/field/session`
 - `POST /api/portal/field/bind` (Telegram çatını bağla)
@@ -194,13 +211,16 @@ Baza prefiksi: `/api`. Modullar: `portal`, `tasks`, `evidences`, `storage`,
 - `POST /api/portal/field/notifications/:id/delivered|failed`
 
 ### Tapşırıqlar — `/api/tasks`
+
 - `GET /api/tasks`, `GET /api/tasks/:id`, `POST /api/tasks/:id/transition`
 - `POST /api/tasks/bulk-dispatch` (bir şablonu çoxlu mağazaya göndər)
 
 ### Sübutlar — `/api/evidences`
+
 - `GET /api/evidences`, `POST /api/evidences`
 
 ### Veb-kanca
+
 - `POST /api/webhooks/telegram`
 
 **Sübut metadata-sı:** `POST .../submissions` açıq `Record<string, unknown>` qəbul
@@ -234,18 +254,21 @@ tətbiq yeni metadata sahəsi əlavə etmək istəsə, **serveri dəyişmək laz
 ## 8. TEXNİKİ YIĞIN
 
 ### Ortaq
+
 - **TypeScript** hər yerdə. Node.js 22.
 - Monorepo: kökdə `package.json` (npm workspaces: `apps/*`, `packages/*`).
 - `packages/types` — ortaq tiplər və state machine (hər üç kanal istifadə edir).
 - `packages/database` — Prisma klienti + miqrasiyalar + write-through qatı.
 
 ### API (`apps/api`)
+
 - **NestJS 12**, Express, `class-validator`.
 - Postgres (Prisma). `DATABASE_URL` yoxdursa API **səssizcə yaddaşa düşür** —
   buna görə `/api/health`-də `persistence` sahəsi var.
 - Bildirişlər: outbox nümunəsi (notification cədvəli + dispatcher).
 
 ### Veb panel (`web/`)
+
 - **React 19 + Vite**, Tailwind CSS. Şüşə (glass) dizayn dili.
 - Dörd bölmə (tab): **Dashboard** (metriklər), **Audit Review Center** (şəklə baxıb
   təsdiq/rədd), **Task Manager** (tapşırıq yarat/redaktə/sil, kütləvi göndərmə),
@@ -255,6 +278,7 @@ tətbiq yeni metadata sahəsi əlavə etmək istəsə, **serveri dəyişmək laz
 - Rol yoxlaması **yalnız UI-də göstərmək/gizlətmək üçündür**; əsl qapı API-dədir.
 
 ### iOS mobil (`mobile/`)
+
 - **Expo 57**, React Native 0.86, React 19.
 - `expo-camera` (kamera, işıq/torch, zoom, barkod skanı), `expo-location` (GPS),
   `expo-secure-store` (keychain), `@react-native-async-storage/async-storage` (növbə).
@@ -271,6 +295,7 @@ tətbiq yeni metadata sahəsi əlavə etmək istəsə, **serveri dəyişmək laz
   mövqe istifadə olunur və **bu işçiyə açıq deyilir**.
 
 ### Telegram bot (`src/bot/`)
+
 - **grammy** (Telegram Bot API). Webhook və ya polling.
 - Əmrlər: `/start`, `/tasks`, `/mystatus`, `/help`.
 - Callback-lər (düymələr): `menu`, `tasks`, `status`, `help`, `open`, `restart`,
@@ -284,6 +309,7 @@ tətbiq yeni metadata sahəsi əlavə etmək istəsə, **serveri dəyişmək laz
 ## 9. KANAL-SPESİFİK TƏLƏBLƏR
 
 ### Veb panel
+
 - Boş ekran göstərmək ən pis nəticədir. Məlumat yüklənməsə səbəb yazılır.
 - Uğursuzluq "toast" kimi görünür; amma **form səhvləri formanın içində** görünür
   (məsələn "bu mağaza kodu artıq istifadə olunur").
@@ -292,6 +318,7 @@ tətbiq yeni metadata sahəsi əlavə etmək istəsə, **serveri dəyişmək laz
 - Supervayzer şəklə baxanda **orijinal şəkil, GPS məsafəsi və metadata** görünür.
 
 ### iOS mobil
+
 - Giriş: mağaza kodu + qeydiyyat sirri. GPS real alınır; alınmasa giriş düyməsi
   **bağlı qalır**. Heç bir sabit koordinat yoxdur.
 - Tapşırıq siyahısı → tapşırıq detalı (çeklist) → kamera.
@@ -303,6 +330,7 @@ tətbiq yeni metadata sahəsi əlavə etmək istəsə, **serveri dəyişmək laz
 - Bütün ekranlarda `testID` var — XCUI testləri üçün (`mobile/uitests/testids.json`).
 
 ### Telegram bot
+
 - İşçi `/start` yazır → mağaza kodu verir → açıq tapşırıqlarını görür.
 - `open` → tapşırığı açır → çeklist (düymələrlə) → şəkil göndərir.
 - `retake` → şəkli yenidən çəkir. `confirm` → təsdiqləyib göndərir.
@@ -313,7 +341,7 @@ tətbiq yeni metadata sahəsi əlavə etmək istəsə, **serveri dəyişmək laz
 ## 10. SIRA İLƏ YIĞMA PLANI
 
 1. **Baza + tiplər.** Prisma sxemasını yaz, miqrasiya et. `packages/types`-ə state
-   machine və domen tiplərini qoy. *Əvvəl bunu et: hər şey buradan asılıdır.*
+   machine və domen tiplərini qoy. _Əvvəl bunu et: hər şey buradan asılıdır._
 2. **Core API.** Autentifikasiya (3 kredensial + 3 qapı), sonra `/api/health`.
    Sonra portal CRUD, sonra sahə endpoint-ləri, sonra sübutlar.
 3. **Veb panel.** Giriş → Dashboard → Review → Tasks → Stores.

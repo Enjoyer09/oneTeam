@@ -161,14 +161,20 @@ const NOW = 1_700_000_000_000; // fixed clock (ms)
   // No key at all — a signed token cannot be honoured without the secret.
   check(
     'a signed token with no configured secret is refused',
-    verifyServiceCredential(token, { signingSecret: null, allowLegacy: true, nowMs: NOW + 1000 }) ===
-      null,
+    verifyServiceCredential(token, {
+      signingSecret: null,
+      allowLegacy: true,
+      nowMs: NOW + 1000,
+    }) === null,
   );
 
   // Tampered signature.
   const parts = token.split('.');
   const badSig = `${parts[0]}.${parts[1]}.${parts[2].slice(0, -2)}XX`;
-  check('a token with a swapped signature is refused', verifyServiceCredential(badSig, opts) === null);
+  check(
+    'a token with a swapped signature is refused',
+    verifyServiceCredential(badSig, opts) === null,
+  );
 
   // Tampered payload (re-point at admin) without re-signing.
   const forgedPayload = Buffer.from(JSON.stringify({ u: 'usr-admin-001', e: NOW / 1000 + 300 }))
@@ -190,7 +196,10 @@ const NOW = 1_700_000_000_000; // fixed clock (ms)
     'oneteam-user:s1.!!!not-base64!!!.@@@', // undecodable
   ];
   for (const m of malformed) {
-    check(`malformed token is refused, not thrown: ${m}`, verifyServiceCredential(m, opts) === null);
+    check(
+      `malformed token is refused, not thrown: ${m}`,
+      verifyServiceCredential(m, opts) === null,
+    );
   }
 }
 
@@ -201,7 +210,10 @@ const NOW = 1_700_000_000_000; // fixed clock (ms)
   const legacy = 'oneteam-user:usr-merch-003';
 
   const honoured = verifyServiceCredential(legacy, { signingSecret: SECRET, allowLegacy: true });
-  check('a legacy token is honoured while allowLegacy is true', honoured?.userId === 'usr-merch-003');
+  check(
+    'a legacy token is honoured while allowLegacy is true',
+    honoured?.userId === 'usr-merch-003',
+  );
   check('and is reported as NOT signed', honoured?.signed === false, honoured);
 
   const refused = verifyServiceCredential(legacy, { signingSecret: SECRET, allowLegacy: false });

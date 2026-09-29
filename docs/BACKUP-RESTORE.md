@@ -29,10 +29,10 @@ DATABASE_URL=postgres://<user>:<password>@host:5432/oneteam \
 
 Environment variables:
 
-| Variable         | Default     | Meaning                                              |
-| ---------------- | ----------- | ---------------------------------------------------- |
-| `DATABASE_URL`   | (required)  | Connection string to dump. Never printed.            |
-| `PGDUMP_DIR`     | `./backups` | Output directory (created if absent).                |
+| Variable         | Default     | Meaning                                               |
+| ---------------- | ----------- | ----------------------------------------------------- |
+| `DATABASE_URL`   | (required)  | Connection string to dump. Never printed.             |
+| `PGDUMP_DIR`     | `./backups` | Output directory (created if absent).                 |
 | `RETENTION_DAYS` | `14`        | Delete `oneteam-*.sql.gz` older than this; `0` = off. |
 
 The dump is plain SQL with `--clean --if-exists --no-owner --no-privileges`, so

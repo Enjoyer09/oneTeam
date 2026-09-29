@@ -33,11 +33,7 @@
 import { ChecklistQuestion } from '@oneteam/types';
 import { BotContext } from '../types';
 import { encodeChecklistAnswer } from '../callbacks';
-import {
-  askNextChecklistQuestion,
-  handleChecklistAnswer,
-  handleChecklistText,
-} from './taskFlow';
+import { askNextChecklistQuestion, handleChecklistAnswer, handleChecklistText } from './taskFlow';
 
 let passed = 0;
 let failed = 0;
@@ -134,13 +130,21 @@ async function main(): Promise<void> {
     ctx.session.checklistAnswers?.some((a) => a.questionId === 'q1' && a.value === true) === true,
     JSON.stringify(ctx.session.checklistAnswers),
   );
-  check('and the checklist advances', ctx.session.checklistIndex === 1, String(ctx.session.checklistIndex));
+  check(
+    'and the checklist advances',
+    ctx.session.checklistIndex === 1,
+    String(ctx.session.checklistIndex),
+  );
 
   // 3. Answering the remaining questions by tapping reaches the photo step.
   await handleChecklistAnswer(ctx, encodeChecklistAnswer(1, false), toast);
   await handleChecklistAnswer(ctx, encodeChecklistAnswer(2, true), toast);
 
-  check('all three answers are recorded', ctx.session.checklistAnswers?.length === 3, JSON.stringify(ctx.session.checklistAnswers));
+  check(
+    'all three answers are recorded',
+    ctx.session.checklistAnswers?.length === 3,
+    JSON.stringify(ctx.session.checklistAnswers),
+  );
   check(
     'the flow advances to the photo step',
     ctx.session.step === 'awaiting_photo',
@@ -187,7 +191,9 @@ async function main(): Promise<void> {
   await handleChecklistText(textCtx.ctx);
   check(
     'and a typed answer to a text question is stored verbatim',
-    textCtx.ctx.session.checklistAnswers?.some((a) => a.questionId === 't1' && a.value === 'əlavə məlumat') === true,
+    textCtx.ctx.session.checklistAnswers?.some(
+      (a) => a.questionId === 't1' && a.value === 'əlavə məlumat',
+    ) === true,
     JSON.stringify(textCtx.ctx.session.checklistAnswers),
   );
 

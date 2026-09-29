@@ -20,12 +20,22 @@ export const LOW_CONFIDENCE_ACCURACY_METERS = 100;
  * Missing accuracy counts as low-confidence: "the platform did not say how good
  * this is" is not the same as "this is good", and treating it as good is exactly
  * the silent pass this exists to stop.
+ *
+ * `Number.isFinite` rather than `typeof … === 'number'`, and the difference is
+ * not academic. `typeof NaN === 'number'` is true, every comparison against NaN
+ * is false, and `NaN > threshold` is therefore false — so a NaN accuracy used
+ * to sail through this function and reach the server as the MOST trustworthy
+ * fix available, which is the exact inversion this guard was written to prevent.
+ * A non-finite reading says nothing about the fix, so it is treated as missing.
  */
 export function isLowConfidenceFix(
   gps: Pick<GPSCoordinates, 'accuracy'>,
   thresholdMeters: number = LOW_CONFIDENCE_ACCURACY_METERS,
 ): boolean {
-  return typeof gps.accuracy !== 'number' || gps.accuracy > thresholdMeters;
+  if (typeof gps.accuracy !== 'number' || !Number.isFinite(gps.accuracy)) {
+    return true;
+  }
+  return gps.accuracy > thresholdMeters;
 }
 
 /**
@@ -79,11 +89,21 @@ export function verifyStoreGeofence(
   // adds an honest caveat rather than overriding it. A low-confidence fix that
   // lands inside is still "inside", but a supervisor should know the position it
   // was judged against was imprecise.
+  // Same finiteness rule as the verdict above, and computed once: a NaN
+  // accuracy formatted here renders as the literal "±NaNm" to a worker standing
+  // in a basement, and `accuracyMeters` below would put that NaN into the audit
+  // record — a number the server would then store as the precision of a fix it
+  // knows nothing about.
+  const reportedAccuracy =
+    typeof userGPS.accuracy === 'number' && Number.isFinite(userGPS.accuracy)
+      ? userGPS.accuracy
+      : undefined;
+
   if (lowConfidence) {
     const accuracyNote =
-      typeof userGPS.accuracy === 'number'
-        ? `±${Math.round(userGPS.accuracy)}m`
-        : 'dəqiqlik bildirilmədi';
+      reportedAccuracy === undefined
+        ? 'dəqiqlik bildirilmədi'
+        : `±${Math.round(reportedAccuracy)}m`;
     message += ` ⚠️ GPS dəqiqliyi aşağıdır (${accuracyNote}) — mövqe təxminidir.`;
   }
 
@@ -92,7 +112,7 @@ export function verifyStoreGeofence(
     distanceMeters: roundedDist,
     thresholdMeters,
     message,
-    accuracyMeters: typeof userGPS.accuracy === 'number' ? userGPS.accuracy : undefined,
+    accuracyMeters: reportedAccuracy,
     locationLowConfidence: lowConfidence,
   };
 }

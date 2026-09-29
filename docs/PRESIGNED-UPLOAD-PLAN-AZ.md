@@ -27,7 +27,7 @@ qalmır, miqyas ucuzlaşır.
 
 İki şeyi qarışdırmaq olmaz:
 
-- **`signS3Put` (mövcud)** — *header*-ləri imzalayır və **konkret payload hash**
+- **`signS3Put` (mövcud)** — _header_-ləri imzalayır və **konkret payload hash**
   tələb edir (`x-amz-content-sha256 = sha256(body)`). Bu, **server** baytları
   əlində tutub özü PUT edəndə işləyir. Client-ə vermək olmaz, çünki imza anında
   baytların hash-i lazımdır — client hələ onları göndərməyib.
@@ -45,6 +45,7 @@ Deməli §3.1 üçün **yeni imzalayıcı funksiya + yeni endpoint** yazılmalı
 ## 2. Server dəyişiklikləri
 
 ### 2.1 — `s3-signature.ts`: `signS3PresignedPut` əlavə et
+
 Yeni, təmiz (pure) funksiya, mövcud `signS3Put`-a toxunmadan:
 
 - İmza SigV4 query-string formasında (`X-Amz-*` query paramları).
@@ -58,6 +59,7 @@ Yeni, təmiz (pure) funksiya, mövcud `signS3Put`-a toxunmadan:
   `parseEndpoint` köməkçiləri ilə **paylaş** — kopyalama yox.
 
 ### 2.2 — `storage.service.ts`: `createPresignedUpload` əlavə et
+
 ```
 createPresignedUpload({ contentType, scope }): {
   uploadUrl: string;   // client bura PUT edir
@@ -67,6 +69,7 @@ createPresignedUpload({ contentType, scope }): {
   requiredHeaders: { 'Content-Type': string };
 }
 ```
+
 - **Key-i həmişə server minləsin** (`mintKey`) — client key seçə bilməməlidir
   (təhlükəsizlik: əks halda başqa obyektin üstünə yaza bilər).
 - `driver !== 's3'` olduqda `uploadPhoto`-dakı kimi `STORAGE_NOT_CONFIGURED`
@@ -74,6 +77,7 @@ createPresignedUpload({ contentType, scope }): {
 - Expiry: yeni env `S3_PRESIGN_EXPIRY_SECONDS` (default 300s = 5 dəq).
 
 ### 2.3 — `field.controller.ts` + `field.service.ts`: yeni endpoint
+
 - `POST /api/portal/field/photos/presign` — **service actor** tələb olunur
   (`requireServiceActor`, mövcud `/photos` kimi).
 - Body: `{ contentType?: string; scope?: string }`.
@@ -85,18 +89,22 @@ createPresignedUpload({ contentType, scope }): {
 ## 3. Client dəyişiklikləri
 
 ### 3.1 — Bot (`src/services/portalApi.ts`)
+
 Hazırkı axın: `uploadShelfPhoto` → data URL (base64) → `createSubmission` body-də inline.
 
 Yeni axın:
+
 1. `requestPresignedUpload({ contentType, scope: taskId })` → API-dən `uploadUrl` +
    `publicUrl` + `requiredHeaders` al.
 2. Şəkil baytlarını **birbaşa** `uploadUrl`-ə `PUT` et (`Content-Type` başlığı ilə).
    Bot server tərəfdə Node `fetch` işlədir → **CORS problemi yoxdur**.
 3. `createSubmission`-da `photoUrl` olaraq artıq base64 yox, `publicUrl` göndər.
+
 - `MAX_PHOTO_BYTES` client-tərəf ölçü yoxlaması kimi qala bilər (vision xərci və
   sağlamlıq üçün), amma daha body-limitə bağlı deyil.
 
 ### 3.2 — Mobil app
+
 Eyni üç addım. **Diqqət:** əgər mobil browser/WebView-dən birbaşa PUT edirsə, R2
 bucket-ində **CORS** icazəsi lazımdır (PUT + `Content-Type` header, mobil origin).
 Native HTTP klient (React Native fetch/OkHTTP/URLSession) CORS-a tabe deyil.
@@ -144,10 +152,10 @@ Native HTTP klient (React Native fetch/OkHTTP/URLSession) CORS-a tabe deyil.
 
 Yeni env yalnız biri (qalanı mövcud R2 dəyərləridir):
 
-| Env | Rol |
-|---|---|
-| `S3_PRESIGN_EXPIRY_SECONDS` | Presigned URL ömrü (default 300) |
-| `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PUBLIC_BASE_URL`, `S3_FORCE_PATH_STYLE` | Mövcud — dəyişmir |
+| Env                                                                                                                              | Rol                              |
+| -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `S3_PRESIGN_EXPIRY_SECONDS`                                                                                                      | Presigned URL ömrü (default 300) |
+| `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PUBLIC_BASE_URL`, `S3_FORCE_PATH_STYLE` | Mövcud — dəyişmir                |
 
 R2 bucket CORS (yalnız browser/WebView client üçün): `PUT` metodu, `Content-Type`
 başlığı, uyğun origin-lər.
@@ -156,15 +164,15 @@ başlığı, uyğun origin-lər.
 
 ## 8. Fayl xəritəsi (harada nə dəyişir)
 
-| Nə | Fayl |
-|---|---|
-| Query-string presign imzalayıcı (YENİ) | `apps/api/src/modules/storage/s3-signature.ts` → `signS3PresignedPut` |
-| Presign URL minləyən servis metodu (YENİ) | `apps/api/src/modules/storage/storage.service.ts` → `createPresignedUpload` |
-| `POST /photos/presign` endpoint (YENİ) | `apps/api/src/modules/portal/field.controller.ts` |
-| Endpoint service wrapper + inline guard (YENİ) | `apps/api/src/modules/portal/field.service.ts` |
-| Bot: presign al → birbaşa PUT → URL submit | `src/services/portalApi.ts` (`uploadShelfPhoto`, `createSubmission`) |
-| Mobil: eyni axın (+ lazımsa R2 CORS) | mobil upload kodu |
-| 5 MB body-limitin geri kiçildilməsi (client-lər keçəndən SONRA) | `apps/api/src/main.ts` |
+| Nə                                                              | Fayl                                                                        |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Query-string presign imzalayıcı (YENİ)                          | `apps/api/src/modules/storage/s3-signature.ts` → `signS3PresignedPut`       |
+| Presign URL minləyən servis metodu (YENİ)                       | `apps/api/src/modules/storage/storage.service.ts` → `createPresignedUpload` |
+| `POST /photos/presign` endpoint (YENİ)                          | `apps/api/src/modules/portal/field.controller.ts`                           |
+| Endpoint service wrapper + inline guard (YENİ)                  | `apps/api/src/modules/portal/field.service.ts`                              |
+| Bot: presign al → birbaşa PUT → URL submit                      | `src/services/portalApi.ts` (`uploadShelfPhoto`, `createSubmission`)        |
+| Mobil: eyni axın (+ lazımsa R2 CORS)                            | mobil upload kodu                                                           |
+| 5 MB body-limitin geri kiçildilməsi (client-lər keçəndən SONRA) | `apps/api/src/main.ts`                                                      |
 
 ---
 

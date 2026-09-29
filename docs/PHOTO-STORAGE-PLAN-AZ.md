@@ -24,6 +24,7 @@ birbaşa yükləmə, thumbnail üçün Cloudflare Images, imzalı read URL, rete
 ## 1. Cari vəziyyət (yoxlanılıb, 2026-09-28)
 
 **Transport axını:**
+
 1. Bot Telegram-dan şəkli endirir.
 2. `src/services/portalApi.ts` → `uploadShelfPhoto` şəkli `data:image/...;base64,...`
    URL-ə çevirir. Sərt limit: `MAX_PHOTO_BYTES = 1_500_000` (~1.5 MB).
@@ -54,9 +55,9 @@ production-un düzgün seçimidir. Şəkillər dəfələrlə **oxunur** (supervi
 vision pipeline, hesabatlar) — bu iş yükündə əsas xərc **egress**-dir (trafiki geri
 göndərmək).
 
-| | Saxlama | Egress (geri oxuma) |
-|---|---|---|
-| **Cloudflare R2** | ~$0.015/GB-ay | **$0 (pulsuz)** |
+|                     | Saxlama       | Egress (geri oxuma)     |
+| ------------------- | ------------- | ----------------------- |
+| **Cloudflare R2**   | ~$0.015/GB-ay | **$0 (pulsuz)**         |
 | **AWS S3 Standard** | ~$0.023/GB-ay | ~$0.09/GB (hər baxışda) |
 
 Miqyas nümunəsi (mənbələrdən): 10 TB saxlama + 50 TB endirmə → R2 ~$150/ay, S3
@@ -64,6 +65,7 @@ Miqyas nümunəsi (mənbələrdən): 10 TB saxlama + 50 TB endirmə → R2 ~$150
 minimum öhdəlik yoxdur.
 
 **R2-dən nə vaxt çıxmaq olar (dürüst caveat-lar) — heç biri bizə hazırda aid deyil:**
+
 - Konkret sertifikatlaşma / data-residency tələbi (data mütləq müəyyən ölkədə qalmalı) və R2 onu vermir.
 - Bütün stack artıq dərin AWS/GCP ekosistemindədir və hər şey bir IAM/billing altında istənir.
 - Çox yüksək **yazma** əməliyyat həcmi (Class A) — 1000 mağaza/gün bunun yanından keçmir.
@@ -74,7 +76,8 @@ minimum öhdəlik yoxdur.
 
 Bunlar R2-ni **əvəz etmir**, üstünə qurulur. Sıra dəyər/zəhmət nisbətinə görədir.
 
-### 3.1 — Presigned birbaşa yükləmə (client → R2)  ⭐ ƏN YÜKSƏK PRIORITET
+### 3.1 — Presigned birbaşa yükləmə (client → R2) ⭐ ƏN YÜKSƏK PRIORITET
+
 **Problem:** indi base64 API-dən keçir (client → API → R2). API hər sorğuda ~1.5 MB-ı
 yaddaşda saxlayır, trafik iki dəfə keçir, body-limit problemi buradan doğdu.
 **Həll:** client R2-yə **birbaşa** yükləsin (presigned PUT URL), API-yə yalnız
@@ -87,6 +90,7 @@ sonra submission-da yalnız URL göndər.
 **Bonus:** 5 MB body-limit hack-inə ehtiyac qalmır (base64 daha body-dən keçmir).
 
 ### 3.2 — Thumbnail / Cloudflare Image Transformations
+
 **Problem:** panel siyahısında hər şəkil tam ölçüdə (1.5 MB) açılır — yavaş və israf.
 **Həll:** original R2-də qalır, Cloudflare uçotda ölçüləndirir (resize/webp/avif).
 Pulsuz plan **ayda 5000 unikal transformasiya** verir, sonrası **$0.50/1000**.
@@ -94,12 +98,14 @@ Ayrı Cloudflare Images məhsuluna keçmək məcburi deyil — R2-dəki original
 Transformations işləyir.
 
 ### 3.3 — İmzalı, müddətli read URL-lər (təhlükəsizlik)
+
 **Problem:** şəkillərdə kommersiya datası və təsadüfi PII ola bilər (qiymət etiketi,
 kadrda kənar adam) — bunu `src/services/vision/index.ts` özü qeyd edir.
 **Həll:** bucket **public olmamalı**; şəkillər signed, expiring URL ilə verilməli.
 Provider-dən asılı deyil — production təhlükəsizlik tələbidir.
 
 ### 3.4 — Retention / lifecycle siyasəti
+
 **Sual:** audit şəkilləri nə qədər qalmalıdır? Əbədi, yoxsa N aydan sonra?
 **Həll:** R2 Infrequent Access tier (~$0.01/GB) və ya müddət sonu avtomatik silmə.
 Bu, hüquqi/compliance qərarıdır — məhsul sahibi ilə təsdiqlənməli.
@@ -114,6 +120,7 @@ Real rəqəm kiçikdir: 1000 mağaza × gündə 1 şəkil × ~100–150 KB (Tele
 
 ⚠️ **Dəqiq bill üçün** Cloudflare-in öz kalkulyatorundan istifadə et — bu rəqəmlər
 təxminidir və qiymətlər dəyişə bilər:
+
 - R2 pricing: https://developers.cloudflare.com/r2/pricing/
 - R2 kalkulyator: https://r2-calculator.cloudflare.com/
 - Cloudflare Images/Transformations pricing: https://developers.cloudflare.com/images/pricing
@@ -131,26 +138,25 @@ təxminidir və qiymətlər dəyişə bilər:
 
 ## 6. Fayl xəritəsi (haradan başlamalı)
 
-| Nə | Fayl |
-|---|---|
-| Storage driver seçimi (inline/s3), health-ə report | `apps/api/src/modules/storage/storage.service.ts` |
-| S3/R2 imza + data URL decode | `apps/api/src/modules/storage/s3-signature.ts` |
+| Nə                                                     | Fayl                                                                           |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| Storage driver seçimi (inline/s3), health-ə report     | `apps/api/src/modules/storage/storage.service.ts`                              |
+| S3/R2 imza + data URL decode                           | `apps/api/src/modules/storage/s3-signature.ts`                                 |
 | Presigned yükləmə endpoint-i (hazırda client işlətmir) | `apps/api/src/modules/portal/field.controller.ts:392`, `field.service.ts:1208` |
-| Evidence yazılışı (photo_url burada saxlanır) | `apps/api/src/modules/evidences/evidence.service.ts:321` |
-| Bot tərəfi: şəkil → data URL, submission | `src/services/portalApi.ts` (`uploadShelfPhoto`, `createSubmission`) |
-| API body-limit (5 MB, `bodyParser: false`) | `apps/api/src/main.ts` |
-| Konfiqurasiya | Railway `api` servisində `STORAGE_DRIVER`, `STORAGE_*` env |
+| Evidence yazılışı (photo_url burada saxlanır)          | `apps/api/src/modules/evidences/evidence.service.ts:321`                       |
+| Bot tərəfi: şəkil → data URL, submission               | `src/services/portalApi.ts` (`uploadShelfPhoto`, `createSubmission`)           |
+| API body-limit (5 MB, `bodyParser: false`)             | `apps/api/src/main.ts`                                                         |
+| Konfiqurasiya                                          | Railway `api` servisində `STORAGE_DRIVER`, `STORAGE_*` env                     |
 
 ---
 
 ## 7. Xülasə tövsiyə
 
 Mass production-da da **R2-də qalın.** Ardıcıllıq:
+
 1. Presigned birbaşa yükləmə (§3.1) — API artıq megabaytları proxy etməsin.
 2. Panel üçün thumbnail / Transformations (§3.2).
 3. Signed read URL + retention (§3.3, §3.4).
 
 S3-ə "daha korporativ görünür" deyə keçmək bu iş yükündə sadəcə bahaya başa gələr.
 Provider deyil, yuxarıdakı arxitektura qatları əsl "pro" fərqi yaradır.
-
-

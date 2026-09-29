@@ -121,6 +121,16 @@ export interface SubmitEvidenceRequestDto {
    * that omits it keeps the old at-least-once behaviour.
    */
   idempotencyKey?: string;
+  /**
+   * The device reported this GPS fix as mock/simulated (Android's
+   * `Location.isFromMockProvider`; iOS does not expose it). A mock fix is a
+   * deliberate spoof, not honest indoor imprecision, so a submission carrying it
+   * is HELD: it is never auto-approved and stays pending until a supervisor
+   * explicitly clears it (recorded as `LOCATION_MOCK_OVERRIDE`) or rejects it.
+   * The worker still sees a normal success — the quarantine is server-side, so a
+   * spoofer is not tipped off that the fix was caught.
+   */
+  locationMocked?: boolean;
   aiScore?: number;
   aiDetections?: any[];
   aiSummary?: string;

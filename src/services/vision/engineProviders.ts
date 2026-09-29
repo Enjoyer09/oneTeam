@@ -7,11 +7,7 @@
  * logic — they translate `aiVisionService`'s existing output into the seam's
  * `VisionAnalysis` shape and, for YOLO, decide how much to trust it.
  */
-import {
-  aiVisionService,
-  type DetectionItem,
-  type PlanogramRequirement,
-} from '../aiVision';
+import { aiVisionService, type DetectionItem, type PlanogramRequirement } from '../aiVision';
 import type { VisionAnalysis, VisionInput, VisionProvider } from './types';
 
 /** Requirements come from the input, or are derived from the task text as a fallback. */
@@ -45,8 +41,8 @@ export class SimulationVisionProvider implements VisionProvider {
   readonly name = 'simulation';
 
   constructor(
-    private readonly scenario: 'compliant' | 'minor_gap' | 'missing_sku' | 'severe_issues' =
-      'compliant',
+    private readonly scenario:
+      'compliant' | 'minor_gap' | 'missing_sku' | 'severe_issues' = 'compliant',
   ) {}
 
   async analyze(input: VisionInput): Promise<VisionAnalysis> {

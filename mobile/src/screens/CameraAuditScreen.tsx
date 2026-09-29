@@ -7,7 +7,7 @@ import {
   QueueItem,
 } from '../types';
 import { stampAuditMetadata, assertLiveCameraCapture } from '../components/SmartCameraOverlay';
-import { mobileApi, MobileApiError } from '../services/portalApi';
+import { mobileApi, MobileApiError, newIdempotencyKey } from '../services/portalApi';
 import { offlineQueueService } from '../services/offlineQueue';
 import type { PhotoQualityAssessment } from '../utils/photoQuality';
 
@@ -32,6 +32,8 @@ export interface CapturedPhoto {
   metadata: AuditMetadata;
   base64?: string;
   simulated: boolean;
+  /** Client-side key for idempotent retry of this capture's submission. */
+  idempotencyKey: string;
 }
 
 export class CameraAuditController {
@@ -169,6 +171,7 @@ export class CameraAuditController {
       metadata,
       base64: params.base64,
       simulated: params.base64 === undefined,
+      idempotencyKey: newIdempotencyKey(),
     };
   }
 
@@ -189,6 +192,7 @@ export class CameraAuditController {
     photoUri: string;
     metadata: AuditMetadata;
     base64?: string;
+    idempotencyKey?: string;
   }): Promise<{
     status: 'uploaded' | 'queued_offline';
     submission?: MobileSubmission;
@@ -240,6 +244,7 @@ export class CameraAuditController {
       gps: params.metadata.gps,
       distanceFromStoreMeters: params.metadata.distance_from_store_meters,
       metadata: params.metadata,
+      idempotencyKey: params.idempotencyKey,
     });
 
     return { status: 'uploaded', submission };

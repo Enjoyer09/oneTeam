@@ -61,6 +61,11 @@ export default tseslint.config(
       '**/*.min.css',
       '**/*.map',
       '**/*.d.ts',
+      // Python environments and artifacts
+      'lib/**',
+      'bin/**',
+      'include/**',
+      '.venv/**',
       // Generated prototype/report artefacts — not maintained source.
       'ui-audit/**',
       'ui-design/**',

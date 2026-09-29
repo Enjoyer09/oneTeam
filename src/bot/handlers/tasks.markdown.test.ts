@@ -114,7 +114,10 @@ async function main(): Promise<void> {
   const originalGet = portalApi.getTaskById;
   const originalAck = portalApi.acknowledgeTask;
   (portalApi as any).getTaskById = async () => taskWithUnderscore();
-  (portalApi as any).acknowledgeTask = async () => ({ advanced: false, currentState: 'ACKNOWLEDGED' });
+  (portalApi as any).acknowledgeTask = async () => ({
+    advanced: false,
+    currentState: 'ACKNOWLEDGED',
+  });
 
   try {
     const open = makeCtx();
@@ -128,10 +131,16 @@ async function main(): Promise<void> {
     check('handleOpenTask does not throw on a `_` title', threw === false);
 
     const chosen = open.replies.find((r) => r.text.includes('Seçilmiş tapşırıq'));
-    check('the "selected task" confirmation is sent', Boolean(chosen), JSON.stringify(open.replies.map((r) => r.text)));
+    check(
+      'the "selected task" confirmation is sent',
+      Boolean(chosen),
+      JSON.stringify(open.replies.map((r) => r.text)),
+    );
     check(
       'and its title is escaped, so Telegram will not reject it',
-      Boolean(chosen) && chosen!.text.includes('IPHONE\\_TEST') && !chosen!.text.includes('IPHONE_TEST'),
+      Boolean(chosen) &&
+        chosen!.text.includes('IPHONE\\_TEST') &&
+        !chosen!.text.includes('IPHONE_TEST'),
       chosen?.text ?? '(no confirmation sent)',
     );
   } finally {

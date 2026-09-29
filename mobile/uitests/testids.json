@@ -49,6 +49,11 @@
       "why": "the test taps the first task to open it"
     },
     {
+      "id": "taskList.syncButton",
+      "where": "mobile/src/screens/TaskListScreenUI.tsx",
+      "why": "the worker triggers manual offline queue synchronization"
+    },
+    {
       "id": "taskDetail.openCameraButton",
       "where": "mobile/src/screens/TaskDetailScreen.tsx",
       "why": "disabled until the checklist is complete, so the test must wait"

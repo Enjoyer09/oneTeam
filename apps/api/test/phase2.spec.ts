@@ -8,11 +8,13 @@
  */
 
 import 'reflect-metadata';
-import { TaskState, UserRole } from '@oneteam/types';
+import { TaskState, UserRole, GEOFENCE_MAX_DISTANCE_METERS } from '@oneteam/types';
 import { db } from '@oneteam/database';
 import { NotificationDispatcherService } from '../src/modules/notifications/notification-dispatcher.service';
 import { TaskStateService } from '../src/modules/tasks/task-state.service';
 import { EvidenceService } from '../src/modules/evidences/evidence.service';
+import { PortalService } from '../src/modules/portal/portal.service';
+import { isAiAutoApproveEligible } from '../src/modules/portal/field.service';
 import { AuthenticatedPrincipal } from '../src/common/auth/authenticated-principal';
 
 /**
@@ -398,6 +400,192 @@ async function runPhase2TestSuite() {
       taskEvidences.some((e) => e.photoType === 'before') &&
       taskEvidences.some((e) => e.photoType === 'after'),
     'Test 3.3: Submitting "after" photo advances task to SUBMITTED; both photos linked to task',
+  );
+
+  // --------------------------------------------------------------------------
+  // SUITE 4: SPOOFED (MOCK) GPS — HELD FOR REVIEW, SUPERVISOR OVERRIDE
+  // --------------------------------------------------------------------------
+  console.log('\n--- [PHASE 2 - SUITE 4] Mock-location hold & supervisor override ---');
+
+  // 4.1 The auto-approve gate lets a high, confident, non-mock score through.
+  assert(
+    isAiAutoApproveEligible({ score: 96, confident: true, locationMocked: false }) === true,
+    'Test 4.1: A high, confident, non-mock score is auto-approve eligible',
+  );
+
+  // 4.2 THE BLOCK: the same high, confident score does NOT auto-approve when the
+  //     fix was flagged mock. This is the whole feature — a spoof can never buy
+  //     an auto-pass, however good the photo looks.
+  assert(
+    isAiAutoApproveEligible({ score: 96, confident: true, locationMocked: true }) === false,
+    'Test 4.2: A mock/spoofed fix is NOT auto-approve eligible even at score 96',
+  );
+
+  // 4.3 Evidence carries the mock flag so the panel can show it and a later
+  //     review can be recorded as a deliberate override.
+  const mockTaskId = `task-mock-${Date.now()}`;
+  db.storeTasks.push({
+    id: mockTaskId,
+    templateId: 'tmpl-eye-level', // requiresBeforeAfterPhoto: false, one boolean question
+    storeId: 'str-bravo-yasamal',
+    assignedUserId: 'usr-merch-003',
+    status: TaskState.ACKNOWLEDGED,
+    deadline: new Date(Date.now() + 3 * 24 * 3600 * 1000),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  const mockRes = await evidenceService.submitEvidence(
+    {
+      storeTaskId: mockTaskId,
+      photoUrl: 'https://images.unsplash.com/photo-coke-spoofed.jpg',
+      photoType: 'standard',
+      latitude: 40.38505,
+      longitude: 49.8106,
+      locationMocked: true,
+      checklistAnswers: [{ questionId: 'q-eye-clean', value: true }],
+    },
+    PRINCIPALS.merchandiser,
+  );
+
+  const taskAfterMock = db.getTask(mockTaskId);
+  assert(
+    mockRes.success === true &&
+      mockRes.evidence.locationMocked === true &&
+      taskAfterMock?.status === TaskState.SUBMITTED,
+    'Test 4.3: A mock-flagged submission is stored with locationMocked=true and reaches SUBMITTED (held, not rejected)',
+  );
+
+  // 4.4 A non-mock submission stores locationMocked=false (the flag is not sticky).
+  const cleanTaskId = `task-clean-${Date.now()}`;
+  db.storeTasks.push({
+    id: cleanTaskId,
+    templateId: 'tmpl-eye-level',
+    storeId: 'str-bravo-yasamal',
+    assignedUserId: 'usr-merch-003',
+    status: TaskState.ACKNOWLEDGED,
+    deadline: new Date(Date.now() + 3 * 24 * 3600 * 1000),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+  const cleanRes = await evidenceService.submitEvidence(
+    {
+      storeTaskId: cleanTaskId,
+      photoUrl: 'https://images.unsplash.com/photo-coke-honest.jpg',
+      photoType: 'standard',
+      latitude: 40.38505,
+      longitude: 49.8106,
+      checklistAnswers: [{ questionId: 'q-eye-clean', value: true }],
+    },
+    PRINCIPALS.merchandiser,
+  );
+  assert(
+    cleanRes.evidence.locationMocked === false,
+    'Test 4.4: A normal submission stores locationMocked=false',
+  );
+
+  // 4.5 Supervisor override: approving a mock submission moves the task to
+  //     APPROVED and writes a LOCATION_MOCK_OVERRIDE audit event naming the
+  //     reviewer — the anti-fraud hold cannot be lifted without a trail.
+  const portalService = new PortalService(taskStateService);
+  const overrideDecision = await portalService.reviewSubmission(
+    mockRes.evidence.id,
+    { status: 'approved', feedback: 'Yoxlandı, işçi tanınır — təsdiqləndi.' },
+    PRINCIPALS.supervisor,
+  );
+  const overrideLogged = db.auditLogs.some(
+    (log) => log.action === 'LOCATION_MOCK_OVERRIDE' && log.entityId === mockRes.evidence.id,
+  );
+  assert(
+    overrideDecision.data.currentState === TaskState.APPROVED && overrideLogged,
+    'Test 4.5: Supervisor approval of a mock submission moves task to APPROVED and logs LOCATION_MOCK_OVERRIDE',
+  );
+
+  // --------------------------------------------------------------------------
+  // SUITE 5: GEOFENCE ENFORCEMENT — OUT-OF-PERIMETER SUBMISSIONS ARE REJECTED
+  // --------------------------------------------------------------------------
+  //
+  // Unlike a mock fix (SUITE 4), which is *held* for review because it may still
+  // be a real person the device slandered, a fix that lands hundreds of metres
+  // from the store is not up for review at all: the worker is demonstrably not
+  // there, so there is nothing a supervisor could legitimately override. The
+  // server rejects it outright — 400, no evidence row, no state change — and this
+  // suite proves that control actually fires, on the coordinates a real audit
+  // would carry.
+  console.log('\n--- [PHASE 2 - SUITE 5] Geofence enforcement (out-of-perimeter rejection) ---');
+
+  const geoTaskId = `task-geo-${Date.now()}`;
+  db.storeTasks.push({
+    id: geoTaskId,
+    templateId: 'tmpl-eye-level',
+    storeId: 'str-bravo-yasamal', // seeded at 40.385012, 49.810541
+    assignedUserId: 'usr-merch-003',
+    status: TaskState.ACKNOWLEDGED,
+    deadline: new Date(Date.now() + 3 * 24 * 3600 * 1000),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  // 5.1 A submission from ~3-4 km away (40.4000, 49.8500 — well past the 100 m
+  //     perimeter) is refused with 400 GEOFENCE_VIOLATION.
+  let geofenceBlocked = false;
+  let geofenceErrorType = '';
+  try {
+    await evidenceService.submitEvidence(
+      {
+        storeTaskId: geoTaskId,
+        photoUrl: 'https://images.unsplash.com/photo-coke-far-away.jpg',
+        photoType: 'standard',
+        latitude: 40.4,
+        longitude: 49.85,
+        checklistAnswers: [{ questionId: 'q-eye-clean', value: true }],
+      },
+      PRINCIPALS.merchandiser,
+    );
+  } catch (err: any) {
+    geofenceBlocked = err?.status === 400 || err?.statusCode === 400;
+    geofenceErrorType = err?.response?.error;
+  }
+  assert(
+    geofenceBlocked && geofenceErrorType === 'GEOFENCE_VIOLATION',
+    'Test 5.1: A submission outside the store geofence is blocked with 400 GEOFENCE_VIOLATION',
+  );
+
+  // 5.2 The rejection is not silent — it leaves an auditable trail (the reviewer
+  //     needs to know an audit was attempted from the wrong place), and it must
+  //     NOT have created an evidence row or advanced the task.
+  const geofenceRejectionLogged = db.auditLogs.some(
+    (log) => log.action === 'GEOFENCE_REJECTION' && log.entityId === geoTaskId,
+  );
+  const noEvidenceForGeoTask = db.evidences.every((e) => e.storeTaskId !== geoTaskId);
+  const geoTaskAfterReject = db.getTask(geoTaskId);
+  assert(
+    geofenceRejectionLogged &&
+      noEvidenceForGeoTask &&
+      geoTaskAfterReject?.status === TaskState.ACKNOWLEDGED,
+    'Test 5.2: A rejected out-of-geofence attempt is audited, creates no evidence, and does not move the task',
+  );
+
+  // 5.3 The same task, submitted from inside the perimeter, is accepted — the
+  //     control blocks the fraud without punishing honest work, and the earlier
+  //     rejection left the task in a state a real submission can still complete.
+  const withinGeoRes = await evidenceService.submitEvidence(
+    {
+      storeTaskId: geoTaskId,
+      photoUrl: 'https://images.unsplash.com/photo-coke-on-site.jpg',
+      photoType: 'standard',
+      latitude: 40.38505,
+      longitude: 49.8106,
+      checklistAnswers: [{ questionId: 'q-eye-clean', value: true }],
+    },
+    PRINCIPALS.merchandiser,
+  );
+  const geoTaskAfterAccept = db.getTask(geoTaskId);
+  assert(
+    withinGeoRes.success === true &&
+      withinGeoRes.distanceMeters <= GEOFENCE_MAX_DISTANCE_METERS &&
+      geoTaskAfterAccept?.status === TaskState.SUBMITTED,
+    'Test 5.3: A within-perimeter submission to the same task is accepted and advances to SUBMITTED',
   );
 
   // --------------------------------------------------------------------------

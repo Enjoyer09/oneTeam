@@ -289,11 +289,7 @@ export class StorageService {
    * its own key could overwrite another object. The caller submits the returned
    * `publicUrl` afterwards, which `ownsPublicUrl` can then verify belongs to us.
    */
-  createPresignedUpload(params: {
-    contentType: string;
-    scope?: string;
-    expiresSeconds?: number;
-  }): {
+  createPresignedUpload(params: { contentType: string; scope?: string; expiresSeconds?: number }): {
     uploadUrl: string;
     publicUrl: string;
     key: string;

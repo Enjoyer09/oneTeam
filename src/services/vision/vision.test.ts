@@ -20,11 +20,7 @@
 import type { VisionAnalysis, VisionInput, VisionLLMClient, VisionProvider } from './types';
 import { combineHybrid, HybridVisionProvider } from './hybridProvider';
 import { VisionLLMProvider } from './llmProvider';
-import {
-  resolveVisionProvider,
-  SimulationVisionProvider,
-  YoloVisionProvider,
-} from './index';
+import { resolveVisionProvider, SimulationVisionProvider, YoloVisionProvider } from './index';
 
 let passed = 0;
 let failed = 0;
@@ -80,7 +76,11 @@ async function main(): Promise<void> {
 
   // --- combineHybrid: pure verdict merging ----------------------------------
   {
-    const yolo = analysis({ complianceScore: 88, confidence: 0.8, detections: [{ id: 'd1' } as any] });
+    const yolo = analysis({
+      complianceScore: 88,
+      confidence: 0.8,
+      detections: [{ id: 'd1' } as any],
+    });
     const out = combineHybrid(yolo, null, 'yolo-confident', 'T');
     check('yolo-confident keeps YOLO score', out.complianceScore === 88);
     check('yolo-confident is not human review', out.needsHumanReview === false);
@@ -88,7 +88,11 @@ async function main(): Promise<void> {
     check('hybrid keeps YOLO detections', out.detections.length === 1);
   }
   {
-    const yolo = analysis({ complianceScore: 40, confidence: 0.3, detections: [{ id: 'd1' } as any] });
+    const yolo = analysis({
+      complianceScore: 40,
+      confidence: 0.3,
+      detections: [{ id: 'd1' } as any],
+    });
     const llm = analysis({
       complianceScore: 91,
       confidence: 0.9,
@@ -130,7 +134,10 @@ async function main(): Promise<void> {
     );
     const out = await new HybridVisionProvider(yolo, llm).analyze(INPUT);
     check('unsure YOLO escalates to the LLM', llm.calls === 1, `llm.calls=${llm.calls}`);
-    check('confident LLM verdict wins', out.complianceScore === 77 && out.needsHumanReview === false);
+    check(
+      'confident LLM verdict wins',
+      out.complianceScore === 77 && out.needsHumanReview === false,
+    );
   }
   {
     const yolo = new StubProvider('yolo', analysis({ confidence: 0.2, needsHumanReview: true }));
@@ -194,7 +201,10 @@ async function main(): Promise<void> {
       },
     };
     const out = await new VisionLLMProvider(client).analyze(INPUT);
-    check('a thrown client becomes human review, not a fabricated 0-verdict', out.needsHumanReview === true);
+    check(
+      'a thrown client becomes human review, not a fabricated 0-verdict',
+      out.needsHumanReview === true,
+    );
     check('a thrown client still reports engine vision-llm', out.engine === 'vision-llm');
   }
 
@@ -212,7 +222,8 @@ async function main(): Promise<void> {
     );
     check(
       'yolo resolves to the YOLO provider',
-      resolveVisionProvider({ ONETEAM_VISION_PROVIDER: 'yolo' } as any) instanceof YoloVisionProvider,
+      resolveVisionProvider({ ONETEAM_VISION_PROVIDER: 'yolo' } as any) instanceof
+        YoloVisionProvider,
     );
     check(
       'vision-llm with no client config is null (not a broken provider)',
@@ -246,4 +257,3 @@ main().catch((error) => {
   console.error('The suite could not finish:', error);
   process.exit(1);
 });
-

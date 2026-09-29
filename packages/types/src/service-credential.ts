@@ -94,9 +94,7 @@ export interface VerifyServiceCredentialOptions {
   nowMs?: number;
 }
 
-export type ServiceCredentialResult =
-  | { userId: string; signed: boolean }
-  | null;
+export type ServiceCredentialResult = { userId: string; signed: boolean } | null;
 
 /**
  * Verifies a service credential and returns the user it names, or null.

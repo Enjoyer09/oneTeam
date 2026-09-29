@@ -324,6 +324,9 @@ export class EvidenceService {
       latitude: dto.latitude,
       longitude: dto.longitude,
       gpsDistanceMeters: geofence.distanceMeters,
+      // A spoofed fix is stored on the record, not just logged, so the panel can
+      // surface it and a later review can be recorded as a deliberate override.
+      locationMocked: dto.locationMocked === true,
       aiScore: null,
       aiDetections: [],
       aiSummary: null,

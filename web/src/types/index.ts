@@ -98,6 +98,11 @@ export interface Submission {
     unit?: string;
   }>;
   status: SubmissionStatus;
+  /**
+   * The device flagged this fix as mock/simulated (spoofed GPS). Held for
+   * mandatory review; approving it is a deliberate supervisor override.
+   */
+  location_mocked?: boolean;
   reviewer_feedback: string | null;
   ai_score?: number | null;
   ai_detections?: DetectionItem[];

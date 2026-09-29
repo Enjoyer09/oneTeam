@@ -89,6 +89,50 @@ console.log(`${colors.bright}oneTeam — photo quality heuristic${colors.reset}`
 }
 
 {
+  // APEX BrightnessValue goes negative in genuinely dark scenes (EXIF 2.3 §10.3.1).
+  // A dark basement shelf can easily measure -5.0 or -2.0 APEX.
+  const negativeApexDark = assessPhotoQuality({
+    BrightnessValue: '-5/1',
+    ISO: '100',
+    ExposureTime: '1/500',
+  });
+  check(
+    'negative APEX BrightnessValue ("-5/1") is recognized as a valid measurement and rejected as too_dark',
+    negativeApexDark.isAcceptable === false && negativeApexDark.metrics.brightnessValue === -5,
+    negativeApexDark,
+  );
+  check(
+    '  and reports too_dark reason',
+    JSON.stringify(negativeApexDark.reasons) === JSON.stringify(['too_dark']),
+    negativeApexDark.reasons,
+  );
+}
+
+{
+  // Boundary at MIN_BV (-10)
+  const minValidApex = assessPhotoQuality({
+    BrightnessValue: '-10/1',
+    ISO: '100',
+    ExposureTime: '1/500',
+  });
+  check(
+    'BrightnessValue = -10 (MIN_BV) is accepted as metric and rejected as too_dark',
+    minValidApex.isAcceptable === false && minValidApex.metrics.brightnessValue === -10,
+    minValidApex.metrics,
+  );
+
+  const outOfRangeNegative = assessPhotoQuality({
+    BrightnessValue: '-15/1',
+  });
+  check(
+    'BrightnessValue < -10 is out of APEX range and treated as no signal (no_exif)',
+    outOfRangeNegative.isAcceptable === true &&
+      JSON.stringify(outOfRangeNegative.reasons) === JSON.stringify(['no_exif']),
+    outOfRangeNegative,
+  );
+}
+
+{
   const overexposed = assessPhotoQuality({
     BrightnessValue: '14/1',
     ISO: '100',

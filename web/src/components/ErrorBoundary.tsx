@@ -56,11 +56,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             Tətbiqdə gözlənilməz bir problem yarandı. Səhifəni yenidən yükləməklə davam edə
             bilərsiniz. Problem təkrarlanarsa, dəstək komandası ilə əlaqə saxlayın.
           </p>
-          <button
-            type="button"
-            onClick={this.handleReload}
-            className="btn-g mt-1"
-          >
+          <button type="button" onClick={this.handleReload} className="btn-g mt-1">
             <RotateCcw className="w-3.5 h-3.5" strokeWidth={2.2} />
             Yenidən yüklə
           </button>

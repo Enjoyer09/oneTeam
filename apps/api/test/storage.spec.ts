@@ -197,7 +197,9 @@ function testPresigner() {
   );
 
   check(
-    presigned.url.includes('X-Amz-Credential=AKIDEXAMPLE%2F20260102%2Feu-central-1%2Fs3%2Faws4_request'),
+    presigned.url.includes(
+      'X-Amz-Credential=AKIDEXAMPLE%2F20260102%2Feu-central-1%2Fs3%2Faws4_request',
+    ),
     'percent-encodes the slashes in the credential scope',
     presigned.url,
   );
@@ -401,7 +403,10 @@ function testOwnsPublicUrl() {
   process.env.S3_SECRET_ACCESS_KEY = 's';
   process.env.S3_PUBLIC_BASE_URL = 'https://cdn.oneteam.az';
   const withBase = new StorageService();
-  check(withBase.ownsPublicUrl('https://cdn.oneteam.az/tasks/x/a.jpg'), 'accepts a URL under the public base');
+  check(
+    withBase.ownsPublicUrl('https://cdn.oneteam.az/tasks/x/a.jpg'),
+    'accepts a URL under the public base',
+  );
   check(!withBase.ownsPublicUrl('https://evil.example.com/a.jpg'), 'rejects an external URL');
   check(!withBase.ownsPublicUrl(''), 'rejects an empty URL');
 

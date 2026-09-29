@@ -133,6 +133,12 @@ export interface PanelSubmission {
   before_photo_url: string | null;
   checklist_answers: unknown[];
   status: 'pending_review' | 'approved' | 'rejected';
+  /**
+   * The device flagged this fix as mock/simulated. Such a submission is held for
+   * mandatory review and shown with a spoof warning; approving it is a
+   * deliberate supervisor override.
+   */
+  location_mocked: boolean;
   reviewer_feedback: string | null;
   ai_score: number | null;
   ai_detections: unknown[];
@@ -294,6 +300,7 @@ export class PortalService {
         evidence.photoType === 'before' ? evidence.photoUrl : (beforePhoto?.photoUrl ?? null),
       checklist_answers: evidence.checklistAnswers ?? [],
       status: toPanelSubmissionStatus(task?.status),
+      location_mocked: evidence.locationMocked ?? false,
       reviewer_feedback: evidence.reviewerFeedback ?? null,
       ai_score: evidence.aiScore ?? null,
       ai_detections: evidence.aiDetections ?? [],
@@ -762,6 +769,22 @@ export class PortalService {
       reviewerFeedback: decision.feedback ?? evidence.reviewerFeedback ?? '',
     });
 
+    // A mock/spoofed fix that a supervisor approves is a deliberate override of
+    // the anti-fraud hold, and it must leave a trail naming who cleared it —
+    // otherwise the block is silently undone with nothing to answer for later.
+    if (decision.status === 'approved' && evidence.locationMocked === true) {
+      db.logAuditEvent({
+        entityType: 'task_evidence',
+        entityId: evidenceId,
+        action: 'LOCATION_MOCK_OVERRIDE',
+        actorId: principal.userId,
+        payload: {
+          reason: 'Supervayzer saxta/mock GPS ilə göndərilmiş auditi əl ilə təsdiqlədi.',
+          feedback: decision.feedback ?? null,
+        },
+      });
+    }
+
     return {
       success: true,
       data: {
@@ -1162,7 +1185,12 @@ export class PortalService {
       // absent — the bot treats that as free text, which is the existing behaviour.
       if (record.type !== undefined) {
         const type = String(record.type);
-        if (type !== 'boolean' && type !== 'single_choice' && type !== 'number' && type !== 'text') {
+        if (
+          type !== 'boolean' &&
+          type !== 'single_choice' &&
+          type !== 'number' &&
+          type !== 'text'
+        ) {
           throw new HttpException(
             `Çeklistin ${index + 1}-ci bəndində naməlum cavab tipi: ${type}`,
             HttpStatus.BAD_REQUEST,

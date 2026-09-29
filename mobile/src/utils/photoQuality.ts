@@ -83,6 +83,21 @@ export function photoQualityStatus(assessment: PhotoQualityAssessment): PhotoQua
 const TOO_DARK_BV = 2;
 const OVEREXPOSED_BV = 13;
 
+/**
+ * The range within which a BrightnessValue is still a brightness.
+ *
+ * EXIF 2.3 §10.3.1 defines BrightnessValue over **-10 … 20**, and the value is
+ * SIGNED: it goes negative precisely when the scene is under-exposed. The old
+ * parse guard here rejected anything below 0 as "unreadable", which is exactly
+ * backwards — it discarded the darkest frames in the sample and left the
+ * `too_dark` rule with nothing to fire on, since every genuinely dark capture
+ * carries a negative APEX value. The rule was unreachable in the case it was
+ * written for. The bounds below are the spec's own range: outside them the
+ * number is not a brightness reading, and `parseRational` cannot tell us more.
+ */
+const MIN_BV = -10;
+const MAX_BV = 20;
+
 /** ISO above which the sensor is producing noise (≈ grainy / dark photo). */
 const HIGH_ISO = 1600;
 
@@ -145,7 +160,7 @@ export function assessPhotoQuality(
   const fNumber = parseRational(exif.FNumber);
   const brightnessRaw = parseRational(exif.BrightnessValue);
   const brightnessValue =
-    typeof brightnessRaw === 'number' && brightnessRaw >= 0 && brightnessRaw <= 20
+    typeof brightnessRaw === 'number' && brightnessRaw >= MIN_BV && brightnessRaw <= MAX_BV
       ? brightnessRaw
       : undefined;
 

@@ -68,6 +68,24 @@ const MAX_PHOTO_BYTES = 1_500_000;
 const AI_AUTO_APPROVE_MIN_SCORE = 85;
 
 /**
+ * The auto-approve gate, as a pure function so the policy can be tested without
+ * standing up the whole submission pipeline.
+ *
+ * Three conditions, all required: the engine scored at least the threshold, it
+ * stood behind that answer (`confident`), and the fix was NOT flagged as
+ * mock/spoofed. The last is the anti-fraud hold — a spoofed location can never
+ * auto-approve, however high the photo scores, because a human (not the engine)
+ * must decide whether to trust a fix the device itself reported as fake.
+ */
+export function isAiAutoApproveEligible(opts: {
+  score: number;
+  confident: boolean;
+  locationMocked: boolean;
+}): boolean {
+  return opts.score >= AI_AUTO_APPROVE_MIN_SCORE && opts.confident && !opts.locationMocked;
+}
+
+/**
  * Who the API acts as when it auto-approves on the vision engine's behalf.
  *
  * A synthetic SUPERVISOR: `reviewSubmission` refuses anyone who is not a
@@ -1057,6 +1075,9 @@ export class FieldService {
         latitude: hasRealFix ? (payload.latitude as number) : store.latitude,
         longitude: hasRealFix ? (payload.longitude as number) : store.longitude,
         idempotencyKey: payload.idempotencyKey,
+        // Carried into the evidence record so a spoofed fix can be held for
+        // review and never auto-approved. Already logged as LOCATION_MOCKED above.
+        locationMocked,
       },
       actor,
     );
@@ -1134,7 +1155,9 @@ export class FieldService {
       const confident =
         payload.aiNeedsHumanReview !== true &&
         (typeof payload.aiConfidence !== 'number' || payload.aiConfidence >= 0.5);
-      const qualifies = score >= AI_AUTO_APPROVE_MIN_SCORE && confident;
+      // `isAiAutoApproveEligible` also refuses a mock/spoofed fix outright — see
+      // its doc for why a high score cannot buy an auto-approve past the hold.
+      const qualifies = isAiAutoApproveEligible({ score, confident, locationMocked });
 
       db.logAuditEvent({
         entityType: 'task_evidence',
@@ -1148,6 +1171,9 @@ export class FieldService {
           engine: payload.aiEngine ?? null,
           model: payload.aiModel ?? null,
           minScore: AI_AUTO_APPROVE_MIN_SCORE,
+          // Stated so the reviewer sees a high score did NOT auto-approve because
+          // the fix was flagged mock — the hold reason, not just the score.
+          heldForMockLocation: locationMocked || undefined,
         },
       });
 

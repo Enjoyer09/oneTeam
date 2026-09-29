@@ -264,11 +264,12 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     // nothing to tap, so it is refused rather than shipped as a dead button row.
     const badChoice = editValues.checklist_schema.findIndex(
       (item) =>
-        item.type === 'single_choice' &&
-        (item.options ?? []).filter((o) => o.trim()).length < 2,
+        item.type === 'single_choice' && (item.options ?? []).filter((o) => o.trim()).length < 2,
     );
     if (badChoice !== -1) {
-      setEditError(`Çeklistin ${badChoice + 1}-ci bəndi (Seçim) ən azı iki cavab variantı tələb edir`);
+      setEditError(
+        `Çeklistin ${badChoice + 1}-ci bəndi (Seçim) ən azı iki cavab variantı tələb edir`,
+      );
       return;
     }
 

@@ -26,12 +26,7 @@ import {
   type PlanogramRequirement,
   type SKUComplianceItem,
 } from '../aiVision';
-import type {
-  VisionAnalysis,
-  VisionInput,
-  VisionLLMClient,
-  VisionProvider,
-} from './types';
+import type { VisionAnalysis, VisionInput, VisionLLMClient, VisionProvider } from './types';
 
 function requirementsFor(input: VisionInput): PlanogramRequirement[] {
   return aiVisionService.extractPlanogramRequirements(

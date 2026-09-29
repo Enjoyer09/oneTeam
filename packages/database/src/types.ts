@@ -78,6 +78,12 @@ export interface InMemoryEvidence {
   longitude: number;
   gpsDistanceMeters: number;
   /**
+   * The device flagged this fix as mock/simulated (Android). A mock fix is held
+   * for mandatory human review: it never auto-approves, and a supervisor's
+   * approval is recorded as a deliberate `LOCATION_MOCK_OVERRIDE`.
+   */
+  locationMocked?: boolean;
+  /**
    * AI vision results.
    *
    * `null` is deliberate and distinct from `undefined`:

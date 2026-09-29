@@ -3,14 +3,14 @@
 The API talks to PostgreSQL over a single `DATABASE_URL`. By default that
 connection can do anything the database owner can, including dropping tables and
 altering the schema. A least-privilege deployment splits that into two roles so
-the *running* API can only read and write rows — never change the schema.
+the _running_ API can only read and write rows — never change the schema.
 
 ## The two roles
 
-| Role | May do | Used by |
-| --- | --- | --- |
-| `oneteam_migrator` | `CREATE` / `ALTER` / `DROP` — owns the schema | Migration step only (CI or an operator) |
-| `oneteam_app` | `SELECT` / `INSERT` / `UPDATE` / `DELETE` on rows | The running API process |
+| Role               | May do                                            | Used by                                 |
+| ------------------ | ------------------------------------------------- | --------------------------------------- |
+| `oneteam_migrator` | `CREATE` / `ALTER` / `DROP` — owns the schema     | Migration step only (CI or an operator) |
+| `oneteam_app`      | `SELECT` / `INSERT` / `UPDATE` / `DELETE` on rows | The running API process                 |
 
 Because `oneteam_app` has no DDL rights, a compromised or buggy API cannot drop
 `task_evidences`, add a column, or disable the `updated_at` triggers. The blast
@@ -29,7 +29,7 @@ DATABASE_URL=postgres://oneteam_app:<password>@host/db
 ONETEAM_AUTO_MIGRATE=0
 ```
 
-The API still runs its read-only schema *check* on boot (`checkSchema`), so if
+The API still runs its read-only schema _check_ on boot (`checkSchema`), so if
 the migrator has not applied a needed migration, `/api/health` reports the
 mismatch loudly instead of failing writes silently.
 

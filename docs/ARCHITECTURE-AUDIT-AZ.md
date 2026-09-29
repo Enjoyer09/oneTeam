@@ -21,24 +21,24 @@ Sistem README yazandan xeyli irəlidə və daha ciddidir. Amma bu **uyğunsuzlu�
 
 ## Şiddət xülasəsi
 
-| # | Tapıntı | Şiddət | Sahə |
-|---|---------|--------|------|
-| K1 | İmzasız, əbədi admin service credential (`oneteam-user:<id>`) | 🔴 Kritik | Auth |
-| K2 | AI Vision əslində işləmir (simulyasiya + stok YOLO) | 🔴 Kritik | Məhsul |
-| K3 | Orphaned + drift etmiş Prisma sxemi, quraşdırılmış Prisma CLI | 🔴 Kritik | Data |
-| K4 | Offline queue heç vaxt boşalmır → data itkisi | 🔴 Kritik | Mobil |
-| Y1 | Üç uyğunsuz sxem nəsli | 🟠 Yüksək | Data |
-| Y2 | Soft delete yoxdur; CASCADE sübutu məhv edir | 🟠 Yüksək | Data |
-| Y3 | DB-tier authz yoxdur (superuser, RLS yox) | 🟠 Yüksək | Təhlükəsizlik |
-| Y4 | Store-code binding-də authorization yoxdur | 🟠 Yüksək | Auth |
-| Y5 | GPS anti-fraud dağıdıla bilir | 🟠 Yüksək | Mobil |
-| Y6 | Device-token revoke endpoint-i yoxdur | 🟠 Yüksək | Auth |
-| Y7 | CI testlərin yalnız bir hissəsini qaçırır; coverage yox | 🟠 Yüksək | Test |
-| Y8 | SAST/dependency scan/CodeQL/Dependabot yoxdur | 🟠 Yüksək | Təhlükəsizlik |
-| Y9 | CD pipeline yoxdur, deploy reproduksiya olunmur | 🟠 Yüksək | DevOps |
-| Y10 | DB backup/PITR/retention yoxdur | 🟠 Yüksək | DevOps |
-| Y11 | Keçmişdə commit olunmuş SSH private key | 🟠 Yüksək | Təhlükəsizlik |
-| Y12 | README kritik dərəcədə köhnəlib | 🟠 Yüksək | Sənəd |
+| #   | Tapıntı                                                       | Şiddət    | Sahə          |
+| --- | ------------------------------------------------------------- | --------- | ------------- |
+| K1  | İmzasız, əbədi admin service credential (`oneteam-user:<id>`) | 🔴 Kritik | Auth          |
+| K2  | AI Vision əslində işləmir (simulyasiya + stok YOLO)           | 🔴 Kritik | Məhsul        |
+| K3  | Orphaned + drift etmiş Prisma sxemi, quraşdırılmış Prisma CLI | 🔴 Kritik | Data          |
+| K4  | Offline queue heç vaxt boşalmır → data itkisi                 | 🔴 Kritik | Mobil         |
+| Y1  | Üç uyğunsuz sxem nəsli                                        | 🟠 Yüksək | Data          |
+| Y2  | Soft delete yoxdur; CASCADE sübutu məhv edir                  | 🟠 Yüksək | Data          |
+| Y3  | DB-tier authz yoxdur (superuser, RLS yox)                     | 🟠 Yüksək | Təhlükəsizlik |
+| Y4  | Store-code binding-də authorization yoxdur                    | 🟠 Yüksək | Auth          |
+| Y5  | GPS anti-fraud dağıdıla bilir                                 | 🟠 Yüksək | Mobil         |
+| Y6  | Device-token revoke endpoint-i yoxdur                         | 🟠 Yüksək | Auth          |
+| Y7  | CI testlərin yalnız bir hissəsini qaçırır; coverage yox       | 🟠 Yüksək | Test          |
+| Y8  | SAST/dependency scan/CodeQL/Dependabot yoxdur                 | 🟠 Yüksək | Təhlükəsizlik |
+| Y9  | CD pipeline yoxdur, deploy reproduksiya olunmur               | 🟠 Yüksək | DevOps        |
+| Y10 | DB backup/PITR/retention yoxdur                               | 🟠 Yüksək | DevOps        |
+| Y11 | Keçmişdə commit olunmuş SSH private key                       | 🟠 Yüksək | Təhlükəsizlik |
+| Y12 | README kritik dərəcədə köhnəlib                               | 🟠 Yüksək | Sənəd         |
 
 Orta şiddətli tapıntılar (O1–O14) §2.3-də sadalanır.
 
@@ -49,6 +49,7 @@ Orta şiddətli tapıntılar (O1–O14) §2.3-də sadalanır.
 Bu, mərhələsinə görə **qeyri-adi intizamlı** kod bazasıdır.
 
 **Təhlükəsizlik memarlığı**
+
 - **Fail-closed auth**: DB xətası olanda device/panel token yoxlaması `null` (rədd) qaytarır — "yoxlaya bilmədim" heç vaxt "yoxladım, təmizdir"-ə çevrilmir (`apps/api/src/common/auth/auth.guard.ts`).
 - **Privilege escalation qapısı**: `fromUserId`-də `via` arqumenti məcburidir — əvvəllər səssiz səlahiyyət yüksəlişinə səbəb olan default silinib.
 - **Route-level authority gate**: supervisor route-ları device credential-i rədd edir; panel açarı mövcud olanda edge-inject service token-i də rədd edir (kompromitasiya olunmuş botun panel açarı yaratma dəliyini bağlayır).
@@ -57,14 +58,17 @@ Bu, mərhələsinə görə **qeyri-adi intizamlı** kod bazasıdır.
 - **S3 SigV4 əl ilə yazılıb** (`apps/api/src/modules/storage/s3-signature.ts`), hədəf yalnız env-dən gəlir → **SSRF yoxdur**.
 
 **Data & migrasiya intizamı**
+
 - Migrasiya runner-i (`packages/database/src/migrations.ts`): transaction-lu DDL, advisory-lock (replikalar ikiqat tətbiq etmir), per-migration SHA checksum + drift aşkarlanması, konflikt olan legacy cədvəli görəndə imtina edir.
 - Yaxşı index gigiyenası: partial index-lər (`WHERE revoked_at IS NULL`), JSONB üçün GIN, məntiqli UNIQUE-lər, append-only `audit_logs`.
 
 **Notification & resilience**
+
 - **Outbox pattern**: API `dedupeKey` ilə növbəyə qoyur, bot lease/claim ilə drenaj edir (at-least-once). Dürüst hesablama — botla danışmamış merçendayzer "recipient yoxdur" kimi bildirilir, səssizcə itmir.
 - Bot: global `bot.catch`, graceful shutdown, 409 polling backoff, Postgres-backed persistent session-lar.
 
 **Frontend & mobil**
+
 - Web: təmiz same-origin data təbəqəsi (`web/src/lib/portalApi.ts`), **şəxsi panel açarları** (bir dəfə göstərilir, geri çağırıla bilir), **XSS səthi sıfır**, a11y focus-trap hook (`web/src/lib/useModalA11y.ts`, WCAG 2.4.3), rəng-kontrast dizayn token-lərinə həkk olunub.
 - Mobil offline queue yaxşı mühəndislənib (`mobile/src/services/offlineQueue.ts`): 50MB dolanda **köhnəni atmır, imtina edir**, retry, UTF-8 bayt uçotu. Keychain `WHEN_UNLOCKED_THIS_DEVICE_ONLY`, identity/credential ayrılığı.
 - **"Break detector"** (`scripts/dev/break-detector-*.mjs`): hər testin iddia etdiyi defekti bir-bir koda geri salıb uyğun yoxlamanın qırmızı olduğunu təsdiqləyən mutasiya-testi. Real, ciddi meta-test.
@@ -124,11 +128,13 @@ Bağlantı aşkarlanması (`setOnlineStatus`) production-da **heç çağırılm�
 ## 3. Əskik funksionallıqlar
 
 **Məhsul səviyyəsində**
+
 - Real kompüter görməsi ilə uyğunluq: SKU-ya öyrədilmiş model, barkod/planogram uyğunlaşdırması, facing & shelf-share sayımı.
 - Supervisor portalında: axtarış, real-time yeniləmə, bulk review, hesabat/eksport (CSV/PDF), UI-də audit-log baxışı.
 - Anti-fraud: mock-location aşkarlanması/attestation, foto authenticity (liveness/provenance), real blur/piksel analizi.
 
 **Platforma səviyyəsində**
+
 - İmzalı/expiry-li token-lar + rotasiya; device-token revoke endpoint-i.
 - Soft delete / sübut qorunması.
 - DB backup + PITR + rollback proseduru + retention siyasəti.
@@ -142,6 +148,7 @@ Bağlantı aşkarlanması (`setOnlineStatus`) production-da **heç çağırılm�
 ## 4. Tövsiyələr (prioritetli yol xəritəsi)
 
 ### P0 — dərhal (təhlükəsizlik & data bütövlüyü)
+
 1. **Orphaned Prisma-nı zərərsizləşdir**: `packages/database/prisma/schema.prisma`-nı sil və kök `package.json`-dan işlənməyən `prisma`/`@prisma/client`-ı çıxar. Ən ucuz-ən böyük risk azaldılması.
 2. **Service credential-i imzalı token-ə keçir**: qısa-ömürlü JWT (və ya HMAC-imzalı, expiry+rotasiya-lı). Bot və edge üçün ayrı, revoke edilə bilən identifikatorlar. Aralıq addım: default `usr-admin-001`-i sil, token-i env-dən məcburi et.
 3. **Sızmış SSH açarını rotasiya et** və git-history secret remediation planla.
@@ -151,6 +158,7 @@ Bağlantı aşkarlanması (`setOnlineStatus`) production-da **heç çağırılm�
 7. **Device-token revoke endpoint-i** əlavə et; `locationUnverified` bypass-ını bağla və ya açıq gate et.
 
 ### P1 — məhsul dəyəri & möhkəmlik
+
 8. **AI vision barədə strateji qərar**: ya real CV qur (retail-öyrədilmiş model, barkod/facing/shelf-share), ya da məhsulu dürüstcə "köməkçi əl-ilə baxış" kimi mövqeləndir.
 9. **Soft delete / sübut qorunması** (CASCADE compliance-ı silməsin).
 10. **Global `ValidationPipe` + DTO-lar**, **global exception filter**, HTTP status semantikasını düzəlt (404/403).
@@ -161,6 +169,7 @@ Bağlantı aşkarlanması (`setOnlineStatus`) production-da **heç çağırılm�
 15. **README-ni realla uyğunlaşdır**; ADR + CHANGELOG əlavə et.
 
 ### P2 — keyfiyyət & miqyas
+
 16. Web: god-komponentləri parçala, demo data-nı sil, `alert()`-i inline validasiya ilə əvəz et, **error boundary + CSP**, virtualizasiya, real-time, axtarış/eksport/bulk-review; **React Query/SWR**.
 17. `updated_at` trigger-ləri; **object storage** (inline data URL əvəzinə); at-rest şifrələmə (GPS/PII).
 18. Konteyner sərtləşdirmə: non-root user, resource limit, `Dockerfile.bot` multi-stage + compiled, `--omit=dev`.
@@ -173,4 +182,4 @@ Bağlantı aşkarlanması (`setOnlineStatus`) production-da **heç çağırılm�
 
 Mühəndislik keyfiyyəti — backend intizamı, secret gigiyenası, migrasiya runner-i, outbox, test meta-riqoru — bu mərhələ üçün gözlənildiyindən yüksəkdir. İki fundamental problem məhsulu production-a yaxınlaşmaqdan saxlayır: **(1) imzasız əbədi admin token** (bütün auth modelinin təməli bir sirrdə), və **(2) əsas dəyər vədi olan avtomatik CV uyğunluğunun real olmaması**. Bunların yanında sxem nəsli çoxluğu, orphaned Prisma, offline queue drenajı və DB-tier authz — həll olunası, amma aydın risklərdir.
 
-*Bu audit yalnız-oxu analizə əsaslanır; heç bir fayl dəyişdirilməyib. `fayl:sətir` istinadları auditin aparıldığı andakı vəziyyəti əks etdirir.*
+_Bu audit yalnız-oxu analizə əsaslanır; heç bir fayl dəyişdirilməyib. `fayl:sətir` istinadları auditin aparıldığı andakı vəziyyəti əks etdirir._

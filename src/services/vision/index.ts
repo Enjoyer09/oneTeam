@@ -28,11 +28,7 @@
  * what. Free/community models additionally log prompts by default — use a paid,
  * no-log endpoint for anything but prototyping.
  */
-import {
-  aiVisionService,
-  SKU_METADATA,
-  type CocaColaSKU,
-} from '../aiVision';
+import { aiVisionService, SKU_METADATA, type CocaColaSKU } from '../aiVision';
 import type { VisionInput, VisionLLMClient, VisionLLMJudgement, VisionProvider } from './types';
 import { SimulationVisionProvider, YoloVisionProvider } from './engineProviders';
 import { VisionLLMProvider } from './llmProvider';
@@ -107,7 +103,7 @@ class HttpVisionLLMClient implements VisionLLMClient {
       });
     } catch (err) {
       if ((err as Error)?.name === 'AbortError') {
-        throw new Error(`Vision-LLM HTTP 000: client timeout ${this.timeoutMs}ms`);
+        throw new Error(`Vision-LLM HTTP 000: client timeout ${this.timeoutMs}ms`, { cause: err });
       }
       throw err;
     } finally {
@@ -170,7 +166,11 @@ class HttpVisionLLMClient implements VisionLLMClient {
 
 /** Strip code fences and parse the model's JSON into a normalized judgement. */
 function parseJudgement(raw: string): VisionLLMJudgement {
-  const cleaned = raw.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+  const cleaned = raw
+    .trim()
+    .replace(/^```(?:json)?/i, '')
+    .replace(/```$/, '')
+    .trim();
   let parsed: any;
   try {
     parsed = JSON.parse(cleaned);
@@ -229,9 +229,7 @@ function hybridThresholdsFromEnv(env: NodeJS.ProcessEnv): HybridThresholds | und
  * with no client returns `null`, and `hybrid` runs YOLO-only and escalates
  * unresolved cases to a human.
  */
-export function resolveVisionProvider(
-  env: NodeJS.ProcessEnv = process.env,
-): VisionProvider | null {
+export function resolveVisionProvider(env: NodeJS.ProcessEnv = process.env): VisionProvider | null {
   const kind = (env.ONETEAM_VISION_PROVIDER ?? 'off').toLowerCase() as VisionProviderKind;
 
   switch (kind) {
@@ -253,7 +251,9 @@ export function resolveVisionProvider(
     default:
       // An unknown value is a configuration mistake, not a silent "off": say so
       // and fail safe to no vision rather than guessing an engine.
-      console.warn(`⚠️ [oneTeam vision] Unknown ONETEAM_VISION_PROVIDER="${kind}"; vision disabled.`);
+      console.warn(
+        `⚠️ [oneTeam vision] Unknown ONETEAM_VISION_PROVIDER="${kind}"; vision disabled.`,
+      );
       return null;
   }
 }
@@ -262,4 +262,3 @@ export { SimulationVisionProvider, YoloVisionProvider, VisionLLMProvider, Hybrid
 export { combineHybrid, DEFAULT_YOLO_CONFIDENCE_FLOOR } from './hybridProvider';
 export type { VisionAnalysis, VisionInput, VisionProvider, VisionLLMClient } from './types';
 export { SKU_METADATA };
-

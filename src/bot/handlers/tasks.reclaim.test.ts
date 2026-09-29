@@ -92,7 +92,12 @@ async function main(): Promise<void> {
       (portalApi as any).claimTask = async (_taskId: string, _chatId: unknown, storeId: string) => {
         calls.push('claim');
         claimedStoreId = storeId;
-        return { taskId: _taskId, assignedUserId: 'usr-tg-42', claimed: true, previousAssignee: 'usr-seed-1' };
+        return {
+          taskId: _taskId,
+          assignedUserId: 'usr-tg-42',
+          claimed: true,
+          previousAssignee: 'usr-seed-1',
+        };
       };
       (portalApi as any).acknowledgeTask = async () => {
         calls.push('ack');
@@ -110,7 +115,11 @@ async function main(): Promise<void> {
 
       check('handleOpenTask does not throw', threw === false);
       check('the task is claimed on open', calls.includes('claim'), JSON.stringify(calls));
-      check('the claim names the session store', claimedStoreId === 'str-iphone-test', claimedStoreId);
+      check(
+        'the claim names the session store',
+        claimedStoreId === 'str-iphone-test',
+        claimedStoreId,
+      );
       check(
         'the claim happens BEFORE the acknowledge',
         calls.indexOf('claim') !== -1 &&

@@ -259,6 +259,15 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                         Əvvəl / Sonra
                       </span>
                     )}
+                    {sub.location_mocked && (
+                      <span
+                        className="pill-photo p-bad"
+                        title="Cihaz mövqeyi saxta/simulyasiya kimi işarələdi — təsdiq əl ilə override sayılır"
+                      >
+                        <span className="dot" />
+                        🚩 Saxta GPS
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -349,6 +358,25 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                   <X className="w-4 h-4" />
                 </button>
               </div>
+
+              {/* Spoofed-location hold: shown before anything else, because it
+                  changes what "approve" means — a mock fix is held for review and
+                  approving it is a deliberate override of the anti-fraud block. */}
+              {selectedSubmission.location_mocked && (
+                <div className="p-3.5 mx-5 mt-4 rounded-xl border border-rose-300 bg-rose-50/90 flex items-start gap-3">
+                  <span className="text-lg leading-none mt-0.5">🚩</span>
+                  <div>
+                    <p className="font-extrabold text-xs text-rose-800">
+                      Saxta / simulyasiya edilmiş GPS mövqeyi
+                    </p>
+                    <p className="text-[11px] text-rose-700 mt-0.5 leading-relaxed">
+                      Cihaz bu mövqeyi mock kimi işarələdi. Audit avtomatik təsdiqlənmir və yoxlama
+                      üçün saxlanılır — təsdiqləsəniz, bu, anti-fraud bloku üzərində şüurlu override
+                      kimi qeydə alınır.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* AI Vision Compliance Summary Banner */}
               {selectedSubmission.ai_score !== undefined &&

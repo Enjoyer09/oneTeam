@@ -311,6 +311,7 @@ export function CameraAuditScreenUI({
         photoUri: captured.photoUri,
         metadata: captured.metadata,
         base64: captured.base64,
+        idempotencyKey: captured.idempotencyKey,
       });
       if (result.status === 'uploaded') {
         setSubmitResult('✅ Audit uğurla göndərildi');

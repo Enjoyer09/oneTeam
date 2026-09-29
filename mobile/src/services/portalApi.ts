@@ -789,6 +789,13 @@ function toMobileSubmission(
   };
 }
 
+/**
+ * Generates a client-side idempotency key for field submissions.
+ */
+export function newIdempotencyKey(): string {
+  return `mob-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+}
+
 class MobilePortalApi {
   /** For startup logs. Never includes the token. */
   describeTarget(): string {
@@ -975,7 +982,6 @@ class MobilePortalApi {
         return { photoUrl: presigned.publicUrl, origin: 'device' };
       } catch (error) {
         if (!isStorageNotConfigured(error)) {
-          // eslint-disable-next-line no-console
           console.warn(
             `[oneTeam Mobile] Presigned upload failed, falling back to inline: ${
               error instanceof Error ? error.message : String(error)
@@ -1019,9 +1025,10 @@ class MobilePortalApi {
     distanceFromStoreMeters?: number;
     metadata?: AuditMetadata;
     checklistAnswers?: Array<{ questionId: string; value: boolean | number | string }>;
+    idempotencyKey?: string;
   }): Promise<MobileSubmission> {
-    const hasFix =
-      typeof params.gps?.latitude === 'number' && typeof params.gps?.longitude === 'number';
+    const gps = params.gps;
+    const hasFix = typeof gps?.latitude === 'number' && typeof gps?.longitude === 'number';
 
     // Anti-fraud location quality, sent alongside the fix rather than instead of
     // it. These are ADDED fields — the server reads them when present and older
@@ -1036,11 +1043,30 @@ class MobilePortalApi {
     //   - `locationMocked` — the platform reported this as a mock/spoofed fix
     //     (Android only; absent on iOS). Only sent when the platform actually
     //     said something, so `undefined` is never asserted as "genuine".
-    const accuracyMeters =
-      hasFix && typeof params.gps?.accuracy === 'number' ? params.gps.accuracy : undefined;
-    const locationLowConfidence = hasFix ? isLowConfidenceFix(params.gps!) : undefined;
-    const locationMocked =
-      hasFix && typeof params.gps?.mocked === 'boolean' ? params.gps.mocked : undefined;
+    //
+    // `Number.isFinite` and not `typeof … === 'number'`, matching
+    // `isLowConfidenceFix`: a NaN accuracy is a `number` by typeof but is not a
+    // measurement, and `JSON.stringify` would turn it into a literal `null` on
+    // the wire — the server would store "precision unknown" under a key that
+    // claims to hold a number.
+    const accuracyMeters = hasFix && Number.isFinite(gps?.accuracy) ? gps?.accuracy : undefined;
+    const locationLowConfidence = hasFix && gps ? isLowConfidenceFix(gps) : undefined;
+    const locationMocked = hasFix && typeof gps?.mocked === 'boolean' ? gps.mocked : undefined;
+
+    // The retry guard, and the reason this function has a key parameter at all.
+    //
+    // The server dedupes on this: `EvidenceService.submitEvidence` returns the
+    // evidence it already created for a key it has seen, instead of filing a
+    // second one. Without it every resend — a timeout where the POST actually
+    // landed, a double-tap, a queued item drained twice — became another
+    // evidence row AND another advance of the task, and a supervisor saw an
+    // audit they had never taken.
+    //
+    // A caller that does not supply one still gets a key rather than no key:
+    // the default makes a plain single submission safe to retry, and a caller
+    // that IS retrying (the camera screen, the offline drain) passes its own so
+    // the retries collapse onto one submission.
+    const idempotencyKey = params.idempotencyKey ?? newIdempotencyKey();
 
     const envelope = await callApi('/api/portal/field/submissions', {
       method: 'POST',
@@ -1049,12 +1075,13 @@ class MobilePortalApi {
         storeTaskId: params.taskId,
         photoUrl: params.photoUrl,
         photoType: 'standard',
-        latitude: hasFix ? params.gps!.latitude : undefined,
-        longitude: hasFix ? params.gps!.longitude : undefined,
+        latitude: hasFix && gps ? gps.latitude : undefined,
+        longitude: hasFix && gps ? gps.longitude : undefined,
         locationUnverified: !hasFix,
         locationAccuracy: accuracyMeters,
         locationLowConfidence,
         locationMocked,
+        idempotencyKey,
         checklistAnswers: params.checklistAnswers ?? [],
         metadata: {
           ...(params.metadata ?? {}),

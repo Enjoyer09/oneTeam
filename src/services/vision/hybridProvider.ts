@@ -33,10 +33,7 @@ export interface HybridThresholds {
 
 /** Why the hybrid reached its verdict — carried into the summary and audit. */
 export type HybridPath =
-  | 'yolo-confident'
-  | 'llm-confident'
-  | 'llm-unsure-human-review'
-  | 'no-llm-human-review';
+  'yolo-confident' | 'llm-confident' | 'llm-unsure-human-review' | 'no-llm-human-review';
 
 /**
  * Merge the layers into one verdict. Pure: no I/O, no clock.

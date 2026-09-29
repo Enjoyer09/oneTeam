@@ -109,7 +109,11 @@ async function main() {
     contentType: 'image/png',
   });
 
-  check(ok.photoUrl === PRESIGN_OK.data.publicUrl, 'returns the bucket publicUrl, not a data URL', ok.photoUrl);
+  check(
+    ok.photoUrl === PRESIGN_OK.data.publicUrl,
+    'returns the bucket publicUrl, not a data URL',
+    ok.photoUrl,
+  );
   check(ok.origin === 'device', 'reports the photo as a real device capture', ok.origin);
   check(fetchCalls.length === 2, 'makes exactly two calls: presign then PUT', fetchCalls.length);
 
@@ -125,9 +129,17 @@ async function main() {
 
   const putReq = fetchCalls[1];
   check(putReq.url === PRESIGN_OK.data.uploadUrl, 'PUTs to the signed uploadUrl', putReq.url);
-  check((putReq.init.method || '').toUpperCase() === 'PUT', 'the direct upload is a PUT', putReq.init.method);
+  check(
+    (putReq.init.method || '').toUpperCase() === 'PUT',
+    'the direct upload is a PUT',
+    putReq.init.method,
+  );
   const putHeaders = (putReq.init.headers || {}) as Record<string, string>;
-  check(putHeaders['Content-Type'] === 'image/png', 'PUT sends the signed Content-Type', putHeaders);
+  check(
+    putHeaders['Content-Type'] === 'image/png',
+    'PUT sends the signed Content-Type',
+    putHeaders,
+  );
   check(
     !('Authorization' in putHeaders),
     'the PUT carries NO Authorization — the signature is in the URL',
@@ -154,7 +166,11 @@ async function main() {
     fileName: 'audits/store-1/task-9.jpg',
     contentType: 'image/png',
   });
-  check(noBucket.photoUrl.startsWith('data:image/png;base64,'), 'falls back to an inline data URL', noBucket.photoUrl.slice(0, 32));
+  check(
+    noBucket.photoUrl.startsWith('data:image/png;base64,'),
+    'falls back to an inline data URL',
+    noBucket.photoUrl.slice(0, 32),
+  );
   check(noBucket.origin === 'device', 'the fallback still reports a real capture', noBucket.origin);
   check(fetchCalls.length === 1, 'no PUT is attempted when there is no bucket', fetchCalls.length);
   check(warnings.length === 0, 'STORAGE_NOT_CONFIGURED is expected and logs nothing', warnings);
@@ -172,9 +188,21 @@ async function main() {
     fileName: 'audits/store-1/task-9.jpg',
     contentType: 'image/png',
   });
-  check(putFailed.photoUrl.startsWith('data:'), 'a rejected PUT falls back to inline rather than losing the audit', putFailed.photoUrl.slice(0, 16));
-  check(putFailed.origin === 'device', 'the fallback still reports a real capture', putFailed.origin);
-  check(warnings.length === 1, 'a real upload failure IS logged (so a broken path is visible)', warnings);
+  check(
+    putFailed.photoUrl.startsWith('data:'),
+    'a rejected PUT falls back to inline rather than losing the audit',
+    putFailed.photoUrl.slice(0, 16),
+  );
+  check(
+    putFailed.origin === 'device',
+    'the fallback still reports a real capture',
+    putFailed.origin,
+  );
+  check(
+    warnings.length === 1,
+    'a real upload failure IS logged (so a broken path is visible)',
+    warnings,
+  );
 
   // ------------------------------------------------- FALLBACK: unreachable
   console.log('\nfallback: the presign request cannot be reached');
@@ -187,7 +215,11 @@ async function main() {
     fileName: 'audits/store-1/task-9.jpg',
     contentType: 'image/png',
   });
-  check(unreachable.photoUrl.startsWith('data:'), 'an unreachable API falls back to inline', unreachable.photoUrl.slice(0, 16));
+  check(
+    unreachable.photoUrl.startsWith('data:'),
+    'an unreachable API falls back to inline',
+    unreachable.photoUrl.slice(0, 16),
+  );
   check(warnings.length === 1, 'the unreachable failure is logged', warnings);
 
   // ------------------------------------------------- PLACEHOLDER never presigns
@@ -197,9 +229,21 @@ async function main() {
     throw new Error('the placeholder must not call fetch');
   });
   const placeholder = await mobileApi.uploadPhoto({ placeholder: true, fileName: 'audits/x.jpg' });
-  check(placeholder.origin === 'placeholder', 'a placeholder is marked as a placeholder', placeholder.origin);
-  check(placeholder.photoUrl.startsWith('data:'), 'the placeholder is an inline data URL', placeholder.photoUrl.slice(0, 16));
-  check(fetchCalls.length === 0, 'the placeholder never presigns — no network at all', fetchCalls.length);
+  check(
+    placeholder.origin === 'placeholder',
+    'a placeholder is marked as a placeholder',
+    placeholder.origin,
+  );
+  check(
+    placeholder.photoUrl.startsWith('data:'),
+    'the placeholder is an inline data URL',
+    placeholder.photoUrl.slice(0, 16),
+  );
+  check(
+    fetchCalls.length === 0,
+    'the placeholder never presigns — no network at all',
+    fetchCalls.length,
+  );
 
   // ------------------------------------------------- NEITHER: still refused
   let refused: unknown;

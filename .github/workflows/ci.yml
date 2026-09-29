@@ -510,4 +510,3 @@ jobs:
           path: ${{ runner.temp }}/api.log
           if-no-files-found: ignore
           retention-days: 7
-

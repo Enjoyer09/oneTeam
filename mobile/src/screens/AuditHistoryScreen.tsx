@@ -46,6 +46,13 @@ const uploadQueuedAudit: UploadHandler = async (item) => {
     gps: item.metadata.gps,
     distanceFromStoreMeters: item.metadata.distance_from_store_meters,
     metadata: item.metadata,
+    // The queue item's ID is the idempotency key for this drain.
+    //
+    // A drain that crashes halfway through or times out on the wire may have
+    // already filed this audit with the API. When the worker taps sync again,
+    // or when the reconnection listener fires, this key makes the server
+    // return the evidence it already created instead of filing a duplicate.
+    idempotencyKey: item.id,
   });
 
   return { photoUrl, submissionId: submission.id };
