@@ -212,8 +212,17 @@ export async function restoreCredential(): Promise<{ deviceId: string; hasToken:
  * again. The identity is NOT dropped, so the next enrolment comes back as the
  * same device and keeps its history; see `CredentialStore.clearDeviceToken`.
  *
- * Revoking on the server is a separate act, and it is not possible from the
- * panel today — see the note in `keychain.ts`.
+ * Revoking on the server is a separate act, and — correcting an earlier note
+ * here — it IS possible from the panel now: `POST /api/panel/.../devices/:id/
+ * revoke`, see `keychain.ts`. There was an interaction worth spelling out: this
+ * client answers a 401 by enrolling again, and enrolment is gated only by the
+ * store code, so a revoked device that still knew the code used to re-enrol
+ * straight back to a working token. Making revocation survive re-enrolment was a
+ * server policy decision, and it is now made: revoke also writes a `device_blocks`
+ * bar on the `deviceId`, enrolment refuses a barred device with `403
+ * DEVICE_BLOCKED`, and only an admin lifts it (`.../devices/:id/unblock`). So the
+ * loop is closed on the server, exactly where it belongs — this client still just
+ * enrols again, and the barred device simply gets a 403 instead of a token.
  */
 export async function forgetCredential(): Promise<void> {
   deviceToken = null;

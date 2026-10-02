@@ -37,28 +37,36 @@
  * survives a delete"), and it is a real trade-off worth naming — a phone that is
  * handed on carries the previous worker's identity.
  *
- * WHICH IS WORSE THAN IT SOUNDS, BECAUSE NOTHING CAN CUT THE DEVICE OFF
- * --------------------------------------------------------------------
- * Checked against the API rather than assumed, after a first draft of this
- * comment named a revoke route that does not exist. `panel-auth.controller.ts`
- * has `keys/:prefix/revoke` and `users/:userId/revoke-keys`, and both of those
- * are for PANEL keys. There is no route anywhere that revokes a DEVICE token.
+ * HOW A LOST PHONE IS CUT OFF
+ * ---------------------------
+ * Checked against the API rather than assumed. An earlier draft of this comment
+ * said no route could revoke a device token and called it an API gap — that is
+ * no longer true, and the note is corrected here rather than left to mislead.
  *
- * The two ways a device credential can be invalidated today, and what each
- * costs:
+ * A device credential can be invalidated three ways today:
  *
+ *   - A supervisor revokes it from the panel, WITHOUT the phone. This is the one
+ *     that matters for a lost phone. `GET /api/panel/.../devices` lists every
+ *     device by `deviceId` (`panel-auth.controller.ts` → `db.listDeviceTokens`),
+ *     and `POST /api/panel/.../devices/:deviceId/revoke` cuts it off
+ *     (`revokeDeviceTokensForDevice` → `UPDATE device_tokens SET revoked_at`).
+ *     It is scoped to supervisors and above, and it revokes by `deviceId`
+ *     because "the phone was lost" is a fact about a device, not a person — the
+ *     same merchandiser may still hold a working second phone.
  *   - The device enrols again, which revokes its previous live token as it
- *     issues a new one (`insertDeviceToken`). That requires the phone, so it is
- *     no use for a phone that is gone.
- *   - The user is deleted, which cascades to their tokens
- *     (`device_tokens.user_id ... ON DELETE CASCADE`). But a user with audits
- *     cannot be deleted at all — `DELETE /api/panel/users/:id` answers
- *     `409 USER_HAS_SUBMISSIONS` — and a merchandiser who has filed an audit is
- *     exactly the one whose phone you would want to cut off.
+ *     issues a new one (`insertDeviceToken`). Useful for a handed-on phone that
+ *     is present; no use for one that is gone.
+ *   - The user is deleted, which cascades to their tokens. But a user with
+ *     audits cannot be deleted — `DELETE /api/panel/users/:id` answers
+ *     `409 USER_HAS_SUBMISSIONS` — so this is not the path for an active
+ *     merchandiser; the panel revoke route above is.
  *
- * So a lost phone holding a live credential cannot be shut out from the panel.
- * That is a gap in the API, not in this file, and it is recorded in the plan's
- * debt table rather than papered over here.
+ * Revocation bites immediately: `findDeviceToken` matches only `revoked_at IS
+ * NULL`, so the auth guard rejects a revoked token on the very next request, and
+ * `device_tokens` has no in-memory replica for a stale copy to survive in. The
+ * residual trade-off is unchanged and real — the keychain still survives
+ * uninstall, so a handed-on phone carries the previous worker's identity UNTIL a
+ * supervisor revokes that `deviceId`.
  */
 
 import * as SecureStore from 'expo-secure-store';

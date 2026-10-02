@@ -68,12 +68,18 @@
 import { useEffect, useState, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet, AppState } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { mobileApp } from './src/App';
 import { credentialStore } from './src/services/credentialStore';
 import { keychainAvailable, keychainStore } from './src/services/keychain';
 import { offlineQueueService } from './src/services/offlineQueue';
 import { asyncStorageQueue, queueStorageAvailable } from './src/services/queueStorage';
+import {
+  networkAvailable,
+  getCurrentOnlineStatus,
+  subscribeToConnectivity,
+} from './src/services/network';
 
 import type { MobileStore, MobileTask, GPSCoordinates } from './src/types';
 import type { ChecklistAnswer } from './src/screens/TaskDetailScreen';
@@ -129,13 +135,22 @@ export function Root() {
         if (queueIsPersistent) offlineQueueService.useStorage(asyncStorageQueue);
         await mobileApp.initializeQueue();
 
-        // A drain attempt at startup. There is NO connectivity library in this
-        // build (neither `@react-native-community/netinfo` nor `expo-network` is
-        // installed), so `setOnlineStatus` is never driven by a real listener and
-        // the reconnection-edge drain never fires on its own. Instead the queue is
-        // drained here at startup and again on every foreground (below), plus by
-        // the explicit "Növbəni göndər" button on the task list. Fire-and-forget:
-        // it must not block reaching the login screen, and it never throws.
+        // Seed the queue with a real connectivity reading before the first drain.
+        // The queue defaults to "online", so without this a worker who opens the
+        // app already in a dead zone would have their first capture attempt an
+        // upload instead of being queued. `networkAvailable` gates it: if the
+        // platform cannot report connectivity we leave the default and lean on the
+        // startup/foreground/manual drains, exactly as this file did before.
+        const hasNetworkSignal = await networkAvailable();
+        if (hasNetworkSignal) {
+          offlineQueueService.setOnlineStatus(await getCurrentOnlineStatus());
+        }
+
+        // A drain attempt at startup, for audits a previous session queued and
+        // never sent. The reconnection edge is now wired too (see the connectivity
+        // effect below), but startup has no offline→online transition to hang a
+        // drain on, so this stays. Fire-and-forget: it must not block reaching the
+        // login screen, and it never throws.
         void mobileApp.drainQueueOnResume();
 
         if (!cancelled) {
@@ -153,14 +168,39 @@ export function Root() {
     };
   }, []);
 
-  // Drain the offline queue whenever the app comes back to the foreground.
+  // Drain when the radio comes back — the case this app could not see before.
   //
-  // This is the substitute for a connectivity listener. With no netinfo/
-  // expo-network dependency in the build there is nothing watching the radio, so
-  // "the worker walked out of the basement and the signal came back" is not an
-  // event this app can observe directly. Foregrounding is the closest reachable
-  // proxy — the worker reopening the app after moving — and together with the
-  // startup drain and the manual button it keeps queued audits from being
+  // `expo-network` now watches connectivity, and its offline→online edge drives
+  // `setOnlineStatus`, whose edge fires the reconnection drain inside the queue.
+  // So "the worker walked out of the basement and the signal came back while the
+  // app was open" is finally an event the app observes directly, rather than one
+  // that waited for the next foreground. Gated on `networkAvailable`: if the
+  // platform gives no signal, no listener is wired and the foreground/startup/
+  // manual drains carry the load as they did. `setOnlineStatus` never throws.
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+    let cancelled = false;
+
+    void (async () => {
+      if (!(await networkAvailable())) return;
+      if (cancelled) return;
+      unsubscribe = subscribeToConnectivity((online) => {
+        offlineQueueService.setOnlineStatus(online);
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
+  // Drain when the app returns to the foreground.
+  //
+  // Kept as a safety net alongside the connectivity listener above: the listener
+  // catches the reconnection edge, but foregrounding also covers the app being
+  // reopened after a background kill, when there is no edge to observe. Together
+  // with the startup drain and the manual button, queued audits are not
   // stranded. `drainQueueOnResume` respects the retry cap and never throws.
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (next) => {
@@ -340,7 +380,11 @@ export function Root() {
     }
   };
 
-  return <View style={styles.screen}>{renderScreen()}</View>;
+  return (
+    <SafeAreaProvider>
+      <View style={styles.screen}>{renderScreen()}</View>
+    </SafeAreaProvider>
+  );
 }
 
 // Minimal imports for the fatal error screen — these are only used when the

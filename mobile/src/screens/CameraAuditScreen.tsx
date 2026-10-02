@@ -94,6 +94,13 @@ export class CameraAuditController {
   async captureLiveAudit(params: {
     source: 'camera' | 'gallery';
     userGPS: GPSCoordinates;
+    /**
+     * Whether `userGPS` is a fresh fix taken at this capture, or the sign-in
+     * fallback. Forwarded to the stamper so the distinction the review banner
+     * shows the worker is also written into the durable audit record, the
+     * offline queue, and the server submission — not left to vanish with the UI.
+     */
+    isFresh?: boolean;
     /** Real capture bytes, when the platform camera provided them. */
     base64?: string;
     /**
@@ -147,6 +154,10 @@ export class CameraAuditController {
       // from the real thing, which is what makes it worth fixing rather than
       // documenting: the field is only useful if `true` means something.
       ghostOverlayUsed: this.state.ghostOverlayActive && this.task.reference_image_url !== null,
+      // Fresh-fix-at-capture vs sign-in fallback, forwarded as the screen
+      // resolved it. The stamper writes it into the metadata only when present,
+      // so a caller that never resolved a position does not assert one.
+      locationIsFresh: params.isFresh,
       // The barcode list is forwarded as the worker built it; the stamper is
       // the one place that decides whether to keep it and how to de-duplicate
       // it, so two call sites cannot disagree on what "scanned" means.
@@ -273,8 +284,11 @@ export class CameraAuditController {
 // real position the geofence already passed — it is weaker than a fresh fix, and
 // `isFresh: false` says so out loud rather than letting the two look identical.
 //
-// WHAT IS NOT DONE HERE: recording `isFresh` in `AuditMetadata`. That shape is
-// shared with the server, so it changes with the API, not on its own.
+// WHAT THE METADATA NOW RECORDS: `location_is_fresh`. `AuditMetadata` is a
+// mobile-local shape — the server stores the submission's `metadata` as an
+// opaque object, so adding a field is additive and needs no API change. The
+// freshness verdict therefore travels with the evidence into the offline queue
+// and up to the server, instead of living only in the capture-time banner.
 
 export interface CapturePosition {
   gps: GPSCoordinates;

@@ -112,6 +112,24 @@ export interface AuditMetadata {
   ghost_overlay_used: boolean;
   app_version: string;
   /**
+   * Whether the GPS stamped here was a FRESH fix taken at the moment of capture,
+   * or the weaker position verified at sign-in.
+   *
+   * `true` means the platform answered when the shutter fired, so the position
+   * describes where the photo was actually taken. `false` means the platform
+   * could not answer in time and the capture fell back to the sign-in fix — a
+   * real position the geofence already passed, but an older one: a worker can
+   * sign in at the store and photograph a shelf elsewhere, and this is the field
+   * that lets a supervisor see the difference instead of trusting every stamp
+   * equally.
+   *
+   * Absent when the caller did not resolve a capture position at all, so "not
+   * resolved" stays distinct from "resolved to the sign-in fix". The warning the
+   * worker sees at capture time is transient; this is the durable record of it,
+   * carried into the offline queue and up to the server with the evidence.
+   */
+  location_is_fresh?: boolean;
+  /**
    * Barcodes read off the shelf while this audit was being captured.
    *
    * Absent when nothing was scanned, rather than empty: "no barcodes were

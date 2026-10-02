@@ -49,6 +49,7 @@ import {
   ScrollView,
 } from 'react-native';
 import * as Location from 'expo-location';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LoginScreenController } from './LoginScreen';
 import type { MobileStore, GPSCoordinates } from '../types';
 
@@ -73,6 +74,7 @@ export interface LoginScreenProps {
 }
 
 export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
+  const insets = useSafeAreaInsets();
   const [controller] = useState(() => new LoginScreenController());
   const [storeCode, setStoreCode] = useState(controller.getState().storeCodeInput);
   const [enrollmentSecret, setEnrollmentSecret] = useState(
@@ -178,7 +180,13 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
       style={styles.screen}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40 },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.title}>oneTeam</Text>
         <Text style={styles.subtitle}>Coca-Cola rəf monitorinqi</Text>
 
@@ -308,8 +316,6 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     padding: 24,
-    paddingTop: 80,
-    paddingBottom: 40,
   },
   title: {
     fontSize: 32,

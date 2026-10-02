@@ -295,7 +295,11 @@ async function runMobileTests() {
     id: 'task-placeholder',
     title: 'Cooler Check',
     description: 'Soyuducu auditi',
-    reference_image_url: null,
+    // A reference image is required for the ghost_overlay_used assertion below:
+    // the overlay is only recorded as "used" when there is a planogram to
+    // overlay (CameraAuditScreen.tsx). A null here would make ghost_overlay_used
+    // false and the assertion a contradiction — which is what it was.
+    reference_image_url: 'https://cdn.oneteam.example/planograms/cooler-check.jpg',
     priority: 'high',
     status: 'published',
     deadline: new Date(Date.now() + 86400000).toISOString(),

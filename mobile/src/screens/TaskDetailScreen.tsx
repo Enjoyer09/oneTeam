@@ -33,6 +33,7 @@ import {
   Alert,
 } from 'react-native';
 import type { MobileTask, MobileStore, GPSCoordinates } from '../types';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ChecklistQuestion } from '@oneteam/types';
 import { TaskDetailController } from './TaskListScreen';
 
@@ -67,6 +68,7 @@ export function TaskDetailScreen({
   onBack,
   onOpenCamera,
 }: TaskDetailScreenProps) {
+  const insets = useSafeAreaInsets();
   const controller = new TaskDetailController(task, store);
   const details = controller.getPlanogramDetails();
 
@@ -92,7 +94,7 @@ export function TaskDetailScreen({
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
           <Text style={styles.backButtonText}>← Geri</Text>
         </TouchableOpacity>
@@ -184,7 +186,7 @@ export function TaskDetailScreen({
       </ScrollView>
 
       {/* Fixed bottom button */}
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
         <TouchableOpacity
           testID="taskDetail.openCameraButton"
           style={[styles.cameraButton, !allAnswered && styles.cameraButtonDisabled]}
@@ -239,7 +241,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 60,
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#E0E0E0',
@@ -363,7 +364,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: 16,
-    paddingBottom: 34,
     paddingTop: 12,
     backgroundColor: '#FFFFFF',
     borderTopWidth: StyleSheet.hairlineWidth,

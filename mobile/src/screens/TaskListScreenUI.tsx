@@ -28,6 +28,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import type { MobileTask, MobileStore } from '../types';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TaskListController } from './TaskListScreen';
 import { mobileApp } from '../App';
 import { offlineQueueService } from '../services/offlineQueue';
@@ -39,6 +40,7 @@ export interface TaskListScreenProps {
 }
 
 export function TaskListScreenUI({ store, onSelectTask, onLogout }: TaskListScreenProps) {
+  const insets = useSafeAreaInsets();
   const controller = new TaskListController();
   const [tasks, setTasks] = useState<MobileTask[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,7 +127,7 @@ export function TaskListScreenUI({ store, onSelectTask, onLogout }: TaskListScre
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Text style={styles.headerTitle}>{store.name}</Text>
         <TouchableOpacity
           testID="taskList.syncButton"
@@ -175,7 +177,7 @@ export function TaskListScreenUI({ store, onSelectTask, onLogout }: TaskListScre
         <FlatList
           data={tasks}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 16 }]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -235,7 +237,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 60,
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#E0E0E0',
@@ -312,7 +313,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
-    paddingBottom: 34,
   },
   taskCard: {
     backgroundColor: '#FFFFFF',

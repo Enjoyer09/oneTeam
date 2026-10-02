@@ -58,6 +58,7 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import * as Location from 'expo-location';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   CameraAuditController,
   resolveCapturePosition,
@@ -117,6 +118,7 @@ export function CameraAuditScreenUI({
   onComplete,
   onCancel,
 }: CameraAuditScreenProps) {
+  const insets = useSafeAreaInsets();
   const [controller] = useState(() => new CameraAuditController(task, store));
   const [state, setState] = useState(controller.getState());
   const [captured, setCaptured] = useState<CapturedPhoto | null>(null);
@@ -274,6 +276,7 @@ export function CameraAuditScreenUI({
       const result = await controller.captureLiveAudit({
         source: 'camera',
         userGPS: position.gps,
+        isFresh: position.isFresh,
         base64: shot.base64,
         scannedBarcodes,
         photoQuality: assessment,
@@ -374,7 +377,7 @@ export function CameraAuditScreenUI({
 
   // Live camera preview, with the guides drawn over it.
   const renderPreview = () => (
-    <View style={styles.previewContainer}>
+    <View style={[styles.previewContainer, { paddingBottom: insets.bottom + 16 }]}>
       <View style={styles.preview}>
         {permission?.granted ? (
           <CameraView
@@ -557,7 +560,7 @@ export function CameraAuditScreenUI({
 
   // Review after capture
   const renderReview = () => (
-    <ScrollView contentContainerStyle={styles.reviewContent}>
+    <ScrollView contentContainerStyle={[styles.reviewContent, { paddingBottom: insets.bottom + 40 }]}>
       <Text style={styles.reviewTitle}>✅ Şəkil çəkildi</Text>
 
       {/* The photo itself, so "review before sending" is actually possible.
@@ -674,7 +677,7 @@ export function CameraAuditScreenUI({
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={onCancel} style={styles.backButton}>
           <Text style={styles.backButtonText}>← Ləğv et</Text>
         </TouchableOpacity>
@@ -699,7 +702,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 60,
     paddingBottom: 12,
     backgroundColor: '#000000',
   },
@@ -721,7 +723,6 @@ const styles = StyleSheet.create({
   previewContainer: {
     flex: 1,
     justifyContent: 'space-between',
-    paddingBottom: 34,
   },
   preview: {
     flex: 1,
@@ -872,7 +873,6 @@ const styles = StyleSheet.create({
   },
   reviewContent: {
     padding: 20,
-    paddingBottom: 40,
   },
   reviewTitle: {
     fontSize: 22,

@@ -34,6 +34,14 @@ export function stampAuditMetadata(params: {
   osVersion?: string;
   appVersion?: string;
   /**
+   * Whether `userGPS` is a fresh fix taken at the moment of capture (`true`) or
+   * the weaker sign-in position (`false`). Optional because a caller that did
+   * not resolve a capture position has nothing to assert — and the stamper keeps
+   * "did not resolve" distinct from "resolved to the sign-in fix", just as it
+   * does for the other three-valued fields below.
+   */
+  locationIsFresh?: boolean;
+  /**
    * Barcodes read off the shelf. De-duplicated here rather than at the call
    * site so that no caller can record the same code twice and make a shelf look
    * fuller than it is. Empty means "the worker scanned and found nothing";
@@ -122,6 +130,15 @@ export function stampAuditMetadata(params: {
     capture_mode: 'live_camera_only', // Gallery picks are strictly prohibited
     ghost_overlay_used: params.ghostOverlayUsed,
     app_version: params.appVersion || UNKNOWN_DEVICE_FIELD,
+    // FRESHNESS — CARRIED ONLY WHEN THE CALLER RESOLVED A POSITION.
+    //
+    // `true` says the GPS above was taken at the shutter; `false` says it is the
+    // sign-in fix the capture fell back to. Absent when the caller did not pass a
+    // verdict at all, so "not resolved" does not masquerade as "fresh". This is
+    // the durable form of the stale-position banner the worker sees at capture.
+    ...(typeof params.locationIsFresh === 'boolean'
+      ? { location_is_fresh: params.locationIsFresh }
+      : {}),
     ...(scannedBarcodes !== undefined ? { scanned_barcodes: scannedBarcodes } : {}),
     ...(photoQuality !== undefined ? { photo_quality: photoQuality } : {}),
   };
