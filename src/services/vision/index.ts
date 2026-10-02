@@ -32,6 +32,7 @@ import { aiVisionService, SKU_METADATA, type CocaColaSKU } from '../aiVision';
 import type { VisionInput, VisionLLMClient, VisionLLMJudgement, VisionProvider } from './types';
 import { SimulationVisionProvider, YoloVisionProvider } from './engineProviders';
 import { VisionLLMProvider } from './llmProvider';
+import { openRouterClientFromEnv } from './openrouterClient';
 import { HybridVisionProvider, type HybridThresholds } from './hybridProvider';
 
 export type VisionProviderKind = 'off' | 'simulation' | 'yolo' | 'vision-llm' | 'hybrid';
@@ -205,7 +206,11 @@ function buildLLMClientFromEnv(env: NodeJS.ProcessEnv): VisionLLMClient | null {
   const url = env.ONETEAM_VISION_LLM_URL;
   const model = env.ONETEAM_VISION_LLM_MODEL;
   const key = env.ONETEAM_VISION_LLM_KEY;
-  if (!url || !model || !key) return null;
+  if (!url || !model || !key) {
+    // No generic endpoint configured: fall back to OpenRouter's own keys, which
+    // carry their own client-side rate limit. Same provider, different transport.
+    return openRouterClientFromEnv(env);
+  }
   // Optional per-call ceiling (ms). Defaults to 20s: long enough for a slow
   // reasoning model, short enough that a hung call escalates to a human instead
   // of stalling the bot's photo handler. A non-positive/NaN value keeps 20s.
@@ -262,3 +267,11 @@ export { SimulationVisionProvider, YoloVisionProvider, VisionLLMProvider, Hybrid
 export { combineHybrid, DEFAULT_YOLO_CONFIDENCE_FLOOR } from './hybridProvider';
 export type { VisionAnalysis, VisionInput, VisionProvider, VisionLLMClient } from './types';
 export { SKU_METADATA };
+export {
+  OpenRouterClient,
+  TokenBucket,
+  defaultBucket,
+  openRouterClientFromEnv,
+  OPENROUTER_ENDPOINT,
+} from './openrouterClient';
+export type { OpenRouterClientOptions, TokenBucketOptions } from './openrouterClient';
