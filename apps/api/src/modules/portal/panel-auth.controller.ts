@@ -449,6 +449,16 @@ export class PanelAuthController {
       db.users.map((user: any) => [user.id, String(user.fullName ?? user.id)]),
     );
 
+    // A block is keyed by device_id and lives in its own table, not on the
+    // token row. A device can be blocked yet have no live token (revoked, then
+    // tried to re-enrol and was refused), so this is a separate lookup joined
+    // in by id rather than a column on the token. Surfacing it lets an operator
+    // tell "cut off and barred" from "cut off but could still come back" — the
+    // latter being the exact gap the block closes.
+    const blockedIds = new Set(
+      (await db.listActiveDeviceBlocks()).map((block) => block.deviceId),
+    );
+
     return {
       success: true,
       data: {
@@ -465,6 +475,7 @@ export class PanelAuthController {
           lastSeenAt: row.lastSeenAt?.toISOString() ?? null,
           revokedAt: row.revokedAt?.toISOString() ?? null,
           live: !row.revokedAt,
+          blocked: blockedIds.has(row.deviceId),
         })),
         // The count that matters: a device that was cut off and re-enrolled has
         // two rows, and only one of them works.
@@ -507,15 +518,77 @@ export class PanelAuthController {
       });
     }
 
+    // The revocation only matters if it lasts. The mobile client re-enrols on
+    // every start, so without a block the device the supervisor just cut off
+    // would issue itself a fresh token the next time the app opened. Setting a
+    // block here, on the one action the operator takes, is what makes "cut this
+    // phone off" mean the phone stays off until an administrator clears it.
+    const blocked = await db.blockDevice({
+      deviceId: target,
+      blockedBy: principal.userId,
+      reason: 'Revoked from panel',
+    });
+
     db.logAuditEvent({
       entityType: 'device_token',
       entityId: target,
       action: 'DEVICE_CREDENTIAL_REVOKED',
       actorId: principal.userId,
-      payload: { deviceId: target, revoked },
+      payload: { deviceId: target, revoked, blocked },
     });
 
-    return { success: true, data: { revoked, deviceId: target } };
+    return { success: true, data: { revoked, deviceId: target, blocked } };
+  }
+
+  /**
+   * Lets a device back in. The inverse of a revoke, and deliberately a higher
+   * bar: `requireAdmin`, not `requireSupervisor`.
+   *
+   * A supervisor cuts a phone off because they are standing in the store and the
+   * phone is gone — urgent, local, and reversible by this route. Letting a
+   * device back in is the opposite kind of decision: it re-opens enrolment for a
+   * `device_id` that someone judged should be barred, and on iOS that id can
+   * outlive the person who held the phone. That is an access decision in the
+   * same category as minting a key, so it sits behind the same guard.
+   *
+   * Clearing a block does not re-issue a credential — the device still has to
+   * enrol again. It only removes the bar that was refusing it.
+   */
+  @Post('devices/:deviceId/unblock')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async unblockDevice(@Param('deviceId') deviceId: string, @Request() request: AuthedRequest) {
+    const principal = requireAdmin(request);
+    const target = String(deviceId ?? '').trim();
+
+    if (!target) {
+      throw new BadRequestException({
+        error: 'DEVICE_REQUIRED',
+        message: 'Cihaz göstərilməyib.',
+      });
+    }
+
+    const cleared = await db.clearDeviceBlock({ deviceId: target, clearedBy: principal.userId });
+
+    // Same distinction the revoke route draws: nothing cleared is not success.
+    // An operator told "unblocked" when the device was not blocked would believe
+    // they had changed something they had not.
+    if (cleared === 0) {
+      throw new NotFoundException({
+        error: 'DEVICE_NOT_BLOCKED',
+        message: 'Bu cihaz üçün aktiv blok yoxdur.',
+      });
+    }
+
+    db.logAuditEvent({
+      entityType: 'device_token',
+      entityId: target,
+      action: 'DEVICE_BLOCK_CLEARED',
+      actorId: principal.userId,
+      payload: { deviceId: target, cleared },
+    });
+
+    return { success: true, data: { cleared, deviceId: target } };
   }
 
   // -------------------------------------------------------------------------

@@ -1082,6 +1082,104 @@ export async function revokeDeviceTokensForDevice(pool: Pool, deviceId: string):
 }
 
 // ---------------------------------------------------------------------------
+// Device blocks
+// ---------------------------------------------------------------------------
+//
+// A revocation acts on a token; enrolment issues a new one. Without a block the
+// two cancel out — the phone the operator cut off re-enrols on its next start
+// and is back. These helpers hold a bar keyed by `device_id` that outlives any
+// single token: while a block is active, enrolment refuses the device. See the
+// migration for why a block is a timestamp (`cleared_at`) rather than a delete.
+
+export interface DeviceBlockRow {
+  deviceId: string;
+  blockedAt: Date;
+  blockedBy: string | null;
+  reason: string | null;
+}
+
+/**
+ * Bars a device from re-enrolling, if it is not already barred.
+ *
+ * `WHERE NOT EXISTS` rather than `ON CONFLICT`: the uniqueness that protects
+ * this is a *partial* index (`cleared_at IS NULL`), which a bare
+ * `ON CONFLICT (device_id)` does not infer — the same caveat the device-token
+ * path documents. The guard makes a second block for an already-blocked device
+ * a no-op instead of an error, so the revoke route can set a block
+ * unconditionally without having to ask first.
+ *
+ * Returns true when a new block was written, false when one was already active.
+ */
+export async function blockDevice(
+  pool: Pool,
+  params: { deviceId: string; blockedBy?: string | null; reason?: string | null },
+): Promise<boolean> {
+  const result = await pool.query(
+    `INSERT INTO device_blocks (device_id, blocked_by, reason)
+     SELECT $1, $2, $3
+      WHERE NOT EXISTS (
+        SELECT 1 FROM device_blocks
+         WHERE device_id = $1
+           AND cleared_at IS NULL
+      )`,
+    [params.deviceId, params.blockedBy ?? null, params.reason ?? null],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/** Whether a device currently has an active block. Read on every enrolment. */
+export async function isDeviceBlocked(pool: Pool, deviceId: string): Promise<boolean> {
+  const result = await pool.query(
+    `SELECT 1
+       FROM device_blocks
+      WHERE device_id = $1
+        AND cleared_at IS NULL
+      LIMIT 1`,
+    [deviceId],
+  );
+  return result.rows.length > 0;
+}
+
+/**
+ * Lifts a device's active block. Returns how many were cleared (0 or 1).
+ *
+ * Zero means there was nothing active to clear, which the caller answers as
+ * "not found" rather than as success — the same distinction the revoke path
+ * draws, and for the same reason: an operator told "unblocked" when nothing was
+ * blocked would believe they had changed something they had not.
+ */
+export async function clearDeviceBlock(
+  pool: Pool,
+  params: { deviceId: string; clearedBy?: string | null },
+): Promise<number> {
+  const result = await pool.query(
+    `UPDATE device_blocks
+        SET cleared_at = now(),
+            cleared_by = $2
+      WHERE device_id = $1
+        AND cleared_at IS NULL`,
+    [params.deviceId, params.clearedBy ?? null],
+  );
+  return result.rowCount ?? 0;
+}
+
+/** Every active block, for the panel's device list to mark blocked rows. */
+export async function listActiveDeviceBlocks(pool: Pool): Promise<DeviceBlockRow[]> {
+  const result = await pool.query(
+    `SELECT device_id, blocked_at, blocked_by, reason
+       FROM device_blocks
+      WHERE cleared_at IS NULL
+      ORDER BY blocked_at DESC`,
+  );
+  return result.rows.map((row) => ({
+    deviceId: row.device_id,
+    blockedAt: new Date(row.blocked_at),
+    blockedBy: row.blocked_by ?? null,
+    reason: row.reason ?? null,
+  }));
+}
+
+// ---------------------------------------------------------------------------
 // Panel credentials
 // ---------------------------------------------------------------------------
 //

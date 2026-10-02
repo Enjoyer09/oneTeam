@@ -1815,6 +1815,55 @@ export class EnterpriseDatabase {
   }
 
   // -------------------------------------------------------------------------
+  // Device blocks
+  // -------------------------------------------------------------------------
+  //
+  // A bar that outlives a token. Revoking cuts off the credential a device
+  // holds now; a block stops it issuing a new one on its next enrolment. All
+  // DB-only and straight to the pool, like the device-token helpers above:
+  // `device_blocks` is a leaf table with no in-memory copy, and the enrolment
+  // and revoke callers need the authoritative answer before they reply. With no
+  // database the safe default is "nothing is blocked" — the same mode in which
+  // no device tokens exist at all, so there is nothing to bar.
+
+  /**
+   * Bars a device from re-enrolling. Returns true when a new block was written,
+   * false when one was already active (or there is no database).
+   */
+  public async blockDevice(params: {
+    deviceId: string;
+    blockedBy?: string | null;
+    reason?: string | null;
+  }): Promise<boolean> {
+    if (!this.pool) return false;
+    return pg.blockDevice(this.pool, params);
+  }
+
+  /** Whether a device is currently barred from enrolling. False with no database. */
+  public async isDeviceBlocked(deviceId: string): Promise<boolean> {
+    if (!this.pool) return false;
+    return pg.isDeviceBlocked(this.pool, deviceId);
+  }
+
+  /**
+   * Lifts a device's active block. Returns how many were cleared (0 or 1); 0
+   * with no database, which the caller already treats as "nothing to clear".
+   */
+  public async clearDeviceBlock(params: {
+    deviceId: string;
+    clearedBy?: string | null;
+  }): Promise<number> {
+    if (!this.pool) return 0;
+    return pg.clearDeviceBlock(this.pool, params);
+  }
+
+  /** Every active block, for the panel's device list. [] with no database. */
+  public async listActiveDeviceBlocks(): Promise<pg.DeviceBlockRow[]> {
+    if (!this.pool) return [];
+    return pg.listActiveDeviceBlocks(this.pool);
+  }
+
+  // -------------------------------------------------------------------------
   // Panel credentials
   // -------------------------------------------------------------------------
 

@@ -427,6 +427,45 @@ export class EnrollmentController {
       );
     }
 
+    // A revoked device must stay revoked. The mobile client re-enrols on every
+    // start and holds no token across restarts, so a phone a supervisor cut off
+    // would otherwise walk straight back in here with a fresh credential. The
+    // block, set on the revoke, is what this checks: while it is active the
+    // device is refused rather than re-issued, no matter what store code or name
+    // it presents. Only an administrator's unblock lets it back in.
+    //
+    // Checked before the known/unknown split, because the block is about the
+    // device, not about whether we have seen it — a device blocked while known
+    // is exactly the lost-phone case this closes.
+    if (await db.isDeviceBlocked(deviceId)) {
+      // No actorId: enrolment establishes no identity, which is the point. The
+      // trail still records that a barred device tried, so a run of these on one
+      // id reads as "someone is holding a phone that was cut off".
+      db.logAuditEvent({
+        entityType: 'device_token',
+        entityId: deviceId,
+        action: 'DEVICE_ENROLMENT_BLOCKED',
+        payload: {
+          deviceId,
+          storeId: store.id,
+          storeCode: store.storeCode,
+          source,
+        },
+      });
+      this.logger.warn(
+        `⛔ Enrolment refused for ${source}: device ${deviceId} is blocked.`,
+      );
+      throw new HttpException(
+        {
+          error: 'DEVICE_BLOCKED',
+          message:
+            'Bu cihaz bloklanıb və yenidən qeydiyyatdan keçə bilməz. ' +
+            'Zəhmət olmasa administratorla əlaqə saxlayın.',
+        },
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
     // A device that is already known is re-enrolling, not joining. The mobile
     // client has no storage layer, so it does this on every process start, and
     // counting those would make the cap below fire on ordinary use — see
