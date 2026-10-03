@@ -455,9 +455,7 @@ export class PanelAuthController {
     // in by id rather than a column on the token. Surfacing it lets an operator
     // tell "cut off and barred" from "cut off but could still come back" — the
     // latter being the exact gap the block closes.
-    const blockedIds = new Set(
-      (await db.listActiveDeviceBlocks()).map((block) => block.deviceId),
-    );
+    const blockedIds = new Set((await db.listActiveDeviceBlocks()).map((block) => block.deviceId));
 
     return {
       success: true,

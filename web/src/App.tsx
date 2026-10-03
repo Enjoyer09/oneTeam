@@ -191,6 +191,20 @@ export function App() {
    * Yazma əməliyyatlarını vahid şəkildə sarır: xəta olsa istifadəçi görür,
    * olsa da ekran yenilənir. Hər handler-də təkrar try/catch yazmaq əvəzinə
    * bir yerdə saxlanılır.
+   *
+   * NƏTİCƏNİ QAYTARIR — bu, bu funksiyanın ən vacib hissəsidir.
+   *
+   * Keçmişdə `Promise<void>` idi və xətanı udub normal qayıdırdı. Bunun
+   * komponentlər üçün görünməz bir nəticəsi var idi: `await onApprove(id)`
+   * səhv olanda da "uğurla bitdi" sayılırdı, ona görə `setSelectedSubmission(null)`
+   * işləyirdi — istifadəçi 500 qaytarmış bir sorğunu uğur kimi görüb, modal
+   * bağlanmış və yeni auditi açmış vəziyyətdə qalırdı. Eyni səbəb `TaskManager`-də
+   * **yazılmış formu** silirdi: `handleSubmit` uğursuzluqda da modalı bağlayıb
+   * `setTitle('')`/`setDescription('')` çağırırdı.
+   *
+   * İndi `true` = əməliyyat də edildi, `false` = xəta var idi (toxunulan
+   * `showToast` eynidir). Çağıran yalnız uğurluqda "uzağa atılacaq" işləri —
+   * modalı bağlamaq, formu təmizləmək, yazılmış mətni silmək — aparır.
    */
   const runAction = async (action: () => Promise<unknown>, successMessage: string) => {
     try {
@@ -199,15 +213,17 @@ export function App() {
       // Boş mesaj "artıq öz bildirişini göstərən" əməliyyatlar üçündür —
       // məsələn kütləvi göndərmə, hansı ki sayı özü bildirir.
       if (successMessage) showToast(successMessage);
+      return true;
     } catch (error) {
       if (isAuthFailure(error)) {
         clearStoredKey();
         await checkAuth();
-        return;
+        return false;
       }
       const message = error instanceof Error ? error.message : String(error);
       console.error('⛔ [oneTeam Portal] Əməliyyat alınmadı:', message);
       showToast(`Əməliyyat alınmadı — ${message}`);
+      return false;
     }
   };
 

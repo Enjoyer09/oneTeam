@@ -452,9 +452,7 @@ export class EnrollmentController {
           source,
         },
       });
-      this.logger.warn(
-        `⛔ Enrolment refused for ${source}: device ${deviceId} is blocked.`,
-      );
+      this.logger.warn(`⛔ Enrolment refused for ${source}: device ${deviceId} is blocked.`);
       throw new HttpException(
         {
           error: 'DEVICE_BLOCKED',

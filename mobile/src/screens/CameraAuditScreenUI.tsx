@@ -560,7 +560,9 @@ export function CameraAuditScreenUI({
 
   // Review after capture
   const renderReview = () => (
-    <ScrollView contentContainerStyle={[styles.reviewContent, { paddingBottom: insets.bottom + 40 }]}>
+    <ScrollView
+      contentContainerStyle={[styles.reviewContent, { paddingBottom: insets.bottom + 40 }]}
+    >
       <Text style={styles.reviewTitle}>✅ Şəkil çəkildi</Text>
 
       {/* The photo itself, so "review before sending" is actually possible.

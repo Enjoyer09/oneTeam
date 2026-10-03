@@ -135,6 +135,12 @@ interface TaskManagerProps {
   stores: Store[];
   isCreateModalOpen: boolean;
   setIsCreateModalOpen: (open: boolean) => void;
+  /**
+   * Hər ikisi `Promise<boolean>` qaytarır: `true` = tapşırıq həqiqətən yaradıldı
+   * yaxud göndərildi. Komponent bu bayraq olmadan formanı sıfırlamır və modalı
+   * bağlamır, çünki `App`-dəki `runAction` xətanı udub normal qayıdır — əgər
+   * burada nəticə soruşulmasaydı, uğursuz göndərmə "uğur" kimi görünərdi.
+   */
   onCreateTask: (taskData: {
     title: string;
     description: string;
@@ -144,7 +150,7 @@ interface TaskManagerProps {
     assigned_stores: string[];
     requires_before_after_photo?: boolean;
     checklist_schema?: any[];
-  }) => Promise<void>;
+  }) => Promise<boolean>;
   onBulkDispatch?: (data: {
     title: string;
     description: string;
@@ -156,7 +162,7 @@ interface TaskManagerProps {
     regionId: string;
     requires_before_after_photo?: boolean;
     checklist_schema?: any[];
-  }) => Promise<void>;
+  }) => Promise<boolean>;
   /**
    * Resolves with how many store tasks the content change reached.
    *
@@ -384,6 +390,15 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     return true;
   });
 
+  /**
+   * Modal YALNIZ uğurluqdan sonra bağlanır.
+   *
+   * Əvvəl `try { … setIsBulkModalOpen(false) } finally { … }` idi: xəta halında da
+   * modal bağlanırdı, halbuki `App`-dəki `runAction` xətanı udub normal qayıdır.
+   * Supervayzer "Əməliyyat alınmadı" toast-unu 3.5 saniyə görüb, filtrlərini və
+   * seçimlərini itirmiş vəziyyətdə qalırdı. `false` gələndə `runAction` artıq
+   * toast göstərib, ona görə burada yalnız "heç nə dəyişmə" deyirik.
+   */
   const handleBulkSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (matchedStores.length === 0) {
@@ -396,8 +411,8 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     }
     setBulkError(null);
 
+    setIsBulkSubmitting(true);
     try {
-      setIsBulkSubmitting(true);
       const taskData = {
         title: bulkTitle.trim(),
         description: bulkDescription.trim(),
@@ -411,13 +426,8 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
         assigned_stores: matchedStores.map((s) => s.id),
       };
 
-      if (onBulkDispatch) {
-        await onBulkDispatch(taskData);
-      } else {
-        await onCreateTask(taskData);
-      }
-
-      setIsBulkModalOpen(false);
+      const ok = onBulkDispatch ? await onBulkDispatch(taskData) : await onCreateTask(taskData);
+      if (ok) setIsBulkModalOpen(false);
     } finally {
       setIsBulkSubmitting(false);
     }
@@ -439,6 +449,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     setSelectedStores(updated);
   };
 
+  /**
+   * Forma yalnız uğurluqdan sonra sıfırlanır.
+   *
+   * Əvvəl uğursuzluqda da `setTitle('')`/`setDescription('')` çağırılırdı: server
+   * 500 qaytardıqda supervayzer yazdığı bütün məzmunu itirmiş, modalı bağlanmış
+   * və yalnız 3.5 saniyəlik "Əməliyyat alınmadı" zolağı qalırdı. Bir tapşırıq
+   * təlimatının yazılması dəqiqələr çəkir — bu, bu panelin ən ağır itkisidir.
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !description.trim()) {
@@ -447,11 +465,11 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     }
     setCreateError(null);
 
+    setIsSubmitting(true);
     try {
-      setIsSubmitting(true);
       const storeIds = selectedStores.includes('all') ? stores.map((s) => s.id) : selectedStores;
 
-      await onCreateTask({
+      const ok = await onCreateTask({
         title: title.trim(),
         description: description.trim(),
         reference_image_url: referenceImageUrl,
@@ -460,10 +478,11 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
         assigned_stores: storeIds,
       });
 
-      // Reset form
-      setTitle('');
-      setDescription('');
-      setIsCreateModalOpen(false);
+      if (ok) {
+        setTitle('');
+        setDescription('');
+        setIsCreateModalOpen(false);
+      }
     } finally {
       setIsSubmitting(false);
     }

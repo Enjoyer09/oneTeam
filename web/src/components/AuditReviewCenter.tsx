@@ -23,9 +23,16 @@ interface AuditReviewCenterProps {
   submissions: Submission[];
   selectedSubmission: Submission | null;
   setSelectedSubmission: (sub: Submission | null) => void;
-  onApprove: (id: string) => Promise<void>;
-  onAIApprove?: (id: string) => Promise<void>;
-  onReject: (id: string, feedback: string) => Promise<void>;
+  /**
+   * Hər üçü `Promise<boolean>` qaytarır: `true` = əməliyyat də edildi.
+   * Komponent yalnız `true` olduqda modalı bağlayır — bəs qalan hər şey
+   * (yazılmış səbəbi silmək, seçilmiş auditi bağlamaq) uğursuzluqda itirilmiş
+   * hesab olunur. `false` gələndə `runAction` artıq istifadəçiyə toast göstərib,
+   * ona görə komponent yalnız "heç nə etmə" deyir.
+   */
+  onApprove: (id: string) => Promise<boolean>;
+  onAIApprove?: (id: string) => Promise<boolean>;
+  onReject: (id: string, feedback: string) => Promise<boolean>;
   initialFilter?: SubmissionStatus | 'all';
 }
 
@@ -114,25 +121,31 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
     return matchesStatus && matchesSearch;
   });
 
+  /**
+   * Qərar handler-ləri YALNIZ uğurluqda modalı bağlayır.
+   *
+   * Əvvəl `try { await onApprove(id); setSelectedSubmission(null); } finally {…}`
+   * idi və xəta halında da `setSelectedSubmission(null)` işləyirdi — server 500
+   * qaytardıqda istifadəçi sorğunun uğurlu olduğunu görürdü. İmtina halında
+   * `setRejectFeedback('')` yazılmış səbəbi də silirdi, belə də istifadəçi
+   * təkrar yazmalı olurdu. `false` gələndə heç nə dəyişmir: səbəb yazılı qalır,
+   * modal açıq qalır, `runAction` toast göstərib.
+   */
   const handleApproveClick = async (id: string) => {
+    setIsProcessing(true);
     try {
-      setIsProcessing(true);
-      await onApprove(id);
-      setSelectedSubmission(null);
+      const ok = await onApprove(id);
+      if (ok) setSelectedSubmission(null);
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleAIApproveClick = async (id: string) => {
+    setIsProcessing(true);
     try {
-      setIsProcessing(true);
-      if (onAIApprove) {
-        await onAIApprove(id);
-      } else {
-        await onApprove(id);
-      }
-      setSelectedSubmission(null);
+      const ok = onAIApprove ? await onAIApprove(id) : await onApprove(id);
+      if (ok) setSelectedSubmission(null);
     } finally {
       setIsProcessing(false);
     }
@@ -144,12 +157,17 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
       return;
     }
     setRejectError(null);
+    setIsProcessing(true);
     try {
-      setIsProcessing(true);
-      await onReject(id, rejectFeedback.trim());
-      setRejectFeedback('');
-      setShowRejectInput(false);
-      setSelectedSubmission(null);
+      const ok = await onReject(id, rejectFeedback.trim());
+      // Yalnız uğurluqdan sonra: yazılmış səbəb uğursuzluqda qalır, ki bir dəfə
+      // də yazmasın — imtina səbəbi uzun mətn olur və əl ilə təkrar yazılması
+      // həddindən artıq cəhd deyil.
+      if (ok) {
+        setRejectFeedback('');
+        setShowRejectInput(false);
+        setSelectedSubmission(null);
+      }
     } finally {
       setIsProcessing(false);
     }
