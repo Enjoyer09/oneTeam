@@ -131,6 +131,9 @@ export interface SubmitEvidenceRequestDto {
    * spoofer is not tipped off that the fix was caught.
    */
   locationMocked?: boolean;
+  /** No real fix was captured (Telegram skip / declined prompt). Blocks
+   *  auto-approval, and is shown to the reviewer as weaker evidence. */
+  locationUnverified?: boolean;
   aiScore?: number;
   aiDetections?: any[];
   aiSummary?: string;

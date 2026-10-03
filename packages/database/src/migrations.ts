@@ -175,6 +175,11 @@ export const EXPECTED_SCHEMA: Record<string, string[]> = {
     'latitude',
     'longitude',
     'gps_distance_meters',
+    // Location-integrity flags. Nullable: NULL means the row predates the
+    // column (unknown), which must not be read as "verified" — see migration
+    // 20260923000012.
+    'location_mocked',
+    'location_unverified',
     'ai_score',
     'ai_detections',
     'ai_summary',

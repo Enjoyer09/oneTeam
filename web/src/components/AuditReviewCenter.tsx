@@ -286,6 +286,21 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                         🚩 Saxta GPS
                       </span>
                     )}
+                    {/* Weaker evidence, NOT a fraud finding. Deliberately a
+                        different pill: "Saxta GPS" says the device lied, this
+                        says nobody captured a location at all (the bot's skip
+                        button). Both block auto-approval, but a reviewer should
+                        not read an honest merch who declined location sharing as
+                        a cheater. */}
+                    {sub.location_unverified && !sub.location_mocked && (
+                      <span
+                        className="pill-photo p-warn"
+                        title="Lokasiya götürülmədi — audit zəif sübut kimi qeydə alınır"
+                      >
+                        <span className="dot" />
+                        📍 Lokasiya yoxdur
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -391,6 +406,28 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                       Cihaz bu mövqeyi mock kimi işarələdi. Audit avtomatik təsdiqlənmir və yoxlama
                       üçün saxlanılır — təsdiqləsəniz, bu, anti-fraud bloku üzərində şüurlu override
                       kimi qeydə alınır.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* No location at all. Amber, not rose, and the copy says why:
+                  this is not an accusation. The Telegram bot offers a skip
+                  button, and an honest merchandiser indoors with GPS off takes
+                  it. Reading that as fraud would push people back to WhatsApp,
+                  where there is no record at all — so the gap is shown as
+                  weaker evidence and a judgement call, which is what it is. */}
+              {selectedSubmission.location_unverified && !selectedSubmission.location_mocked && (
+                <div className="p-3.5 mx-5 mt-4 rounded-xl border border-amber-300 bg-amber-50/90 flex items-start gap-3">
+                  <span className="text-lg leading-none mt-0.5">📍</span>
+                  <div>
+                    <p className="font-extrabold text-xs text-amber-800">Lokasiya götürülmədi</p>
+                    <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                      Bu audit Telegram kanalından gəlib və işçi lokasiyanı paylaşmayıb (düymə
+                      "lokasiya olmadan davam et" idi) — mağaza içindəki GPS işləməyə bilər. API
+                      mağazanın öz koordinatını istifadə etdiyi üçün coğrafiya yoxlaması keçdi,
+                      lakin bu heç nə sübut etmir. Audit avtomatik təsdiqlənmir; təsdiqləsəniz,
+                      qeydə "lokasiyasız sübut" kimi düşür.
                     </p>
                   </div>
                 </div>

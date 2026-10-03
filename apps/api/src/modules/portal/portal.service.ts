@@ -139,6 +139,21 @@ export interface PanelSubmission {
    * deliberate supervisor override.
    */
   location_mocked: boolean;
+  /**
+   * There was no real fix at all — the Telegram channel (which offers a skip
+   * button) or a device that declined the location prompt.
+   *
+   * Separate from `location_mocked` because the two mean different things to a
+   * reviewer. Mocked is "the device says this location is fake". Missing is "no
+   * location was ever captured", so the API substituted the store's own
+   * coordinates and the geofence passed by construction. The submission is
+   * therefore real evidence with a gap in it, and a reviewer is entitled to see
+   * the gap before deciding.
+   *
+   * Either flag blocks auto-approval; only `location_mocked` means the
+   * anti-fraud block is being overridden if the reviewer approves anyway.
+   */
+  location_unverified?: boolean;
   reviewer_feedback: string | null;
   ai_score: number | null;
   ai_detections: unknown[];
@@ -301,6 +316,9 @@ export class PortalService {
       checklist_answers: evidence.checklistAnswers ?? [],
       status: toPanelSubmissionStatus(task?.status),
       location_mocked: evidence.locationMocked ?? false,
+      // Same honesty rule: a row written before the column existed reports
+      // "unknown" as absent, not as a verified location.
+      location_unverified: evidence.locationUnverified ?? false,
       reviewer_feedback: evidence.reviewerFeedback ?? null,
       ai_score: evidence.aiScore ?? null,
       ai_detections: evidence.aiDetections ?? [],

@@ -103,6 +103,9 @@ export interface Submission {
    * mandatory review; approving it is a deliberate supervisor override.
    */
   location_mocked?: boolean;
+  /** No real fix was captured (Telegram skip / declined prompt). Weaker
+   *  evidence, not a fraud finding — so it is styled as a caution, not a fault. */
+  location_unverified?: boolean;
   reviewer_feedback: string | null;
   ai_score?: number | null;
   ai_detections?: DetectionItem[];

@@ -84,6 +84,17 @@ export interface InMemoryEvidence {
    */
   locationMocked?: boolean;
   /**
+   * No real fix was captured at all — the Telegram channel's skip button, or a
+   * device that declined the location prompt. The API substituted the store's
+   * coordinates so the geofence could run, so a passed geofence here proves
+   * nothing about where anyone was.
+   *
+   * Kept separate from `locationMocked` because they are different defects:
+   * mocked is a device saying "this is a lie", this is "there was nothing".
+   * Both block auto-approval.
+   */
+  locationUnverified?: boolean;
+  /**
    * AI vision results.
    *
    * `null` is deliberate and distinct from `undefined`:

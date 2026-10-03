@@ -327,6 +327,10 @@ export class EvidenceService {
       // A spoofed fix is stored on the record, not just logged, so the panel can
       // surface it and a later review can be recorded as a deliberate override.
       locationMocked: dto.locationMocked === true,
+      // Whether a real fix existed at all. Stored on the record for the same
+      // reason as the mock flag: the panel shows it, and a reviewer decides with
+      // both facts in hand rather than with a score alone.
+      locationUnverified: dto.locationUnverified === true,
       aiScore: null,
       aiDetections: [],
       aiSummary: null,

@@ -123,6 +123,11 @@ function toEvidence(row: any): InMemoryEvidence {
     latitude: Number(row.latitude),
     longitude: Number(row.longitude),
     gpsDistanceMeters: Number(row.gps_distance_meters),
+    // Null means the row was written before these columns existed. That is
+    // "unknown", and it is kept as null rather than coerced to `false` — a
+    // false would claim the location was checked.
+    locationMocked: row.location_mocked ?? undefined,
+    locationUnverified: row.location_unverified ?? undefined,
     aiScore: row.ai_score,
     aiDetections: row.ai_detections ?? [],
     aiSummary: row.ai_summary,
@@ -281,9 +286,10 @@ export async function insertEvidence(pool: Pool, evidence: InMemoryEvidence): Pr
     `INSERT INTO task_evidences
        (id, store_task_id, submitted_by_id, photo_url, photo_type,
         checklist_answers, latitude, longitude, gps_distance_meters,
+        location_mocked, location_unverified,
         ai_score, ai_detections, ai_summary, reviewer_feedback,
         submitted_at, created_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
      ON CONFLICT (id) DO NOTHING`,
     [
       evidence.id,
@@ -295,6 +301,11 @@ export async function insertEvidence(pool: Pool, evidence: InMemoryEvidence): Pr
       evidence.latitude,
       evidence.longitude,
       evidence.gpsDistanceMeters,
+      // `?? null`, never `?? false`: an absent flag must stay SQL NULL so
+      // it keeps meaning "unknown". A false would assert a location was
+      // verified when no fix was ever captured.
+      evidence.locationMocked ?? null,
+      evidence.locationUnverified ?? null,
       evidence.aiScore ?? null,
       JSON.stringify(evidence.aiDetections ?? []),
       evidence.aiSummary ?? null,

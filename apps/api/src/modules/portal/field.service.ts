@@ -81,8 +81,31 @@ export function isAiAutoApproveEligible(opts: {
   score: number;
   confident: boolean;
   locationMocked: boolean;
+  /**
+   * The caller had no real fix at all (the Telegram channel, or a device that
+   * declined the location prompt).
+   *
+   * THIS IS NOT THE SAME AS `locationMocked`, and omitting it was a real hole.
+   * A mocked fix says "this location is a lie"; a missing one says "there is no
+   * location". The Telegram bot asks for a location but offers a skip button, so
+   * a skip sends `locationUnverified: true` — and `locationMocked` arrives
+   * `false`, because the bot has no device to report a mock. The store's own
+   * coordinates are then substituted server-side (see `submitChatAudit`), which
+   * makes the geofence pass by construction. Before this parameter existed, such
+   * a submission with a high AI score and `confident: true` auto-approved: the
+   * one channel that cannot prove where anyone was was the one channel that
+   * never had to.
+   *
+   * So a verdict with no fix behind it can never auto-approve. A human decides.
+   */
+  locationUnverified?: boolean;
 }): boolean {
-  return opts.score >= AI_AUTO_APPROVE_MIN_SCORE && opts.confident && !opts.locationMocked;
+  return (
+    opts.score >= AI_AUTO_APPROVE_MIN_SCORE &&
+    opts.confident &&
+    !opts.locationMocked &&
+    !opts.locationUnverified
+  );
 }
 
 /**
@@ -1078,6 +1101,12 @@ export class FieldService {
         // Carried into the evidence record so a spoofed fix can be held for
         // review and never auto-approved. Already logged as LOCATION_MOCKED above.
         locationMocked,
+        // Derived, not forwarded: `!hasRealFix` is the fact this method already
+        // knows (no coordinates arrived), whereas `locationUnverified` is only
+        // what the caller *claimed*. Deriving it here means a caller cannot
+        // forget to set it and quietly produce an auto-approvable record that
+        // has no fix behind it.
+        locationUnverified: !hasRealFix,
       },
       actor,
     );
@@ -1157,7 +1186,12 @@ export class FieldService {
         (typeof payload.aiConfidence !== 'number' || payload.aiConfidence >= 0.5);
       // `isAiAutoApproveEligible` also refuses a mock/spoofed fix outright — see
       // its doc for why a high score cannot buy an auto-approve past the hold.
-      const qualifies = isAiAutoApproveEligible({ score, confident, locationMocked });
+      const qualifies = isAiAutoApproveEligible({
+        score,
+        confident,
+        locationMocked,
+        locationUnverified: !hasRealFix,
+      });
 
       db.logAuditEvent({
         entityType: 'task_evidence',
@@ -1174,6 +1208,10 @@ export class FieldService {
           // Stated so the reviewer sees a high score did NOT auto-approve because
           // the fix was flagged mock — the hold reason, not just the score.
           heldForMockLocation: locationMocked || undefined,
+          // The other reason a high score did not buy an auto-approve. Same
+          // clause for a different defect: `heldForMockLocation` means the fix
+          // was reported fake, this means there was no fix to judge.
+          heldForMissingLocation: !hasRealFix || undefined,
         },
       });
 

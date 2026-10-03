@@ -181,6 +181,20 @@ CREATE TABLE IF NOT EXISTS task_evidences (
     latitude           DOUBLE PRECISION NOT NULL,
     longitude          DOUBLE PRECISION NOT NULL,
     gps_distance_meters DOUBLE PRECISION NOT NULL DEFAULT 0,
+    -- Location-integrity flags. BOTH are nullable-with-a-default rather than
+    -- NOT NULL: a NULL means "this row predates the column", which is different
+    -- from an explicit false and should not be back-filled as a claim that the
+    -- location was checked.
+    --
+    -- location_mocked: the DEVICE reported the fix as mock/simulated. Blocks
+    -- auto-approval and is shown to the reviewer as an anti-fraud hold.
+    -- location_unverified: there was NO fix at all (the Telegram channel's skip
+    -- button, or a device that declined the prompt). The API substituted the
+    -- store's own coordinates so the geofence could run, which means the
+    -- geofence passed by construction and proves nothing. Distinct from mocked:
+    -- nothing here is a lie, the evidence is simply weaker.
+    location_mocked     BOOLEAN,
+    location_unverified BOOLEAN,
     ai_score           INTEGER,
     ai_detections      JSONB NOT NULL DEFAULT '[]'::jsonb,
     ai_summary         TEXT,
