@@ -12,6 +12,7 @@
     "bot": "tsx src/bot/index.ts",
     "bot:test": "node ./node_modules/tsx/dist/cli.mjs src/bot/test-runner.ts",
     "web:build": "node ./web/node_modules/typescript/bin/tsc --project web/tsconfig.json && node ./web/node_modules/vite/bin/vite.js build web",
+    "web:check": "node ./web/node_modules/typescript/bin/tsc --project web/tsconfig.json",
     "web:dev": "node ./web/node_modules/vite/bin/vite.js web",
     "web:test": "VITE_API_BASE_URL=http://localhost:3001 ONETEAM_API_TOKEN=oneteam-user:usr-admin-001 node ./node_modules/tsx/dist/cli.mjs web/src/smoke-test.ts",
     "mobile:test": "node ./node_modules/tsx/dist/cli.mjs mobile/src/tests/mobile-test-runner.ts",
@@ -73,6 +74,9 @@
     "format:check": "prettier --check .",
     "secrets:scan": "node scripts/quality/secret-scan.mjs",
     "quality": "npm run format:check && npm run mobile:config && npm run test:ui-ids && npm run mobile:check && npm run lint && npm run type-check && npm run test:all",
+    "gate:fast": "node scripts/quality/local-gate.mjs --fast",
+    "gate": "node scripts/quality/local-gate.mjs",
+    "gate:install": "git config core.hooksPath .githooks",
     "mobile:test:write": "ONETEAM_MOBILE_WRITES=1 node ./node_modules/tsx/dist/cli.mjs mobile/src/tests/mobile-test-runner.ts"
   },
   "keywords": [

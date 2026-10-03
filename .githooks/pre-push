@@ -1,0 +1,52 @@
+#!/bin/sh
+# =============================================================================
+# oneTeam — pre-push gate
+# =============================================================================
+#
+# GitHub Actions cannot run for this repository: it is private, so minutes are
+# metered, and the account is out of credit. Every run since 2026-09-20 has
+# failed with "recent account payments have failed", which means no job ever
+# started. The checks therefore run here, before the push, and the push is
+# refused if any of them fail.
+#
+# This is not a weaker guarantee than the pipeline was: the checks are the same
+# commands, run against the same working tree. The difference is that they are
+# skipped when a developer pushes with --no-verify, and that a machine without
+# Node installed cannot run them at all.
+#
+# BYPASS, DELIBERATELY POSSIBLE: `git push --no-verify` skips this hook. The
+# escape hatch is intentional — a broken gate that cannot be bypassed gets
+# bypassed destructively (people delete it, or rewrite history). This is a
+# speed bump, not a vault.
+#
+# Fast mode: `git push` runs `gate:fast` (everything but the full test suite).
+# To run the complete gate, push with ONETEAM_GATE=full, or run `npm run gate`
+# and then `git push --no-verify`.
+# =============================================================================
+set -e
+
+# Documentation pushes and deletions do not touch code, so they skip the gate.
+# Without this, `git push origin --delete some-branch` would fail on a code
+# check for changes that are not being made.
+if [ "$1" = "" ] || echo "$@" | grep -q -- '--delete'; then
+    exit 0
+fi
+
+# Nothing staged-but-unpushed is the normal reason to push; nothing to check
+# only when the branch is already identical to its remote.
+if [ -z "$(git log --oneline @{u}..HEAD 2>/dev/null)" ] && [ -z "$ONETEAM_FORCE_GATE" ]; then
+    exit 0
+fi
+
+echo ""
+echo "┌─ pre-push: running the local gate (GitHub Actions is unavailable) ─┐"
+
+MODE="${ONETEAM_GATE:-fast}"
+if [ "$MODE" = "full" ]; then
+    npm run gate
+else
+    npm run gate:fast
+fi
+
+echo "└─ gate passed ─┘"
+echo ""
