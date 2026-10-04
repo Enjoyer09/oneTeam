@@ -275,3 +275,24 @@ export {
   OPENROUTER_ENDPOINT,
 } from './openrouterClient';
 export type { OpenRouterClientOptions, TokenBucketOptions } from './openrouterClient';
+// 4.2 — the validated verdict the model must answer with.
+export {
+  ShelfVerdictSchema,
+  MissingSkuSchema,
+  ExtraItemSchema,
+  AnomalySchema,
+  parseVerdict,
+  assessVerdict,
+  buildVerdictPrompt,
+  MIN_REVIEW_CONFIDENCE,
+} from './verdict';
+export type {
+  ShelfVerdict,
+  MissingSku,
+  VerdictResult,
+  VerdictFailureReason,
+  VerdictTriage,
+} from './verdict';
+// 4.3 — the pre-filter crop decision.
+export { computeRoi, roiNoteFor } from './roi';
+export type { RoiDecision, RoiOptions, RoiRefusal } from './roi';
