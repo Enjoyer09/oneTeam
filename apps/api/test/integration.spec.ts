@@ -22,6 +22,46 @@ import { EvidenceService } from '../src/modules/evidences/evidence.service';
 import { AuthenticatedPrincipal } from '../src/common/auth/authenticated-principal';
 
 /**
+ * THIS SUITE FIXES ITS OWN ENVIRONMENT, OR IT IS NOT A TEST.
+ *
+ * WHY
+ * ---
+ * Suite 3b asserts that production REFUSES the webhook when no secret is
+ * configured — that is `assertTrustedSender`'s fail-closed branch, and it is
+ * the behaviour worth having. To reach it the suite sets
+ * `process.env.NODE_ENV = 'production'` and deletes
+ * `TELEGRAM_WEBHOOK_SECRET` (lines ~391-392).
+ *
+ * But suite 3 calls `handleTelegramWebhook` BEFORE that, with no secret
+ * configured. Outside production that is fine — it logs a warning and returns.
+ * Inside production the same call throws 503, and because nothing wraps suite 3
+ * the rejection escapes `runTestSuite`, so every later suite — including the
+ * self-approval guard — never runs at all.
+ *
+ * Observed, not theorised: with `NODE_ENV=production` in the ambient
+ * environment this file exits 1 with "Webhook is not configured" at the suite 3
+ * call, 5 runs out of 5. With `NODE_ENV` unset or `development` it exits 0.
+ * The suite therefore reported green in one environment and aborted in another,
+ * which is exactly the kind of gate that teaches people to ignore it.
+ *
+ * A test that inherits the developer's shell is not hermetic. This suite pins
+ * what it needs, and restores exactly what it changed — in a `finally`, so a
+ * failing assertion cannot leave the environment poisoned for the next suite.
+ */
+const AMBIENT_NODE_ENV = process.env.NODE_ENV;
+const AMBIENT_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
+
+process.env.NODE_ENV = 'test';
+process.env.TELEGRAM_WEBHOOK_SECRET = 'integration-suite-webhook-secret';
+
+function restoreEnvironment(): void {
+  if (AMBIENT_NODE_ENV === undefined) delete process.env.NODE_ENV;
+  else process.env.NODE_ENV = AMBIENT_NODE_ENV;
+  if (AMBIENT_WEBHOOK_SECRET === undefined) delete process.env.TELEGRAM_WEBHOOK_SECRET;
+  else process.env.TELEGRAM_WEBHOOK_SECRET = AMBIENT_WEBHOOK_SECRET;
+}
+
+/**
  * Test principals.
  *
  * WHY THIS EXISTS
@@ -265,7 +305,14 @@ async function runTestSuite() {
     },
   };
 
-  const webhookResult = await webhookController.handleTelegramWebhook(webhookUpdate);
+  // The suite pinned a webhook secret at startup, so this legitimate call must
+  // present it — a real Telegram request always carries the secret_token it was
+  // registered with. Omitting it here is what made this call 401 once the
+  // suite stopped relying on an unconfigured secret to pass by default.
+  const webhookResult = await webhookController.handleTelegramWebhook(
+    webhookUpdate,
+    'integration-suite-webhook-secret',
+  );
   assert(
     webhookResult.ok === true && webhookResult.status === TaskState.ACKNOWLEDGED,
     'Test 3.1: Telegram Webhook [✅ Qəbul Et] callback returns success & ACKNOWLEDGED',
@@ -402,11 +449,14 @@ async function runTestSuite() {
     `Test 3b.6: Production with no configured webhook secret fails closed with 503 (got ${unconfiguredStatus})`,
   );
 
-  // Restore the environment so later suites see what they expect.
-  if (previousSecret === undefined) delete process.env.TELEGRAM_WEBHOOK_SECRET;
-  else process.env.TELEGRAM_WEBHOOK_SECRET = previousSecret;
-  if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
-  else process.env.NODE_ENV = previousNodeEnv;
+  // Restore what 3b changed, back to the values THIS SUITE pinned at startup —
+  // not to whatever the developer's shell happened to hold. Restoring to
+  // `previousSecret`/`previousNodeEnv` would undo the isolation above and
+  // leave production mode armed for suite 4.
+  process.env.TELEGRAM_WEBHOOK_SECRET = 'integration-suite-webhook-secret';
+  process.env.NODE_ENV = 'test';
+  void previousSecret;
+  void previousNodeEnv;
 
   // --------------------------------------------------------------------------
   // SUITE 4: ANTI-FRAUD GEOFENCING & EVIDENCE SUBMISSION
@@ -498,6 +548,128 @@ async function runTestSuite() {
   );
 
   // --------------------------------------------------------------------------
+  // SUITE 5: SELF-APPROVAL IS REFUSED (a merchandiser must not review their own work)
+  // --------------------------------------------------------------------------
+  console.log('\n--- [TEST SUITE 5] Self-Approval Guard ---');
+
+  // WHY THIS SUITE EXISTS
+  // ---------------------
+  // `requireReviewer` in portal.service.ts documents, at length, why the
+  // MERCHANDISER-of-the-task can be the AUTHOR of the submission being judged:
+  // enrolment hands a store's open work to whoever enrolled, so the assignee is
+  // the author. That guard protects `reviewSubmission`.
+  //
+  // But `POST /api/tasks/:id/transition` reaches the SAME state change through
+  // `transitionTask`, which authorised on reachability only — and a MERCHANDISER
+  // can reach exactly their own task (`canUserAccessTask`). The route is not
+  // under /api/portal/ or /api/panel/, so `isSupervisorRoute()` returns false and
+  // `mayUseRoute()` short-circuits to true for every credential type.
+  //
+  // The result was a complete bypass: self-approval, and — because the
+  // LOCATION_MOCK_OVERRIDE event is only written by `reviewSubmission` — a
+  // mocked-GPS self-approval left no override trail at all.
+  //
+  // These two tests are the guard for that hole. Per the repo's own test
+  // philosophy (HANDOFF §4), the first of them was written against the broken
+  // code and watched fail with a 200.
+  const selfTask = `self-approve-task-${Date.now()}`;
+  db.storeTasks.push({
+    id: selfTask,
+    templateId: 'tmpl-eye-level',
+    storeId: 'str-bravo-yasamal',
+    assignedUserId: 'usr-merch-003',
+    status: TaskState.SUBMITTED,
+    deadline: new Date(Date.now() + 3 * 24 * 3600 * 1000),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  let selfApprovalStatus: number | undefined;
+  try {
+    await taskStateService.transitionTask(selfTask, TaskState.APPROVED, PRINCIPALS.merchandiser);
+  } catch (err: any) {
+    selfApprovalStatus = err?.status ?? err?.statusCode;
+  }
+  assert(
+    selfApprovalStatus === 403,
+    `Test 5.1: A merchandiser cannot APPROVE their own submission (got ${selfApprovalStatus})`,
+  );
+
+  // The refusal must actually hold the task — a 403 that still advanced the
+  // state would leave the audit approved with the error reported as thrown.
+  assert(
+    db.getTask(selfTask)?.status === TaskState.SUBMITTED,
+    'Test 5.2: Refused self-approval leaves the task in SUBMITTED',
+  );
+
+  // A supervisor must still be able to close the very same task, or the fix
+  // above would be "safe" only because it broke approvals entirely.
+  //
+  // Read the task fresh: once the guard works, the merchandiser's attempt above
+  // will have left it in SUBMITTED, and this transition is then the supervisor
+  // doing the approval the merchandiser was refused. While the hole is still
+  // open that same attempt has already moved the task to APPROVED — a terminal
+  // state — and this call then correctly fails 400. That 400 is the exploit
+  // reproducing, not the fix being wrong, so the assertion says so.
+  const supervisorTask = `supervisor-approve-task-${Date.now()}`;
+  db.storeTasks.push({
+    id: supervisorTask,
+    templateId: 'tmpl-eye-level',
+    storeId: 'str-bravo-yasamal',
+    assignedUserId: 'usr-merch-003',
+    status: TaskState.SUBMITTED,
+    deadline: new Date(Date.now() + 3 * 24 * 3600 * 1000),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  let supervisorApprovalStatus: number | undefined;
+  try {
+    await taskStateService.transitionTask(
+      supervisorTask,
+      TaskState.APPROVED,
+      PRINCIPALS.supervisor,
+    );
+    supervisorApprovalStatus = 200;
+  } catch (err: any) {
+    supervisorApprovalStatus = err?.status ?? err?.statusCode;
+  }
+  assert(
+    supervisorApprovalStatus === 200 && db.getTask(supervisorTask)?.status === TaskState.APPROVED,
+    `Test 5.3: A supervisor CAN still approve a submitted task (got ${supervisorApprovalStatus})`,
+  );
+
+  // A merchandiser moving their OWN task forward through the states they are
+  // legitimately responsible for must keep working — the guard is about REVIEW,
+  // not about the whole transition endpoint.
+  const merchProgressTask = `merch-progress-task-${Date.now()}`;
+  db.storeTasks.push({
+    id: merchProgressTask,
+    templateId: 'tmpl-eye-level',
+    storeId: 'str-bravo-yasamal',
+    assignedUserId: 'usr-merch-003',
+    status: TaskState.ACKNOWLEDGED,
+    deadline: new Date(Date.now() + 3 * 24 * 3600 * 1000),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+  let merchProgressStatus: number | undefined;
+  try {
+    await taskStateService.transitionTask(
+      merchProgressTask,
+      TaskState.IN_PROGRESS,
+      PRINCIPALS.merchandiser,
+    );
+    merchProgressStatus = 200;
+  } catch (err: any) {
+    merchProgressStatus = err?.status ?? err?.statusCode;
+  }
+  assert(
+    merchProgressStatus === 200,
+    `Test 5.4: A merchandiser can still advance their own task ACKNOWLEDGED -> IN_PROGRESS (got ${merchProgressStatus})`,
+  );
+
+  // --------------------------------------------------------------------------
   // SUMMARY
   // --------------------------------------------------------------------------
   console.log('\n------------------------------------------------------------------------');
@@ -507,11 +679,18 @@ async function runTestSuite() {
   console.log('------------------------------------------------------------------------\n');
 
   if (passed !== total) {
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
-runTestSuite().catch((err) => {
-  console.error('❌ Integration test execution failed:', err);
-  process.exit(1);
-});
+runTestSuite()
+  .catch((err) => {
+    console.error('❌ Integration test execution failed:', err);
+    process.exitCode = 1;
+  })
+  .finally(() => {
+    // Unconditional. A suite that threw half way through must not leave
+    // NODE_ENV=production armed for whatever runs next in this process — that
+    // was the mechanism behind the intermittent failure documented above.
+    restoreEnvironment();
+  });

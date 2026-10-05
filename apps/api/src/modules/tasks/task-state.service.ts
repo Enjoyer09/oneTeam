@@ -253,6 +253,65 @@ export class TaskStateService {
       throw new HttpException('Bu tapşırıq üçün icazə yoxdur', HttpStatus.FORBIDDEN);
     }
 
+    // A reviewer must be an ADMIN or a SUPERVISOR, whoever the task belongs to.
+    //
+    // WHY THIS IS HERE, AND WHY IT IS NOT REDUNDANT
+    // ------------------------------------------------
+    // `canUserAccessTask` is a REACHABILITY check, not a role check: it lets a
+    // MERCHANDISER reach exactly one kind of task — the one assigned to them.
+    // But enrolment hands a store's open work to whoever enrolled with its code,
+    // so **the author of a submission is the assignee of its task**. Reachability
+    // therefore identifies the author of the submission, not an independent
+    // reviewer.
+    //
+    // This endpoint moves the task through the very same SUBMITTED -> APPROVED /
+    // SUBMITTED -> REJECTED edges that `reviewSubmission` in portal.service.ts
+    // guards with `requireReviewer`. Without the same check here, that guard is
+    // bypassable by changing which endpoint the caller uses: the route is
+    // /api/tasks/:id/transition, which is under neither /api/portal/ nor
+    // /api/panel/, so `isSupervisorRoute()` returns false and `mayUseRoute()`
+    // short-circuits to true for every credential type.
+    //
+    // The consequences of leaving this open were not limited to the missing 403:
+    // `LOCATION_MOCK_OVERRIDE` is written only by `reviewSubmission`, so a
+    // merchandiser approving their own mocked-GPS submission left no override
+    // trail at all.
+    //
+    // Guarded by integration.spec.ts suite 5, which was written against the
+    // broken code and watched fail.
+    if (
+      (targetState === TaskState.APPROVED || targetState === TaskState.REJECTED) &&
+      !isPrivilegedPrincipal(principal)
+    ) {
+      this.logger.warn(
+        `⛔ [SELF-REVIEW BLOCKED] ${principal.userId} (${principal.role}) tried to set task ${taskId} -> ${targetState}. ` +
+          `Only ADMIN/SUPERVISOR may review.`,
+      );
+      db.logAuditEvent({
+        entityType: 'store_task',
+        entityId: taskId,
+        action: 'SELF_REVIEW_ATTEMPT',
+        fromState: task.status,
+        toState: targetState,
+        actorId: principal.userId,
+        payload: {
+          role: principal.role,
+          via: principal.via,
+          note: 'a non-privileged actor attempted to review a submission',
+        },
+      });
+      throw new HttpException(
+        {
+          success: false,
+          error: 'SELF_REVIEW_FORBIDDEN',
+          message:
+            'Auditi yalnız administrator və supervayzer təsdiqləyə və ya imtina edə bilər. ' +
+            'Öz işinizi özünüz təsdiqləyə bilməzsiniz.',
+        },
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
     const previousState = task.status;
 
     // 1. Strict State Machine Validation
