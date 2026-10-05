@@ -245,6 +245,35 @@ export class StorageService {
     const { value, scope } = params;
 
     if (!isInlineDataUrl(value)) {
+      // A value that is already a URL is returned unchanged — but only if it is
+      // OUR url.
+      //
+      // This method is called from `field.service.ts` with a CLIENT-SUPPLIED
+      // value, and the result is written straight into `task_evidences.photo_url`.
+      // `/photos/presign` mints the key server-side, so a caller cannot choose a
+      // path or overwrite a sibling object — but the client then hands the URL
+      // back to us, and until now nothing checked where it came from. So a
+      // merchandiser could skip the upload entirely and submit
+      // `https://cdn.example/x.png`, leaving an auditor to review an image from
+      // anywhere on the internet as a shelf-compliance record. That is
+      // substitution: the record stops being evidence that anyone was in the
+      // store.
+      //
+      // `ownsPublicUrl` has existed, and has had this exact job described in its
+      // own doc comment, for the whole life of the presigned flow. It had no
+      // caller. This is that call site.
+      //
+      // `data:` values are untouched below: with no bucket configured, storing an
+      // inline image in `photo_url` is the supported behaviour, and refusing it
+      // would break every non-S3 deployment. Only a value that CLAIMS to be
+      // remote is a claim about where the bytes live, and only that is checked.
+      if (!this.ownsPublicUrl(value)) {
+        throw new Error(
+          `Refusing to record a photo at ${value.slice(0, 120)} — it is not a URL from ` +
+            'our own bucket. Upload the photo through POST /api/field/photos/presign, ' +
+            'or send it inline as a data: URL.',
+        );
+      }
       return { url: value, driver: this.driver, bytes: 0 };
     }
 
