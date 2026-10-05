@@ -18,6 +18,27 @@
 #   PGDUMP_JOBS     (optional) reserved for future directory-format parallelism;
 #                   this script uses the plain SQL format so it stays restorable
 #                   with psql alone.
+#   BACKUP_S3_BUCKET          (optional) upload the dump here when all of
+#                             BACKUP_S3_BUCKET, BACKUP_S3_ACCESS_KEY_ID and
+#                             BACKUP_S3_SECRET_ACCESS_KEY are set. Absent -> the
+#                             dump is local-only and the script says so.
+#   BACKUP_S3_ENDPOINT        (optional) S3-compatible endpoint (R2, MinIO).
+#   BACKUP_S3_REGION          (optional) region; "auto" for most S3-compatible
+#                             providers.
+#   BACKUP_S3_ACCESS_KEY_ID / BACKUP_S3_SECRET_ACCESS_KEY
+#   BACKUP_S3_PREFIX          (optional) key prefix, e.g. "backups/db".
+#
+# WHY THE UPLOAD IS PART OF WHAT SUCCESS MEANS
+# -------------------------------------------
+# This script's only caller was a GitHub Actions workflow that uploads the dump
+# as a 14-day build artifact — and that workflow has failed on all 8 of its
+# last runs with "DATABASE_URL secret is not set". The repository has therefore
+# never held a backup.
+#
+# A dump written to the same machine that produced it is not a backup: a
+# redeploy replaces the container and the dump goes with it. So when S3 config is
+# present the upload is required, and a failed upload exits non-zero. Silence
+# here is what produced zero backups with a workflow that looked configured.
 #
 # USAGE
 # -----
@@ -100,6 +121,50 @@ if [ "${RETENTION_DAYS}" -gt 0 ] 2>/dev/null; then
     -mtime "+${RETENTION_DAYS}" -print -delete || true
 else
   echo "[db-backup] Retention disabled (RETENTION_DAYS=${RETENTION_DAYS}); keeping all backups."
+fi
+
+# --- Upload to object storage -------------------------------------------------
+# The local copy above is not a backup: a redeploy replaces the container, and
+# the dump goes with it. When object storage is configured, the upload is part
+# of the job, not a nicety — so a failure here fails the whole run rather than
+# printing a warning next to a green exit.
+BACKUP_S3_BUCKET="${BACKUP_S3_BUCKET:-}"
+BACKUP_S3_PREFIX="${BACKUP_S3_PREFIX:-}"
+
+if [ -n "${BACKUP_S3_BUCKET}" ] && [ -n "${BACKUP_S3_ACCESS_KEY_ID:-}" ] && [ -n "${BACKUP_S3_SECRET_ACCESS_KEY:-}" ]; then
+  if ! command -v aws >/dev/null 2>&1; then
+    echo "[db-backup] ERROR: BACKUP_S3_BUCKET is set but the aws CLI is not on PATH." >&2
+    echo "[db-backup] The dump exists at ${OUTFILE} but was NOT uploaded." >&2
+    exit 3
+  fi
+
+  # Trim a trailing slash so an empty prefix cannot produce "bucket//file",
+  # which some S3-compatible endpoints reject outright.
+  PREFIX="${BACKUP_S3_PREFIX%/}"
+  if [ -n "${PREFIX}" ]; then
+    DEST="s3://${BACKUP_S3_BUCKET}/${PREFIX}/$(basename "${OUTFILE}")"
+  else
+    DEST="s3://${BACKUP_S3_BUCKET}/$(basename "${OUTFILE}")"
+  fi
+
+  echo "[db-backup] Uploading to ${DEST}"
+  AWS_ARGS=(--region "${BACKUP_S3_REGION:-auto}" s3 cp "${OUTFILE}" "${DEST}")
+  if [ -n "${BACKUP_S3_ENDPOINT:-}" ]; then
+    AWS_ARGS+=(--endpoint-url "${BACKUP_S3_ENDPOINT}")
+  fi
+
+  if AWS_ACCESS_KEY_ID="${BACKUP_S3_ACCESS_KEY_ID}" \
+     AWS_SECRET_ACCESS_KEY="${BACKUP_S3_SECRET_ACCESS_KEY}" \
+     aws "${AWS_ARGS[@]}"; then
+    echo "[db-backup] Uploaded $(basename "${OUTFILE}") to object storage."
+  else
+    echo "[db-backup] ERROR: upload to ${DEST} failed." >&2
+    echo "[db-backup] The dump exists at ${OUTFILE} but is not durably stored." >&2
+    exit 3
+  fi
+else
+  echo "[db-backup] BACKUP_S3_BUCKET not configured — dump is LOCAL ONLY."
+  echo "[db-backup] It will not survive a redeploy. Configure BACKUP_S3_* to fix this."
 fi
 
 echo "[db-backup] Done."
