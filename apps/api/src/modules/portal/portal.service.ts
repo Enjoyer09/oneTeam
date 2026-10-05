@@ -860,6 +860,42 @@ export class PortalService {
     const reasons: string[] = [];
     let score: number;
 
+    // ABSENT EVIDENCE IS NOT WEAK EVIDENCE — IT IS NO EVIDENCE.
+    //
+    // Scoring below starts from 100 and subtracts for signals that are weak. That
+    // is the wrong shape for a signal that is MISSING: a submission with no
+    // geofence reading, and one with a perfect 12m reading, both land on the
+    // same side of the threshold, and the missing one lands there more easily.
+    // `gpsDistanceMeters ?? 0` made "there was no location at all" indistinguishable
+    // from "the device was standing in the store" — so absent telemetry scored
+    // 100 while a genuine 60m capture scored 75.
+    //
+    // The two flags are what say the location cannot be believed:
+    //   locationMocked     — the device says "this fix is a lie" (Android mock)
+    //   locationUnverified — there was no fix at all (Telegram's skip button, or a
+    //                        declined permission prompt). The server then substitutes
+    //                        the store's own coordinates, which makes the geofence
+    //                        pass BY CONSTRUCTION — a 0m distance here is an artefact
+    //                        of that substitution, not a measurement.
+    //
+    // This mirrors `isAiAutoApproveEligible` in field.service.ts, which already
+    // refuses to auto-approve on either flag. The rule-based approver was the one
+    // path that consulted neither, so the channel that cannot prove where anyone
+    // was — Telegram — was the channel that never had to.
+    //
+    // Both cases are HELD for a human, not rejected: the evidence may well be
+    // fine, but nothing in the record proves it, and a supervisor can see why.
+    // `gpsDistanceMeters` is typed `number` and the DB writes the flags as NULL to
+    // mean "unknown", so a rehydrated record can arrive with neither a flag nor a
+    // distance. `?? 0` made that case indistinguishable from a perfect in-store
+    // capture, which is why the guard covers the missing reading as well as the
+    // two flags — not just the flags.
+    const locationIsCredible =
+      evidence.locationMocked !== true &&
+      evidence.locationUnverified !== true &&
+      typeof evidence.gpsDistanceMeters === 'number' &&
+      Number.isFinite(evidence.gpsDistanceMeters);
+
     if (typeof evidence.aiScore === 'number') {
       score = evidence.aiScore;
       reasons.push(`Mövcud AI balı istifadə olundu (${score})`);
@@ -870,8 +906,13 @@ export class PortalService {
       if (distance > 50) {
         score -= 25;
         reasons.push(`Çəkiliş mağazadan ${Math.round(distance)} m aralıda aparılıb (−25)`);
-      } else {
+      } else if (locationIsCredible) {
         reasons.push(`Geolokasiya mağaza ərazisindədir (${Math.round(distance)} m)`);
+      } else {
+        // Say nothing about the distance here. Reporting "inside the geofence"
+        // for a fix that was mocked or substituted would put a false claim into
+        // the supervisor's audit trail, which is worse than reporting nothing.
+        reasons.push('Geolokasiya etibarlı deyil — məsafə qeydə alınmadı');
       }
 
       const answers = evidence.checklistAnswers ?? [];
@@ -890,7 +931,10 @@ export class PortalService {
       score = Math.max(0, Math.min(100, score));
     }
 
-    const passed = score >= 70;
+    // A perfect score on telemetry that cannot be believed is not a pass. Force
+    // the verdict to `reject` with a stated reason rather than silently scoring,
+    // so the audit trail shows a held submission instead of a silent approval.
+    const passed = score >= 70 && locationIsCredible;
     const summary = `Qayda əsaslı yoxlama — bal ${score}/100. ` + reasons.join('; ') + '.';
 
     const decision = await this.reviewSubmission(

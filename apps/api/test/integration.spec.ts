@@ -19,6 +19,7 @@ import { NotificationDispatcherService } from '../src/modules/notifications/noti
 import { TaskStateService } from '../src/modules/tasks/task-state.service';
 import { WebhookController } from '../src/modules/notifications/webhook.controller';
 import { EvidenceService } from '../src/modules/evidences/evidence.service';
+import { PortalService } from '../src/modules/portal/portal.service';
 import { AuthenticatedPrincipal } from '../src/common/auth/authenticated-principal';
 
 /**
@@ -108,6 +109,7 @@ async function runTestSuite() {
   const taskStateService = new TaskStateService(notificationService);
   const webhookController = new WebhookController(taskStateService);
   const evidenceService = new EvidenceService(taskStateService);
+  const portalService = new PortalService(taskStateService);
 
   // --------------------------------------------------------------------------
   // SUITE 1: STRICT STATE MACHINE VALIDATION
@@ -667,6 +669,151 @@ async function runTestSuite() {
   assert(
     merchProgressStatus === 200,
     `Test 5.4: A merchandiser can still advance their own task ACKNOWLEDGED -> IN_PROGRESS (got ${merchProgressStatus})`,
+  );
+
+  // --------------------------------------------------------------------------
+  // SUITE 6: AUTO-APPROVE FAILS CLOSED ON MISSING TELEMETRY
+  // --------------------------------------------------------------------------
+  console.log('\n--- [TEST SUITE 6] Auto-Approve Fail-Closed ---');
+
+  // WHY THIS SUITE EXISTS
+  // ---------------------
+  // `autoApproveSubmission` scores the signals in the record and approves at
+  // >= 70. Scoring treats missing telemetry as neutral-good, not as absent:
+  //
+  //     const distance = evidence.gpsDistanceMeters ?? 0;   // no fix -> 0m -> "inside"
+  //     if (answers.length === 0) score -= 20;               // but still 80 >= 70
+  //
+  // So a submission with NO location evidence scores 100, and one with a real
+  // 60m distance scores 75. Worse, the flags that say the location was fake or
+  // absent — `locationMocked` and `locationUnverified`, which
+  // `isAiAutoApproveEligible` in field.service.ts already refuses to
+  // auto-approve on — were never consulted on this path at all.
+  //
+  // The Telegram channel is the one that makes this reachable in production:
+  // its skip button sends `locationUnverified: true`, and the server substitutes
+  // the store's own coordinates so the geofence passes by construction. The
+  // channel that cannot prove where anyone was was the channel that never had
+  // to prove it.
+  //
+  // The invariant this suite encodes: ABSENT evidence is not WEAK evidence, it
+  // is NO evidence, and no evidence means a human decides.
+  // Each case gets its OWN task. Sharing one task made the results order-dependent
+  // for the wrong reason: the first call that auto-approved moved the task to
+  // APPROVED, a terminal state, so every later call in the suite failed 400 with
+  // "APPROVED -> APPROVED" and reported as if its own policy were broken.
+  function seedTask(): string {
+    const id = `auto-approve-task-${Math.random().toString(36).slice(2, 10)}`;
+    db.storeTasks.push({
+      id,
+      templateId: 'tmpl-eye-level',
+      storeId: 'str-bravo-yasamal',
+      assignedUserId: 'usr-merch-003',
+      status: TaskState.SUBMITTED,
+      deadline: new Date(Date.now() + 3 * 24 * 3600 * 1000),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    return id;
+  }
+
+  function seedEvidence(opts: {
+    taskId: string;
+    id: string;
+    locationMocked?: boolean;
+    locationUnverified?: boolean;
+    distance?: number;
+    answers?: any[];
+  }) {
+    db.evidences.push({
+      id: opts.id,
+      storeTaskId: opts.taskId,
+      submittedById: 'usr-merch-003',
+      photoUrl: 'https://images.unsplash.com/photo-audit.jpg',
+      photoType: 'standard',
+      checklistAnswers: opts.answers ?? [{ questionId: 'q-eye-clean', value: true }],
+      latitude: 40.385012,
+      longitude: 49.810541,
+      gpsDistanceMeters: opts.distance ?? 0,
+      ...(opts.locationMocked !== undefined ? { locationMocked: opts.locationMocked } : {}),
+      ...(opts.locationUnverified !== undefined
+        ? { locationUnverified: opts.locationUnverified }
+        : {}),
+      submittedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as any);
+    return opts.id;
+  }
+
+  async function autoApproveOutcome(evidenceId: string): Promise<string> {
+    try {
+      const r = await portalService.autoApproveSubmission(evidenceId, PRINCIPALS.supervisor);
+      return String(r?.data?.status ?? 'no-status');
+    } catch (err: any) {
+      return `threw ${err?.status ?? err?.statusCode}`;
+    }
+  }
+
+  // 6.1 — a MOCKED fix (the device says "this location is a lie")
+  const mockedOutcome = await autoApproveOutcome(
+    seedEvidence({
+      taskId: seedTask(),
+      id: `ev-mocked-${Math.random().toString(36).slice(2, 10)}`,
+      locationMocked: true,
+    }),
+  );
+  assert(
+    mockedOutcome !== 'approved',
+    `Test 6.1: A mocked-location submission is NEVER auto-approved (got ${mockedOutcome})`,
+  );
+
+  // 6.2 — NO real fix at all (the Telegram skip button). This is the highest-value
+  // case: the geofence passed only because the server substituted the store's
+  // coordinates, so a 0m distance here is an artefact, not a measurement.
+  const unverifiedOutcome = await autoApproveOutcome(
+    seedEvidence({
+      taskId: seedTask(),
+      id: `ev-unverified-${Math.random().toString(36).slice(2, 10)}`,
+      locationUnverified: true,
+    }),
+  );
+  assert(
+    unverifiedOutcome !== 'approved',
+    `Test 6.2: A submission with no verified location is NEVER auto-approved (got ${unverifiedOutcome})`,
+  );
+
+  // 6.3 — genuine location, genuine answers: the happy path must still approve,
+  // or the guard above would be "safe" only by disabling the feature.
+  const cleanOutcome = await autoApproveOutcome(
+    seedEvidence({
+      taskId: seedTask(),
+      id: `ev-clean-${Math.random().toString(36).slice(2, 10)}`,
+      distance: 12,
+    }),
+  );
+  assert(
+    cleanOutcome === 'approved',
+    `Test 6.3: A clean submission with a real fix still auto-approves (got ${cleanOutcome})`,
+  );
+
+  // 6.4 — no flags AND no distance at all. The `gpsDistanceMeters ?? 0` line
+  // turned "there was no reading" into a perfect 0m geofence pass, so a record
+  // carrying neither a flag nor a distance scored 100. The DB writes the flags
+  // as NULL to mean exactly this ("null means unknown", per
+  // migrations/20260917000006), and rehydrated records can therefore arrive
+  // with neither. Holding it costs a supervisor one look; approving it costs the
+  // operator a false audit.
+  const noTelemetryId = seedEvidence({
+    taskId: seedTask(),
+    id: `ev-nofix-${Math.random().toString(36).slice(2, 10)}`,
+    distance: undefined as unknown as number,
+  });
+  db.evidences.find((e) => e.id === noTelemetryId)!.gpsDistanceMeters = null as any;
+  const noTelemetryOutcome = await autoApproveOutcome(noTelemetryId);
+  assert(
+    noTelemetryOutcome !== 'approved',
+    `Test 6.4: A submission with no location telemetry at all is NEVER auto-approved (got ${noTelemetryOutcome})`,
   );
 
   // --------------------------------------------------------------------------
