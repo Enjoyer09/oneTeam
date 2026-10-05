@@ -1,0 +1,56 @@
+# ==============================================================================
+# oneTeam — Database backup cron
+# ==============================================================================
+#
+# WHY THIS IMAGE IS ALMOST EMPTY
+# ------------------------------
+# The job is `pg_dump | gzip | aws s3 cp`. It does not need Node, the workspace,
+# the API, or any application dependency — so it carries none of them. A backup
+# container that can fail because of a dependency tree is a backup that fails
+# for reasons that have nothing to do with the database.
+#
+# WHAT IT DOES CARRY, AND WHY EACH IS REQUIRED
+#   postgresql16-client  pg_dump. The client major must be >= the server's, or
+#                        pg_dump refuses to run at all.
+#   aws-cli              the S3/R2 client db-backup.sh drives.
+#   gzip                 the script pipes straight into it.
+#   coreutils/findutils  the retention sweep uses find -mtime.
+#
+# RUNTIME
+# -------
+# Entry point is db-backup.sh itself, so the container's whole job is the backup
+# and its exit code IS the job's result — a non-zero exit marks the cron run
+# failed in Railway, which is the signal that has to survive. The script exits 3
+# when a dump exists but could not be uploaded, which is the case that produced
+# eight consecutive silent failures in the GitHub Actions version.
+#
+# Configuration comes entirely from the environment (see db-backup.sh):
+#   DATABASE_URL                injected by the postgres service reference
+#   BACKUP_S3_BUCKET / _ENDPOINT / _REGION / _ACCESS_KEY_ID / _SECRET_ACCESS_KEY
+#   BACKUP_S3_PREFIX            e.g. "backups/db"
+#   RETENTION_DAYS              local prune only; object-storage retention is
+#                               the bucket's lifecycle policy, not this
+FROM alpine:3.20
+
+# -client, not the full server: pg_dump and nothing else.
+RUN apk add --no-cache \
+      postgresql16-client \
+      aws-cli \
+      gzip \
+      coreutils \
+      findutils \
+      bash \
+ && rm -rf /var/cache/apk/*
+
+WORKDIR /app
+
+# Only the script and its test travel. No workspace, no node_modules, no .env.
+COPY scripts/ops/db-backup.sh /app/db-backup.sh
+COPY scripts/ops/db-backup.test.sh /app/db-backup.test.sh
+RUN chmod +x /app/db-backup.sh /app/db-backup.test.sh
+
+ENV PGDUMP_DIR=/app/backups
+RUN mkdir -p /app/backups
+
+# The script, not a shell: so Railway sees the script's exit code verbatim.
+ENTRYPOINT ["/app/db-backup.sh"]
