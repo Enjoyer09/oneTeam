@@ -70,6 +70,13 @@ const STEPS = [
       'web/ is NOT in the root tsconfig — without this its types are never checked by any gate',
   },
   {
+    name: 'Web portal production build',
+    cmd: ['npm', 'run', 'web:build'],
+    because:
+      'type check passes on code that cannot bundle. Measured: a broken vite plugin plugin-hook makes web:check exit 0 and web:build exit 1, so without this step a portal that ships a blank page passes every gate. GitHub Actions checked this in its own `build` job — which cannot run on a private repo with exhausted Actions minutes, so the check that would have caught it has never actually run.',
+    slow: true,
+  },
+  {
     name: 'Format check',
     cmd: ['npm', 'run', 'format:check'],
     because: 'Prettier disagreements create diff noise that hides real changes',
