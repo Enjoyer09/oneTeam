@@ -28,6 +28,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import type { MobileTask, MobileStore } from '../types';
+import { buildSyncMessage } from '../services/syncMessage';
+
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TaskListController } from './TaskListScreen';
 import { mobileApp } from '../App';
@@ -93,17 +95,13 @@ export function TaskListScreenUI({ store, onSelectTask, onLogout }: TaskListScre
     setSyncMessage(null);
     try {
       const result = await mobileApp.history.triggerManualSync();
-      if (result.reason === 'nothing-pending') {
-        setSyncMessage('Göndəriləcək audit yoxdur.');
-      } else if (result.syncedCount > 0 && result.failedCount === 0) {
-        setSyncMessage(`✅ ${result.syncedCount} audit göndərildi.`);
-      } else if (result.failedCount > 0) {
-        setSyncMessage(
-          `${result.syncedCount} göndərildi, ${result.failedCount} alınmadı — sonra yenidən cəhd edin.`,
-        );
-      } else {
-        setSyncMessage('Sinxronizasiya tamamlandı.');
-      }
+      // `skippedCount` says how many left the automatic path this drain;
+      // `getPendingCount()` says how many audits are still unsent in total. The
+      // second is what catches a stranded item the counters did not attribute
+      // to this run — and it is read AFTER the drain, so it reflects the truth
+      // rather than the intent.
+      const stillPending = offlineQueueService.getPendingCount();
+      setSyncMessage(buildSyncMessage(result, stillPending > 0));
     } catch (e) {
       setSyncMessage('Sinxronizasiya alınmadı: ' + (e instanceof Error ? e.message : String(e)));
     } finally {
