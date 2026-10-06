@@ -279,9 +279,16 @@ export class AIVisionService {
    * worker became indistinguishable from an empty shelf.
    */
   public runUltralyticsInferenceDetailed(
-    imageSource: string,
+    imageSource: string | Buffer,
     options: YoloRunOptions = {},
   ): YoloRunOutcome {
+    // A Buffer is the bot's decoded Telegram bytes. The worker understands a
+    // data: URL (it decodes the base64 itself), so the same string that the
+    // HTTP path sends works here too — keep both transports on one payload.
+    const source =
+      typeof imageSource === 'string'
+        ? imageSource
+        : `data:image/jpeg;base64,${imageSource.toString('base64')}`;
     const venvPython = path.resolve(process.cwd(), '.venv/bin/python');
     const scriptPath = path.resolve(process.cwd(), 'scripts/yolo_inference.py');
 
@@ -314,7 +321,7 @@ export class AIVisionService {
 
     let res: SpawnResult;
     try {
-      res = spawnSync(venvPython, [scriptPath, '--image', imageSource, '--model', 'yolov8n.pt'], {
+      res = spawnSync(venvPython, [scriptPath, '--image', source, '--model', 'yolov8n.pt'], {
         encoding: 'utf-8',
         timeout: timeoutMs,
         maxBuffer: 10 * 1024 * 1024,
@@ -434,7 +441,7 @@ export class AIVisionService {
    * answers.
    */
   public async runUltralyticsInferenceRemote(
-    imageSource: string,
+    imageSource: string | Buffer,
     options: { workerUrl: string; timeoutMs?: number },
   ): Promise<YoloRunOutcome> {
     const base = options.workerUrl.replace(/\/+$/, '');
@@ -447,7 +454,12 @@ export class AIVisionService {
       response = await fetch(`${base}/detect`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ image: imageSource }),
+        body: JSON.stringify({
+          image:
+            typeof imageSource === 'string'
+              ? imageSource
+              : `data:image/jpeg;base64,${imageSource.toString('base64')}`,
+        }),
         signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (error) {

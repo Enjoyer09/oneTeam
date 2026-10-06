@@ -262,11 +262,23 @@ async function main(): Promise<void> {
     type Stub = { body: string; status?: number };
     let stub: Stub = { body: '' };
     let hits = 0;
+    let lastRequest: { image?: unknown; raw?: string } = {};
 
     const server = http.createServer((req, res) => {
       hits++;
-      res.writeHead(stub.status ?? 200, { 'content-type': 'application/json' });
-      res.end(stub.body);
+      const chunks: Buffer[] = [];
+      req.on('data', (c: Buffer) => chunks.push(c));
+      req.on('end', () => {
+        const raw = Buffer.concat(chunks).toString('utf-8');
+        lastRequest = { raw };
+        try {
+          lastRequest.image = JSON.parse(raw).image;
+        } catch {
+          lastRequest.image = undefined;
+        }
+        res.writeHead(stub.status ?? 200, { 'content-type': 'application/json' });
+        res.end(stub.body);
+      });
     });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     const address = server.address();
@@ -343,11 +355,34 @@ async function main(): Promise<void> {
     stub = {
       body: JSON.stringify({ success: true, detections: [box], synthetic_fallback: false }),
     };
+    // The bot holds the decoded bytes already (it just downloaded them from
+    // Telegram) — the configured R2 URL is a second fetch away and a data: URL
+    // is not addressable at all. When an imageBuffer is supplied it must win,
+    // as the inline payload, instead of the URL.
+    hits = 0;
+    stub = {
+      body: JSON.stringify({ success: true, detections: [box], synthetic_fallback: false }),
+    };
+    lastRequest = {};
+    const providerBuf = new YoloVisionProvider(url);
+    await providerBuf.analyze({
+      ...INPUT,
+      imageBuffer: Buffer.from('fake-jpeg-bytes'),
+    });
+    check(
+      'an imageBuffer reaches the worker inline instead of the photo URL',
+      typeof lastRequest.image === 'string' &&
+        lastRequest.image.startsWith('data:image/jpeg;base64,'),
+      JSON.stringify(lastRequest).slice(0, 200),
+    );
+
+    // Two analyze calls happened by this point (the imageBuffer one above and
+    // this one) — asserting exactly one would pin the test to its own ordering.
     const provider = new YoloVisionProvider(url);
     const analysis = await provider.analyze(INPUT);
     check(
       'YoloVisionProvider with a worker URL talks to the worker, not to spawnSync',
-      hits === 1 && analysis.provider === 'yolo' && analysis.engine === 'ultralytics-yolo',
+      hits === 2 && analysis.provider === 'yolo' && analysis.engine === 'ultralytics-yolo',
       `hits=${hits} provider=${analysis.provider} engine=${analysis.engine}`,
     );
     // Not `needsHumanReview === false`: one bottle against a planogram that

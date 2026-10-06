@@ -124,7 +124,19 @@ def run_inference(image_path, model_path="yolov8n.pt", conf_thresh=0.25):
 
     # Load image with cv2 to get dimensions & crops
     img = None
-    if os.path.exists(image_path):
+    if image_path.startswith("data:image/"):
+        # Inline data URL — the caller (the Node bot) decoded the Telegram bytes
+        # in memory and sent them here instead of a URL, so there is nothing to
+        # fetch and nothing to scan for a file name.
+        try:
+            import base64
+
+            b64 = image_path.split(",", 1)[1]
+            arr = np.frombuffer(base64.b64decode(b64), dtype=np.uint8)
+            img = cv2.imdecode(arr, -1)
+        except Exception:
+            img = None
+    elif os.path.exists(image_path):
         img = cv2.imread(image_path)
     else:
         # Remote URL or image buffer

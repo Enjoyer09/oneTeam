@@ -139,6 +139,19 @@ def main():
             json.dumps(body)[:300],
         )
 
+        status, body = call(
+            port,
+            "/detect",
+            {"image": "data:image/jpeg;base64,AAAA", "conf": 0.4},
+        )
+        check(
+            "a data: URL body is accepted and forwarded as-is",
+            status == 200
+            and body["received"]["image"] == "data:image/jpeg;base64,AAAA"
+            and body["received"]["conf"] == 0.4,
+            json.dumps(body)[:300],
+        )
+
         status, body = call(port, "/other", {"image": "x"})
         check(
             "an unknown path is 404",

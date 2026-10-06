@@ -94,11 +94,16 @@ export class YoloVisionProvider implements VisionProvider {
   constructor(private readonly workerUrl?: string) {}
 
   async analyze(input: VisionInput): Promise<VisionAnalysis> {
+    // The bot holds the decoded bytes already — it downloaded them from Telegram
+    // before uploading. Prefer them: a data: URL is not addressable by the
+    // worker, and an R2 URL would cost a second cross-service fetch when the
+    // image is already in memory here.
+    const imageSource = input.imageBuffer ?? input.photoUrl;
     const outcome = this.workerUrl
-      ? await aiVisionService.runUltralyticsInferenceRemote(input.photoUrl, {
+      ? await aiVisionService.runUltralyticsInferenceRemote(imageSource, {
           workerUrl: this.workerUrl,
         })
-      : aiVisionService.runUltralyticsInferenceDetailed(input.photoUrl);
+      : aiVisionService.runUltralyticsInferenceDetailed(imageSource);
     const trustworthy = outcome.ok && !outcome.synthetic;
     const detections = outcome.ok ? outcome.detections : [];
     const evalResult = aiVisionService.evaluateCompliance(
