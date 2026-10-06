@@ -1383,6 +1383,8 @@ export interface BotSessionRow {
   activeTaskTitle: string | null;
   latitude: number | null;
   longitude: number | null;
+  /** When the fix was taken, or NULL when no fix was collected. */
+  locatedAt: string | null;
   checklistQuestions: unknown[];
   checklistAnswers: unknown[];
   checklistIndex: number | null;
@@ -1403,6 +1405,17 @@ function toBotSession(row: any): BotSessionRow {
     activeTaskTitle: row.active_task_title ?? null,
     latitude: row.latitude === null || row.latitude === undefined ? null : Number(row.latitude),
     longitude: row.longitude === null || row.longitude === undefined ? null : Number(row.longitude),
+    locatedAt:
+      row.located_at === null || row.located_at === undefined || row.located_at === ''
+        ? null
+        : // ISO-8601, not `String(date)`. `pg` hands back a JS `Date` for a
+          // timestamptz, and `String()` on one produces
+          // "Tue Oct 06 2026 11:41:30 GMT+0400 (Azerbaijan Standard Time)" — a
+          // value Postgres refuses on the way back in with
+          // `time zone "gmt+0400" not recognised`, so the very next save of the
+          // same session failed with FLOW_NOT_STORED and the bot's flow could
+          // not be written at all.
+          new Date(row.located_at).toISOString(),
     checklistQuestions: Array.isArray(row.checklist_questions) ? row.checklist_questions : [],
     checklistAnswers: Array.isArray(row.checklist_answers) ? row.checklist_answers : [],
     checklistIndex:
@@ -1475,6 +1488,7 @@ export async function upsertBotSession(
     activeTaskTitle?: string | null;
     latitude?: number | null;
     longitude?: number | null;
+    locatedAt?: string | null;
     checklistQuestions?: unknown[];
     checklistAnswers?: unknown[];
     checklistIndex?: number | null;
@@ -1488,6 +1502,7 @@ export async function upsertBotSession(
         store_id, store_code, store_name,
         active_task_id, active_task_title,
         latitude, longitude,
+        located_at,
         checklist_questions, checklist_answers, checklist_index,
         pending_photo,
         updated_at, expires_at
@@ -1496,9 +1511,10 @@ export async function upsertBotSession(
         $4, $5, $6,
         $7, $8,
         $9, $10,
-        $11::jsonb, $12::jsonb, $13,
-        $14::jsonb,
-        now(), now() + make_interval(secs => $15::double precision)
+        $11,
+        $12::jsonb, $13::jsonb, $14,
+        $15::jsonb,
+        now(), now() + make_interval(secs => $16::double precision)
      )
      ON CONFLICT (chat_id) DO UPDATE
         SET user_id = EXCLUDED.user_id,
@@ -1510,6 +1526,7 @@ export async function upsertBotSession(
             active_task_title = EXCLUDED.active_task_title,
             latitude = EXCLUDED.latitude,
             longitude = EXCLUDED.longitude,
+            located_at = EXCLUDED.located_at,
             checklist_questions = EXCLUDED.checklist_questions,
             checklist_answers = EXCLUDED.checklist_answers,
             checklist_index = EXCLUDED.checklist_index,
@@ -1528,6 +1545,7 @@ export async function upsertBotSession(
       session.activeTaskTitle ?? null,
       session.latitude ?? null,
       session.longitude ?? null,
+      session.locatedAt ?? null,
       JSON.stringify(session.checklistQuestions ?? []),
       JSON.stringify(session.checklistAnswers ?? []),
       session.checklistIndex ?? null,

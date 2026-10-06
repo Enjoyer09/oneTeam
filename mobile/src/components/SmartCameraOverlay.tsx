@@ -122,6 +122,12 @@ export function stampAuditMetadata(params: {
       // so the server can flag a spoofed position; absent on iOS, where the
       // platform does not expose it.
       ...(typeof params.userGPS.mocked === 'boolean' ? { mocked: params.userGPS.mocked } : {}),
+      // The fix's own timestamp, passed through for the same reason as `mocked`:
+      // the server rejects an undated fix, so dropping it here would make every
+      // photo submitted through this overlay fail.
+      ...(typeof params.userGPS.timestamp === 'number'
+        ? { timestamp: params.userGPS.timestamp }
+        : {}),
     },
     distance_from_store_meters: Math.round(distance),
     device_model: params.deviceModel || UNKNOWN_DEVICE_FIELD,

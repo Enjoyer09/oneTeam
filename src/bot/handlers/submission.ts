@@ -401,6 +401,10 @@ async function filePhoto(
     photoUrl,
     latitude: location?.latitude,
     longitude: location?.longitude,
+    // Telegram's own capture time for the shared location. The API refuses an
+    // undated fix, so omitting it here would make every Telegram submission
+    // with a location fail as stale.
+    locatedAt: location?.locatedAt,
     checklistAnswers,
     ai: ai
       ? {

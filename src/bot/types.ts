@@ -76,7 +76,14 @@ export interface SessionData {
    * records a `GEOFENCE_NOT_VERIFIED` event. Never filled in from the store's
    * own coordinates — that would make the geofence pass for everyone.
    */
-  location?: { latitude: number; longitude: number };
+  /**
+   * When the shared location was captured, as an ISO-8601 instant.
+   *
+   * `latitude`/`longitude` say where; without a time, they do not say when, and
+   * the API refuses a fix older than a few minutes — so a location shared and
+   * then held while the merchandiser walks the shop would be rejected as stale.
+   */
+  location?: { latitude: number; longitude: number; locatedAt?: string };
 
   /** The template's questions, copied onto the session when the task is opened. */
   checklistQuestions?: ChecklistQuestion[];

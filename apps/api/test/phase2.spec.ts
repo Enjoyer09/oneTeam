@@ -16,6 +16,7 @@ import { EvidenceService } from '../src/modules/evidences/evidence.service';
 import { PortalService } from '../src/modules/portal/portal.service';
 import { isAiAutoApproveEligible } from '../src/modules/portal/field.service';
 import { AuthenticatedPrincipal } from '../src/common/auth/authenticated-principal';
+import { FRESH_FIX_AT } from './helpers/fresh-fix';
 
 /**
  * Test principals — the actor passed to service methods.
@@ -193,6 +194,7 @@ async function runPhase2TestSuite() {
         photoUrl: 'https://images.unsplash.com/photo-coke-shelf-1.jpg',
         latitude: 40.38505,
         longitude: 49.8106,
+        locatedAt: FRESH_FIX_AT(),
         photoType: 'before',
         checklistAnswers: [
           { questionId: 'q-clean', value: true },
@@ -219,6 +221,7 @@ async function runPhase2TestSuite() {
         photoUrl: 'https://images.unsplash.com/photo-coke-shelf-1.jpg',
         latitude: 40.38505,
         longitude: 49.8106,
+        locatedAt: FRESH_FIX_AT(),
         photoType: 'before',
         checklistAnswers: [
           { questionId: 'q-temp', value: 'soyuqdur' as any },
@@ -245,6 +248,7 @@ async function runPhase2TestSuite() {
         photoUrl: 'https://images.unsplash.com/photo-coke-shelf-1.jpg',
         latitude: 40.38505,
         longitude: 49.8106,
+        locatedAt: FRESH_FIX_AT(),
         photoType: 'before',
         checklistAnswers: [
           { questionId: 'q-temp', value: 3.5 },
@@ -271,6 +275,7 @@ async function runPhase2TestSuite() {
         photoUrl: 'https://images.unsplash.com/photo-coke-shelf-1.jpg',
         latitude: 40.38505,
         longitude: 49.8106,
+        locatedAt: FRESH_FIX_AT(),
         photoType: 'before',
         checklistAnswers: [
           { questionId: 'q-temp', value: 38.0 },
@@ -301,6 +306,7 @@ async function runPhase2TestSuite() {
       photoUrl: 'https://images.unsplash.com/photo-coke-shelf-before.jpg',
       latitude: 40.38505,
       longitude: 49.8106,
+      locatedAt: FRESH_FIX_AT(),
       photoType: 'before',
       checklistAnswers: validAnswers,
     },
@@ -341,6 +347,7 @@ async function runPhase2TestSuite() {
         photoType: 'after',
         latitude: 40.38505,
         longitude: 49.8106,
+        locatedAt: FRESH_FIX_AT(),
         checklistAnswers: validAnswers,
       },
       PRINCIPALS.merchandiser,
@@ -361,6 +368,7 @@ async function runPhase2TestSuite() {
       photoType: 'before',
       latitude: 40.38505,
       longitude: 49.8106,
+      locatedAt: FRESH_FIX_AT(),
       checklistAnswers: validAnswers,
     },
     PRINCIPALS.merchandiser,
@@ -382,6 +390,7 @@ async function runPhase2TestSuite() {
       photoType: 'after',
       latitude: 40.38505,
       longitude: 49.8106,
+      locatedAt: FRESH_FIX_AT(),
       aiScore: 96,
       aiSummary: '✅ Planogram uyğunluğu: 96%',
       checklistAnswers: validAnswers,
@@ -491,6 +500,7 @@ async function runPhase2TestSuite() {
       photoType: 'standard',
       latitude: 40.38505,
       longitude: 49.8106,
+      locatedAt: FRESH_FIX_AT(),
       locationMocked: true,
       checklistAnswers: [{ questionId: 'q-eye-clean', value: true }],
     },
@@ -524,6 +534,7 @@ async function runPhase2TestSuite() {
       photoType: 'standard',
       latitude: 40.38505,
       longitude: 49.8106,
+      locatedAt: FRESH_FIX_AT(),
       checklistAnswers: [{ questionId: 'q-eye-clean', value: true }],
     },
     PRINCIPALS.merchandiser,
@@ -587,6 +598,7 @@ async function runPhase2TestSuite() {
         photoType: 'standard',
         latitude: 40.4,
         longitude: 49.85,
+        locatedAt: FRESH_FIX_AT(),
         checklistAnswers: [{ questionId: 'q-eye-clean', value: true }],
       },
       PRINCIPALS.merchandiser,
@@ -625,6 +637,7 @@ async function runPhase2TestSuite() {
       photoType: 'standard',
       latitude: 40.38505,
       longitude: 49.8106,
+      locatedAt: FRESH_FIX_AT(),
       checklistAnswers: [{ questionId: 'q-eye-clean', value: true }],
     },
     PRINCIPALS.merchandiser,

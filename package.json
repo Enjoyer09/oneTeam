@@ -67,8 +67,8 @@
     "test:reclaim-on-open": "node ./node_modules/tsx/dist/cli.mjs --import ./scripts/test-credential.mjs src/bot/handlers/tasks.reclaim.test.ts",
     "test:deeplink": "node ./node_modules/tsx/dist/cli.mjs --import ./scripts/test-credential.mjs src/bot/handlers/start.deeplink.test.ts",
     "test:signing": "node ./node_modules/tsx/dist/cli.mjs packages/types/src/service-credential.test.ts",
-    "test:all": "npm run test:secrets && npm run test:portal-silent-success && npm run test:core && npm run test:device-block-auth && npm run test:phase2 && npm run test:storage && npm run test:photo-provenance && npm run test:ai && npm run test:vision && npm run test:openrouter && npm run test:verdict && npm run test:roi && npm run test:bot-picker && npm run test:today && npm run test:commands && npm run test:checklist-type && npm run test:markdown-escape && npm run test:reclaim-on-open && npm run test:deeplink && npm run test:signing && npm run test:credentials && npm run test:queue && npm run test:sync-message && npm run test:photo-quality && npm run test:photo-upload && npm run test:capture && npm run test:db-backup",
-    "test:live": "npm run test:panel && npm run test:stores && npm run test:tasks && npm run test:roles && npm run test:device && npm run test:device-revoke && npm run test:device-block && npm run test:replica && npm run test:flow && npm run test:notify && npm run test:router && npm run bot:test && npm run web:test && npm run mobile:test",
+    "test:all": "npm run test:secrets && npm run test:portal-silent-success && npm run test:core && npm run test:device-block-auth && npm run test:phase2 && npm run test:storage && npm run test:photo-provenance && npm run test:ai && npm run test:vision && npm run test:openrouter && npm run test:verdict && npm run test:roi && npm run test:bot-picker && npm run test:today && npm run test:commands && npm run test:checklist-type && npm run test:markdown-escape && npm run test:reclaim-on-open && npm run test:deeplink && npm run test:signing && npm run test:credentials && npm run test:queue && npm run test:sync-message && npm run test:photo-quality && npm run test:photo-upload && npm run test:capture && npm run test:db-backup && npm run test:gps-freshness",
+    "test:live": "npm run build:packages && npm run api:build && node scripts/quality/run-live-suites.mjs",
     "type-check": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -83,7 +83,10 @@
     "mobile:test:write": "ONETEAM_MOBILE_WRITES=1 node ./node_modules/tsx/dist/cli.mjs mobile/src/tests/mobile-test-runner.ts",
     "test:device-block-auth": "node ./node_modules/tsx/dist/cli.mjs --import ./scripts/test-credential.mjs apps/api/test/device-block-auth.spec.ts",
     "test:photo-provenance": "node ./node_modules/tsx/dist/cli.mjs --import ./scripts/test-credential.mjs apps/api/test/photo-provenance.spec.ts",
-    "test:db-backup": "bash scripts/ops/db-backup.test.sh"
+    "test:db-backup": "bash scripts/ops/db-backup.test.sh",
+    "test:live:suites": "node scripts/quality/run-live-suites.mjs",
+    "live:local": "bash scripts/quality/local-live-tests.sh",
+    "test:gps-freshness": "node ./node_modules/tsx/dist/cli.mjs apps/api/test/gps-freshness.spec.ts"
   },
   "keywords": [
     "retail",

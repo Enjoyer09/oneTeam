@@ -21,6 +21,7 @@ import { WebhookController } from '../src/modules/notifications/webhook.controll
 import { EvidenceService } from '../src/modules/evidences/evidence.service';
 import { PortalService } from '../src/modules/portal/portal.service';
 import { AuthenticatedPrincipal } from '../src/common/auth/authenticated-principal';
+import { FRESH_FIX_AT } from './helpers/fresh-fix';
 
 /**
  * THIS SUITE FIXES ITS OWN ENVIRONMENT, OR IT IS NOT A TEST.
@@ -485,6 +486,7 @@ async function runTestSuite() {
       photoUrl: 'https://images.unsplash.com/photo-coke-shelf-perfect.jpg',
       latitude: 40.38505,
       longitude: 49.8106,
+      locatedAt: FRESH_FIX_AT(),
       aiScore: 95,
       aiSummary: '✅ Planogram Uyğunluğu: 95%',
       checklistAnswers: [{ questionId: 'q-eye-clean', value: true }],
@@ -527,6 +529,7 @@ async function runTestSuite() {
         photoUrl: 'https://images.unsplash.com/photo-fake-audit.jpg',
         latitude: 40.375,
         longitude: 49.825, // ~1.6km away
+        locatedAt: FRESH_FIX_AT(),
         checklistAnswers: [{ questionId: 'q-eye-clean', value: true }],
       },
       PRINCIPALS.merchandiser,
@@ -734,6 +737,7 @@ async function runTestSuite() {
       checklistAnswers: opts.answers ?? [{ questionId: 'q-eye-clean', value: true }],
       latitude: 40.385012,
       longitude: 49.810541,
+      locatedAt: FRESH_FIX_AT(),
       gpsDistanceMeters: opts.distance ?? 0,
       ...(opts.locationMocked !== undefined ? { locationMocked: opts.locationMocked } : {}),
       ...(opts.locationUnverified !== undefined

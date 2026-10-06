@@ -1278,6 +1278,7 @@ export class EnterpriseDatabase {
     activeTaskTitle?: string | null;
     latitude?: number | null;
     longitude?: number | null;
+    locatedAt?: string | null;
     checklistQuestions?: unknown[];
     checklistAnswers?: unknown[];
     checklistIndex?: number | null;

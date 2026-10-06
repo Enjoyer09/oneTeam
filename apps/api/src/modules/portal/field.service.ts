@@ -50,6 +50,7 @@ import {
 import { PortalService, PanelStore, PanelTask, PanelSubmission } from './portal.service';
 import { EvidenceService } from '../evidences/evidence.service';
 import { TaskStateService } from '../tasks/task-state.service';
+import { isFixFresh, MAX_FIX_AGE_MS } from './gps-freshness';
 import { StorageService } from '../storage/storage.service';
 import { AuthenticatedPrincipal } from '../../common/auth/authenticated-principal';
 
@@ -420,6 +421,7 @@ export class FieldService {
         activeTaskTitle: payload.activeTaskTitle ?? null,
         latitude: payload.location?.latitude ?? null,
         longitude: payload.location?.longitude ?? null,
+        locatedAt: payload.location?.locatedAt ?? null,
         checklistQuestions: payload.checklistQuestions ?? [],
         checklistAnswers: payload.checklistAnswers ?? [],
         checklistIndex: payload.checklistIndex ?? null,
@@ -604,6 +606,26 @@ export class FieldService {
           HttpStatus.BAD_REQUEST,
         );
       }
+
+      // The timestamp is stored as `timestamptz`, so anything Postgres cannot
+      // parse fails the whole session write rather than just this field — the
+      // bot then cannot save its place at all. Validated here so a bad value is
+      // a 400 naming the field instead of a 503 that reads as an outage.
+      const locatedAt = payload.location.locatedAt;
+      if (
+        locatedAt !== undefined &&
+        locatedAt !== null &&
+        locatedAt !== '' &&
+        Number.isNaN(Date.parse(locatedAt))
+      ) {
+        throw new HttpException(
+          {
+            error: 'INVALID_FLOW_LOCATION',
+            message: 'Lokasiyanın vaxtı ISO-8601 formatında olmalıdır.',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
     }
 
     if (payload.pendingPhoto !== undefined && payload.pendingPhoto !== null) {
@@ -633,7 +655,20 @@ export class FieldService {
       activeTaskTitle: row.activeTaskTitle,
       location:
         row.latitude !== null && row.longitude !== null
-          ? { latitude: row.latitude, longitude: row.longitude }
+          ? {
+              latitude: row.latitude,
+              longitude: row.longitude,
+              // Kept with the coordinates it belongs to. The bot re-reads this
+              // session before every button tap, so a payload that dropped the
+              // timestamp here handed the submission coordinates with no date —
+              // and the API refuses an undated fix, which is correct.
+              //
+              // Omitted rather than `null` when there is none: the flow read is
+              // compared field for field with what was written, and a key that
+              // was never in the written payload does not belong in the echo of
+              // it either.
+              ...(row.locatedAt !== null ? { locatedAt: row.locatedAt } : {}),
+            }
           : null,
       checklistQuestions: (row.checklistQuestions ?? []) as ChecklistQuestion[],
       checklistAnswers: (row.checklistAnswers ?? []) as ChecklistAnswer[],
@@ -923,6 +958,15 @@ export class FieldService {
     accuracy?: number;
     /** True when the device flagged the fix as mock/simulated (Android exposes this). */
     locationMocked?: boolean;
+    /**
+     * When the fix was taken, as an ISO-8601 instant.
+     *
+     * `accuracy` bounds the fix horizontally and `locationMocked` says whether it
+     * is real, but neither says how old it is — and no client sent this before,
+     * which left the pair of numbers an undated claim that could be replayed
+     * hours later from anywhere. See `gps-freshness.ts`.
+     */
+    locatedAt?: string;
     checklistAnswers?: Array<{ questionId: string; value: boolean | number | string }>;
     metadata?: Record<string, unknown>;
     /** Client-supplied key that makes a resend return the same evidence. */
@@ -999,8 +1043,28 @@ export class FieldService {
 
     const photoUrl = storedPhoto.url;
 
-    const hasRealFix =
+    // Two separate questions, previously conflated into one. "Are there two
+    // numbers" is about shape; "were they taken just now" is about whether they
+    // are evidence. A pair of coordinates captured hours ago passes every
+    // geofence check precisely because it was inside the radius when it was
+    // taken, so the age has to be judged before the coordinates are trusted.
+    const hasCoordinates =
       typeof payload.latitude === 'number' && typeof payload.longitude === 'number';
+    const fixIsFresh = isFixFresh(payload.locatedAt);
+
+    if (hasCoordinates && !fixIsFresh) {
+      throw new HttpException(
+        {
+          error: 'LOCATION_STALE',
+          message:
+            `Geolokasiya köhnədir. Koordinatlar ${Math.round(MAX_FIX_AGE_MS / 60000)} dəqiqədən ` +
+            'eski deyil — siqnalları söndürüb yenidən yoxlama edin, sonra auditı göndərin.',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const hasRealFix = hasCoordinates && fixIsFresh;
 
     if (!hasRealFix && !payload.locationUnverified) {
       throw new HttpException(
@@ -1098,6 +1162,14 @@ export class FieldService {
         latitude: hasRealFix ? (payload.latitude as number) : store.latitude,
         longitude: hasRealFix ? (payload.longitude as number) : store.longitude,
         idempotencyKey: payload.idempotencyKey,
+        // Forwarded, not re-derived. This method has already judged the fix
+        // fresh above, but EvidenceService cannot rely on that: it re-runs the
+        // same check for every other caller, and `dto.locatedAt` arriving as
+        // undefined makes it refuse a fix that was dated a millisecond ago with
+        // LOCATION_STALE. Dropping the field here turned every coordinate-bearing
+        // submission into a 400 — only an idempotency-key repeat slipped past,
+        // because that branch returns before the check.
+        locatedAt: payload.locatedAt,
         // Carried into the evidence record so a spoofed fix can be held for
         // review and never auto-approved. Already logged as LOCATION_MOCKED above.
         locationMocked,
