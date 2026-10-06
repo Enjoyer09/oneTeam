@@ -227,6 +227,14 @@ function outcomeFromDetectionPayload(parsed: unknown): YoloRunOutcome | null {
   };
 }
 
+/** CLI argv for the spawned worker. The model is the worker's to own:
+ *  ONETEAM_YOLO_MODEL is the same knob the deployed worker's /health reads, so
+ *  both transports can never run different detectors. */
+export function yoloCliArgs(scriptPath: string, imageSource: string): string[] {
+  const model = process.env.ONETEAM_YOLO_MODEL || 'yolov8n.pt';
+  return [scriptPath, '--image', imageSource, '--model', model];
+}
+
 export class AIVisionService {
   /**
    * Parse planogram requirements from task text or return standard Coca-Cola cooler rules.
@@ -321,7 +329,7 @@ export class AIVisionService {
 
     let res: SpawnResult;
     try {
-      res = spawnSync(venvPython, [scriptPath, '--image', source, '--model', 'yolov8n.pt'], {
+      res = spawnSync(venvPython, yoloCliArgs(scriptPath, source), {
         encoding: 'utf-8',
         timeout: timeoutMs,
         maxBuffer: 10 * 1024 * 1024,

@@ -77,8 +77,12 @@ def get_inference():
     return _inference
 
 
-def detect(image: str, model: str = "yolov8n.pt", conf: float = 0.25) -> dict:
+def detect(image: str, model: str | None = None, conf: float = 0.25) -> dict:
     """Run one inference. Returns the worker's dict, never raises for a bad image."""
+    if model is None:
+        # Same knob /health reports: env default, payload override, then the
+        # stock weights.
+        model = os.environ.get("ONETEAM_YOLO_MODEL", "yolov8n.pt")
     with INFERENCE_LOCK:
         return get_inference()(image, model, conf)
 
@@ -134,7 +138,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             result = detect(
                 image,
-                model=str(payload.get("model") or "yolov8n.pt"),
+                model=(str(payload["model"]) if payload.get("model") else None),
                 conf=float(payload.get("conf", 0.25)),
             )
         except Exception as error:  # the worker's own failures are JSON, not 500s

@@ -21,7 +21,7 @@ import type { VisionAnalysis, VisionInput, VisionLLMClient, VisionProvider } fro
 import { combineHybrid, HybridVisionProvider } from './hybridProvider';
 import { VisionLLMProvider } from './llmProvider';
 import { resolveVisionProvider, SimulationVisionProvider, YoloVisionProvider } from './index';
-import { aiVisionService } from '../aiVision';
+import { aiVisionService, yoloCliArgs } from '../aiVision';
 
 let passed = 0;
 let failed = 0;
@@ -399,6 +399,25 @@ async function main(): Promise<void> {
 
     await new Promise<void>((resolve) => server.close(() => resolve()));
   })();
+
+  // The model is the worker's to own: the local spawn path must read the same
+  // ONETEAM_YOLO_MODEL the worker's /health reports, or the two transports
+  // silently run different detectors.
+  {
+    const saved = process.env.ONETEAM_YOLO_MODEL;
+    delete process.env.ONETEAM_YOLO_MODEL;
+    const defaults = yoloCliArgs('/x/yolo_inference.py', 'IMG');
+    process.env.ONETEAM_YOLO_MODEL = 'yolo11n.pt';
+    const configured = yoloCliArgs('/x/yolo_inference.py', 'IMG');
+    if (saved === undefined) delete process.env.ONETEAM_YOLO_MODEL;
+    else process.env.ONETEAM_YOLO_MODEL = saved;
+    check(
+      'local spawn args default to yolov8n and honor ONETEAM_YOLO_MODEL',
+      defaults.join(' ') === '/x/yolo_inference.py --image IMG --model yolov8n.pt' &&
+        configured.join(' ') === '/x/yolo_inference.py --image IMG --model yolo11n.pt',
+      JSON.stringify({ defaults, configured }),
+    );
+  }
 
   console.log(`\n${passed + failed} checks: ${passed} passed, ${failed} failed`);
   process.exit(failed === 0 ? 0 : 1);

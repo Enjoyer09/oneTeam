@@ -59,7 +59,7 @@ def stub_ok(image, model="yolov8n.pt", conf=0.25):
         "detected_count": 1,
         "synthetic_fallback": False,
         "detections": [DETECTION],
-        "received": {"image": image, "conf": conf},
+        "received": {"image": image, "conf": conf, "model": model},
     }
 
 
@@ -158,6 +158,25 @@ def main():
             status == 404,
             str(body)[:200],
         )
+
+        # The model is the worker's to own: ONETEAM_YOLO_MODEL must drive both
+        # what /health claims and what /detect actually runs.
+        os.environ["ONETEAM_YOLO_MODEL"] = "yolo11n.pt"
+        try:
+            status, body = call(port, "/health")
+            check(
+                "health reports the configured model",
+                status == 200 and body.get("model") == "yolo11n.pt",
+                json.dumps(body)[:300],
+            )
+            status, body = call(port, "/detect", {"image": "x"})
+            check(
+                "inference runs the configured model when the payload has none",
+                status == 200 and body["received"].get("model") == "yolo11n.pt",
+                json.dumps(body)[:300],
+            )
+        finally:
+            os.environ.pop("ONETEAM_YOLO_MODEL", None)
     finally:
         httpd.shutdown()
         httpd.server_close()
