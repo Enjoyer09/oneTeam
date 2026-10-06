@@ -82,7 +82,7 @@ def detect(image: str, model: str | None = None, conf: float = 0.25) -> dict:
     if model is None:
         # Same knob /health reports: env default, payload override, then the
         # stock weights.
-        model = os.environ.get("ONETEAM_YOLO_MODEL", "yolov8n.pt")
+        model = os.environ.get("ONETEAM_YOLO_MODEL", "yolo11n.pt")
     with INFERENCE_LOCK:
         return get_inference()(image, model, conf)
 
@@ -104,7 +104,7 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "ok": True,
                     "service": "oneTeam-vision-worker",
-                    "model": os.environ.get("ONETEAM_YOLO_MODEL", "yolov8n.pt"),
+                    "model": os.environ.get("ONETEAM_YOLO_MODEL", "yolo11n.pt"),
                     # True once the worker module has been imported. The socket
                     # only opens after that, so this is a belt-and-braces signal
                     # for a probe that arrives during a restart.

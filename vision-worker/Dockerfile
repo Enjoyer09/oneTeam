@@ -44,7 +44,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Bake the weights and the torch import into the layer: the first /detect then
 # costs what every later /detect costs.
 ENV YOLO_CONFIG_DIR=/app/.yolo_config
-RUN python -c "from ultralytics import YOLO; YOLO('yolov8n.pt')"
+RUN python -c "from ultralytics import YOLO; YOLO('yolo11n.pt')"
 
 ENV PORT=8080
 EXPOSE 8080

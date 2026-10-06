@@ -231,7 +231,7 @@ function outcomeFromDetectionPayload(parsed: unknown): YoloRunOutcome | null {
  *  ONETEAM_YOLO_MODEL is the same knob the deployed worker's /health reads, so
  *  both transports can never run different detectors. */
 export function yoloCliArgs(scriptPath: string, imageSource: string): string[] {
-  const model = process.env.ONETEAM_YOLO_MODEL || 'yolov8n.pt';
+  const model = process.env.ONETEAM_YOLO_MODEL || 'yolo11n.pt';
   return [scriptPath, '--image', imageSource, '--model', model];
 }
 

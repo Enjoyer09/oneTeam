@@ -9,6 +9,7 @@
 **Tech Stack:** Ultralytics (YOLOv8n now), Python 3 `.venv`, TypeScript `aiVision.ts`, `vision-worker/test_server.py` (stub), `src/services/vision/vision.test.ts` (HTTP stub), Railway service `vision-worker` (builder: `vision-worker/Dockerfile`, auto-deploy on push to `main`).
 
 **Ground rules (from repo state):**
+
 - Commands: `npm run test:vision` (41 checks), `.venv/bin/python vision-worker/test_server.py` (10 checks), `unset NODE_ENV; node scripts/quality/local-gate.mjs` (12 steps), `unset NODE_ENV; bash scripts/quality/local-live-tests.sh` (562 checks + break detectors).
 - Env vars to never print: anything with `password=`, `secret=`, `token=`. Secret scan before every push.
 - `NODE_ENV=production` is exported in the shell — always `unset` for harness commands.
@@ -22,6 +23,7 @@
 **Objective:** Have 2 real supermarket-shelf photos in the repo, license-clean, small enough to commit.
 
 **Files:**
+
 - Create: `vision-worker/fixtures/shelf-01.jpg`, `vision-worker/fixtures/shelf-02.jpg`
 - Create: `vision-worker/fixtures/LICENSE.md` (source URL + license per image)
 
@@ -48,6 +50,7 @@ cv2.imwrite(out, img, [cv2.IMWRITE_JPEG_QUALITY, 80])
 **Objective:** One runnable command that answers "does YOLO see real detections on real shelf photos?"
 
 **Files:**
+
 - Create: `scripts/yolo_quality_check.py`
 
 **Step 1: write the check (this IS the test — assert-based):**
@@ -91,7 +94,7 @@ if __name__ == '__main__':
     sys.exit(main())
 ```
 
-*(adjust the `run_inference` import/signature to match `scripts/yolo_inference.py:115` — read the file first; if `run_inference` is not importable as-is, import the module and call its actual entry point)*
+_(adjust the `run_inference` import/signature to match `scripts/yolo_inference.py:115` — read the file first; if `run_inference` is not importable as-is, import the module and call its actual entry point)_
 
 **Step 2: run — EXPECT realistic output** (real shelf photos should give `synthetic: false` with COCO labels like `bottle`, `cup`, `person`; if every fixture is synthetic, the model/fixture pairing is broken — investigate before moving on):
 
@@ -134,6 +137,7 @@ git commit -m "test(vision): real-photo quality check with licensed shelf fixtur
 **Objective:** `train_yolo.py --check` exits non-zero with a clear message on a broken dataset, zero on a valid one.
 
 **Files:**
+
 - Create: `scripts/train_yolo.py`
 - Test: shell-level (run the two commands below; both are the RED/GREEN proof)
 
@@ -249,12 +253,14 @@ Plus a positive case: build a 2-image fake dataset in `/tmp/fake-yolo` (valid da
 ### Task 3.1: RED — model name must come from `ONETEAM_YOLO_MODEL`
 
 **Files:**
+
 - Modify: `src/services/vision/vision.test.ts` (stub asserts `--model` arg / payload)
 - Modify: `src/services/aiVision.ts:~319` (spawn args), `vision-worker/server.py:~103,137`
 
 **Step 1 (RED):** in `vision.test.ts` remote-worker section, set `process.env.ONETEAM_YOLO_MODEL = 'yolo11n.pt'` before `providerBuf.analyze(...)`, assert `lastRequest.raw` (or a new captured field) carries `yolo11n.pt` — if the remote payload carries the model at all (decide the contract: **the worker owns the model**, the API does NOT send it — see Step 2; if so, the RED test belongs on `server.py` instead: `test_server.py` asserts `GET /health` reports the env-configured model).
 
 **Contract decision (fixed now):** the **model lives in the worker**; local spawn passes `--model`, remote does not send it. So:
+
 - RED A (TS): local path — set env, stub not involved; assert via a unit-visible seam: extract `yoloCliArgs(source)` helper in `aiVision.ts`, test it returns `['--model', 'yolo11n.pt', ...]` under env.
 - RED B (Python): `vision-worker/test_server.py` — start server with `ONETEAM_YOLO_MODEL=yolo11n.pt`, assert `/health` body `"model": "yolo11n.pt"`.
 
@@ -314,11 +320,13 @@ for model in ('yolov8n.pt', 'yolo11n.pt'):
 ### Task 4.1: RED — `ONETEAM_YOLO_CONF` reaches both transports
 
 **Files:**
+
 - Modify: `src/services/vision/vision.test.ts` (remote stub: assert payload carries `conf`)
 - Modify: `vision-worker/test_server.py` (assert payload `conf` forwarded — already partially covered by the data-URL test; extend to assert the DEFAULT when env is set)
 - Modify: `src/services/aiVision.ts`, `vision-worker/server.py`
 
 **Step 1 (RED):**
+
 - TS: set `process.env.ONETEAM_YOLO_CONF = '0.55'`, run remote `analyze`, assert parsed `lastRequest.image` exists AND `lastRequest.conf === 0.55`. Today payload has no `conf` → RED.
 - Python: start stub server with `ONETEAM_YOLO_CONF=0.55`, POST `/detect` **without** `conf` key, assert `received["conf"] == 0.55`. Today default is hard `0.25` → RED.
 
@@ -385,7 +393,10 @@ The fix gets a failing test first — e.g. duplicate-id hypothesis:
 
 ```ts
 // apps/api/test/store-crud.spec.ts — or a unit test on the DB class
-check('store ids are unique in memory', new Set(db.stores.map(s => s.id)).size === db.stores.length);
+check(
+  'store ids are unique in memory',
+  new Set(db.stores.map((s) => s.id)).size === db.stores.length,
+);
 ```
 
 RED (if the invariant is actually violated) → fix at the hydration/create site → GREEN.

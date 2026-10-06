@@ -10,12 +10,12 @@ Nothing meeting all three constraints (permissive license, ≤200 MB, product
 bounding boxes) was found in one package. Searched: HuggingFace, Wikimedia,
 Kaggle (no credentials on this machine).
 
-| Dataset | License | Size | Verdict |
-|---|---|---|---|
-| `valiantlynxz/norwegian-grocery` (HF) | **CC-BY-NC-4.0** | 965 MB (248 shelf imgs, 356 classes, YOLO config included) | Best data quality, but NC blocks shipping a model trained on it in a commercial product. OK for local experiments only. |
-| `shelfwise-by-form/SKUs_on_shelves_PL` (HF) | CC-BY-4.0 | **11.4 GB** | Permissive but far over budget. |
-| Kaggle `humansintheloop/supermarket-shelves-dataset` | "academic + commercial" (custom) | 45 images, 2 classes (Product, Price) | Right license, tiny, but download needs Kaggle credentials (absent here). |
-| `Basket-AEye/ai_shelf10` (HF) | **none declared** | 389 MB | Unclear rights — do not use. |
+| Dataset                                              | License                          | Size                                                       | Verdict                                                                                                                 |
+| ---------------------------------------------------- | -------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `valiantlynxz/norwegian-grocery` (HF)                | **CC-BY-NC-4.0**                 | 965 MB (248 shelf imgs, 356 classes, YOLO config included) | Best data quality, but NC blocks shipping a model trained on it in a commercial product. OK for local experiments only. |
+| `shelfwise-by-form/SKUs_on_shelves_PL` (HF)          | CC-BY-4.0                        | **11.4 GB**                                                | Permissive but far over budget.                                                                                         |
+| Kaggle `humansintheloop/supermarket-shelves-dataset` | "academic + commercial" (custom) | 45 images, 2 classes (Product, Price)                      | Right license, tiny, but download needs Kaggle credentials (absent here).                                               |
+| `Basket-AEye/ai_shelf10` (HF)                        | **none declared**                | 389 MB                                                     | Unclear rights — do not use.                                                                                            |
 
 ## Decision needed (owner)
 

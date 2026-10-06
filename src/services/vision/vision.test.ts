@@ -412,8 +412,8 @@ async function main(): Promise<void> {
     if (saved === undefined) delete process.env.ONETEAM_YOLO_MODEL;
     else process.env.ONETEAM_YOLO_MODEL = saved;
     check(
-      'local spawn args default to yolov8n and honor ONETEAM_YOLO_MODEL',
-      defaults.join(' ') === '/x/yolo_inference.py --image IMG --model yolov8n.pt' &&
+      'local spawn args default to yolo11n and honor ONETEAM_YOLO_MODEL',
+      defaults.join(' ') === '/x/yolo_inference.py --image IMG --model yolo11n.pt' &&
         configured.join(' ') === '/x/yolo_inference.py --image IMG --model yolo11n.pt',
       JSON.stringify({ defaults, configured }),
     );

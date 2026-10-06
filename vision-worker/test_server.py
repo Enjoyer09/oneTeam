@@ -177,6 +177,15 @@ def main():
             )
         finally:
             os.environ.pop("ONETEAM_YOLO_MODEL", None)
+
+        # Pre-registered upgrade gate passed (2026-10-06): yolo11n is the
+        # default on both transports. Pin it so a silent revert fails here.
+        status, body = call(port, "/health")
+        check(
+            "the default model is yolo11n",
+            status == 200 and body.get("model") == "yolo11n.pt",
+            json.dumps(body)[:300],
+        )
     finally:
         httpd.shutdown()
         httpd.server_close()

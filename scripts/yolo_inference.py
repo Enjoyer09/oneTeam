@@ -112,13 +112,13 @@ def classify_retail_sku(crop_bgr, item_idx=0, total_items=1):
         return "sprite"
 
 
-def run_inference(image_path, model_path="yolov8n.pt", conf_thresh=0.25):
+def run_inference(image_path, model_path="yolo11n.pt", conf_thresh=0.25):
     """
     Executes Ultralytics YOLO inference and returns formatted detections.
     """
     if not os.path.exists(model_path):
         # Fallback to current directory or auto-download
-        model_path = "yolov8n.pt"
+        model_path = "yolo11n.pt"
 
     model = YOLO(model_path)
 
@@ -326,7 +326,7 @@ def run_inference(image_path, model_path="yolov8n.pt", conf_thresh=0.25):
 def main():
     parser = argparse.ArgumentParser(description="Ultralytics YOLO Retail Inference")
     parser.add_argument("--image", required=True, help="Path or URL to shelf image")
-    parser.add_argument("--model", default="yolov8n.pt", help="YOLO model path")
+    parser.add_argument("--model", default="yolo11n.pt", help="YOLO model path")
     parser.add_argument("--conf", type=float, default=0.25, help="Confidence threshold")
     args = parser.parse_args()
 
