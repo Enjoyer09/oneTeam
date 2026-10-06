@@ -16,6 +16,11 @@ Latency (local, 640px, CPU, 30 runs each after 5 warmups, `bench_models.py`):
 
 mean delta: **−0.5 ms (−1.4%)** — inside noise, well under the 1.5× ceiling.
 
+End-to-end through `scripts/yolo_benchmark.py` (the spawned-worker call,
+model load included, median of 5): yolov8n shelf-01 81 ms / shelf-02 67 ms;
+yolo11n shelf-01 80 ms / shelf-02 81 ms (+21% on shelf-02, still far under
+the 1.5× ceiling). Counts deterministic across all 5 runs.
+
 Detections on the two fixtures (`run_inference`, both models):
 
 | Fixture                      | yolov8n count / synthetic | yolo11n count / synthetic |
