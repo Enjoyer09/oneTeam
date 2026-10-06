@@ -16,6 +16,10 @@
  *   ONETEAM_VISION_LLM_MODEL  e.g. google/gemini-flash-1.5, anthropic/claude-3.5-sonnet
  *   ONETEAM_VISION_LLM_KEY    bearer key for that endpoint
  *   ONETEAM_VISION_LLM_LABEL  optional provider label for the audit trail
+ *   ONETEAM_YOLO_WORKER_URL         base URL of a long-lived YOLO worker; unset
+ *                                   means the local spawnSync worker (see
+ *                                   runUltralyticsInferenceRemote for why that
+ *                                   is only right on a developer's machine)
  *   ONETEAM_YOLO_CONFIDENCE_FLOOR  optional 0-1 override for the hybrid hinge
  *
  * EXTERNAL-CALL WARNING
@@ -243,7 +247,7 @@ export function resolveVisionProvider(env: NodeJS.ProcessEnv = process.env): Vis
     case 'simulation':
       return new SimulationVisionProvider();
     case 'yolo':
-      return new YoloVisionProvider();
+      return new YoloVisionProvider(env.ONETEAM_YOLO_WORKER_URL);
     case 'vision-llm': {
       const client = buildLLMClientFromEnv(env);
       return client ? new VisionLLMProvider(client) : null;
@@ -251,7 +255,11 @@ export function resolveVisionProvider(env: NodeJS.ProcessEnv = process.env): Vis
     case 'hybrid': {
       const client = buildLLMClientFromEnv(env);
       const llm = client ? new VisionLLMProvider(client) : null;
-      return new HybridVisionProvider(new YoloVisionProvider(), llm, hybridThresholdsFromEnv(env));
+      return new HybridVisionProvider(
+        new YoloVisionProvider(env.ONETEAM_YOLO_WORKER_URL),
+        llm,
+        hybridThresholdsFromEnv(env),
+      );
     }
     default:
       // An unknown value is a configuration mistake, not a silent "off": say so

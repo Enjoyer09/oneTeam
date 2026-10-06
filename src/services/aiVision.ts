@@ -198,6 +198,35 @@ interface SpawnResult {
   error?: Error & { code?: string };
 }
 
+/**
+ * The one branch both worker transports must agree on: a payload that carries a
+ * `detections` array either found boxes or did not, and the difference decides
+ * whether a shelf is empty or the detector never looked.
+ *
+ * Returns null for anything that is not that payload, so a caller reading a
+ * stream of stdout lines (the `spawnSync` path prints ultralytics noise around
+ * the worker's line) can keep scanning instead of treating noise as an answer.
+ */
+function outcomeFromDetectionPayload(parsed: unknown): YoloRunOutcome | null {
+  if (!parsed || typeof parsed !== 'object') return null;
+  const payload = parsed as { detections?: unknown; synthetic_fallback?: unknown };
+
+  if (!Array.isArray(payload.detections)) return null;
+  if (payload.detections.length === 0) {
+    return {
+      ok: false,
+      reason: 'no-detections',
+      detail: 'The worker ran and returned an empty detection list.',
+    };
+  }
+
+  return {
+    ok: true,
+    detections: payload.detections as DetectionItem[],
+    synthetic: payload.synthetic_fallback === true,
+  };
+}
+
 export class AIVisionService {
   /**
    * Parse planogram requirements from task text or return standard Coca-Cola cooler rules.
@@ -362,20 +391,8 @@ export class AIVisionService {
         continue;
       }
 
-      if (Array.isArray(parsed.detections)) {
-        if (parsed.detections.length === 0) {
-          return {
-            ok: false,
-            reason: 'no-detections',
-            detail: 'The worker ran and returned an empty detection list.',
-          };
-        }
-        return {
-          ok: true,
-          detections: parsed.detections as DetectionItem[],
-          synthetic: parsed.synthetic_fallback === true,
-        };
-      }
+      const fromPayload = outcomeFromDetectionPayload(parsed);
+      if (fromPayload) return fromPayload;
     }
 
     if (reportedError) {
@@ -388,6 +405,109 @@ export class AIVisionService {
       detail:
         'The worker produced no parsable result. stdout: ' +
         ((res.stdout ?? '').trim().slice(0, 500) || '(empty)'),
+    };
+  }
+
+  /**
+   * Same worker, same JSON contract, but over HTTP to a process that is already
+   * running.
+   *
+   * WHY A SECOND TRANSPORT EXISTS
+   * -----------------------------
+   * The `spawnSync` path above starts a Python interpreter, imports torch and
+   * OpenCV and loads a 6.5MB model on every single call — measured at **47s**
+   * cold and 3.3s warm — and it does so on the caller's thread: `spawnSync`
+   * blocks the event loop for the whole run. In the bot that meant a shelf photo
+   * could stall the Telegram handler for the better part of a minute.
+   *
+   * A long-lived worker pays that cost once at boot. The caller then spends one
+   * HTTP round-trip, which is what the timeout below is actually guarding — the
+   * `spawnSync` cap had to be 180s to survive a cold start, which is no longer a
+   * meaningful guard for a request that should take milliseconds once warm.
+   *
+   * Failure shapes match the local path deliberately, so `YoloVisionProvider`
+   * and the hybrid's confidence rules read either transport identically: an
+   * unreachable worker is `worker-unavailable` (the hybrid then escalates to the
+   * LLM), a worker that answered with its own error is `worker-failed`, and an
+   * empty detection list is `no-detections` — never `ok`, because "the model
+   * looked and found nothing" and "the model was never asked" are different
+   * answers.
+   */
+  public async runUltralyticsInferenceRemote(
+    imageSource: string,
+    options: { workerUrl: string; timeoutMs?: number },
+  ): Promise<YoloRunOutcome> {
+    const base = options.workerUrl.replace(/\/+$/, '');
+    const timeoutMs =
+      options.timeoutMs ??
+      (Number(process.env.ONETEAM_YOLO_WORKER_TIMEOUT_MS) || DEFAULT_YOLO_TIMEOUT_MS);
+
+    let response: Response;
+    try {
+      response = await fetch(`${base}/detect`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ image: imageSource }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (error) {
+      const name = error instanceof Error ? error.name : '';
+      if (name === 'TimeoutError' || name === 'AbortError') {
+        return {
+          ok: false,
+          reason: 'timeout',
+          detail: `The vision worker at ${base} did not answer within ${timeoutMs}ms.`,
+        };
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        ok: false,
+        reason: 'worker-unavailable',
+        detail: `The vision worker at ${base} could not be reached: ${message}`,
+      };
+    }
+
+    if (!response.ok) {
+      const body = (await response.text()).trim().slice(0, 300);
+      return {
+        ok: false,
+        reason: 'worker-failed',
+        detail: `The vision worker at ${base} answered HTTP ${response.status}: ${body || '(empty body)'}`,
+      };
+    }
+
+    let payload: unknown;
+    try {
+      payload = JSON.parse(await response.text());
+    } catch {
+      return {
+        ok: false,
+        reason: 'worker-failed',
+        detail: `The vision worker at ${base} answered with something that is not JSON.`,
+      };
+    }
+
+    const reported = payload as { success?: unknown; error?: unknown };
+    if (reported.success === false) {
+      return {
+        ok: false,
+        reason: 'worker-failed',
+        detail:
+          typeof reported.error === 'string'
+            ? reported.error
+            : JSON.stringify(payload).slice(0, 500),
+      };
+    }
+
+    const outcome = outcomeFromDetectionPayload(payload);
+    if (outcome) return outcome;
+
+    return {
+      ok: false,
+      reason: 'worker-failed',
+      detail:
+        `The vision worker at ${base} returned no recognisable payload: ` +
+        JSON.stringify(payload).slice(0, 300),
     };
   }
 

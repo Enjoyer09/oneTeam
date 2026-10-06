@@ -85,8 +85,20 @@ export class SimulationVisionProvider implements VisionProvider {
 export class YoloVisionProvider implements VisionProvider {
   readonly name = 'yolo';
 
+  /**
+   * @param workerUrl Base URL of a long-lived YOLO worker, when there is one.
+   *   Set, the call is one HTTP round-trip to a process that already loaded the
+   *   model; unset, the local `spawnSync` worker is used, which is right for a
+   *   developer's machine and wrong for anything that has to answer Telegram.
+   */
+  constructor(private readonly workerUrl?: string) {}
+
   async analyze(input: VisionInput): Promise<VisionAnalysis> {
-    const outcome = aiVisionService.runUltralyticsInferenceDetailed(input.photoUrl);
+    const outcome = this.workerUrl
+      ? await aiVisionService.runUltralyticsInferenceRemote(input.photoUrl, {
+          workerUrl: this.workerUrl,
+        })
+      : aiVisionService.runUltralyticsInferenceDetailed(input.photoUrl);
     const trustworthy = outcome.ok && !outcome.synthetic;
     const detections = outcome.ok ? outcome.detections : [];
     const evalResult = aiVisionService.evaluateCompliance(
