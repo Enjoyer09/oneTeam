@@ -99,6 +99,11 @@ yolov8*.pt
 # uuid. It is generated state, not source. It was tracked until 2026-09-14,
 # which meant every machine that ran the vision worker produced a diff.
 .yolo_config/
+# Ultralytics training output (scripts/train_yolo.py)
+runs/
+# Training datasets never enter the repo (only the README documenting them)
+datasets/*
+!datasets/README.md
 
 # ---- Editor & OS ----------------------------------------------------------
 .DS_Store

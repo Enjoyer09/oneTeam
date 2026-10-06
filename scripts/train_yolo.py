@@ -60,8 +60,12 @@ def main() -> int:
     from ultralytics import YOLO
 
     model = YOLO(args.model)
+    # Absolute project dir: ultralytics' global settings.json can carry a
+    # leftover runs_dir from another machine/project, which would otherwise
+    # decide where results land.
     results = model.train(data=args.data, epochs=args.epochs, imgsz=args.imgsz,
-                          project='runs/detect', name='shelf', exist_ok=True)
+                          project=os.path.abspath(os.path.join('runs', 'detect')),
+                          name='shelf', exist_ok=True)
     best = os.path.join(str(results.save_dir), 'weights', 'best.pt')
     print(f'TRAINED: {best}')
     return 0
