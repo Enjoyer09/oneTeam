@@ -227,12 +227,27 @@ function outcomeFromDetectionPayload(parsed: unknown): YoloRunOutcome | null {
   };
 }
 
+/** Validated ONETEAM_YOLO_CONF (0 exclusive .. 1 inclusive), or undefined
+ *  when unset/invalid — an absent knob must keep the worker's own default. */
+function envConf(): number | undefined {
+  const conf = Number(process.env.ONETEAM_YOLO_CONF);
+  return Number.isFinite(conf) && conf > 0 && conf <= 1 ? conf : undefined;
+}
+
 /** CLI argv for the spawned worker. The model is the worker's to own:
  *  ONETEAM_YOLO_MODEL is the same knob the deployed worker's /health reads, so
  *  both transports can never run different detectors. */
 export function yoloCliArgs(scriptPath: string, imageSource: string): string[] {
   const model = process.env.ONETEAM_YOLO_MODEL || 'yolo11n.pt';
-  return [scriptPath, '--image', imageSource, '--model', model];
+  const conf = envConf();
+  return [
+    scriptPath,
+    '--image',
+    imageSource,
+    '--model',
+    model,
+    ...(conf !== undefined ? ['--conf', String(conf)] : []),
+  ];
 }
 
 export class AIVisionService {
@@ -467,6 +482,7 @@ export class AIVisionService {
             typeof imageSource === 'string'
               ? imageSource
               : `data:image/jpeg;base64,${imageSource.toString('base64')}`,
+          ...(envConf() !== undefined ? { conf: envConf() } : {}),
         }),
         signal: AbortSignal.timeout(timeoutMs),
       });

@@ -178,6 +178,19 @@ def main():
         finally:
             os.environ.pop("ONETEAM_YOLO_MODEL", None)
 
+        # Part 4: the conf knob must reach inference on the HTTP transport
+        # when the payload has no conf of its own.
+        os.environ["ONETEAM_YOLO_CONF"] = "0.55"
+        try:
+            status, body = call(port, "/detect", {"image": "x"})
+            check(
+                "inference uses ONETEAM_YOLO_CONF when the payload has none",
+                status == 200 and body["received"].get("conf") == 0.55,
+                json.dumps(body)[:300],
+            )
+        finally:
+            os.environ.pop("ONETEAM_YOLO_CONF", None)
+
         # Pre-registered upgrade gate passed (2026-10-06): yolo11n is the
         # default on both transports. Pin it so a silent revert fails here.
         status, body = call(port, "/health")

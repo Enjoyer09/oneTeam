@@ -262,7 +262,7 @@ async function main(): Promise<void> {
     type Stub = { body: string; status?: number };
     let stub: Stub = { body: '' };
     let hits = 0;
-    let lastRequest: { image?: unknown; raw?: string } = {};
+    let lastRequest: { image?: unknown; conf?: unknown; raw?: string } = {};
 
     const server = http.createServer((req, res) => {
       hits++;
@@ -272,7 +272,9 @@ async function main(): Promise<void> {
         const raw = Buffer.concat(chunks).toString('utf-8');
         lastRequest = { raw };
         try {
-          lastRequest.image = JSON.parse(raw).image;
+          const parsed = JSON.parse(raw);
+          lastRequest.image = parsed.image;
+          lastRequest.conf = parsed.conf;
         } catch {
           lastRequest.image = undefined;
         }
@@ -397,6 +399,22 @@ async function main(): Promise<void> {
       JSON.stringify({ confidence: analysis.confidence, summary: analysis.summary }),
     );
 
+    // The conf knob must reach the worker on the HTTP transport too, or the
+    // deployed threshold would silently stay the script default.
+    lastRequest = {};
+    process.env.ONETEAM_YOLO_CONF = '0.55';
+    try {
+      const providerConf = new YoloVisionProvider(url);
+      await providerConf.analyze(INPUT);
+      check(
+        'remote payload carries ONETEAM_YOLO_CONF when set',
+        lastRequest.conf === 0.55,
+        JSON.stringify(lastRequest).slice(0, 200),
+      );
+    } finally {
+      delete process.env.ONETEAM_YOLO_CONF;
+    }
+
     await new Promise<void>((resolve) => server.close(() => resolve()));
   })();
 
@@ -406,15 +424,18 @@ async function main(): Promise<void> {
   {
     const saved = process.env.ONETEAM_YOLO_MODEL;
     delete process.env.ONETEAM_YOLO_MODEL;
+    delete process.env.ONETEAM_YOLO_CONF;
     const defaults = yoloCliArgs('/x/yolo_inference.py', 'IMG');
     process.env.ONETEAM_YOLO_MODEL = 'yolo11n.pt';
+    process.env.ONETEAM_YOLO_CONF = '0.55';
     const configured = yoloCliArgs('/x/yolo_inference.py', 'IMG');
     if (saved === undefined) delete process.env.ONETEAM_YOLO_MODEL;
     else process.env.ONETEAM_YOLO_MODEL = saved;
+    delete process.env.ONETEAM_YOLO_CONF;
     check(
       'local spawn args default to yolo11n and honor ONETEAM_YOLO_MODEL',
       defaults.join(' ') === '/x/yolo_inference.py --image IMG --model yolo11n.pt' &&
-        configured.join(' ') === '/x/yolo_inference.py --image IMG --model yolo11n.pt',
+        configured.join(' ') === '/x/yolo_inference.py --image IMG --model yolo11n.pt --conf 0.55',
       JSON.stringify({ defaults, configured }),
     );
   }

@@ -139,7 +139,7 @@ class Handler(BaseHTTPRequestHandler):
             result = detect(
                 image,
                 model=(str(payload["model"]) if payload.get("model") else None),
-                conf=float(payload.get("conf", 0.25)),
+                conf=float(payload.get("conf", os.environ.get("ONETEAM_YOLO_CONF", 0.25))),
             )
         except Exception as error:  # the worker's own failures are JSON, not 500s
             self._send({"success": False, "error": f"{type(error).__name__}: {error}"}, 500)
