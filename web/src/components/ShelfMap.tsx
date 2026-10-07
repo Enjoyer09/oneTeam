@@ -1,17 +1,27 @@
 import React, { useState } from 'react';
 import { LayoutGrid, Search, X, Inbox, Plus, Pencil, Trash2, AlertTriangle } from 'lucide-react';
-import { Product, ShelfPosition } from '../types';
+import { Product, ShelfPosition, ShelfMetrics } from '../types';
 import { ModalPortal } from './ui/ModalPortal';
 import { useModalA11y } from '../lib/useModalA11y';
 
 interface ShelfMapProps {
   shelfPositions: ShelfPosition[];
+  /**
+   * OSA / share of shelf (dalğa 1.4) — serverin saydığı rəqəm.
+   * NULL deyil: sayım aparılmazsa şerid gizlənir, yox saxta sıfır göstərilir.
+   */
+  metrics: ShelfMetrics | null;
   /** Məhsul seçimi üçün kataloq — boş xəritədə də dolu ola bilər. */
   products: Product[];
   /** Yeni mövqe yaradır. Uğursuzluqda mesajı forma göstərir. */
   onCreate: (data: ShelfFormValues) => Promise<unknown>;
   onUpdate: (id: string, changes: Partial<ShelfPosition>) => Promise<unknown>;
   onDelete: (id: string) => Promise<unknown>;
+  /**
+   * Əl sayımı göndərir (0–999). canEdit-dən ASILI DEYİL: saymaq işçinin öz
+   * işidir, redaktə isə admin/supervayzer qapısındadır — API də belə ayırır.
+   */
+  onCount: (id: string, units: number) => Promise<unknown>;
   /** Merchandiser üçün false — API onsuz da rədd edir. */
   canEdit: boolean;
 }
@@ -50,10 +60,12 @@ function productName(products: Product[], id: string | null): string | null {
 
 export const ShelfMap: React.FC<ShelfMapProps> = ({
   shelfPositions,
+  metrics,
   products,
   onCreate,
   onUpdate,
   onDelete,
+  onCount,
   canEdit,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -67,6 +79,9 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
   const [pendingDelete, setPendingDelete] = useState<ShelfPosition | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  /** Sətiraltı sayım xətası — cədvəlin üstündə role=alert kimi görünür. */
+  const [countError, setCountError] = useState<string | null>(null);
 
   const modalRef = useModalA11y<HTMLDivElement>(editing !== null, () => closeForm());
   const confirmRef = useModalA11y<HTMLDivElement>(pendingDelete !== null, () => closeConfirm());
@@ -86,6 +101,38 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
     if (assigned?.toLowerCase().includes(query)) return true;
     return String(slot.level) === query || String(slot.position) === query;
   });
+
+  /** product_id -> (bölmə payı, sayılan ədəd) — sətirdə badge kimi göstərilir. */
+  const shareByProduct = new Map<string, { share: number; units: number }>();
+  for (const sectionMetric of metrics?.sections ?? []) {
+    for (const entry of sectionMetric.products) {
+      shareByProduct.set(entry.product_id, { share: entry.share, units: entry.units });
+    }
+  }
+
+  /**
+   * Sətirin sayım xanasından oxuyub göndərir (Enter və ya blur).
+   *
+   * Boş xana = dəyişiklik yoxdur (uncontrolled input server dəyəri ilə
+   * qayıdır); sayımı sıfırlamaq API-də ayrıca əməliyyat deyil — `ponytail:`
+   * lazım olanda units-i null-a qaytaran DELETE /count əlavə olunacaq.
+   */
+  const handleCount = async (slot: ShelfPosition, raw: string) => {
+    const trimmed = raw.trim();
+    if (trimmed === '') return;
+    const units = Number(trimmed);
+    if (!Number.isInteger(units) || units < 0 || units > 999) {
+      setCountError(`Sayım 0–999 arasında tam ədəd olmalıdır — ${slotLabel(slot)}.`);
+      return;
+    }
+    if (slot.units === units) return; // dəyişiklik yox
+    setCountError(null);
+    try {
+      await onCount(slot.id, units);
+    } catch (error) {
+      setCountError(error instanceof Error ? error.message : String(error));
+    }
+  };
 
   function openCreate() {
     setForm(EMPTY_FORM);
@@ -234,6 +281,50 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
         </div>
       </div>
 
+      {/* ── OSA / share of shelf şeridi (dalğa 1.4) ────────────────────────── */}
+      {metrics && (
+        <div className="glass-card flex flex-wrap items-stretch gap-3 rounded-card p-4">
+          <MetricTile
+            label="OSA"
+            value={metrics.osa === null ? '—' : `${metrics.osa} %`}
+            hint={
+              metrics.osa === null
+                ? 'hələ sayım yoxdur'
+                : `sayılan ${metrics.counted_slots} slot üzərindən — sayılmayan sayılır sayılmır`
+            }
+          />
+          <MetricTile
+            label="Sayılan"
+            value={`${metrics.counted_slots} / ${metrics.assigned_slots}`}
+            hint="sayılmış / təyin olunmuş slot"
+          />
+          <MetricTile
+            label="Mövcud"
+            value={String(metrics.present_slots)}
+            hint="units > 0 olan slotlar"
+          />
+          <MetricTile
+            label="Cəmi ədəd"
+            value={String(metrics.total_units)}
+            hint="bölmələr üzrə paylanır"
+          />
+        </div>
+      )}
+
+      {countError && (
+        <p
+          role="alert"
+          className="rounded-lg border px-3 py-2 text-[11.5px] font-bold"
+          style={{
+            borderColor: 'var(--bad-dot)',
+            color: 'var(--bad)',
+            backgroundColor: 'var(--g-panel)',
+          }}
+        >
+          {countError}
+        </p>
+      )}
+
       {/* ── Cədvəl ────────────────────────────────────────────────────────── */}
       <div className="glass-card overflow-hidden rounded-card">
         {filtered.length === 0 ? (
@@ -267,13 +358,14 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
           </div>
         ) : (
           <div className="reflow-scroll overflow-x-auto px-2 pb-2.5 sm:px-3">
-            <table className="tbl-g reflow lg:min-w-[720px]">
+            <table className="tbl-g reflow lg:min-w-[880px]">
               <thead>
                 <tr>
                   <th>Bölmə</th>
                   <th>Səviyyə</th>
                   <th>Mövqe</th>
                   <th>Təyin olunmuş məhsul</th>
+                  <th>Sayım (ədəd)</th>
                   <th>Yaradılma</th>
                   {canEdit && <th className="text-right">Əməliyyat</th>}
                 </tr>
@@ -302,6 +394,56 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
                       <td className="text-[11.5px] text-ink-2">
                         {assigned ? assigned : <span className="text-muted italic">boş mövqe</span>}
                       </td>
+
+                      <td>
+                        {slot.product_id ? (
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min={0}
+                              max={999}
+                              step={1}
+                              inputMode="numeric"
+                              /* key sayım dəyişəndə xananı server dəyəri ilə yenidən
+                                 yaradır — uncontrolled input belə sinxronlanır. */
+                              key={`${slot.id}-${slot.units ?? 'none'}`}
+                              defaultValue={slot.units ?? ''}
+                              placeholder="—"
+                              aria-label={`${slotLabel(slot)} — sayım`}
+                              title={
+                                slot.counted_at
+                                  ? `Sayılıb: ${slot.counted_at.slice(0, 16).replace('T', ' ')}`
+                                  : 'Hələ sayılmayıb — Enter və ya kənara basanda göndərilir'
+                              }
+                              onBlur={(e) => void handleCount(slot, e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  void handleCount(slot, e.currentTarget.value);
+                                }
+                              }}
+                              className="w-[62px] rounded-lg border border-hair bg-[var(--g-card)]
+                                         px-2 py-1 text-[11.5px] font-mono text-ink
+                                         focus:border-coke/45 focus:outline-none
+                                         focus:ring-2 focus:ring-[var(--coke-ring)]"
+                            />
+                            {(() => {
+                              const share = shareByProduct.get(slot.product_id);
+                              if (!share || slot.units === null) return null;
+                              return (
+                                <span className="chip-g" title={`${share.units} ədəd — bölmə payı`}>
+                                  %{share.share}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        ) : (
+                          <span className="text-muted italic" title="Boş mövqeyə sayım yoxdur">
+                            —
+                          </span>
+                        )}
+                      </td>
+
                       <td className="text-[11.5px] text-muted">
                         {slot.created_at ? slot.created_at.slice(0, 10) : '—'}
                       </td>
@@ -553,3 +695,21 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
     </div>
   );
 };
+
+/** OSA şeridinin bir düyməsi (dalğa 1.4) — dörd eyni mətn yox, bir yer. */
+const MetricTile: React.FC<{ label: string; value: string; hint: string }> = ({
+  label,
+  value,
+  hint,
+}) => (
+  <div
+    className="min-w-[140px] flex-1 rounded-[11px] border border-hair p-3"
+    style={{ backgroundColor: 'var(--g-panel)' }}
+  >
+    <div className="text-[10.5px] font-bold uppercase tracking-[.06em] text-muted">{label}</div>
+    <div className="mt-1 font-mono text-[17px] font-extrabold tracking-[-.02em] text-ink">
+      {value}
+    </div>
+    <div className="mt-0.5 text-[10.5px] text-muted">{hint}</div>
+  </div>
+);

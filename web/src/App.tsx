@@ -28,6 +28,7 @@ import {
   TaskPriority,
   Product,
   ShelfPosition,
+  ShelfMetrics,
 } from './types';
 import { loadPhaseReducer } from './lib/loadPhase';
 
@@ -68,6 +69,7 @@ export function App() {
   const [stores, setStores] = useState<Store[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [shelfPositions, setShelfPositions] = useState<ShelfPosition[]>([]);
+  const [shelfMetrics, setShelfMetrics] = useState<ShelfMetrics | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
@@ -164,13 +166,14 @@ export function App() {
 
   const loadData = async () => {
     try {
-      const [m, s, t, subs, prods, shelf] = await Promise.all([
+      const [m, s, t, subs, prods, shelf, shelfM] = await Promise.all([
         portalService.getMetrics(),
         portalService.getStores(),
         portalService.getTasks(),
         portalService.getSubmissions('all'),
         portalService.getProducts(),
         portalService.getShelfPositions(),
+        portalService.getShelfMetrics(),
       ]);
       setMetrics(m);
       setStores(s);
@@ -178,6 +181,7 @@ export function App() {
       setSubmissions(subs);
       setProducts(prods);
       setShelfPositions(shelf);
+      setShelfMetrics(shelfM);
       dispatchPhase({ type: 'loaded' });
     } catch (error) {
       // A rejected credential is not a data problem and must not be reported as
@@ -424,6 +428,13 @@ export function App() {
 
   const handleDeleteShelfPosition = (id: string) =>
     runFormAction(() => portalService.deleteShelfPosition(id), 'Rəf mövqesi silindi.');
+
+  /**
+   * Əl sayımı (dalğa 1.4) — roldan asılı deyil: saymaq işçinin öz işidir,
+   * xəritə redaktəsi isə ayrıca qapıdadır (requireShelfEditor).
+   */
+  const handleCountShelfPosition = (id: string, units: number) =>
+    runFormAction(() => portalService.countShelfPosition(id, units), 'Sayım qeyd olundu.');
 
   const handleCreateTask = (taskData: {
     title: string;
@@ -734,10 +745,12 @@ export function App() {
               {activeTab === 'shelfmap' && (
                 <ShelfMap
                   shelfPositions={shelfPositions}
+                  metrics={shelfMetrics}
                   products={products}
                   onCreate={handleCreateShelfPosition}
                   onUpdate={handleUpdateShelfPosition}
                   onDelete={handleDeleteShelfPosition}
+                  onCount={handleCountShelfPosition}
                   canEdit={canEditMasterData}
                 />
               )}

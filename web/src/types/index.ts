@@ -35,7 +35,40 @@ export interface ShelfPosition {
   level: number;
   position: number;
   product_id: string | null;
+  /**
+   * Ən son əl sayımı (dalğa 1.4): 0 = sayılıb, məhsul yoxdur;
+   * null = hələ heç kim saymayıb — OSA bu ikini fərqləndirir.
+   */
+  units: number | null;
+  counted_at: string | null;
   created_at: string;
+}
+
+/** Bir bölmənin sayğac payı (share of shelf), faizlə. */
+export interface ShelfProductShare {
+  product_id: string;
+  name: string;
+  units: number;
+  share: number;
+}
+
+export interface ShelfSectionMetric {
+  section: string;
+  assigned: number;
+  present: number;
+  units: number;
+  products: ShelfProductShare[];
+}
+
+/** Manual OSA / share of shelf (dalğa 1.4) — server hesablayır. */
+export interface ShelfMetrics {
+  assigned_slots: number;
+  counted_slots: number;
+  present_slots: number;
+  /** present/counted, 0–100; null = hələ heç nə sayılmayıb. */
+  osa: number | null;
+  total_units: number;
+  sections: ShelfSectionMetric[];
 }
 
 export interface Task {

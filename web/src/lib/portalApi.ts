@@ -37,6 +37,7 @@
  */
 
 import {
+  ShelfMetrics,
   ShelfPosition,
   Store,
   Task,
@@ -319,6 +320,20 @@ class PortalDataService {
       `/api/portal/shelf-positions/${encodeURIComponent(id)}`,
       { method: 'DELETE' },
     );
+  }
+
+  /** Əl sayımı qeyd edir (dalğa 1.4) — worker action, roldan asılı deyil. */
+  async countShelfPosition(id: string, units: number): Promise<ShelfPosition> {
+    const body = await request<Envelope<ShelfPosition>>(
+      `/api/portal/shelf-positions/${encodeURIComponent(id)}/count`,
+      { method: 'POST', body: JSON.stringify({ units }) },
+    );
+    return body.data;
+  }
+
+  /** OSA + share of shelf — serverin saydığı rəqəm, panel sadəcə göstərir. */
+  async getShelfMetrics(): Promise<ShelfMetrics> {
+    return this.get<ShelfMetrics>('/api/portal/shelf-metrics');
   }
 
   async getTasks(): Promise<Task[]> {
