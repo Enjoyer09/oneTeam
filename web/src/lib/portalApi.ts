@@ -36,7 +36,15 @@
  * no component had to change.
  */
 
-import { Store, Task, Submission, DashboardMetrics, SubmissionStatus, Product } from '../types';
+import {
+  ShelfPosition,
+  Store,
+  Task,
+  Submission,
+  DashboardMetrics,
+  SubmissionStatus,
+  Product,
+} from '../types';
 import { panelAuthHeaders } from './panelAuth';
 
 const env: Record<string, any> =
@@ -266,6 +274,51 @@ class PortalDataService {
     await request<Envelope<{ id: string }>>(`/api/portal/products/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // Rəf xəritəsi — dalğa 1.3
+  // -------------------------------------------------------------------------
+
+  async getShelfPositions(): Promise<ShelfPosition[]> {
+    return this.get<ShelfPosition[]>('/api/portal/shelf-positions');
+  }
+
+  /**
+   * Yeni mövqe yaradır.
+   *
+   * `level` / `position` tam ədəd və >= 1 — API məcburi yoxlayır (güvən
+   * sərhədi serverdədir), forma yalnız `min` ilə ön yoxlama edir.
+   * `product_id: null` boş mövqedir; sahə tamamilə göndərilməsə də boş
+   * sayılır.
+   */
+  async createShelfPosition(data: {
+    section: string;
+    level: number;
+    position: number;
+    product_id?: string | null;
+  }): Promise<ShelfPosition> {
+    const body = await request<Envelope<ShelfPosition>>('/api/portal/shelf-positions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return body.data;
+  }
+
+  /** `product_id: null` təyini silir (boşaltmaq), göndərilməməsi isə toxunulmaz qoyur. */
+  async updateShelfPosition(id: string, changes: Partial<ShelfPosition>): Promise<ShelfPosition> {
+    const body = await request<Envelope<ShelfPosition>>(
+      `/api/portal/shelf-positions/${encodeURIComponent(id)}`,
+      { method: 'PATCH', body: JSON.stringify(changes) },
+    );
+    return body.data;
+  }
+
+  async deleteShelfPosition(id: string): Promise<void> {
+    await request<Envelope<{ id: string }>>(
+      `/api/portal/shelf-positions/${encodeURIComponent(id)}`,
+      { method: 'DELETE' },
+    );
   }
 
   async getTasks(): Promise<Task[]> {

@@ -6,6 +6,7 @@ import { AuditReviewCenter } from './components/AuditReviewCenter';
 import { TaskManager, TaskEditValues } from './components/TaskManager';
 import { StoreDirectory, StoreFormValues } from './components/StoreDirectory';
 import { ProductCatalog, ProductFormValues } from './components/ProductCatalog';
+import { ShelfMap, ShelfFormValues } from './components/ShelfMap';
 import { PanelLogin } from './components/PanelLogin';
 import { PanelKeysModal } from './components/PanelKeysModal';
 import { PanelUsersModal } from './components/PanelUsersModal';
@@ -19,7 +20,15 @@ import {
   type PanelAuthStatus,
   type PanelIdentity,
 } from './lib/panelAuth';
-import { Store, Task, Submission, DashboardMetrics, TaskPriority, Product } from './types';
+import {
+  Store,
+  Task,
+  Submission,
+  DashboardMetrics,
+  TaskPriority,
+  Product,
+  ShelfPosition,
+} from './types';
 import { loadPhaseReducer } from './lib/loadPhase';
 
 /**
@@ -58,6 +67,7 @@ export function App() {
   const [phase, dispatchPhase] = useReducer(loadPhaseReducer, 'loading');
   const [stores, setStores] = useState<Store[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [shelfPositions, setShelfPositions] = useState<ShelfPosition[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
@@ -154,18 +164,20 @@ export function App() {
 
   const loadData = async () => {
     try {
-      const [m, s, t, subs, prods] = await Promise.all([
+      const [m, s, t, subs, prods, shelf] = await Promise.all([
         portalService.getMetrics(),
         portalService.getStores(),
         portalService.getTasks(),
         portalService.getSubmissions('all'),
         portalService.getProducts(),
+        portalService.getShelfPositions(),
       ]);
       setMetrics(m);
       setStores(s);
       setTasks(t);
       setSubmissions(subs);
       setProducts(prods);
+      setShelfPositions(shelf);
       dispatchPhase({ type: 'loaded' });
     } catch (error) {
       // A rejected credential is not a data problem and must not be reported as
@@ -387,6 +399,31 @@ export function App() {
 
   const handleDeleteProduct = (id: string) =>
     runFormAction(() => portalService.deleteProduct(id), 'Məhsul silindi.');
+
+  /**
+   * Rəf xəritəsi əməliyyatları — dalğa 1.3.
+   *
+   * level/position artıq rəqəmdir (komponentdə təsdiqdə parse olunub);
+   * product_id boş string boş mövqedir — null göndərilir ki PATCH
+   * "təyini silmək" ilə "toxunmamaq"ı seçsin.
+   */
+  const handleCreateShelfPosition = (form: ShelfFormValues) =>
+    runFormAction(
+      () =>
+        portalService.createShelfPosition({
+          section: form.section.trim(),
+          level: Number(form.level),
+          position: Number(form.position),
+          product_id: form.product_id || null,
+        }),
+      'Yeni rəf mövqesi xəritəyə əlavə olundu.',
+    );
+
+  const handleUpdateShelfPosition = (id: string, changes: Partial<ShelfPosition>) =>
+    runFormAction(() => portalService.updateShelfPosition(id, changes), 'Rəf mövqesi yeniləndi.');
+
+  const handleDeleteShelfPosition = (id: string) =>
+    runFormAction(() => portalService.deleteShelfPosition(id), 'Rəf mövqesi silindi.');
 
   const handleCreateTask = (taskData: {
     title: string;
@@ -690,6 +727,17 @@ export function App() {
                   onCreate={handleCreateProduct}
                   onUpdate={handleUpdateProduct}
                   onDelete={handleDeleteProduct}
+                  canEdit={canEditMasterData}
+                />
+              )}
+
+              {activeTab === 'shelfmap' && (
+                <ShelfMap
+                  shelfPositions={shelfPositions}
+                  products={products}
+                  onCreate={handleCreateShelfPosition}
+                  onUpdate={handleUpdateShelfPosition}
+                  onDelete={handleDeleteShelfPosition}
                   canEdit={canEditMasterData}
                 />
               )}

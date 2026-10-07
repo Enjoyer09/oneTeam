@@ -6,10 +6,11 @@ import {
   Store as StoreIcon,
   ShieldCheck,
   Barcode,
+  LayoutGrid,
 } from 'lucide-react';
 import type { PanelIdentity } from '../lib/panelAuth';
 
-export type TabType = 'dashboard' | 'review' | 'tasks' | 'stores' | 'products';
+export type TabType = 'dashboard' | 'review' | 'tasks' | 'stores' | 'products' | 'shelfmap';
 
 interface SidebarProps {
   activeTab: TabType;
@@ -57,6 +58,7 @@ const NAV_ITEMS: {
   { id: 'tasks', label: 'Planogram Tapşırıqları', icon: ClipboardList },
   { id: 'stores', label: 'Mağazalar Şəbəkəsi', icon: StoreIcon },
   { id: 'products', label: 'Məhsullar (SKU)', icon: Barcode },
+  { id: 'shelfmap', label: 'Rəf Xəritəsi', icon: LayoutGrid },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({

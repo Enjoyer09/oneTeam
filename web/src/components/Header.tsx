@@ -108,6 +108,10 @@ export const Header: React.FC<HeaderProps> = ({
       title: 'Məhsul Kataloqu (SKU)',
       subtitle: 'Skanerilən barkodun həll etdiyi məhsul identiteti',
     },
+    shelfmap: {
+      title: 'Rəf Xəritəsi',
+      subtitle: 'Bölmə / səviyyə / mövqe — planogram müqayisəsinin bazası',
+    },
   };
 
   const { title, subtitle } = titles[activeTab];

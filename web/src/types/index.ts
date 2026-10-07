@@ -28,6 +28,16 @@ export interface Product {
   created_at: string;
 }
 
+/** Rəf xəritəsi mövqesi (dalğa 1.3). `product_id` null = boş mövqe. */
+export interface ShelfPosition {
+  id: string;
+  section: string;
+  level: number;
+  position: number;
+  product_id: string | null;
+  created_at: string;
+}
+
 export interface Task {
   id: string;
   title: string;
