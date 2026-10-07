@@ -76,6 +76,41 @@ export class PortalController {
     return this.portalService.deleteStore(id, getPrincipal(request));
   }
 
+  /**
+   * Product (SKU) catalogue — wave 1.2 of the Shelf Map plan.
+   *
+   * Same controller, same credential as the store routes: a SKU is business
+   * data, not panel administration, and the read must sit next to the write
+   * so one resource is never behind two credentials with two sets of rules.
+   */
+  @Get('products')
+  getProducts() {
+    const data = this.portalService.getProducts();
+    return { success: true, data, total: data.length };
+  }
+
+  @Post('products')
+  @HttpCode(HttpStatus.CREATED)
+  async createProduct(@Body() body: any, @Request() request: AuthedRequest) {
+    return this.portalService.createProduct(body, getPrincipal(request));
+  }
+
+  @Patch('products/:id')
+  @HttpCode(HttpStatus.OK)
+  async updateProduct(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Request() request: AuthedRequest,
+  ) {
+    return this.portalService.updateProduct(id, body, getPrincipal(request));
+  }
+
+  @Delete('products/:id')
+  @HttpCode(HttpStatus.OK)
+  async deleteProduct(@Param('id') id: string, @Request() request: AuthedRequest) {
+    return this.portalService.deleteProduct(id, getPrincipal(request));
+  }
+
   @Get('tasks')
   getTasks() {
     const data = this.portalService.getTasks();

@@ -51,6 +51,24 @@ export interface InMemoryStore {
   updatedAt?: Date;
 }
 
+/**
+ * A catalogue SKU, as the process holds it.
+ *
+ * Wave 1.2 of the Shelf Map plan: the barcode scanner resolves
+ * `barkod → məhsul`, and the panel maintains the mapping. `size` and
+ * `variant` are optional because plenty of products are fully described by
+ * their name, and the column is nullable in the table for the same reason.
+ */
+export interface InMemoryProduct {
+  id: string;
+  barcode: string;
+  name: string;
+  size?: string;
+  variant?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 export interface InMemoryStoreTask {
   id: string;
   templateId: string;

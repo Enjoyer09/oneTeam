@@ -48,7 +48,13 @@
 
 import { Pool } from 'pg';
 import type { TaskState } from '@oneteam/types';
-import type { InMemoryStoreTask, InMemoryEvidence, InMemoryAuditLog, InMemoryStore } from './types';
+import type {
+  InMemoryStoreTask,
+  InMemoryEvidence,
+  InMemoryAuditLog,
+  InMemoryStore,
+  InMemoryProduct,
+} from './types';
 
 /** Everything the in-memory repository needs to start from real data. */
 export interface HydratedState {
@@ -60,6 +66,7 @@ export interface HydratedState {
   storeTasks: InMemoryStoreTask[];
   evidences: InMemoryEvidence[];
   auditLogs: InMemoryAuditLog[];
+  products: InMemoryProduct[];
 }
 
 /**
@@ -164,7 +171,7 @@ function toAuditLog(row: any): InMemoryAuditLog {
  * loading, and it keeps the synchronous read path intact.
  */
 export async function loadAll(pool: Pool): Promise<HydratedState> {
-  const [users, regions, stores, campaigns, templates, storeTasks, evidences, auditLogs] =
+  const [users, regions, stores, campaigns, templates, storeTasks, evidences, auditLogs, products] =
     await Promise.all([
       pool.query('SELECT * FROM users ORDER BY created_at'),
       pool.query('SELECT * FROM regions ORDER BY created_at'),
@@ -174,6 +181,7 @@ export async function loadAll(pool: Pool): Promise<HydratedState> {
       pool.query('SELECT * FROM store_tasks ORDER BY created_at'),
       pool.query('SELECT * FROM task_evidences ORDER BY created_at'),
       pool.query('SELECT * FROM audit_logs ORDER BY created_at'),
+      pool.query('SELECT * FROM products ORDER BY name'),
     ]);
 
   return {
@@ -248,6 +256,15 @@ export async function loadAll(pool: Pool): Promise<HydratedState> {
     storeTasks: storeTasks.rows.map(toStoreTask),
     evidences: evidences.rows.map(toEvidence),
     auditLogs: auditLogs.rows.map(toAuditLog),
+    products: products.rows.map((r) => ({
+      id: r.id,
+      barcode: r.barcode,
+      name: r.name,
+      size: r.size ?? undefined,
+      variant: r.variant ?? undefined,
+      createdAt: asRequiredDate(r.created_at),
+      updatedAt: asRequiredDate(r.updated_at),
+    })),
   };
 }
 
@@ -661,6 +678,62 @@ export async function updateStoreRow(pool: Pool, store: InMemoryStore): Promise<
  */
 export async function deleteStoreRow(pool: Pool, storeId: string): Promise<boolean> {
   const result = await pool.query('DELETE FROM stores WHERE id = $1', [storeId]);
+  return (result.rowCount ?? 0) > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Products (SKU catalogue — wave 1.2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Inserts a catalogue SKU.
+ *
+ * No ON CONFLICT clause, unlike `insertStoreTask`: a duplicate barcode must
+ * surface as an error so the service can turn it into PRODUCT_BARCODE_TAKEN.
+ * The UNIQUE constraint on `products.barcode` has no race window, which is
+ * why the service never pre-checks the barcode with a SELECT.
+ */
+export async function insertProduct(pool: Pool, product: InMemoryProduct): Promise<void> {
+  await pool.query(
+    `INSERT INTO products (id, barcode, name, size, variant, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [
+      product.id,
+      product.barcode,
+      product.name,
+      product.size ?? null,
+      product.variant ?? null,
+      product.createdAt ?? new Date(),
+      product.updatedAt ?? new Date(),
+    ],
+  );
+}
+
+/**
+ * Writes back the editable columns of a product.
+ *
+ * `id` and `created_at` are not in the SET list: an edit must not be able to
+ * move a product's identity or rewrite when it was created.
+ */
+export async function updateProductRow(pool: Pool, product: InMemoryProduct): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE products
+        SET barcode = $1, name = $2, size = $3, variant = $4, updated_at = $5
+      WHERE id = $6`,
+    [
+      product.barcode,
+      product.name,
+      product.size ?? null,
+      product.variant ?? null,
+      product.updatedAt ?? new Date(),
+      product.id,
+    ],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+export async function deleteProductRow(pool: Pool, productId: string): Promise<boolean> {
+  const result = await pool.query('DELETE FROM products WHERE id = $1', [productId]);
   return (result.rowCount ?? 0) > 0;
 }
 

@@ -43,7 +43,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { TaskState, UserRole, NotificationDispatchSummary, StoreTask } from '@oneteam/types';
-import { db, InMemoryEvidence, InMemoryStoreTask } from '@oneteam/database';
+import { db, InMemoryEvidence, InMemoryStoreTask, InMemoryProduct } from '@oneteam/database';
 import {
   AuthenticatedPrincipal,
   isPrivilegedPrincipal,
@@ -63,6 +63,16 @@ export interface PanelStore {
   latitude: number | null;
   longitude: number | null;
   is_active: boolean;
+  created_at: string;
+}
+
+/** The SKU catalogue row as the panel sees it. Mirrors web/src/types. */
+export interface PanelProduct {
+  id: string;
+  barcode: string;
+  name: string;
+  size: string | null;
+  variant: string | null;
   created_at: string;
 }
 
@@ -244,6 +254,17 @@ export class PortalService {
     };
   }
 
+  toPanelProduct(product: InMemoryProduct): PanelProduct {
+    return {
+      id: product.id,
+      barcode: product.barcode,
+      name: product.name,
+      size: product.size ?? null,
+      variant: product.variant ?? null,
+      created_at: iso(product.createdAt),
+    };
+  }
+
   toPanelTask(task: InMemoryStoreTask): PanelTask {
     // Title, description, reference image, priority and the checklist all live
     // on the template. A store task stores only (template, store, assignee,
@@ -342,6 +363,10 @@ export class PortalService {
 
   getStores(): PanelStore[] {
     return db.stores.map((store) => this.toPanelStore(store));
+  }
+
+  getProducts(): PanelProduct[] {
+    return db.getProducts().map((product) => this.toPanelProduct(product));
   }
 
   // -------------------------------------------------------------------------
@@ -662,6 +687,199 @@ export class PortalService {
     });
 
     return { success: true, data: { id: storeId } };
+  }
+
+  // -------------------------------------------------------------------------
+  // Product (SKU) catalogue writes — wave 1.2 of the Shelf Map plan
+  //
+  // Master data, exactly like stores: ADMIN and SUPERVISOR may edit it,
+  // MERCHANDISER and STORE_STAFF may not — a merchandiser handed a login must
+  // not be able to redefine the catalogue their own scans resolve against.
+  // -------------------------------------------------------------------------
+
+  /**
+   * A SKU is master data: same permission boundary as the stores.
+   *
+   * Named for its own resource so the 403 tells the operator which rule
+   * stopped them, while the check itself stays the shared one — two roles
+   * lists that drift apart would be worse than one.
+   */
+  private requireProductEditor(principal: AuthenticatedPrincipal): void {
+    if (!isPrivilegedPrincipal(principal)) {
+      throw new ForbiddenException({
+        error: 'PRODUCT_EDIT_FORBIDDEN',
+        message: 'Məhsul kataloqunu yalnız administrator və supervayzer dəyişə bilər.',
+      });
+    }
+  }
+
+  /**
+   * Reads the product fields off a request body, refusing anything unusable.
+   *
+   * Unknown keys are REFUSED rather than ignored — stricter than the store
+   * reader. A typo'd column name in a barcode catalogue turns into an
+   * auditor's scan that silently resolves to nothing, and a body that is
+   * quietly half-applied is how that gets shipped.
+   */
+  private readProductFields(
+    body: Record<string, any>,
+    options: { requireAll: boolean },
+  ): { barcode?: string; name?: string; size?: string; variant?: string } {
+    const allowed = new Set(['barcode', 'name', 'size', 'variant']);
+    for (const key of Object.keys(body ?? {})) {
+      if (!allowed.has(key)) {
+        throw new HttpException(`Bilmədiyimiz sahə: "${key}"`, HttpStatus.BAD_REQUEST);
+      }
+    }
+
+    const fields: Record<string, any> = {};
+
+    const text = (key: string, label: string, required: boolean): string | undefined => {
+      const raw = body?.[key];
+      if (raw === undefined || raw === null || String(raw).trim() === '') {
+        if (required) {
+          throw new HttpException(`${label} tələb olunur`, HttpStatus.BAD_REQUEST);
+        }
+        return undefined;
+      }
+      return String(raw).trim();
+    };
+
+    const barcode = text('barcode', 'Barkod', options.requireAll);
+    if (barcode !== undefined) {
+      // Numeric only, 8–14 digits: EAN-8, UPC-A and EAN-13 all fit that window,
+      // and every retail barcode a scanner emits in this market does. The
+      // UNIQUE constraint does the duplicate work — this is format, not
+      // uniqueness.
+      if (!/^\d{8,14}$/.test(barcode)) {
+        throw new HttpException(
+          'Barkod 8–14 rəqəm olmalıdır (məsələn: 4860059000017)',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      fields.barcode = barcode;
+    }
+
+    const name = text('name', 'Məhsul adı', options.requireAll);
+    if (name !== undefined) fields.name = name;
+
+    const size = text('size', 'Ölçü', false);
+    if (size !== undefined) fields.size = size;
+
+    const variant = text('variant', 'Variant', false);
+    if (variant !== undefined) fields.variant = variant;
+
+    return fields;
+  }
+
+  async createProduct(body: Record<string, any>, principal: AuthenticatedPrincipal) {
+    this.requireProductEditor(principal);
+
+    const fields = this.readProductFields(body, { requireAll: true });
+
+    const result = await db.createProduct({
+      barcode: fields.barcode!,
+      name: fields.name!,
+      size: fields.size,
+      variant: fields.variant,
+    });
+
+    if (result.error === 'DUPLICATE_BARCODE') {
+      throw new ConflictException({
+        error: 'PRODUCT_BARCODE_TAKEN',
+        message: `"${fields.barcode}" barkodu artıq başqa məhsulda istifadə olunur.`,
+      });
+    }
+    if (result.error || !result.product) {
+      throw new HttpException(
+        'Məhsul yaradıla bilmədi — bazaya yazıla bilmədi, heç nə dəyişmədi.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    db.logAuditEvent({
+      entityType: 'product',
+      entityId: result.product.id,
+      action: 'PRODUCT_CREATED',
+      actorId: principal.userId,
+      payload: { barcode: result.product.barcode, name: result.product.name },
+    });
+
+    return { success: true, data: this.toPanelProduct(result.product) };
+  }
+
+  /** Applies an edit. Only the fields present in the body are touched. */
+  async updateProduct(
+    productId: string,
+    body: Record<string, any>,
+    principal: AuthenticatedPrincipal,
+  ) {
+    this.requireProductEditor(principal);
+
+    const fields = this.readProductFields(body, { requireAll: false });
+
+    if (Object.keys(fields).length === 0) {
+      throw new HttpException('Dəyişdiriləcək heç bir sahə göndərilmədi', HttpStatus.BAD_REQUEST);
+    }
+
+    const result = await db.updateProduct(productId, fields);
+
+    if (result.error === 'NOT_FOUND') {
+      throw new NotFoundException({
+        error: 'PRODUCT_NOT_FOUND',
+        message: 'Bu identifikatorla məhsul tapılmadı.',
+      });
+    }
+    if (result.error === 'DUPLICATE_BARCODE') {
+      throw new ConflictException({
+        error: 'PRODUCT_BARCODE_TAKEN',
+        message: `"${fields.barcode}" barkodu artıq başqa məhsulda istifadə olunur.`,
+      });
+    }
+    if (result.error || !result.product) {
+      throw new HttpException(
+        'Dəyişiklik yazıla bilmədi — əvvəlki məlumatlar qüvvədə qaldı.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    db.logAuditEvent({
+      entityType: 'product',
+      entityId: productId,
+      action: 'PRODUCT_UPDATED',
+      actorId: principal.userId,
+      payload: { changed: Object.keys(fields) },
+    });
+
+    return { success: true, data: this.toPanelProduct(result.product) };
+  }
+
+  async deleteProduct(productId: string, principal: AuthenticatedPrincipal) {
+    this.requireProductEditor(principal);
+
+    const result = await db.deleteProduct(productId);
+
+    if (result.reason === 'NOT_FOUND') {
+      throw new NotFoundException({
+        error: 'PRODUCT_NOT_FOUND',
+        message: 'Bu identifikatorla məhsul tapılmadı.',
+      });
+    }
+    if (result.reason === 'NOT_DELETED') {
+      throw new HttpException(
+        'Məhsul silinə bilmədi — bazadan silinmədi, məhsul yerində qaldı.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    db.logAuditEvent({
+      entityType: 'product',
+      entityId: productId,
+      action: 'PRODUCT_DELETED',
+      actorId: principal.userId,
+    });
+
+    return { success: true, data: { id: productId } };
   }
 
   getTasks(): PanelTask[] {

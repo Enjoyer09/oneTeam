@@ -21,7 +21,13 @@ export * from './types';
 export type { BotSessionRow, PanelTokenRow, NotificationRow, NotificationKind } from './postgres';
 import { SEED_DATA } from './seed';
 import { TaskState, UserRole } from '@oneteam/types';
-import type { InMemoryStoreTask, InMemoryEvidence, InMemoryAuditLog, InMemoryStore } from './types';
+import type {
+  InMemoryStoreTask,
+  InMemoryEvidence,
+  InMemoryAuditLog,
+  InMemoryStore,
+  InMemoryProduct,
+} from './types';
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import * as pg from './postgres';
 import {
@@ -41,6 +47,8 @@ export class EnterpriseDatabase {
   public users = [...SEED_DATA.users];
   public region = { ...SEED_DATA.region };
   public stores: InMemoryStore[] = [...SEED_DATA.stores];
+  /** SKU catalogue. Seeded from PostgreSQL; empty in seed-only mode. */
+  public products: InMemoryProduct[] = [];
   public campaign = { ...SEED_DATA.campaign };
   public templates = [...SEED_DATA.templates];
   public storeTasks: InMemoryStoreTask[] = [
@@ -279,6 +287,7 @@ export class EnterpriseDatabase {
           this.users = state.users as typeof this.users;
           if (state.region) this.region = state.region as typeof this.region;
           this.stores = state.stores as typeof this.stores;
+          this.products = state.products;
           if (state.campaign) this.campaign = state.campaign as typeof this.campaign;
           this.templates = state.templates as typeof this.templates;
           this.storeTasks = state.storeTasks;
@@ -920,6 +929,139 @@ export class EnterpriseDatabase {
     }
 
     this.stores = this.stores.filter((candidate) => candidate.id !== storeId);
+    return { deleted: true };
+  }
+
+  // -------------------------------------------------------------------------
+  // Products (SKU catalogue — wave 1.2)
+  //
+  // Same shape as the store write path: the row is pushed into the in-memory
+  // list, the insert is AWAITED through the write queue, and a failure rolls
+  // the list back — so a 201 always means PostgreSQL has the row. See
+  // store-crud and product-crud for why that ordering is load-bearing.
+  // -------------------------------------------------------------------------
+
+  public getProduct(productId: string) {
+    return this.products.find((p) => p.id === productId) || null;
+  }
+
+  public getProducts() {
+    return this.products;
+  }
+
+  public async createProduct(params: {
+    barcode: string;
+    name: string;
+    size?: string;
+    variant?: string;
+  }): Promise<{ product?: InMemoryProduct; error?: 'DUPLICATE_BARCODE' | 'NOT_STORED' }> {
+    const now = new Date();
+    const product: InMemoryProduct = {
+      id: `prd-${now.getTime().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      barcode: params.barcode,
+      name: params.name,
+      size: params.size,
+      variant: params.variant,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.products.push(product);
+
+    if (this.pool) {
+      try {
+        await this.enqueue((pool) => pg.insertProduct(pool, product), `product ${product.id}`);
+      } catch (error) {
+        this.products = this.products.filter((candidate) => candidate.id !== product.id);
+        const code = (error as { code?: string } | null)?.code;
+        if (code === EnterpriseDatabase.PG_UNIQUE_VIOLATION) {
+          return { error: 'DUPLICATE_BARCODE' };
+        }
+        console.error(
+          `⛔ [oneTeam DB] Could not store the new product ${product.barcode}: ` +
+            describeError(error),
+        );
+        return { error: 'NOT_STORED' };
+      }
+    }
+
+    return { product };
+  }
+
+  /**
+   * Applies an edit to an existing product.
+   *
+   * Only the fields present in `changes` are touched, and the previous values
+   * are captured before the edit and restored if the write fails — an edit
+   * that did not reach the database must not leave the process showing a
+   * change it will lose on restart.
+   */
+  public async updateProduct(
+    productId: string,
+    changes: Partial<Pick<InMemoryProduct, 'barcode' | 'name' | 'size' | 'variant'>>,
+  ): Promise<{
+    product?: InMemoryProduct;
+    error?: 'NOT_FOUND' | 'DUPLICATE_BARCODE' | 'NOT_STORED';
+  }> {
+    const product = this.getProduct(productId);
+    if (!product) return { error: 'NOT_FOUND' };
+
+    const before: InMemoryProduct = { ...product };
+
+    for (const [key, value] of Object.entries(changes)) {
+      if (value !== undefined) (product as any)[key] = value;
+    }
+    product.updatedAt = new Date();
+
+    if (this.pool) {
+      try {
+        await this.enqueue((pool) => pg.updateProductRow(pool, product), `product ${productId}`);
+      } catch (error) {
+        Object.assign(product, before);
+        const code = (error as { code?: string } | null)?.code;
+        if (code === EnterpriseDatabase.PG_UNIQUE_VIOLATION) {
+          return { error: 'DUPLICATE_BARCODE' };
+        }
+        console.error(
+          `⛔ [oneTeam DB] Could not update product ${product.barcode}: ` + describeError(error),
+        );
+        return { error: 'NOT_STORED' };
+      }
+    }
+
+    return { product };
+  }
+
+  /**
+   * Deletes a product.
+   *
+   * No referential pre-check yet: the shelf_map tables (wave 1.3) will add a
+   * RESTRICT FK against `products`, and from then on the constraint is the
+   * authority — a stale in-memory count could only lie about it. Until then
+   * nothing references a SKU, so the delete is unconditional.
+   */
+  public async deleteProduct(productId: string): Promise<{
+    deleted: boolean;
+    reason?: 'NOT_FOUND' | 'NOT_DELETED';
+  }> {
+    const product = this.getProduct(productId);
+    if (!product) return { deleted: false, reason: 'NOT_FOUND' };
+
+    if (this.pool) {
+      try {
+        await this.enqueue(
+          (pool) => pg.deleteProductRow(pool, productId),
+          `product ${productId} delete`,
+        );
+      } catch (error) {
+        console.error(
+          `⛔ [oneTeam DB] Could not delete product ${product.barcode}: ` + describeError(error),
+        );
+        return { deleted: false, reason: 'NOT_DELETED' };
+      }
+    }
+
+    this.products = this.products.filter((candidate) => candidate.id !== productId);
     return { deleted: true };
   }
 

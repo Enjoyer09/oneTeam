@@ -52,6 +52,7 @@
     "test:write-order": "node ./node_modules/tsx/dist/cli.mjs apps/api/test/write-order.spec.ts",
     "test:panel": "node ./node_modules/tsx/dist/cli.mjs apps/api/test/panel-auth.spec.ts",
     "test:stores": "node ./node_modules/tsx/dist/cli.mjs apps/api/test/store-crud.spec.ts",
+    "test:products": "node ./node_modules/tsx/dist/cli.mjs apps/api/test/product-crud.spec.ts",
     "test:tasks": "node ./node_modules/tsx/dist/cli.mjs apps/api/test/task-crud.spec.ts",
     "test:roles": "node ./node_modules/tsx/dist/cli.mjs apps/api/test/roles.spec.ts",
     "test:flow": "node ./node_modules/tsx/dist/cli.mjs apps/api/test/bot-session.spec.ts",

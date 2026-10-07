@@ -33,6 +33,7 @@ import { spawn } from 'node:child_process';
 const SUITES = [
   'test:panel',
   'test:stores',
+  'test:products',
   'test:tasks',
   'test:roles',
   'test:device',

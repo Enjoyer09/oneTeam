@@ -127,6 +127,10 @@ export const EXPECTED_SCHEMA: Record<string, string[]> = {
     'created_at',
     'updated_at',
   ],
+  // The SKU catalogue (wave 1.2). Transcribed like the rest: postgres.ts now
+  // queries all six columns, so a database missing one of them is a query
+  // failure waiting to happen rather than a cosmetic drift.
+  products: ['id', 'barcode', 'name', 'size', 'variant', 'created_at', 'updated_at'],
   campaigns: [
     'id',
     'name',
