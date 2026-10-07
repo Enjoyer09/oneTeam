@@ -48,6 +48,7 @@
     "test:device-revoke": "node ./node_modules/tsx/dist/cli.mjs apps/api/test/device-revoke.spec.ts",
     "test:device-block": "node ./node_modules/tsx/dist/cli.mjs apps/api/test/device-block.spec.ts",
     "test:replica": "node ./node_modules/tsx/dist/cli.mjs apps/api/test/replica-sync.spec.ts",
+    "test:refresh": "node ./node_modules/tsx/dist/cli.mjs apps/api/test/refresh-defer.spec.ts",
     "test:panel": "node ./node_modules/tsx/dist/cli.mjs apps/api/test/panel-auth.spec.ts",
     "test:stores": "node ./node_modules/tsx/dist/cli.mjs apps/api/test/store-crud.spec.ts",
     "test:tasks": "node ./node_modules/tsx/dist/cli.mjs apps/api/test/task-crud.spec.ts",

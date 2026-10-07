@@ -39,6 +39,7 @@ const SUITES = [
   'test:device-revoke',
   'test:device-block',
   'test:replica',
+  'test:refresh',
   'test:flow',
   'test:notify',
   'test:router',

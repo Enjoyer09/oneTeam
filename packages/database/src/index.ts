@@ -494,6 +494,14 @@ export class EnterpriseDatabase {
       // set — the same guard `init()` applies, for the same reason.
       if (state.users.length === 0) return false;
 
+      // A local write can START while `loadAll` above was running — the
+      // start-of-refresh check cannot see it. Swapping now would drop that
+      // row from memory (its INSERT has not committed yet) even though a 201
+      // just acknowledged it, and every read would 404 until the next poll.
+      // Deferring is the same safe direction as the start check: the write's
+      // own version bump makes the next tick reload with the row present.
+      if (this.pendingWrites > 0) return false;
+
       this.users = state.users as typeof this.users;
       if (state.region) this.region = state.region as typeof this.region;
       this.stores = state.stores as typeof this.stores;
