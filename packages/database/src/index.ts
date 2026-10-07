@@ -162,6 +162,16 @@ export class EnterpriseDatabase {
    * impossible to reproduce and easy to blame on something else.
    */
   private pendingWrites = 0;
+  /**
+   * Bumped when a write STARTS, never decremented.
+   *
+   * `pendingWrites` alone cannot protect the refresh: an INSERT can commit
+   * after the snapshot was read but before the arrays are swapped, and by
+   * then the counter is back to 0 — the swap would drop the row that a 201
+   * just acknowledged. A monotonic start-counter makes that window visible:
+   * capture it before reading, refuse to swap if it moved.
+   */
+  private writeSeq = 0;
 
   /**
    * The tail of the write queue. See `persist()` for why writes are ordered.
@@ -471,6 +481,7 @@ export class EnterpriseDatabase {
 
     this.refreshing = true;
     try {
+      const writeSeqAtStart = this.writeSeq;
       const version = await pg.readDataVersion(this.pool);
 
       // `null` means "could not tell" — a database that predates the migration,
@@ -494,13 +505,14 @@ export class EnterpriseDatabase {
       // set — the same guard `init()` applies, for the same reason.
       if (state.users.length === 0) return false;
 
-      // A local write can START while `loadAll` above was running — the
-      // start-of-refresh check cannot see it. Swapping now would drop that
-      // row from memory (its INSERT has not committed yet) even though a 201
-      // just acknowledged it, and every read would 404 until the next poll.
-      // Deferring is the same safe direction as the start check: the write's
-      // own version bump makes the next tick reload with the row present.
-      if (this.pendingWrites > 0) return false;
+      // A write can START while the snapshot above was being read — including
+      // one whose INSERT commits after the read, so `pendingWrites` is already
+      // 0 again by now. Swapping would drop that row from memory even though
+      // a 201 just acknowledged it, and every read would 404 until the next
+      // poll. The start-counter cannot be rewound, so refusing here is always
+      // safe: the write's own version bump makes the next tick reload with
+      // the row present.
+      if (this.writeSeq !== writeSeqAtStart) return false;
 
       this.users = state.users as typeof this.users;
       if (state.region) this.region = state.region as typeof this.region;
@@ -623,6 +635,7 @@ export class EnterpriseDatabase {
     if (!pool) return Promise.resolve();
 
     this.pendingWrites += 1;
+    this.writeSeq += 1;
     const attempt = this.writeQueue.then(() => op(pool));
 
     this.writeQueue = attempt

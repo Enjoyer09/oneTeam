@@ -4,14 +4,16 @@
  *
  * WHY THIS EXISTS
  * ---------------
- * `createEvidence()` pushes the row into the in-memory array and queues the
- * INSERT through `persist()` (fire-and-forget). The refresh loop
- * (`ONETEAM_REFRESH_MS`, default 1000ms) replaces the whole array with a
- * Postgres snapshot. The `pendingWrites > 0` check at the START of
- * `refreshIfChanged()` cannot see a write that begins while `loadAll` is
- * already running — so the snapshot can come back without the row that a 201
- * just acknowledged, the row vanishes from memory, and a read milliseconds
- * later answers 404 until the next poll.
+ * `createStoreTask()`/`createEvidence()` push the row into the in-memory array
+ * and queue the INSERT through `enqueue()` (fire-and-forget from the caller's
+ * point of view). The refresh loop (`ONETEAM_REFRESH_MS`, default 1000ms)
+ * replaces the whole array with a Postgres snapshot. If the INSERT commits
+ * AFTER the snapshot was read but BEFORE the arrays are swapped, the
+ * `pendingWrites` counter is already back to 0 at the guard, the swap runs,
+ * and the just-acknowledged row vanishes from memory until the next poll —
+ * a 201 that reads back 404 milliseconds later. The `writeSeq` counter
+ * (bumped when a write STARTS) is what makes that window visible: capture it
+ * before reading, and refuse to swap if it moved.
  *
  * Observed in the live tier as the roles flake: `POST /field/submissions`
  * 201, then `GET /api/portal/submissions` misses the id and
@@ -52,7 +54,7 @@ async function main(): Promise<void> {
     );
   }
 
-  console.log('\n=== refresh defers while a local write is pending ===');
+  console.log('\n=== refresh defers when a write lands during the snapshot ===');
   await db.init();
   db.stopRefreshLoop();
   db.stopBotSessionSweep();
@@ -63,17 +65,20 @@ async function main(): Promise<void> {
 
   const anyDb = db as any;
   const refreshesBefore = anyDb.refreshCount;
-  const writesBefore = anyDb.pendingWrites;
+  const seqBefore = anyDb.writeSeq;
   const realPool = anyDb.pool;
   let reloaded: unknown;
   let bumped = 0;
 
   try {
     // Wrap the pool `refreshIfChanged` will hand to readDataVersion/loadAll:
-    // the first non-`data_version` query is the snapshot being taken, and that
-    // is where a local write starting mid-refresh must be simulated. Patching
-    // the pool instead of the module sidesteps tsx's getter-only namespaces
-    // and the src-vs-dist copy of the database package.
+    // the first non-`data_version` query is the snapshot being taken. There we
+    // simulate the hard case: a write that STARTED and FINISHED during the
+    // snapshot — pendingWrites is already back at 0 by the time the arrays
+    // would be swapped, so a pendingWrites-only guard cannot see it, while
+    // the write's own row is missing from the snapshot that was just read.
+    // Patching the pool instead of a module sidesteps tsx's getter-only
+    // namespaces and the src-vs-dist copy of the database package.
     anyDb.pool = new Proxy(realPool, {
       get(target: any, prop: string) {
         const value = target[prop];
@@ -82,7 +87,7 @@ async function main(): Promise<void> {
             const sql = typeof args[0] === 'string' ? args[0] : '';
             if (bumped === 0 && !sql.includes('data_version')) {
               bumped += 1;
-              anyDb.pendingWrites += 1;
+              anyDb.writeSeq += 1;
             }
             return value.apply(target, args);
           };
@@ -96,7 +101,7 @@ async function main(): Promise<void> {
 
     reloaded = await db.refreshIfChanged();
 
-    check('refresh returns false instead of swapping mid-write', reloaded === false, {
+    check('refresh returns false when a write started during the snapshot', reloaded === false, {
       reloaded,
       refreshesBefore,
       refreshesAfter: anyDb.refreshCount,
@@ -107,7 +112,7 @@ async function main(): Promise<void> {
     });
   } finally {
     anyDb.pool = realPool;
-    anyDb.pendingWrites = writesBefore;
+    anyDb.writeSeq = seqBefore;
     // Leave clean state: null adopts the true current version on next poll,
     // then close.
     anyDb.observedVersion = null;
