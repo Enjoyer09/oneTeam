@@ -168,8 +168,19 @@ export function App() {
       // one — the remedy is to sign in, not to retry. Everything else falls
       // through to the honest-failure path below.
       if (isAuthFailure(error)) {
+        const hadKey = storedKey() !== null;
         clearStoredKey();
-        await checkAuth();
+        // Açar yox ikən yenidən yoxlama heç nəyi dəyişmir: `ready` → `checking`
+        // → `ready` osillasiyası effect-i yenidən işə salır və loadData
+        // sonsuz 401 döngüsünə girir (açar mövcud olanda bu yol düzgündür —
+        // köhnə açar təmizlənir və giriş ekranı açılır).
+        // ponytail: açarsız 403 (panel ortada konfiqurasiya olunubsa) sadəcə
+        // xəta paneli göstərir; reload/login axını bunu həll edər.
+        if (hadKey) {
+          await checkAuth();
+        } else {
+          dispatchPhase({ type: 'failed' });
+        }
         return;
       }
 
