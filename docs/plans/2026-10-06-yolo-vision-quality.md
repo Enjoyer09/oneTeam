@@ -412,6 +412,35 @@ RED (if the invariant is actually violated) → fix at the hydration/create site
 git commit -am "test(api): guard store list/delete consistency (flake follow-up)"
 ```
 
+### Outcome (2026-10-07) — root cause found, fixes landed
+
+The store-list flake never reproduced; the sibling symptom did — `test:roles`
+lost a just-created row ~1 run in 4, and the timeline showed
+`POST /field/submissions 201` → `GET /submissions 200` missing it → `review 404`
+30ms later. Root cause was **not** in the delete path but in
+`refreshIfChanged()`: the cross-replica reload swaps the whole in-memory
+arrays, and every window it left open dropped a just-acknowledged row until
+the next poll. Three windows, each closed with a RED→GREEN→mutation cycle:
+
+1. write starting _during_ `loadAll` — invisible to the start-of-refresh
+   `pendingWrites` check → re-check after the read (`182d253`).
+2. write _committing_ between snapshot and swap with `pendingWrites` already
+   0 — invisible to any in-flight count → monotonic `writeSeq` captured
+   before reading, swap refused if it moved (`3b7a031`).
+3. direct `saveBotSession()` outrunning the queued user INSERT into
+   `bot_sessions_user_id_fkey` — the queue's own dependency rule applied to
+   the session save (`946885f`).
+
+Standing guards (supersede 5.4's items — the mechanism, not the hypotheses,
+was what bit): `test:refresh` (Proxy forces the mid-snapshot write
+deterministically) and `test:write-order` (statement-matched delay forces the
+FK race), both in the live registry. `NotificationDrain.idle()` + the router
+suite's bounded claim wait closed the two remaining suite-level read/write
+races (`45fa3b2`).
+
+Stale-API listener assert and duplicate-id invariant: skipped — the root
+cause was found, and both hypotheses were superseded by the mechanism above.
+
 ---
 
 ## Final gate (after Parts 1–5)
