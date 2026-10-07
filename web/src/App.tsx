@@ -5,6 +5,7 @@ import { DashboardOverview } from './components/DashboardOverview';
 import { AuditReviewCenter } from './components/AuditReviewCenter';
 import { TaskManager, TaskEditValues } from './components/TaskManager';
 import { StoreDirectory, StoreFormValues } from './components/StoreDirectory';
+import { ProductCatalog, ProductFormValues } from './components/ProductCatalog';
 import { PanelLogin } from './components/PanelLogin';
 import { PanelKeysModal } from './components/PanelKeysModal';
 import { PanelUsersModal } from './components/PanelUsersModal';
@@ -18,7 +19,7 @@ import {
   type PanelAuthStatus,
   type PanelIdentity,
 } from './lib/panelAuth';
-import { Store, Task, Submission, DashboardMetrics, TaskPriority } from './types';
+import { Store, Task, Submission, DashboardMetrics, TaskPriority, Product } from './types';
 import { loadPhaseReducer } from './lib/loadPhase';
 
 /**
@@ -56,6 +57,7 @@ export function App() {
   // paintdir — skelet, məlumat və xəta paneli bu phase-dan asılıdır.
   const [phase, dispatchPhase] = useReducer(loadPhaseReducer, 'loading');
   const [stores, setStores] = useState<Store[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
@@ -152,16 +154,18 @@ export function App() {
 
   const loadData = async () => {
     try {
-      const [m, s, t, subs] = await Promise.all([
+      const [m, s, t, subs, prods] = await Promise.all([
         portalService.getMetrics(),
         portalService.getStores(),
         portalService.getTasks(),
         portalService.getSubmissions('all'),
+        portalService.getProducts(),
       ]);
       setMetrics(m);
       setStores(s);
       setTasks(t);
       setSubmissions(subs);
+      setProducts(prods);
       dispatchPhase({ type: 'loaded' });
     } catch (error) {
       // A rejected credential is not a data problem and must not be reported as
@@ -359,6 +363,30 @@ export function App() {
 
   const handleDeleteStore = (id: string) =>
     runFormAction(() => portalService.deleteStore(id), 'Mağaza silindi.');
+
+  /**
+   * Məhsul (SKU) kataloqu əməliyyatları — dalğa 1.2.
+   *
+   * Forma yalnız boş olmayan sahələri göndərir (size/variant undefined),
+   * beləliklə PATCH "sahəni boşaltmaq" ilə "sahəni oxumamaq"ı seçir.
+   */
+  const handleCreateProduct = (form: ProductFormValues) =>
+    runFormAction(
+      () =>
+        portalService.createProduct({
+          barcode: form.barcode,
+          name: form.name,
+          size: form.size.trim() || undefined,
+          variant: form.variant.trim() || undefined,
+        }),
+      'Yeni məhsul kataloqa əlavə olundu.',
+    );
+
+  const handleUpdateProduct = (id: string, changes: Partial<Product>) =>
+    runFormAction(() => portalService.updateProduct(id, changes), 'Məhsul məlumatları yeniləndi.');
+
+  const handleDeleteProduct = (id: string) =>
+    runFormAction(() => portalService.deleteProduct(id), 'Məhsul silindi.');
 
   const handleCreateTask = (taskData: {
     title: string;
@@ -652,6 +680,16 @@ export function App() {
                   onCreate={handleCreateStore}
                   onUpdate={handleUpdateStore}
                   onDelete={handleDeleteStore}
+                  canEdit={canEditMasterData}
+                />
+              )}
+
+              {activeTab === 'products' && (
+                <ProductCatalog
+                  products={products}
+                  onCreate={handleCreateProduct}
+                  onUpdate={handleUpdateProduct}
+                  onDelete={handleDeleteProduct}
                   canEdit={canEditMasterData}
                 />
               )}

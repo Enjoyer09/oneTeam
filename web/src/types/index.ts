@@ -18,6 +18,16 @@ export interface Store {
   created_at: string;
 }
 
+/** SKU kataloqu (dalğa 1.2) — barkod → məhsul identiteti. */
+export interface Product {
+  id: string;
+  barcode: string;
+  name: string;
+  size: string | null;
+  variant: string | null;
+  created_at: string;
+}
+
 export interface Task {
   id: string;
   title: string;

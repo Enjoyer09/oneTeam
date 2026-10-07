@@ -104,6 +104,10 @@ export const Header: React.FC<HeaderProps> = ({
       title: 'Tərəfdaş Mağazalar Şəbəkəsi',
       subtitle: 'Bravo, Araz, Bazarstore filialları və uyğunluq göstəriciləri',
     },
+    products: {
+      title: 'Məhsul Kataloqu (SKU)',
+      subtitle: 'Skanerilən barkodun həll etdiyi məhsul identiteti',
+    },
   };
 
   const { title, subtitle } = titles[activeTab];

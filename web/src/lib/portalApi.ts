@@ -36,7 +36,7 @@
  * no component had to change.
  */
 
-import { Store, Task, Submission, DashboardMetrics, SubmissionStatus } from '../types';
+import { Store, Task, Submission, DashboardMetrics, SubmissionStatus, Product } from '../types';
 import { panelAuthHeaders } from './panelAuth';
 
 const env: Record<string, any> =
@@ -222,6 +222,48 @@ class PortalDataService {
    */
   async deleteStore(id: string): Promise<void> {
     await request<Envelope<{ id: string }>>(`/api/portal/stores/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Məhsul kataloqu (SKU) — dalğa 1.2
+  // -------------------------------------------------------------------------
+
+  async getProducts(): Promise<Product[]> {
+    return this.get<Product[]>('/api/portal/products');
+  }
+
+  /**
+   * Yeni SKU yaradır.
+   *
+   * `barcode` rəqəmli və 8–14 xanalı olmalıdır — API bunu məcburi yoxlayır
+   * (güvən sərhədi serverdədir), brauzer yalnız `pattern` ilə ön yoxlama
+   * edir ki istifadəçi yazarkən dərhal görə bilsin.
+   */
+  async createProduct(data: {
+    barcode: string;
+    name: string;
+    size?: string;
+    variant?: string;
+  }): Promise<Product> {
+    const body = await request<Envelope<Product>>('/api/portal/products', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return body.data;
+  }
+
+  async updateProduct(id: string, changes: Partial<Product>): Promise<Product> {
+    const body = await request<Envelope<Product>>(
+      `/api/portal/products/${encodeURIComponent(id)}`,
+      { method: 'PATCH', body: JSON.stringify(changes) },
+    );
+    return body.data;
+  }
+
+  async deleteProduct(id: string): Promise<void> {
+    await request<Envelope<{ id: string }>>(`/api/portal/products/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
   }
