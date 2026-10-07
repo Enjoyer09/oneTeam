@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { DashboardMetrics, Submission } from '../types';
 import { LoadPhase } from '../lib/loadPhase';
+import { StatusBadge } from './ui/StatusBadge';
 
 interface DashboardOverviewProps {
   phase: LoadPhase;
@@ -78,33 +79,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     },
   ];
 
-  const statusBadge = (status: Submission['status']) => {
-    switch (status) {
-      case 'pending_review':
-        return (
-          <span className="st-g st-warn">
-            <span className="dot" />
-            Gözləyir
-          </span>
-        );
-      case 'approved':
-        return (
-          <span className="st-g st-ok">
-            <span className="dot" />
-            Təsdiqləndi
-          </span>
-        );
-      case 'rejected':
-        return (
-          <span className="st-g st-bad">
-            <span className="dot" />
-            İmtina edildi
-          </span>
-        );
-      default:
-        return null;
-    }
-  };
+  // §10.4 canonical badge — ailə/etiket xəritəsi `lib/statusMap` (§11) saxlayır.
+  const statusBadge = (status: Submission['status']) => <StatusBadge value={status} />;
 
   const scoreTone = (score: number) => (score >= 80 ? 'st-ok' : score >= 60 ? 'st-warn' : 'st-bad');
 

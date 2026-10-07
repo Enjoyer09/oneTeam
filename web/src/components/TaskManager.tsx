@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { ModalPortal } from './ui/ModalPortal';
+import { StatusBadge } from './ui/StatusBadge';
 import {
   PlusCircle,
   Calendar,
@@ -100,33 +101,6 @@ function toLocalInput(iso: string | undefined): string {
   return (
     `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
     `T${pad(date.getHours())}:${pad(date.getMinutes())}`
-  );
-}
-
-/**
- * Renders the task's real status.
- *
- * This slot used to hold a hardcoded green "Aktiv" on every card, so a task
- * that had been approved or rejected still read as active — the same class of
- * lie as the store list's hardcoded "Aktiv". An unrecognised status shows the
- * raw value rather than being rounded to something reassuring.
- */
-function getStatusBadge(status: string | undefined) {
-  const map: Record<string, { label: string; className: string }> = {
-    draft: { label: 'Qaralama', className: 'bg-slate-100 text-slate-700' },
-    published: { label: 'Aktiv', className: 'bg-emerald-50 text-emerald-700' },
-    completed: { label: 'Tamamlandı', className: 'bg-indigo-50 text-indigo-700' },
-    archived: { label: 'Arxivlənmiş', className: 'bg-amber-50 text-amber-700' },
-  };
-  const entry = status ? map[status] : undefined;
-  return (
-    <span
-      className={`text-[10px] px-2 py-0.5 rounded font-bold ${
-        entry?.className ?? 'bg-slate-100 text-slate-700'
-      }`}
-    >
-      {entry?.label ?? (status || 'Bilinmir')}
-    </span>
   );
 }
 
@@ -554,111 +528,120 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
       </div>
 
       {/* Task Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {tasks.map((task) => {
-          const deadlineStr = new Date(task.deadline).toLocaleDateString('az-AZ', {
-            timeZone: 'Asia/Baku',
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-          });
+      {tasks.length === 0 ? (
+        <div className="glass-card rounded-card p-12 text-center">
+          <p className="text-sm font-semibold text-ink-2">Hələ planogram tapşırığı yoxdur.</p>
+          <p className="text-xs text-muted mt-1">
+            "Yeni Təlimat Yarat" düyməsi ilə ilk təlimatı hazırlayın.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {tasks.map((task) => {
+            const deadlineStr = new Date(task.deadline).toLocaleDateString('az-AZ', {
+              timeZone: 'Asia/Baku',
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+            });
 
-          return (
-            <div
-              key={task.id}
-              className="glass-card rounded-card overflow-hidden flex flex-col justify-between hover:shadow-md transition-all"
-            >
-              <div>
-                {/* Planogram Image Preview */}
-                <div className="relative aspect-[16/9] bg-[var(--g-panel)] overflow-hidden border-b border-hair-2">
-                  <img
-                    src={task.reference_image_url || '/logo.jpg'}
-                    alt={task.title}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute top-2.5 right-2.5">
-                    {getPriorityBadge(task.priority)}
+            return (
+              <div
+                key={task.id}
+                className="glass-card rounded-card overflow-hidden flex flex-col justify-between hover:shadow-md transition-all"
+              >
+                <div>
+                  {/* Planogram Image Preview */}
+                  <div className="relative aspect-[16/9] bg-[var(--g-panel)] overflow-hidden border-b border-hair-2">
+                    <img
+                      src={task.reference_image_url || '/logo.jpg'}
+                      alt={task.title}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute top-2.5 right-2.5">
+                      {getPriorityBadge(task.priority)}
+                    </div>
+                    <div className="absolute bottom-2.5 left-2.5 bg-slate-950/75 backdrop-blur-sm text-white px-2.5 py-1 rounded-md text-[10px] font-semibold flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-muted" />
+                      Son tarix: {deadlineStr}
+                    </div>
                   </div>
-                  <div className="absolute bottom-2.5 left-2.5 bg-slate-950/75 backdrop-blur-sm text-white px-2.5 py-1 rounded-md text-[10px] font-semibold flex items-center gap-1">
-                    <Calendar className="w-3 h-3 text-muted" />
-                    Son tarix: {deadlineStr}
-                  </div>
-                </div>
 
-                <div className="p-4 space-y-2">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {/* The API derives `kind` from the fields below, so this
+                  <div className="p-4 space-y-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {/* The API derives `kind` from the fields below, so this
                         badge appears exactly when neither of the other two
                         does — a plain audit with no checklist and no
                         before/after pair. */}
-                    {task.kind === 'AUDIT' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200">
-                        <Layers className="w-3 h-3 text-slate-500" />
-                        Ümumi audit
-                      </span>
-                    )}
-                    {task.requires_before_after_photo && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                        <Camera className="w-3 h-3 text-indigo-500" />
-                        Before & After Tələbi
-                      </span>
-                    )}
-                    {task.checklist_schema && task.checklist_schema.length > 0 && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
-                        <CheckSquare className="w-3 h-3 text-blue-500" />
-                        {task.checklist_schema.length} Çeklist Sualı
-                      </span>
+                      {task.kind === 'AUDIT' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200">
+                          <Layers className="w-3 h-3 text-slate-500" />
+                          Ümumi audit
+                        </span>
+                      )}
+                      {task.requires_before_after_photo && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          <Camera className="w-3 h-3 text-indigo-500" />
+                          Before & After Tələbi
+                        </span>
+                      )}
+                      {task.checklist_schema && task.checklist_schema.length > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
+                          <CheckSquare className="w-3 h-3 text-blue-500" />
+                          {task.checklist_schema.length} Çeklist Sualı
+                        </span>
+                      )}
+                    </div>
+                    <h4 className="font-bold text-xs sm:text-sm text-ink leading-snug">
+                      {task.title}
+                    </h4>
+                    <p className="text-xs text-ink-2 line-clamp-3 leading-relaxed">
+                      {task.description}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 pt-0 border-t border-hair-2 mt-2 flex items-center justify-between gap-2 text-xs text-muted">
+                  <span className="flex min-w-0 items-center gap-1 font-medium text-[11px]">
+                    <StoreIcon className="w-3.5 h-3.5 flex-shrink-0 text-muted" />
+                    <span className="truncate">
+                      {task.assigned_stores?.length || 'Bütün'} Mağaza Təhkim edilib
+                    </span>
+                  </span>
+                  <div className="flex flex-shrink-0 items-center gap-1.5">
+                    <StatusBadge value={task.status ?? 'Bilinmir'} />
+                    {canEdit && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => openEdit(task)}
+                          aria-label={`"${task.title}" tapşırığını redaktə et`}
+                          title="Redaktə et"
+                          className="rounded-lg p-1.5 text-muted transition-colors hover:bg-[var(--g-panel)] hover:text-ink cursor-pointer"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeleteError(null);
+                            setDeletingTask(task);
+                          }}
+                          aria-label={`"${task.title}" tapşırığını sil`}
+                          title="Sil"
+                          className="rounded-lg p-1.5 text-muted transition-colors hover:bg-[rgba(200,60,60,.08)] hover:text-[#b23b3b] cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
                     )}
                   </div>
-                  <h4 className="font-bold text-xs sm:text-sm text-ink leading-snug">
-                    {task.title}
-                  </h4>
-                  <p className="text-xs text-ink-2 line-clamp-3 leading-relaxed">
-                    {task.description}
-                  </p>
                 </div>
               </div>
-
-              <div className="p-4 pt-0 border-t border-hair-2 mt-2 flex items-center justify-between gap-2 text-xs text-muted">
-                <span className="flex min-w-0 items-center gap-1 font-medium text-[11px]">
-                  <StoreIcon className="w-3.5 h-3.5 flex-shrink-0 text-muted" />
-                  <span className="truncate">
-                    {task.assigned_stores?.length || 'Bütün'} Mağaza Təhkim edilib
-                  </span>
-                </span>
-                <div className="flex flex-shrink-0 items-center gap-1.5">
-                  {getStatusBadge(task.status)}
-                  {canEdit && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => openEdit(task)}
-                        aria-label={`"${task.title}" tapşırığını redaktə et`}
-                        title="Redaktə et"
-                        className="rounded-lg p-1.5 text-muted transition-colors hover:bg-[var(--g-panel)] hover:text-ink cursor-pointer"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDeleteError(null);
-                          setDeletingTask(task);
-                        }}
-                        aria-label={`"${task.title}" tapşırığını sil`}
-                        title="Sil"
-                        className="rounded-lg p-1.5 text-muted transition-colors hover:bg-[rgba(200,60,60,.08)] hover:text-[#b23b3b] cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* ====================================================================== */}
       {/* BULK TASK DISPATCH MODAL (STORE SEGMENTATION ENGINE) */}
