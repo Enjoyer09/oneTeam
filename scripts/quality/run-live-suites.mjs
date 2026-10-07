@@ -34,6 +34,7 @@ const SUITES = [
   'test:panel',
   'test:stores',
   'test:products',
+  'test:shelf',
   'test:tasks',
   'test:roles',
   'test:device',

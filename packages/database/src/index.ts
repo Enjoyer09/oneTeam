@@ -22,6 +22,7 @@ export type { BotSessionRow, PanelTokenRow, NotificationRow, NotificationKind } 
 import { SEED_DATA } from './seed';
 import { TaskState, UserRole } from '@oneteam/types';
 import type {
+  InMemoryShelfPosition,
   InMemoryStoreTask,
   InMemoryEvidence,
   InMemoryAuditLog,
@@ -49,6 +50,8 @@ export class EnterpriseDatabase {
   public stores: InMemoryStore[] = [...SEED_DATA.stores];
   /** SKU catalogue. Seeded from PostgreSQL; empty in seed-only mode. */
   public products: InMemoryProduct[] = [];
+  /** Shelf map: section / level / position slots (wave 1.3). */
+  public shelfPositions: InMemoryShelfPosition[] = [];
   public campaign = { ...SEED_DATA.campaign };
   public templates = [...SEED_DATA.templates];
   public storeTasks: InMemoryStoreTask[] = [
@@ -288,6 +291,7 @@ export class EnterpriseDatabase {
           if (state.region) this.region = state.region as typeof this.region;
           this.stores = state.stores as typeof this.stores;
           this.products = state.products;
+          this.shelfPositions = state.shelfPositions;
           if (state.campaign) this.campaign = state.campaign as typeof this.campaign;
           this.templates = state.templates as typeof this.templates;
           this.storeTasks = state.storeTasks;
@@ -768,6 +772,9 @@ export class EnterpriseDatabase {
   /** PostgreSQL's unique-violation code. */
   private static readonly PG_UNIQUE_VIOLATION = '23505';
 
+  /** PostgreSQL's foreign-key-violation code. */
+  private static readonly PG_FOREIGN_KEY_VIOLATION = '23503';
+
   /**
    * Creates a store.
    *
@@ -1035,17 +1042,26 @@ export class EnterpriseDatabase {
   /**
    * Deletes a product.
    *
-   * No referential pre-check yet: the shelf_map tables (wave 1.3) will add a
-   * RESTRICT FK against `products`, and from then on the constraint is the
-   * authority — a stale in-memory count could only lie about it. Until then
-   * nothing references a SKU, so the delete is unconditional.
+   * A SKU standing on a shelf (shelf_positions, wave 1.3) is refused with
+   * `IN_USE`: the map must let go first, or the planogram baseline would point
+   * at a product that no longer exists. The in-memory count answers the normal
+   * case (and the only case there is, when no pool is configured); the RESTRICT
+   * FK is still the authority on a race — two processes deleting at once, or a
+   * row written straight to PostgreSQL behind the API's back — and is caught
+   * below as the backstop.
    */
   public async deleteProduct(productId: string): Promise<{
     deleted: boolean;
-    reason?: 'NOT_FOUND' | 'NOT_DELETED';
+    reason?: 'NOT_FOUND' | 'IN_USE' | 'NOT_DELETED';
+    positions?: number;
   }> {
     const product = this.getProduct(productId);
     if (!product) return { deleted: false, reason: 'NOT_FOUND' };
+
+    const shelfRows = this.shelfPositions.filter((slot) => slot.productId === productId);
+    if (shelfRows.length > 0) {
+      return { deleted: false, reason: 'IN_USE', positions: shelfRows.length };
+    }
 
     if (this.pool) {
       try {
@@ -1054,6 +1070,13 @@ export class EnterpriseDatabase {
           `product ${productId} delete`,
         );
       } catch (error) {
+        const code = (error as { code?: string } | null)?.code;
+        if (code === EnterpriseDatabase.PG_FOREIGN_KEY_VIOLATION) {
+          const positions = this.shelfPositions.filter(
+            (slot) => slot.productId === productId,
+          ).length;
+          return { deleted: false, reason: 'IN_USE', positions };
+        }
         console.error(
           `⛔ [oneTeam DB] Could not delete product ${product.barcode}: ` + describeError(error),
         );
@@ -1062,6 +1085,150 @@ export class EnterpriseDatabase {
     }
 
     this.products = this.products.filter((candidate) => candidate.id !== productId);
+    return { deleted: true };
+  }
+
+  // -------------------------------------------------------------------------
+  // Shelf map (shelf_positions — wave 1.3)
+  // -------------------------------------------------------------------------
+
+  public getShelfPositions(): InMemoryShelfPosition[] {
+    return this.shelfPositions;
+  }
+
+  public getShelfPosition(id: string): InMemoryShelfPosition | undefined {
+    return this.shelfPositions.find((slot) => slot.id === id);
+  }
+
+  /**
+   * Stores a shelf slot.
+   *
+   * The slot is pushed into memory first and rolled back if the write fails,
+   * the same shape as `createProduct`. No duplicate SELECT: the UNIQUE
+   * constraint has no race window, so the 23505 it raises IS the answer. A
+   * 23503 means `product_id` named no product — again the constraint's answer,
+   * reported as UNKNOWN_PRODUCT rather than a generic failure.
+   */
+  public async createShelfPosition(params: {
+    section: string;
+    level: number;
+    position: number;
+    productId?: string;
+  }): Promise<{
+    slot?: InMemoryShelfPosition;
+    error?: 'DUPLICATE_POSITION' | 'UNKNOWN_PRODUCT' | 'NOT_STORED';
+  }> {
+    const now = new Date();
+    const slot: InMemoryShelfPosition = {
+      id: `shf-${now.getTime().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      section: params.section,
+      level: params.level,
+      position: params.position,
+      productId: params.productId,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.shelfPositions.push(slot);
+
+    if (this.pool) {
+      try {
+        await this.enqueue((pool) => pg.insertShelfPosition(pool, slot), `shelf slot ${slot.id}`);
+      } catch (error) {
+        this.shelfPositions = this.shelfPositions.filter((candidate) => candidate.id !== slot.id);
+        const code = (error as { code?: string } | null)?.code;
+        if (code === EnterpriseDatabase.PG_UNIQUE_VIOLATION) {
+          return { error: 'DUPLICATE_POSITION' };
+        }
+        if (code === EnterpriseDatabase.PG_FOREIGN_KEY_VIOLATION) {
+          return { error: 'UNKNOWN_PRODUCT' };
+        }
+        console.error(
+          `⛔ [oneTeam DB] Could not store shelf slot ${slot.section}/${slot.level}/${slot.position}: ` +
+            describeError(error),
+        );
+        return { error: 'NOT_STORED' };
+      }
+    }
+
+    return { slot };
+  }
+
+  /**
+   * Applies an edit to an existing shelf slot.
+   *
+   * Only the fields present in `changes` are touched; previous values are
+   * captured and restored if the write fails, so an edit that did not reach
+   * the database never leaves the process showing a change it would lose on
+   * restart.
+   */
+  public async updateShelfPosition(
+    slotId: string,
+    // `productId: null` means "unassign" (a real edit); `undefined` means
+    // "not mentioned". The two must stay distinguishable or clearing an
+    // assignment would silently do nothing.
+    changes: Partial<Pick<InMemoryShelfPosition, 'section' | 'level' | 'position'>> & {
+      productId?: string | null;
+    },
+  ): Promise<{
+    slot?: InMemoryShelfPosition;
+    error?: 'NOT_FOUND' | 'DUPLICATE_POSITION' | 'UNKNOWN_PRODUCT' | 'NOT_STORED';
+  }> {
+    const slot = this.getShelfPosition(slotId);
+    if (!slot) return { error: 'NOT_FOUND' };
+
+    const before: InMemoryShelfPosition = { ...slot };
+
+    for (const [key, value] of Object.entries(changes)) {
+      if (value !== undefined) (slot as any)[key] = value;
+    }
+    slot.updatedAt = new Date();
+
+    if (this.pool) {
+      try {
+        await this.enqueue((pool) => pg.updateShelfPositionRow(pool, slot), `shelf slot ${slotId}`);
+      } catch (error) {
+        Object.assign(slot, before);
+        const code = (error as { code?: string } | null)?.code;
+        if (code === EnterpriseDatabase.PG_UNIQUE_VIOLATION) {
+          return { error: 'DUPLICATE_POSITION' };
+        }
+        if (code === EnterpriseDatabase.PG_FOREIGN_KEY_VIOLATION) {
+          return { error: 'UNKNOWN_PRODUCT' };
+        }
+        console.error(
+          `⛔ [oneTeam DB] Could not update shelf slot ${slotId}: ` + describeError(error),
+        );
+        return { error: 'NOT_STORED' };
+      }
+    }
+
+    return { slot };
+  }
+
+  /** Deletes a shelf slot. Idempotent callers see NOT_FOUND, not a crash. */
+  public async deleteShelfPosition(slotId: string): Promise<{
+    deleted: boolean;
+    reason?: 'NOT_FOUND' | 'NOT_DELETED';
+  }> {
+    const slot = this.getShelfPosition(slotId);
+    if (!slot) return { deleted: false, reason: 'NOT_FOUND' };
+
+    if (this.pool) {
+      try {
+        await this.enqueue(
+          (pool) => pg.deleteShelfPositionRow(pool, slotId),
+          `shelf slot ${slotId}`,
+        );
+      } catch (error) {
+        console.error(
+          `⛔ [oneTeam DB] Could not delete shelf slot ${slotId}: ` + describeError(error),
+        );
+        return { deleted: false, reason: 'NOT_DELETED' };
+      }
+    }
+
+    this.shelfPositions = this.shelfPositions.filter((candidate) => candidate.id !== slotId);
     return { deleted: true };
   }
 

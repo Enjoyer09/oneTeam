@@ -111,6 +111,36 @@ export class PortalController {
     return this.portalService.deleteProduct(id, getPrincipal(request));
   }
 
+  // Shelf map (wave 1.3) — same controller, same credential as the catalogue:
+  // the panel must never have to hold two secrets with two sets of rules.
+  @Get('shelf-positions')
+  getShelfPositions() {
+    const data = this.portalService.getShelfPositions();
+    return { success: true, data, total: data.length };
+  }
+
+  @Post('shelf-positions')
+  @HttpCode(HttpStatus.CREATED)
+  async createShelfPosition(@Body() body: any, @Request() request: AuthedRequest) {
+    return this.portalService.createShelfPosition(body, getPrincipal(request));
+  }
+
+  @Patch('shelf-positions/:id')
+  @HttpCode(HttpStatus.OK)
+  async updateShelfPosition(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Request() request: AuthedRequest,
+  ) {
+    return this.portalService.updateShelfPosition(id, body, getPrincipal(request));
+  }
+
+  @Delete('shelf-positions/:id')
+  @HttpCode(HttpStatus.OK)
+  async deleteShelfPosition(@Param('id') id: string, @Request() request: AuthedRequest) {
+    return this.portalService.deleteShelfPosition(id, getPrincipal(request));
+  }
+
   @Get('tasks')
   getTasks() {
     const data = this.portalService.getTasks();

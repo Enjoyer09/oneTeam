@@ -49,6 +49,7 @@
 import { Pool } from 'pg';
 import type { TaskState } from '@oneteam/types';
 import type {
+  InMemoryShelfPosition,
   InMemoryStoreTask,
   InMemoryEvidence,
   InMemoryAuditLog,
@@ -67,6 +68,7 @@ export interface HydratedState {
   evidences: InMemoryEvidence[];
   auditLogs: InMemoryAuditLog[];
   products: InMemoryProduct[];
+  shelfPositions: InMemoryShelfPosition[];
 }
 
 /**
@@ -171,18 +173,29 @@ function toAuditLog(row: any): InMemoryAuditLog {
  * loading, and it keeps the synchronous read path intact.
  */
 export async function loadAll(pool: Pool): Promise<HydratedState> {
-  const [users, regions, stores, campaigns, templates, storeTasks, evidences, auditLogs, products] =
-    await Promise.all([
-      pool.query('SELECT * FROM users ORDER BY created_at'),
-      pool.query('SELECT * FROM regions ORDER BY created_at'),
-      pool.query('SELECT * FROM stores ORDER BY store_code'),
-      pool.query('SELECT * FROM campaigns ORDER BY created_at'),
-      pool.query('SELECT * FROM task_templates ORDER BY created_at'),
-      pool.query('SELECT * FROM store_tasks ORDER BY created_at'),
-      pool.query('SELECT * FROM task_evidences ORDER BY created_at'),
-      pool.query('SELECT * FROM audit_logs ORDER BY created_at'),
-      pool.query('SELECT * FROM products ORDER BY name'),
-    ]);
+  const [
+    users,
+    regions,
+    stores,
+    campaigns,
+    templates,
+    storeTasks,
+    evidences,
+    auditLogs,
+    products,
+    shelfPositions,
+  ] = await Promise.all([
+    pool.query('SELECT * FROM users ORDER BY created_at'),
+    pool.query('SELECT * FROM regions ORDER BY created_at'),
+    pool.query('SELECT * FROM stores ORDER BY store_code'),
+    pool.query('SELECT * FROM campaigns ORDER BY created_at'),
+    pool.query('SELECT * FROM task_templates ORDER BY created_at'),
+    pool.query('SELECT * FROM store_tasks ORDER BY created_at'),
+    pool.query('SELECT * FROM task_evidences ORDER BY created_at'),
+    pool.query('SELECT * FROM audit_logs ORDER BY created_at'),
+    pool.query('SELECT * FROM products ORDER BY name'),
+    pool.query('SELECT * FROM shelf_positions ORDER BY section, level, position'),
+  ]);
 
   return {
     users: users.rows.map((r) => ({
@@ -262,6 +275,15 @@ export async function loadAll(pool: Pool): Promise<HydratedState> {
       name: r.name,
       size: r.size ?? undefined,
       variant: r.variant ?? undefined,
+      createdAt: asRequiredDate(r.created_at),
+      updatedAt: asRequiredDate(r.updated_at),
+    })),
+    shelfPositions: shelfPositions.rows.map((r) => ({
+      id: r.id,
+      section: r.section,
+      level: r.level,
+      position: r.position,
+      productId: r.product_id ?? undefined,
       createdAt: asRequiredDate(r.created_at),
       updatedAt: asRequiredDate(r.updated_at),
     })),
@@ -734,6 +756,65 @@ export async function updateProductRow(pool: Pool, product: InMemoryProduct): Pr
 
 export async function deleteProductRow(pool: Pool, productId: string): Promise<boolean> {
   const result = await pool.query('DELETE FROM products WHERE id = $1', [productId]);
+  return (result.rowCount ?? 0) > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Shelf map (shelf_positions — wave 1.3)
+// ---------------------------------------------------------------------------
+
+/**
+ * Inserts one shelf slot.
+ *
+ * No ON CONFLICT clause, same as `insertProduct`: a duplicate
+ * (section, level, position) must surface as an error so the service can turn
+ * it into SHELF_POSITION_TAKEN. The UNIQUE constraint has no race window,
+ * which is why the service never pre-checks the slot with a SELECT.
+ */
+export async function insertShelfPosition(pool: Pool, slot: InMemoryShelfPosition): Promise<void> {
+  await pool.query(
+    `INSERT INTO shelf_positions (id, section, level, position, product_id, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [
+      slot.id,
+      slot.section,
+      slot.level,
+      slot.position,
+      slot.productId ?? null,
+      slot.createdAt ?? new Date(),
+      slot.updatedAt ?? new Date(),
+    ],
+  );
+}
+
+/**
+ * Writes back the editable columns of a shelf slot.
+ *
+ * `id` and `created_at` are not in the SET list: an edit must not be able to
+ * move a slot's identity or rewrite when it was created.
+ */
+export async function updateShelfPositionRow(
+  pool: Pool,
+  slot: InMemoryShelfPosition,
+): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE shelf_positions
+        SET section = $1, level = $2, position = $3, product_id = $4, updated_at = $5
+      WHERE id = $6`,
+    [
+      slot.section,
+      slot.level,
+      slot.position,
+      slot.productId ?? null,
+      slot.updatedAt ?? new Date(),
+      slot.id,
+    ],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+export async function deleteShelfPositionRow(pool: Pool, slotId: string): Promise<boolean> {
+  const result = await pool.query('DELETE FROM shelf_positions WHERE id = $1', [slotId]);
   return (result.rowCount ?? 0) > 0;
 }
 

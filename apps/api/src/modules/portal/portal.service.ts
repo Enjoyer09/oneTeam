@@ -43,7 +43,13 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { TaskState, UserRole, NotificationDispatchSummary, StoreTask } from '@oneteam/types';
-import { db, InMemoryEvidence, InMemoryStoreTask, InMemoryProduct } from '@oneteam/database';
+import {
+  InMemoryShelfPosition,
+  db,
+  InMemoryEvidence,
+  InMemoryStoreTask,
+  InMemoryProduct,
+} from '@oneteam/database';
 import {
   AuthenticatedPrincipal,
   isPrivilegedPrincipal,
@@ -73,6 +79,17 @@ export interface PanelProduct {
   name: string;
   size: string | null;
   variant: string | null;
+  created_at: string;
+}
+
+/** One shelf map slot (bölmə / səviyyə / mövqe) as the panel sees it. */
+export interface PanelShelfPosition {
+  id: string;
+  section: string;
+  level: number;
+  position: number;
+  /** Assigned product, or null while the slot is empty. */
+  product_id: string | null;
   created_at: string;
 }
 
@@ -265,6 +282,17 @@ export class PortalService {
     };
   }
 
+  toPanelShelfPosition(slot: InMemoryShelfPosition): PanelShelfPosition {
+    return {
+      id: slot.id,
+      section: slot.section,
+      level: slot.level,
+      position: slot.position,
+      product_id: slot.productId ?? null,
+      created_at: iso(slot.createdAt),
+    };
+  }
+
   toPanelTask(task: InMemoryStoreTask): PanelTask {
     // Title, description, reference image, priority and the checklist all live
     // on the template. A store task stores only (template, store, assignee,
@@ -367,6 +395,10 @@ export class PortalService {
 
   getProducts(): PanelProduct[] {
     return db.getProducts().map((product) => this.toPanelProduct(product));
+  }
+
+  getShelfPositions(): PanelShelfPosition[] {
+    return db.getShelfPositions().map((slot) => this.toPanelShelfPosition(slot));
   }
 
   // -------------------------------------------------------------------------
@@ -714,6 +746,20 @@ export class PortalService {
   }
 
   /**
+   * The shelf map is master data too: same shared check as the products and
+   * stores, its own error name so the 403 tells the operator which rule
+   * stopped them.
+   */
+  private requireShelfEditor(principal: AuthenticatedPrincipal): void {
+    if (!isPrivilegedPrincipal(principal)) {
+      throw new ForbiddenException({
+        error: 'SHELF_EDIT_FORBIDDEN',
+        message: 'Rəf xəritəsini yalnız administrator və supervayzer dəyişə bilər.',
+      });
+    }
+  }
+
+  /**
    * Reads the product fields off a request body, refusing anything unusable.
    *
    * Unknown keys are REFUSED rather than ignored — stricter than the store
@@ -768,6 +814,78 @@ export class PortalService {
 
     const variant = text('variant', 'Variant', false);
     if (variant !== undefined) fields.variant = variant;
+
+    return fields;
+  }
+
+  /**
+   * Reads the shelf slot coordinates off a request body, refusing anything
+   * unusable. Unknown keys are REFUSED rather than ignored, the same contract
+   * as the product reader: a body that is quietly half-applied is how a map
+   * ends up disagreeing with the shelf it claims to describe.
+   *
+   * `level` / `position` are validated to positive integers here so the
+   * normal answer is a readable 400, not a raw CHECK-constraint violation.
+   * `product_id` is only syntax-checked — existence is the FK's answer.
+   */
+  private readShelfFields(
+    body: Record<string, any>,
+    options: { requireAll: boolean },
+  ): { section?: string; level?: number; position?: number; product_id?: string | null } {
+    const allowed = new Set(['section', 'level', 'position', 'product_id']);
+    for (const key of Object.keys(body ?? {})) {
+      if (!allowed.has(key)) {
+        throw new HttpException(`Bilmədiyimiz sahə: "${key}"`, HttpStatus.BAD_REQUEST);
+      }
+    }
+
+    const fields: Record<string, any> = {};
+
+    const sectionRaw = body?.section;
+    if (sectionRaw === undefined || sectionRaw === null || String(sectionRaw).trim() === '') {
+      if (options.requireAll) {
+        throw new HttpException('Bölmə tələb olunur', HttpStatus.BAD_REQUEST);
+      }
+    } else {
+      fields.section = String(sectionRaw).trim();
+    }
+
+    const slotNumber = (key: 'level' | 'position', label: string): number | undefined => {
+      const raw = body?.[key];
+      if (raw === undefined || raw === null) {
+        if (options.requireAll) {
+          throw new HttpException(`${label} tələb olunur`, HttpStatus.BAD_REQUEST);
+        }
+        return undefined;
+      }
+      const parsed =
+        typeof raw === 'number'
+          ? raw
+          : typeof raw === 'string' && /^\d+$/.test(raw.trim())
+            ? Number(raw.trim())
+            : Number.NaN;
+      if (!Number.isInteger(parsed) || parsed < 1) {
+        throw new HttpException(
+          `${label} 1 və ya daha böyük tam ədəd olmalıdır`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      return parsed;
+    };
+
+    const level = slotNumber('level', 'Səviyyə');
+    if (level !== undefined) fields.level = level;
+
+    const position = slotNumber('position', 'Mövqe');
+    if (position !== undefined) fields.position = position;
+
+    const rawProduct = body?.product_id;
+    if (rawProduct !== undefined) {
+      // null / '' clears the assignment (PATCH); on create `?? undefined`
+      // turns it back into "no product", which is what an empty slot is.
+      fields.product_id =
+        rawProduct === null || String(rawProduct).trim() === '' ? null : String(rawProduct).trim();
+    }
 
     return fields;
   }
@@ -865,6 +983,12 @@ export class PortalService {
         message: 'Bu identifikatorla məhsul tapılmadı.',
       });
     }
+    if (result.reason === 'IN_USE') {
+      throw new ConflictException({
+        error: 'PRODUCT_ON_SHELF',
+        message: `Məhsul ${result.positions ?? 1} rəf mövqeyində yer alır — əvvəlcə rəf xəritəsindən çıxarın.`,
+      });
+    }
     if (result.reason === 'NOT_DELETED') {
       throw new HttpException(
         'Məhsul silinə bilmədi — bazadan silinmədi, məhsul yerində qaldı.',
@@ -880,6 +1004,141 @@ export class PortalService {
     });
 
     return { success: true, data: { id: productId } };
+  }
+
+  // -------------------------------------------------------------------------
+  // Shelf map writes (wave 1.3)
+  // -------------------------------------------------------------------------
+
+  async createShelfPosition(body: Record<string, any>, principal: AuthenticatedPrincipal) {
+    this.requireShelfEditor(principal);
+
+    const fields = this.readShelfFields(body, { requireAll: true });
+
+    const result = await db.createShelfPosition({
+      section: fields.section!,
+      level: fields.level!,
+      position: fields.position!,
+      productId: fields.product_id ?? undefined,
+    });
+
+    if (result.error === 'DUPLICATE_POSITION') {
+      throw new ConflictException({
+        error: 'SHELF_POSITION_TAKEN',
+        message: `"${fields.section}" bölməsində ${fields.level}. səviyyə / ${fields.position}. mövqe artıq doludur.`,
+      });
+    }
+    if (result.error === 'UNKNOWN_PRODUCT') {
+      throw new HttpException(
+        'Göndərdiyiniz məhsul kataloqda yoxdur — mövqe boş saxlanıldı.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    if (result.error || !result.slot) {
+      throw new HttpException(
+        'Rəf mövqesi yaradıla bilmədi — bazaya yazıla bilmədi, heç nə dəyişmədi.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    db.logAuditEvent({
+      entityType: 'shelf_position',
+      entityId: result.slot.id,
+      action: 'SHELF_POSITION_CREATED',
+      actorId: principal.userId,
+      payload: {
+        section: result.slot.section,
+        level: result.slot.level,
+        position: result.slot.position,
+      },
+    });
+
+    return { success: true, data: this.toPanelShelfPosition(result.slot) };
+  }
+
+  /** Applies an edit. Only the fields present in the body are touched. */
+  async updateShelfPosition(
+    slotId: string,
+    body: Record<string, any>,
+    principal: AuthenticatedPrincipal,
+  ) {
+    this.requireShelfEditor(principal);
+
+    const fields = this.readShelfFields(body, { requireAll: false });
+
+    if (Object.keys(fields).length === 0) {
+      throw new HttpException('Dəyişdiriləcək heç bir sahə göndərilmədi', HttpStatus.BAD_REQUEST);
+    }
+
+    const result = await db.updateShelfPosition(slotId, {
+      section: fields.section,
+      level: fields.level,
+      position: fields.position,
+      productId: fields.product_id,
+    });
+
+    if (result.error === 'NOT_FOUND') {
+      throw new NotFoundException({
+        error: 'SHELF_POSITION_NOT_FOUND',
+        message: 'Bu identifikatorla rəf mövqesi tapılmadı.',
+      });
+    }
+    if (result.error === 'DUPLICATE_POSITION') {
+      throw new ConflictException({
+        error: 'SHELF_POSITION_TAKEN',
+        message: 'Bu (bölmə, səviyyə, mövqe) artıq başqa məhsul tərəfindən tutulub.',
+      });
+    }
+    if (result.error === 'UNKNOWN_PRODUCT') {
+      throw new HttpException(
+        'Göndərdiyiniz məhsul kataloqda yoxdur — əvvəlki məlumatlar qüvvədə qaldı.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    if (result.error || !result.slot) {
+      throw new HttpException(
+        'Dəyişiklik yazıla bilmədi — əvvəlki məlumatlar qüvvədə qaldı.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    db.logAuditEvent({
+      entityType: 'shelf_position',
+      entityId: slotId,
+      action: 'SHELF_POSITION_UPDATED',
+      actorId: principal.userId,
+      payload: { changed: Object.keys(fields) },
+    });
+
+    return { success: true, data: this.toPanelShelfPosition(result.slot) };
+  }
+
+  async deleteShelfPosition(slotId: string, principal: AuthenticatedPrincipal) {
+    this.requireShelfEditor(principal);
+
+    const result = await db.deleteShelfPosition(slotId);
+
+    if (result.reason === 'NOT_FOUND') {
+      throw new NotFoundException({
+        error: 'SHELF_POSITION_NOT_FOUND',
+        message: 'Bu identifikatorla rəf mövqesi tapılmadı.',
+      });
+    }
+    if (result.reason === 'NOT_DELETED') {
+      throw new HttpException(
+        'Rəf mövqesi silinə bilmədi — bazadan silinmədi, mövqe yerində qaldı.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    db.logAuditEvent({
+      entityType: 'shelf_position',
+      entityId: slotId,
+      action: 'SHELF_POSITION_DELETED',
+      actorId: principal.userId,
+    });
+
+    return { success: true, data: { id: slotId } };
   }
 
   getTasks(): PanelTask[] {

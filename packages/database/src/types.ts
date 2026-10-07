@@ -69,6 +69,22 @@ export interface InMemoryProduct {
   updatedAt?: Date;
 }
 
+/**
+ * One slot of the shelf map (wave 1.3): section / level / position, and the
+ * product assigned to it — or nothing, because an unassigned slot is a real
+ * state the panel renders as an empty position rather than a broken row.
+ */
+export interface InMemoryShelfPosition {
+  id: string;
+  section: string;
+  level: number;
+  position: number;
+  /** FK to products.id, ON DELETE RESTRICT — an assigned product cannot vanish. */
+  productId?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 export interface InMemoryStoreTask {
   id: string;
   templateId: string;
