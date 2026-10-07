@@ -90,7 +90,55 @@ export interface PanelShelfPosition {
   position: number;
   /** Assigned product, or null while the slot is empty. */
   product_id: string | null;
+  /**
+   * The latest manual count for this slot (wave 1.4), or null while nobody
+   * has counted it. null and 0 are different answers: null is "nobody said",
+   * 0 is "counted, and the product is absent" — OSA only counts the former
+   * as neither present nor missing.
+   */
+  units: number | null;
+  /** When the count was recorded, ISO-8601; null alongside units. */
+  counted_at: string | null;
   created_at: string;
+}
+
+/** Share-of-shelf of one counted product inside its section (wave 1.4). */
+export interface PanelShelfProductShare {
+  product_id: string;
+  name: string;
+  units: number;
+  /** Percent of this section's counted units, 0–100, one decimal. */
+  share: number;
+}
+
+/** One section's slice of the metrics. */
+export interface PanelShelfSection {
+  section: string;
+  assigned: number;
+  /** Counted assigned slots with units > 0. */
+  present: number;
+  units: number;
+  /** Counted products, sorted by units (then name) — the share list. */
+  products: PanelShelfProductShare[];
+}
+
+/** Manual OSA / share of shelf over the shelf map (wave 1.4). */
+export interface PanelShelfMetrics {
+  assigned_slots: number;
+  /** Assigned slots somebody has counted. OSA's denominator — see `osa`. */
+  counted_slots: number;
+  present_slots: number;
+  /**
+   * present / counted as 0–100, one decimal; null when nothing is counted.
+   *
+   * Deliberately NOT present / assigned: an uncounted slot means "nobody
+   * walked that aisle", and reporting it as a miss would turn the day nobody
+   * counted into 0 % availability.
+   */
+  osa: number | null;
+  total_units: number;
+  /** Sections holding at least one assigned slot, sorted by name. */
+  sections: PanelShelfSection[];
 }
 
 export interface PanelTask {
@@ -289,6 +337,8 @@ export class PortalService {
       level: slot.level,
       position: slot.position,
       product_id: slot.productId ?? null,
+      units: slot.units ?? null,
+      counted_at: slot.countedAt ? iso(slot.countedAt) : null,
       created_at: iso(slot.createdAt),
     };
   }
@@ -399,6 +449,70 @@ export class PortalService {
 
   getShelfPositions(): PanelShelfPosition[] {
     return db.getShelfPositions().map((slot) => this.toPanelShelfPosition(slot));
+  }
+
+  /**
+   * Manual OSA and share of shelf (wave 1.4: "işçi sayır, sistem faizi
+   * hesablayır").
+   *
+   * Pure arithmetic over the map — no model, no photo. The denominator rules
+   * are the whole point and are spelled out on `PanelShelfMetrics`: OSA is
+   * over COUNTED assigned slots (uncounted is not a miss), share of shelf is
+   * per section over that section's counted units (a units-0 product reads
+   * 0 %, a single counted product reads 100 %).
+   */
+  getShelfMetrics(): PanelShelfMetrics {
+    const round1 = (value: number): number => Math.round(value * 10) / 10;
+
+    const slots = db.getShelfPositions();
+    // FK guarantees the product row exists; the map lookup only supplies the
+    // display name (and refuses to invent one if that ever changes).
+    const productNames = new Map(db.getProducts().map((p) => [p.id, p.name]));
+
+    const assigned = slots.filter((slot) => slot.productId);
+    const counted = assigned.filter((slot) => slot.units != null);
+    const present = counted.filter((slot) => (slot.units ?? 0) > 0);
+
+    const bySection = new Map<string, InMemoryShelfPosition[]>();
+    for (const slot of assigned) {
+      const group = bySection.get(slot.section) ?? [];
+      group.push(slot);
+      bySection.set(slot.section, group);
+    }
+
+    const sections: PanelShelfSection[] = [...bySection.entries()]
+      .sort(([a], [b]) => a.localeCompare(b, 'az'))
+      .map(([section, group]) => {
+        const countedGroup = group.filter((slot) => slot.units != null);
+        const units = countedGroup.reduce((sum, slot) => sum + (slot.units ?? 0), 0);
+        return {
+          section,
+          assigned: group.length,
+          present: countedGroup.filter((slot) => (slot.units ?? 0) > 0).length,
+          units,
+          products: countedGroup
+            .map((slot) => {
+              const productId = slot.productId!;
+              const unitsHere = slot.units ?? 0;
+              return {
+                product_id: productId,
+                name: productNames.get(productId) ?? productId,
+                units: unitsHere,
+                share: units > 0 ? round1((unitsHere / units) * 100) : 0,
+              };
+            })
+            .sort((a, b) => b.units - a.units || a.name.localeCompare(b.name, 'az')),
+        };
+      });
+
+    return {
+      assigned_slots: assigned.length,
+      counted_slots: counted.length,
+      present_slots: present.length,
+      osa: counted.length > 0 ? round1((present.length / counted.length) * 100) : null,
+      total_units: counted.reduce((sum, slot) => sum + (slot.units ?? 0), 0),
+      sections,
+    };
   }
 
   // -------------------------------------------------------------------------
@@ -1139,6 +1253,106 @@ export class PortalService {
     });
 
     return { success: true, data: { id: slotId } };
+  }
+
+  /**
+   * Reads the count off a request body — the same strictness as the layout
+   * reader: unknown keys REFUSED rather than ignored, because a body that is
+   * quietly half-applied is how a count ends up disagreeing with the shelf
+   * it claims to describe.
+   *
+   * Bounds: integer 0–999. 0 is a real answer (counted, absent); the cap
+   * exists because "4000 units on one slot" is a units/typo confusion, not a
+   * measurement, and a garbage number poisons every share it feeds.
+   */
+  private readCountUnits(body: Record<string, any>): number {
+    const allowed = new Set(['units']);
+    for (const key of Object.keys(body ?? {})) {
+      if (!allowed.has(key)) {
+        throw new HttpException(`Bilmədiyimiz sahə: "${key}"`, HttpStatus.BAD_REQUEST);
+      }
+    }
+
+    const raw = body?.units;
+    if (raw === undefined || raw === null) {
+      throw new HttpException('Sayım tələb olunur', HttpStatus.BAD_REQUEST);
+    }
+
+    const parsed =
+      typeof raw === 'number'
+        ? raw
+        : typeof raw === 'string' && /^\d+$/.test(raw.trim())
+          ? Number(raw.trim())
+          : Number.NaN;
+
+    if (!Number.isInteger(parsed) || parsed < 0 || parsed > 999) {
+      throw new HttpException(
+        'Sayım 0 ilə 999 arasında tam ədəd olmalıdır',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    return parsed;
+  }
+
+  /**
+   * Records a worker's count for one slot (wave 1.4).
+   *
+   * Deliberately OUTSIDE `requireShelfEditor`: counting is the worker action
+   * itself — a merchandiser who may not move the map must still be able to
+   * say how many units they see (shelf-count pins that split; shelf-crud
+   * pins the 403 on the layout side).
+   *
+   * The assignment check comes before the write, so counting an empty slot
+   * changes nothing — there is no product there to be present or missing.
+   */
+  async recordShelfCount(
+    slotId: string,
+    body: Record<string, any>,
+    principal: AuthenticatedPrincipal,
+  ) {
+    const units = this.readCountUnits(body);
+
+    const slot = db.getShelfPosition(slotId);
+    if (!slot) {
+      throw new NotFoundException({
+        error: 'SHELF_POSITION_NOT_FOUND',
+        message: 'Bu identifikatorla rəf mövqesi tapılmadı.',
+      });
+    }
+    if (!slot.productId) {
+      throw new HttpException(
+        {
+          error: 'SLOT_NOT_ASSIGNED',
+          message: 'Bu mövqeyə məhsul təyin olunmayıb — sayım mənasızdır.',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const result = await db.recordShelfCount(slotId, units);
+    if (result.error === 'NOT_FOUND') {
+      throw new NotFoundException({
+        error: 'SHELF_POSITION_NOT_FOUND',
+        message: 'Bu identifikatorla rəf mövqesi tapılmadı.',
+      });
+    }
+    if (result.error === 'NOT_STORED' || !result.slot) {
+      throw new HttpException(
+        'Sayım yaza bilmədi — bazaya yazılmadı, köhnə sayımda qaldı.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    db.logAuditEvent({
+      entityType: 'shelf_position',
+      entityId: slotId,
+      action: 'SHELF_COUNT_RECORDED',
+      actorId: principal.userId,
+      payload: { units },
+    });
+
+    return { success: true, data: this.toPanelShelfPosition(result.slot) };
   }
 
   getTasks(): PanelTask[] {

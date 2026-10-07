@@ -81,6 +81,15 @@ export interface InMemoryShelfPosition {
   position: number;
   /** FK to products.id, ON DELETE RESTRICT — an assigned product cannot vanish. */
   productId?: string;
+  /**
+   * The latest manual count for this slot (wave 1.4) — current state, not a
+   * history. null (or undefined) = nobody has counted it, which is NOT the
+   * same as 0 (counted, and the product is absent): OSA treats those two as
+   * different answers, so the distinction is load-bearing.
+   */
+  units?: number | null;
+  /** When `units` was last recorded; null alongside it. */
+  countedAt?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
 }

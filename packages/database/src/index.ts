@@ -1207,6 +1207,48 @@ export class EnterpriseDatabase {
   }
 
   /** Deletes a shelf slot. Idempotent callers see NOT_FOUND, not a crash. */
+  /**
+   * Records the latest manual count for a shelf slot (wave 1.4).
+   *
+   * Current state only: the next count overwrites this one. `ponytail:` the
+   * upgrade path is a per-visit history table once the vision model has to be
+   * graded against a specific walk. Layout columns are untouched — counting
+   * is not an edit — and both copies (memory + PostgreSQL) are rolled back
+   * together when the write fails, so a count the caller was told succeeded
+   * cannot vanish on restart.
+   */
+  public async recordShelfCount(
+    slotId: string,
+    units: number,
+  ): Promise<{ slot?: InMemoryShelfPosition; error?: 'NOT_FOUND' | 'NOT_STORED' }> {
+    const slot = this.getShelfPosition(slotId);
+    if (!slot) return { error: 'NOT_FOUND' };
+
+    const before = { units: slot.units, countedAt: slot.countedAt };
+    const now = new Date();
+    slot.units = units;
+    slot.countedAt = now;
+
+    if (this.pool) {
+      try {
+        await this.enqueue(
+          (pool) => pg.countShelfPositionRow(pool, slotId, units, now),
+          `shelf slot count ${slotId}`,
+        );
+      } catch (error) {
+        slot.units = before.units;
+        slot.countedAt = before.countedAt;
+        console.error(
+          `⛔ [oneTeam DB] Could not store count for shelf slot ${slotId}:`,
+          describeError(error),
+        );
+        return { error: 'NOT_STORED' };
+      }
+    }
+
+    return { slot };
+  }
+
   public async deleteShelfPosition(slotId: string): Promise<{
     deleted: boolean;
     reason?: 'NOT_FOUND' | 'NOT_DELETED';

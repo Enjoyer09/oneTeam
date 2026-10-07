@@ -141,6 +141,23 @@ export class PortalController {
     return this.portalService.deleteShelfPosition(id, getPrincipal(request));
   }
 
+  // Manual OSA / share of shelf (wave 1.4) — same controller, same credential
+  // as the map it counts over.
+  @Post('shelf-positions/:id/count')
+  @HttpCode(HttpStatus.OK)
+  async countShelfPosition(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Request() request: AuthedRequest,
+  ) {
+    return this.portalService.recordShelfCount(id, body, getPrincipal(request));
+  }
+
+  @Get('shelf-metrics')
+  getShelfMetrics() {
+    return { success: true, data: this.portalService.getShelfMetrics() };
+  }
+
   @Get('tasks')
   getTasks() {
     const data = this.portalService.getTasks();

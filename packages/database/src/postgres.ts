@@ -284,6 +284,11 @@ export async function loadAll(pool: Pool): Promise<HydratedState> {
       level: r.level,
       position: r.position,
       productId: r.product_id ?? undefined,
+      // SELECT * carries the wave 1.4 columns; a mapping that dropped them
+      // would show every slot as "not counted" after a restart — the exact
+      // half-written-column failure this file has been burned by before.
+      units: r.units ?? null,
+      countedAt: r.counted_at ? asRequiredDate(r.counted_at) : null,
       createdAt: asRequiredDate(r.created_at),
       updatedAt: asRequiredDate(r.updated_at),
     })),
@@ -809,6 +814,27 @@ export async function updateShelfPositionRow(
       slot.updatedAt ?? new Date(),
       slot.id,
     ],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/**
+ * Writes the latest manual count (wave 1.4).
+ *
+ * The layout columns are deliberately NOT in the SET list: recording a count
+ * must never be able to move a slot or rewrite when it was created.
+ */
+export async function countShelfPositionRow(
+  pool: Pool,
+  slotId: string,
+  units: number,
+  countedAt: Date,
+): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE shelf_positions
+        SET units = $2, counted_at = $3
+      WHERE id = $1`,
+    [slotId, units, countedAt],
   );
   return (result.rowCount ?? 0) > 0;
 }
