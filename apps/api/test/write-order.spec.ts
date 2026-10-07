@@ -111,6 +111,10 @@ async function main(): Promise<void> {
   // Clean up whatever landed, then close.
   try {
     await db.clearBotSession(chatId);
+    // The bound user is this suite's row — without the delete every run left
+    // one `usr-tg-wo-*` behind for good.
+    const removed = await db.deleteUser(`usr-tg-${chatId}`);
+    check('cleanup removed the bound user', removed.deleted, removed);
   } finally {
     await db.close();
   }
