@@ -40,6 +40,7 @@ const SUITES = [
   'test:device-block',
   'test:replica',
   'test:refresh',
+  'test:write-order',
   'test:flow',
   'test:notify',
   'test:router',

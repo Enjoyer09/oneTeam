@@ -1306,11 +1306,23 @@ export class EnterpriseDatabase {
     pendingPhoto?: Record<string, unknown> | null;
   }): Promise<pg.BotSessionRow | null> {
     if (!this.pool) return null;
-    return pg.upsertBotSession(
-      this.pool,
-      { ...session, chatId: String(session.chatId) },
-      this.botSessionTtlSeconds,
+    // Queued, not direct: `user_id` references a user whose INSERT may still
+    // be sitting in this very queue — `bindTelegramUser()` runs on the message
+    // before the flow is saved, and a direct upsert outran it into
+    // `bot_sessions_user_id_fkey` (FLOW_NOT_STORED on a person's first
+    // exchange). This is the queue's own rule — a write that can only succeed
+    // once another write has landed goes through here — and `enqueue` hands
+    // back the row the caller reads.
+    const row = await this.enqueue(
+      (pool) =>
+        pg.upsertBotSession(
+          pool,
+          { ...session, chatId: String(session.chatId) },
+          this.botSessionTtlSeconds,
+        ),
+      `bot session ${String(session.chatId)}`,
     );
+    return (row ?? null) as pg.BotSessionRow | null;
   }
 
   /** Forgets a chat. Called when the flow finishes or the person starts over. */
