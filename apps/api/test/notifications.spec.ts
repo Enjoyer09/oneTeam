@@ -729,6 +729,9 @@ async function main(): Promise<void> {
     );
 
     drain.stop();
+    // An in-flight pass can still be mid-claim; without this barrier it takes
+    // the refusal row the section below just inserted.
+    await drain.idle();
 
     // -----------------------------------------------------------------------
     console.log('\na chat Telegram refuses');

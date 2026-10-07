@@ -835,10 +835,19 @@ async function main(): Promise<void> {
     );
 
     // The claim happened on the way in, which is what makes the task assignable.
-    const claimed = await db.query('SELECT assigned_user_id FROM store_tasks WHERE id = $1', [
-      taskId,
-    ]);
-    const assignedTo = claimed.rows[0]?.assigned_user_id;
+    // `assignStoreTask` mutates memory and persists through the database's
+    // fire-and-forget queue, so the row lands a tick after the API has already
+    // replied with `claimedTaskIds` — one direct SELECT raced that queue and
+    // read `null`. Wait for the durable value instead of assuming it is
+    // already there; a claim that never lands still fails, with what it is.
+    let assignedTo: string | null | undefined;
+    for (let i = 0; i < 50 && typeof assignedTo !== 'string'; i += 1) {
+      const claimed = await db.query('SELECT assigned_user_id FROM store_tasks WHERE id = $1', [
+        taskId,
+      ]);
+      assignedTo = claimed.rows[0]?.assigned_user_id;
+      if (typeof assignedTo !== 'string') await sleep(100);
+    }
     check('and the store code claimed the open task', typeof assignedTo === 'string', assignedTo);
     if (typeof assignedTo === 'string') userId = assignedTo;
 
@@ -1381,5 +1390,11 @@ main()
   })
   .catch((error) => {
     console.error('\nThe suite could not finish:', error);
+    // The API's own output is buffered in `apiLog` and only ever printed on
+    // success paths — a FLOW_NOT_STORED came with `⛔ [FLOW] ...` on the server
+    // side and the tail was thrown away with the process, leaving only the
+    // client's 503 to guess from.
+    const tail = apiLog.join('').slice(-4000);
+    if (tail.trim()) console.error('\n--- api log (tail) ---\n' + tail);
     process.exit(1);
   });

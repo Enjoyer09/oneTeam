@@ -159,6 +159,21 @@ export class NotificationDrain {
   }
 
   /**
+   * Resolves once no pass is in flight.
+   *
+   * `stop()` cancels future ticks but a pass already running keeps its lease
+   * and keeps delivering: a test that stops the loop, inserts a row and drives
+   * `drainOnce()` by hand can have that row claimed out from under it by the
+   * dying pass. Awaiting this after `stop()` is what makes "the loop is off"
+   * mean "nobody is still working".
+   */
+  async idle(): Promise<void> {
+    while (this.running) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+  }
+
+  /**
    * One pass over the outbox.
    *
    * Public so it can be driven directly, which is how the tests exercise the
