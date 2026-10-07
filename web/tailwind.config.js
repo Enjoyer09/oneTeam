@@ -103,7 +103,8 @@ export default {
           to: { opacity: '1', transform: 'none' },
         },
         toastIn: {
-          from: { opacity: '0', transform: 'translateY(-10px) scale(.97)' },
+          /* Alt-gündən toast yuxarıdan deyil, aşağıdan qalxır (§10.14 hədəfi). */
+          from: { opacity: '0', transform: 'translateY(10px) scale(.97)' },
           to: { opacity: '1', transform: 'none' },
         },
       },

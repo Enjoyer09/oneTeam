@@ -521,7 +521,7 @@ export function App() {
         <div
           role="status"
           aria-live="polite"
-          className="glass-pop fixed top-4 right-4 z-[60] flex items-center gap-2.5
+          className="glass-pop fixed bottom-4 right-4 z-[60] flex items-center gap-2.5
                      max-w-[calc(100vw-2rem)] rounded-[14px] px-4 py-3
                      text-[12px] font-bold text-ink animate-toastIn"
         >
