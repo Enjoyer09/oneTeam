@@ -7,22 +7,33 @@ import {
   Camera,
   ArrowUpRight,
   Inbox,
+  AlertTriangle,
 } from 'lucide-react';
 import { DashboardMetrics, Submission } from '../types';
+import { LoadPhase } from '../lib/loadPhase';
 
 interface DashboardOverviewProps {
+  phase: LoadPhase;
   metrics: DashboardMetrics;
   recentSubmissions: Submission[];
+  onRetry: () => void;
   onOpenSubmissionReview: (submission: Submission) => void;
   onNavigateTab: (tab: any, filter?: any) => void;
 }
 
 export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
+  phase,
   metrics,
   recentSubmissions,
+  onRetry,
   onOpenSubmissionReview,
   onNavigateTab,
 }) => {
+  // İlk paint heç vaxt sıfır KPI + "%100 uyğunluq" göstərməməlidir — bu,
+  // yüklənənə qədər YALAN rəqəmdir. Yüklənmə → skelet, uğursuzluq → xəta.
+  if (phase === 'loading') return <DashboardSkeleton />;
+  if (phase === 'error') return <DashboardLoadError onRetry={onRetry} />;
+
   const kpiCards = [
     {
       title: 'Tərəfdaş Mağazalar',
@@ -331,3 +342,47 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     </div>
   );
 };
+
+/** KPI kartlarının geometriyasını köçürən skelet — formularda sıfır yoxdur. */
+function DashboardSkeleton() {
+  return (
+    <div className="flex flex-col gap-4 sm:gap-5" aria-busy="true">
+      <span role="status" className="sr-only">
+        Göstəricilər yüklənir…
+      </span>
+      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-3.5">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="glass-card animate-pulse rounded-card p-3.5 lg:p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="h-3 w-24 rounded-md bg-muted/25" />
+              <div className="h-[30px] w-[30px] rounded-[9px] bg-muted/20" />
+            </div>
+            <div className="mt-3 h-7 w-16 rounded-md bg-muted/30" />
+            <div className="mt-2 h-3 w-32 rounded-md bg-muted/20" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Yükləmə uğursuzsa: susmaq yox, söz + yenidən cəhd düyməsi. */
+function DashboardLoadError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div
+      role="alert"
+      className="glass-card flex flex-col items-center gap-3 rounded-card p-8 text-center"
+    >
+      <AlertTriangle className="h-6 w-6 text-[var(--warn)]" strokeWidth={2} />
+      <p className="text-sm font-extrabold text-ink">Məlumat yüklənə bilmədi</p>
+      <p className="text-[13px] text-muted">Bağlantını yoxlayın və yenidən cəhd edin.</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="btn-coke mt-1 whitespace-nowrap rounded-xl px-3.5 py-2.5 text-xs font-extrabold text-white transition-all"
+      >
+        Yenidən yoxla
+      </button>
+    </div>
+  );
+}

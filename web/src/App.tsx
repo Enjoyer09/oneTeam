@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useReducer } from 'react';
 import { Sidebar, TabType } from './components/Sidebar';
 import { Header } from './components/Header';
 import { DashboardOverview } from './components/DashboardOverview';
@@ -19,6 +19,7 @@ import {
   type PanelIdentity,
 } from './lib/panelAuth';
 import { Store, Task, Submission, DashboardMetrics, TaskPriority } from './types';
+import { loadPhaseReducer } from './lib/loadPhase';
 
 /**
  * The two questions the shell has to answer before it can render anything:
@@ -51,6 +52,9 @@ export function App() {
     pendingReviews: 0,
     complianceRate: 100,
   });
+  // Sıfırlar və `complianceRate: 100` yalnız dolu deyil, həm də YALANŞI ilk
+  // paintdir — skelet, məlumat və xəta paneli bu phase-dan asılıdır.
+  const [phase, dispatchPhase] = useReducer(loadPhaseReducer, 'loading');
   const [stores, setStores] = useState<Store[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -158,6 +162,7 @@ export function App() {
       setStores(s);
       setTasks(t);
       setSubmissions(subs);
+      dispatchPhase({ type: 'loaded' });
     } catch (error) {
       // A rejected credential is not a data problem and must not be reported as
       // one — the remedy is to sign in, not to retry. Everything else falls
@@ -174,6 +179,7 @@ export function App() {
       const message = error instanceof Error ? error.message : String(error);
       console.error('⛔ [oneTeam Portal] Məlumat yüklənə bilmədi:', message);
       showToast(`Məlumat yüklənə bilmədi — ${message}`);
+      dispatchPhase({ type: 'failed' });
     }
   };
 
@@ -185,6 +191,21 @@ export function App() {
   // opens would fire requests that are certain to be refused.
   useEffect(() => {
     if (auth.phase === 'ready') void loadData();
+  }, [auth.phase]);
+
+  // Gün ərzində açıq qalan portal boot-anın rəqəmlərini göstərməməlidir —
+  // tab-a qayıdanda (və başqa supervisor işləyəndə) rəqəmlər yenilənir.
+  useEffect(() => {
+    if (auth.phase !== 'ready') return;
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void loadData();
+    };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
   }, [auth.phase]);
 
   /**
@@ -569,8 +590,13 @@ export function App() {
             <div key={activeTab} className="view-g">
               {activeTab === 'dashboard' && (
                 <DashboardOverview
+                  phase={phase}
                   metrics={metrics}
                   recentSubmissions={submissions.slice(0, 6)}
+                  onRetry={() => {
+                    dispatchPhase({ type: 'retry' });
+                    void loadData();
+                  }}
                   onOpenSubmissionReview={openSubmissionFromDashboard}
                   onNavigateTab={(tab, filter) => {
                     if (tab === 'review') {
