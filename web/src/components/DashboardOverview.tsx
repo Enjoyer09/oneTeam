@@ -141,7 +141,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               />
 
               <div className="relative flex items-start justify-between gap-2">
-                <span className="text-[10px] lg:text-[10.5px] font-extrabold uppercase tracking-[.05em] text-muted leading-tight">
+                <span className="text-xs font-extrabold uppercase tracking-[.05em] text-muted leading-tight">
                   {kpi.title}
                 </span>
                 <span
@@ -156,7 +156,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 <div className="text-[26px] lg:text-[30px] font-extrabold leading-none tracking-[-.045em] text-ink tabular-nums">
                   {kpi.value}
                 </div>
-                <p className="mt-1 text-[10.5px] text-muted leading-snug">{kpi.subtitle}</p>
+                <p className="mt-1 text-[11px] text-muted leading-snug">{kpi.subtitle}</p>
               </div>
             </div>
           );
@@ -286,7 +286,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                             {sub.task?.title || 'Rəf Auditi'}
                           </p>
                         </div>
-                        <span className="mt-0.5 block text-[10px] capitalize text-muted">
+                        <span className="mt-0.5 block text-[11px] capitalize text-muted">
                           {sub.task?.priority} prioritet
                         </span>
                       </td>
@@ -295,7 +295,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                         <b className="block text-[12px] font-bold tracking-[-.01em] text-ink">
                           {sub.store?.name || 'Mağaza'}
                         </b>
-                        <span className="mt-0.5 block font-mono text-[10px] text-muted">
+                        <span className="mt-0.5 block font-mono text-[11px] text-muted">
                           {sub.store?.store_code}
                         </span>
                       </td>

@@ -589,7 +589,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
                       onChange={(e) => set('store_code', e.target.value.toUpperCase())}
                       className={`${inputClass} font-mono`}
                     />
-                    <p className="mt-1 text-[10.5px] text-muted">
+                    <p className="mt-1 text-[11px] text-muted">
                       Boşluq olmaz; böyük hərflərlə yazılır.
                     </p>
                   </div>
@@ -704,7 +704,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
                   {geoStatus && (
                     <p
                       role={geoStatus.kind === 'error' ? 'alert' : 'status'}
-                      className="min-w-0 flex-1 text-[10.5px] leading-relaxed"
+                      className="min-w-0 flex-1 text-[11px] leading-relaxed"
                       style={{
                         color: geoStatus.kind === 'error' ? 'var(--bad)' : 'var(--ok)',
                       }}
@@ -714,7 +714,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
                   )}
                 </div>
 
-                <p className="rounded-lg border border-hair bg-[var(--g-panel)] px-3 py-2 text-[10.5px] text-muted">
+                <p className="rounded-lg border border-hair bg-[var(--g-panel)] px-3 py-2 text-[11px] text-muted">
                   Koordinatı Google Maps-də mağazanın üzərinə sağ klikləyib kopyalayın. Səhv onluq
                   nöqtə geofence-i söndürür və həmin mağazadan heç bir foto qəbul olunmaz.
                 </p>

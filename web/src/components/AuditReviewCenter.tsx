@@ -315,7 +315,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                       <StoreIcon className="w-3.5 h-3.5 text-muted" />
                       {sub.store?.name || 'Mağaza'}
                     </p>
-                    <p className="text-[10px] text-muted font-mono mt-0.5">
+                    <p className="text-[11px] text-muted font-mono mt-0.5">
                       {sub.store?.store_code} • {dateStr}
                     </p>
 
@@ -458,7 +458,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                         <span className="text-base leading-none">
                           {selectedSubmission.ai_score}%
                         </span>
-                        <span className="text-[9px] uppercase tracking-wider opacity-90">
+                        <span className="text-[10px] uppercase tracking-wider opacity-90">
                           AI BAL
                         </span>
                       </div>
@@ -550,7 +550,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                         <div className="flex items-center gap-1 bg-[var(--g-panel)] p-0.5 rounded-lg border border-hair">
                           <button
                             onClick={() => setActivePhotoView('before')}
-                            className={`px-2 py-1 rounded text-[10px] font-extrabold transition-all cursor-pointer ${
+                            className={`px-2 py-1 rounded text-[11px] font-extrabold transition-all cursor-pointer ${
                               activePhotoView === 'before'
                                 ? 'bg-slate-900 text-white'
                                 : 'text-ink-2 hover:text-ink'
@@ -560,7 +560,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                           </button>
                           <button
                             onClick={() => setActivePhotoView('after')}
-                            className={`px-2 py-1 rounded text-[10px] font-extrabold transition-all cursor-pointer ${
+                            className={`px-2 py-1 rounded text-[11px] font-extrabold transition-all cursor-pointer ${
                               activePhotoView === 'after'
                                 ? 'bg-coke-600 text-white'
                                 : 'text-ink-2 hover:text-ink'
@@ -651,7 +651,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                   {/* Detected Products Color Legend */}
                   {selectedSubmission.ai_detections &&
                     selectedSubmission.ai_detections.length > 0 && (
-                      <div className="mt-2.5 pt-2 border-t border-hair-2 flex items-center justify-between flex-wrap gap-2 text-[10px] text-ink-2">
+                      <div className="mt-2.5 pt-2 border-t border-hair-2 flex items-center justify-between flex-wrap gap-2 text-[11px] text-ink-2">
                         <span className="font-bold text-ink-2">Aşkarlanan SKU-lar:</span>
                         <div className="flex items-center gap-2.5 flex-wrap">
                           <span className="flex items-center gap-1">
@@ -679,7 +679,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                       <span className="font-bold text-ink">Göndərən:</span>{' '}
                       {selectedSubmission.submitter_name || 'Sahə Merchandiser-i'}
                     </div>
-                    <div className="font-mono text-muted text-[10px]">
+                    <div className="font-mono text-muted text-[11px]">
                       Telegram ID: {selectedSubmission.metadata?.telegram_user_id || 'N/A'}
                     </div>
                   </div>
@@ -708,7 +708,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                           key={idx}
                           className="p-2.5 bg-[var(--g-card)] rounded-lg border border-blue-100"
                         >
-                          <span className="block text-[10px] text-muted font-medium truncate mb-1">
+                          <span className="block text-[11px] text-muted font-medium truncate mb-1">
                             {ans.question || ans.questionId}
                           </span>
                           <span className="text-xs font-extrabold text-ink flex items-center gap-1">

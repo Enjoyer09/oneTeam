@@ -159,7 +159,7 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="block max-w-[190px] truncate text-[11.5px] font-bold text-ink">
               {identity?.fullName ?? 'Kimlik bilinmir'}
             </span>
-            <span className="block text-[10px] text-muted">
+            <span className="block text-[11px] text-muted">
               {signedIn
                 ? (ROLE_LABEL[identity?.role ?? ''] ?? identity?.role ?? '')
                 : 'Açıq panel — giriş yoxdur'}

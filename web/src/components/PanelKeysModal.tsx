@@ -280,7 +280,7 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
                         </span>
                       )}
                       {row.label && (
-                        <span className="block text-[10.5px] text-muted">{row.label}</span>
+                        <span className="block text-[11px] text-muted">{row.label}</span>
                       )}
                     </td>
                     <td className="py-2 pr-3 font-mono text-muted">{row.hashPrefix}…</td>
@@ -337,7 +337,7 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
         )}
 
         {revokedKeys.length > 0 && (
-          <p className="mt-3 text-[10.5px] text-muted">
+          <p className="mt-3 text-[11px] text-muted">
             Ləğv edilmiş açarlar: {revokedKeys.length}. Onlar işləmir, amma qeyd kimi saxlanılır.
           </p>
         )}
