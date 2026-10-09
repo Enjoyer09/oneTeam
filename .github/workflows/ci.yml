@@ -432,8 +432,10 @@ jobs:
       TELEGRAM_WEBHOOK_SECRET: "ci-not-a-real-webhook-secret"
       CORS_ALLOWED_ORIGINS: "http://localhost,http://localhost:5173"
       # Some suites route through localhost; keep any runner proxy out of the way.
+      # Only one spell — GitHub Actions treats `NO_PROXY` and `no_proxy` as the
+      # same key (case-insensitive) and a duplicate is a workflow syntax error
+      # that kills the whole run before any job starts.
       NO_PROXY: "localhost,127.0.0.1"
-      no_proxy: "localhost,127.0.0.1"
 
     steps:
       - name: Checkout
