@@ -194,6 +194,20 @@
 
 #
 
+# Docs: the operator deploy guide `docs/DEPLOY-TEST-AZ.md` was corrected
+
+# 2026-10-10 — it still told the operator the panel reads Supabase, that data
+
+# lives in memory, and to set TELEGRAM_BOT_TOKEN on the API. All three have been
+
+# false for a while. `docs/deploy-test-az.html` is the same document as a
+
+# 14 Sep snapshot and is NOT regenerated (nothing generates it); it now carries
+
+# a stale banner. Decide whether that file should exist at all.
+
+#
+
 # Recent commits worth reading in full, in this order:
 
 #

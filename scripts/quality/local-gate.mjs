@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * oneTeam — local CI gate (the replacement for GitHub Actions)
+ * oneTeam — local CI gate (the same checks ci.yml runs, before the push)
  * ============================================================================
  *
  * WHY THIS EXISTS

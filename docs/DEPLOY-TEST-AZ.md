@@ -9,9 +9,9 @@
 ## ✅ CANLI VƏZİYYƏT — deploy artıq edilib
 
 Bu təlimatı **əllə izləmək lazım deyil.** Deploy tamamlandı və hazırda işləyir.
-Son yoxlama: **14 sentyabr 2026** — üç servis də eyni kod versiyasında
-(`b0beeba`), `/api/health` sxemi **tamam** göstərir (101 sütun, 5 miqrasiya
-tətbiq olunub), kənar giriş isə rədd olunur.
+Son yoxlama: **10 oktyabr 2026** — dörd servis (API, panel, bot, vizyon işçisi)
+işləyir, `/api/health` sxemi **tamam** göstərir (151 sütun, 15 miqrasiya tətbiq
+olunub), kənar giriş isə rədd olunur.
 
 ### İşləyən ünvanlar
 
@@ -138,18 +138,20 @@ Səbəblər:
 
 ## 2. Başlamazdan əvvəl bilməli olduğunuz 3 şey
 
-### 2.1. Kod hələ GitHub-da deyil
+### 2.1. Kod artıq GitHub-da və deploy olunub
 
-Railway kodu GitHub-dan oxuyur. Layihə hələ GitHub-da olmadığı üçün **Addım 0** məcburidir.
+Layihə **`Enjoyer09/oneTeam`** (private) reposundadır və dörd servis Railway-də artıq
+işləyir. Ona görə **Addım 0 lazım deyil** — §3 sıfırdan qurma təlimatıdır və yalnız
+sistemi yenidən qurmaq lazım olsa lazımdır. Sadəcə işlək panelə baxmaq üçün Addım 7-yə keçin.
 
-### 2.2. Veb panel hazırda **demo məlumat** göstərir
+### 2.2. Veb panel məlumatı **API-dən** oxuyur
 
-Veb panel məlumatı birbaşa **Supabase** adlı xarici xidmətdən oxuyur — API-dən yox.
-Supabase qurulmayıbsa, panel açılır və işləyir, lakin gördüyünüz bütün mağazalar,
-tapşırıqlar və yoxlamalar **uydurma nümunə məlumatdır**.
+Panel heç bir xarici xidmətdən oxumur. Öz mənbəyindəki `/api/` ünvanına müraciət edir,
+nginx isə sorğunu Core API-yə ötürür. Supabase tamamilə silinib — nə kod, nə
+konfiqurasiya onu oxuyur (ətraflı: `.env.production.example` §3).
 
-Bu test deploy üçün normaldır: məqsəd "proqram onlayn işləyir" olduğunu görməkdir.
-Real məlumat istəyirsinizsə, bu **Bölmə 6**-da əlavə addımdır.
+Panel **boş** görünürsə, səbəb "demo məlumat" deyil — bazada hələ məlumat yoxdur.
+Məlumat bot və ya API vasitəsilə yaranır (Addım 6) və dərhal panelə düşür.
 
 ### 2.3. Şifrələr dəyişdirilməlidir
 
@@ -157,27 +159,30 @@ Köhnə `docker-compose.prod.yml` faylında **sabit, hamıya məlum** bir baza �
 (`coca_cola_secret_2026`). Bu artıq düzəldildi: indi şifrə verilməzsə sistem **ümumiyyətlə
 işə düşmür**. Aşağıdakı addımlarda öz şifrənizi yaradacaqsınız.
 
-### 2.4. Hazırda məlumat bazada saxlanmır — yaddaşda saxlanır
+### 2.4. Məlumat **Postgres bazasında** saxlanır
 
-Bunu bilməyiniz vacibdir, çünki pul ödədiyiniz şeyə təsir edir.
+Əvvəl API hər şeyi yaddaşda saxlayırdı: tapşırıqlar, sübutlar və audit qeydləri heç bir
+yerdə saxlanmırdı və hər yenidən başlatmada **itirdi**. Bu **artıq düzəldilib**.
 
-Hazırda API və bot bütün məlumatı **yaddaşda** saxlayır. Nəticələr:
+İndi:
 
-- Servis yenidən başladıqda (deploy, restart, nasazlıq) **bütün məlumat silinir**.
-- Postgres bazası qoşulub işləyir, lakin **heç bir proqram kodu ona qoşulmur**.
-- Yeganə real baza yolu **Supabase**-dir — veb panel birbaşa oradan oxuyur.
+- API işə düşəndə məlumatı **bazadan** oxuyur və hər dəyişikliyi (tapşırıq, status,
+  sübut, audit) bazaya **yazır**;
+- servis restart olsa belə heç nə itmir;
+- `/api/health` cavabındaki `persistence` sahəsi hansı rejimdə işlədiyini göstərir —
+  canlı sistemdə dəyər **`postgres`**-dir.
 
-Yəni test deploy üçün bu normaldır, lakin real istifadəyə keçməzdən əvvəl API-nin bazaya
-qoşulması ayrı bir işdir (Bölmə 6).
-
-> **Nəticə:** «hər şey bir yerdə» API, bot və veb panel üçün doğrudur. Məlumatın özü isə
-> hələlik yaddaşdadır və ya Supabase-dədir.
+> **Nəticə:** «hər şey bir yerdə» API, bot, panel və baza üçün doğrudur. Məlumat
+> Postgres-də saxlanılır və restart-dan sonra yerində qalır.
 
 ---
 
 ## 3. Addım-addım deploy
 
-### Addım 0 — Kodu GitHub-a yerləşdirin
+> **Qeyd:** dörd servis artıq qurulub və işləyir. Bu bölmə sistemi **sıfırdan** qurmaq
+> üçündür — mövcud sistemi izləmək üçün §5-ə, dəyişiklik göndərmək üçün §1-ə baxın.
+
+### Addım 0 — Kodu GitHub-a yerləşdirin (artıq edilib)
 
 Layihə qovluğu artıq git üçün hazırdır (ilk commit edilib). İndi onu GitHub-a göndərmək lazımdır.
 
@@ -261,17 +266,16 @@ ona adı ilə istinad edəcəyik.
   NODE_ENV=production
   PORT=3001
   DATABASE_URL=${{Postgres.DATABASE_URL}}
-  TELEGRAM_BOT_TOKEN=<BotFather-dan aldığınız token>
   TELEGRAM_WEBHOOK_SECRET=<Bölmə 3.1-də yaratdığınız gizli açar>
   CORS_ALLOWED_ORIGINS=https://<veb-panel-ünvanı>
-  SUPABASE_URL=https://mock-oneteam.supabase.co
-  SUPABASE_ANON_KEY=mock-anon-key
-  SUPABASE_SERVICE_ROLE_KEY=mock-service-role-key
   ```
 
   - `${{Postgres.DATABASE_URL}}` hissəsini **olduğu kimi** saxlayın. Railway bunu
     avtomatik olaraq bazanın ünvanı ilə əvəz edir.
   - `CORS_ALLOWED_ORIGINS` — bunu Addım 5-i bitirdikdən **sonra** doldurun.
+  - `TELEGRAM_BOT_TOKEN` burada **yazılmır**: onu yalnız bot servisi oxuyur (Addım 6).
+    API-yə ehtiyac yoxdur — ona webhook-u təsdiqləmək üçün `TELEGRAM_WEBHOOK_SECRET` bəsdir.
+  - `SUPABASE_*` dəyişənləri **silinib** — onları heç bir kod oxumur.
 
 **c) Ünvan yaratmaq**
 
@@ -291,19 +295,18 @@ Bu ünvanı kopyalayın — Telegram botu bura müraciət edəcək. Belə görü
 3. **Settings → Build → Dockerfile Path** sahəsinə yazın:
 
    ```
-   web/Dockerfile
+   apps/web/Dockerfile
    ```
 
 4. **Variables** tabına keçin. Bu dəyişənlər **build vaxtı** istifadə olunur
    (Vite onları fayllara "yazır"), ona görə düzgün adla yazılmalıdır:
 
    ```
-   VITE_SUPABASE_URL=https://mock-oneteam.supabase.co
-   VITE_SUPABASE_ANON_KEY=mock-anon-key
+   VITE_API_BASE_URL=
    ```
 
-   > Supabase qurmasanız da bu iki sətri yazın. Boş qalsa panel yenə açılır,
-   > sadəcə demo məlumatla.
+   > Bu dəyər **boş qalmalıdır**. Boş olanda panel öz mənbəyinə (`/api/`) müraciət edir,
+   > nginx isə onu API-yə ötürür — nə yenidən build, nə də bundle-da kredensial lazım olur.
 
 5. **Settings → Networking → Generate Domain**. Port soruşsa: **80**
 
@@ -339,9 +342,8 @@ Bu ünvanı kopyalayın — Telegram botu bura müraciət edəcək. Belə görü
    NODE_ENV=production
    TELEGRAM_BOT_TOKEN=<BotFather-dan aldığınız token>
    DATABASE_URL=${{Postgres.DATABASE_URL}}
-   API_BASE_URL=http://api.railway.internal:3001
-   SUPABASE_URL=https://mock-oneteam.supabase.co
-   SUPABASE_ANON_KEY=mock-anon-key
+   ONETEAM_API_URL=http://api.railway.internal:3001
+   ONETEAM_API_TOKEN=oneteam-user:usr-admin-001
    ```
 
    - `http://api.railway.internal:3001` — bu, Railway-in daxili şəbəkə ünvanıdır.
@@ -482,7 +484,7 @@ Yekun gözlənti: **aylıq təxminən $5–15**. Dəqiq rəqəmi Railway panelin
 | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Servis qırmızı, logda `EUNSUPPORTEDPROTOCOL`          | `package.json` faylındaki `workspace:*` düzəldilməyib. Bu, artıq düzəldilib — köhnə commit deploy olunursa yaranır. Yenidən push edin.               |
 | Servis qırmızı, logda `POSTGRES_PASSWORD is required` | Dəyişənlər yazılmayıb. Addım 4-b-yə qayıdın.                                                                                                         |
-| Panel açılır, amma boşdur                             | Normal — demo məlumat. Bölmə 6-ya baxın.                                                                                                             |
+| Panel açılır, amma boşdur                             | Bazada hələ məlumat yoxdur. Bot/API ilə məlumat yaradın (Addım 6) — panel dərhal göstərir.                                                           |
 | Brauzer konsolunda `CORS` xətası                      | `CORS_ALLOWED_ORIGINS` düzgün yazılmayıb. Protokol (`https://`) daxil olmaqla, panel ünvanını yazın.                                                 |
 | Bot `/start`-a cavab vermir                           | (1) `TELEGRAM_BOT_TOKEN` düzgündürmü? (2) Addım 6-6-daki webhook əmri icra olunubmu? (3) API logunda `503` varsa — `TELEGRAM_WEBHOOK_SECRET` boşdur. |
 | Log: `PORT` ilə bağlı xəta                            | API servisində `PORT=3001` dəyəri yoxdur. Əlavə edin.                                                                                                |
@@ -491,10 +493,11 @@ Yekun gözlənti: **aylıq təxminən $5–15**. Dəqiq rəqəmi Railway panelin
 
 ## 6. Sonrakı addımlar — qalan işlər
 
-> **14 sentyabr 2026: canlı sistem yoxlanıldı.** Bu siyahı həmin yoxlamanın
-> nəticəsidir. Əvvəlki versiyada olan "API bazaya qoşulmayıb" və "Supabase
-> lazımdır" maddələri **artıq keçərli deyil** — API real bazaya qoşulub və sxemi
-> özü yaradır.
+> **10 oktyabr 2026: sənəd yenidən yoxlanıldı.** §2 və §3-ün bir hissəsi hələ
+> Supabase dövrünü təsvir edirdi ("panel Supabase-dən oxuyur", "məlumat yaddaşda
+> saxlanılır", "`TELEGRAM_BOT_TOKEN`-i API-yə də yazın"). Hamısı düzəldildi —
+> aşağıdaki vəziyyət canlı sistemdən təsdiqlənib. Köhnə "API bazaya qoşulmayıb"
+> və "Supabase lazımdır" maddələri də artıq keçərli deyil.
 
 ### ✅ Artıq edilib — təkrar etməyin
 
@@ -503,13 +506,16 @@ Yekun gözlənti: **aylıq təxminən $5–15**. Dəqiq rəqəmi Railway panelin
 | Kod GitHub-da    | ✅ `Enjoyer09/oneTeam`, `main` budağı                    |
 | Avtomatik deploy | ✅ hər push üç servisə də çatır (hamısı eyni commit-də)  |
 | API → real baza  | ✅ `/api/health` → `persistence: postgres`               |
-| Baza sxemi       | ✅ API işə düşəndə özü yaradır və tamamlayır (101 sütun) |
+| Baza sxemi       | ✅ API işə düşəndə özü yaradır və tamamlayır (151 sütun) |
 | Giriş qoruması   | ✅ kənar kredensial `/api/portal/...`-da **401** alır    |
 | Enrolment açarı  | ✅ `ONETEAM_ENROLLMENT_SECRET` qoyulub və yoxlanılıb     |
 | Panel açarı      | ✅ yaradılıb, giriş ekranı qoşulub (`liveKeys: 1`)       |
 | Foto saxlancı    | ✅ Cloudflare R2 bucket `oneteam-photos` aktivdir        |
 | Ehtiyat nüsxə    | ✅ PITR aktiv + gündəlik cədvəl qurulub                  |
 | Bot              | ✅ işləyir — **@oneTeamCCIbot**                          |
+| Məhsul / rəf     | ✅ SKU kataloqu və rəf xəritəsi prod-da (Wave 1.4)       |
+| Vizyon işçisi    | ✅ ayrı `vision-worker` servisi — foto analizi           |
+| Prod smoke       | ✅ `npm run smoke:prod` → 19/19 yoxlama keçir            |
 
 ### 1. 🔴 TƏCİLİ — Telegram bot açarını dəyişin
 
@@ -594,4 +600,4 @@ saxlanc əlavə olunanda serverdə heç nə dəyişmir.
 
 ---
 
-_Son yenilənmə: 14 sentyabr 2026_
+_Son yenilənmə: 10 oktyabr 2026_
