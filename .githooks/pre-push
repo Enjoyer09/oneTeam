@@ -3,16 +3,15 @@
 # oneTeam — pre-push gate
 # =============================================================================
 #
-# GitHub Actions cannot run for this repository: it is private, so minutes are
-# metered, and the account is out of credit. Every run since 2026-09-20 has
-# failed with "recent account payments have failed", which means no job ever
-# started. The checks therefore run here, before the push, and the push is
-# refused if any of them fail.
+# The same checks `ci.yml` runs, run here and refused before the push leaves the
+# machine. `ci.yml` is the authority on a merged commit; this is what keeps an
+# obviously broken commit from ever reaching it — and it is the only gate that
+# runs when GitHub is unreachable.
 #
-# This is not a weaker guarantee than the pipeline was: the checks are the same
-# commands, run against the same working tree. The difference is that they are
-# skipped when a developer pushes with --no-verify, and that a machine without
-# Node installed cannot run them at all.
+# It began as a workaround: from 2026-09-20 the private repo's metered Actions
+# minutes were exhausted and no job ever started. Billing was later resolved and
+# `ci.yml` runs again. The hook stayed because it is still the cheaper one — a
+# defect caught here costs a second, one caught in CI costs a round trip.
 #
 # BYPASS, DELIBERATELY POSSIBLE: `git push --no-verify` skips this hook. The
 # escape hatch is intentional — a broken gate that cannot be bypassed gets
@@ -39,7 +38,7 @@ if [ -z "$(git log --oneline @{u}..HEAD 2>/dev/null)" ] && [ -z "$ONETEAM_FORCE_
 fi
 
 echo ""
-echo "┌─ pre-push: running the local gate (GitHub Actions is unavailable) ─┐"
+echo "┌─ pre-push: running the local gate ─┐"
 
 MODE="${ONETEAM_GATE:-fast}"
 if [ "$MODE" = "full" ]; then

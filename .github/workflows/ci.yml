@@ -15,9 +15,10 @@
 #  IMPORTANT — repository layout
 #  -----------------------------
 #  This workflow only runs if the project is its own git repository with
-#  `.github/` at its root. At the time of writing, the git root sat at the
-#  user's home directory, so these files would not be picked up. See
-#  docs/ENGINEERING-STANDARDS.md §1 for the fix.
+#  `.github/` at its root. That was once not the case: the git root sat at the
+#  user's home directory and these files were not picked up at all. See
+#  docs/ENGINEERING-STANDARDS.md §1, which records the move. The layout is
+#  correct now — every push runs the jobs below.
 # =============================================================================
 
 name: CI

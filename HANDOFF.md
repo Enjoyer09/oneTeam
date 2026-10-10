@@ -104,21 +104,25 @@
 
 #
 
-# GITHUB ACTIONS DOES NOT RUN FOR THIS REPOSITORY. It has failed on every push
+# CI WAS OUT; IT RUNS AGAIN. From 2026-09-20 to 2026-10-10 nothing ran: the
 
-# since 2026-09-20 with:
+# repo is private, so Actions minutes are metered, and every run died with
+
+# "The job was not started because recent account payments have failed". The
+
+# owner resolved the billing and `ci.yml` is green again, DB-backed live suites
+
+# included. Notes elsewhere about a check that "had never actually run" date
+
+# from that window — they are history, not current state.
 
 #
 
-# "The job was not started because recent account payments have failed or
+# The push gate below predates that fix and survives it: it runs the SAME checks
 
-# your spending limit needs to be increased."
+# on this machine before the push — a defect costs a second instead of a round
 
-#
-
-# The repo is private, so Actions minutes are metered, and the account is out of
-
-# credit. The owner has decided not to pay. So the checks were moved LOCALLY:
+# trip, and it is the only gate that works when GitHub does not:
 
 #
 
