@@ -400,17 +400,29 @@
 
 #
 
-# 1. No React test runner. There is no jsdom or testing-library, and `web/` has
+# FIXED 2026-10-10 (was #1): `web/` now has a real runner — vitest + jsdom +
 
-# its own lockfile. The portal's guards are source-level contract checks
+# @testing-library/react, driven from `vite.config.ts` (no separate config), run
 
-# (scripts/quality/portal-silent-success.test.mjs, auth-guard-coverage,
+# by `npm run test:web` and wired into `test:all` AND the local gate's step 5.
 
-# label-association) and each says so in its header: they cannot prove a modal
+# The first real component test is `web/src/components/PanelLogin.test.tsx`:
 
-# stays open or a label focuses its field, only that nobody restored the broken
+# a blank key refused without a request, the key stored equal to the one the
 
-# shape. Adding a real runner is a decision for the owner.
+# identity call carried, a 401 surfacing as the human message, and a
+
+# bootstrapProblem shown. Mutation-verified: blanking the empty-key guard turns
+
+# exactly that test red, restoring it turns it green. The source-level guards
+
+# (portal-silent-success, auth-guard-coverage, label-association) stay — they
+
+# still catch shapes no render exercises — but are no longer the only thing
+
+# between a broken modal and production. The gap read "Adding a real runner is
+
+# a decision for the owner"; the owner made it on 2026-10-10.
 
 #
 

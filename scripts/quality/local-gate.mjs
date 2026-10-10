@@ -54,6 +54,12 @@ const STEPS = [
       'a <label> with no htmlFor and no control inside is invisible in review but announced as a blank field by a screen reader — this walks web/src and fails on any orphan label, any htmlFor that resolves to no id, and any duplicate id.',
   },
   {
+    name: 'Web component tests (vitest + jsdom)',
+    cmd: ['npm', 'run', 'test:web'],
+    because:
+      'the structural guards above parse the source; only a real DOM render proves the wiring — that an idle form refuses a blank key, that a 401 surfaces as the human message, that the key it stores is the one the request carried. web/ had no runner at all until this step.',
+  },
+  {
     name: 'Mobile config check',
     cmd: ['npm', 'run', 'mobile:config'],
     because: 'the native project references paths that must exist before Xcode is opened',

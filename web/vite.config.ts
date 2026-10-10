@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from 'tailwindcss';
@@ -6,6 +7,18 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
+  // Vitest reads this file too (no separate vitest.config.ts). jsdom is the
+  // environment for the component tests under `src/**/*.test.tsx`; the same
+  // alias the app build uses keeps a green test a test of the shipped graph.
+  test: {
+    environment: 'jsdom',
+    globals: false,
+    include: ['src/**/*.test.{ts,tsx}'],
+    setupFiles: ['src/test/setup.ts'],
+  },
+  resolve: {
+    alias: { '@': path.resolve(__dirname, 'src') },
+  },
   root: path.resolve(__dirname),
   server: {
     port: 5173,
