@@ -43,6 +43,12 @@ const STEPS = [
     because: 'a write that fails must not be reported to the user as a success',
   },
   {
+    name: 'Route authentication coverage',
+    cmd: ['node', 'scripts/quality/auth-guard-coverage.test.mjs'],
+    because:
+      'AuthGuard is not global; a route is protected only where a decorator says so, and a new route that ships without one is a hole the runtime suites never see. This walks every controller and fails on any route that is neither guarded nor a named, justified exemption.',
+  },
+  {
     name: 'Mobile config check',
     cmd: ['npm', 'run', 'mobile:config'],
     because: 'the native project references paths that must exist before Xcode is opened',
