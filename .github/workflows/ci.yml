@@ -196,13 +196,12 @@ jobs:
       - name: Build web portal
         run: npm run web:build
 
-      - name: Upload build output
-        uses: actions/upload-artifact@v4
-        with:
-          name: web-dist
-          path: web/dist
-          retention-days: 7
-          if-no-files-found: error
+      # No artifact upload. This job's only purpose is to fail on a bundle that
+      # does not build; nothing consumes `web/dist` afterwards — Railway deploys
+      # from the repo, not from a GitHub artifact — so uploading it only spent
+      # metered minutes and artifact storage to imply a handoff that never
+      # happens. (The live-tests job still uploads its API log on failure,
+      # because a human reads that one.)
 
   # ---------------------------------------------------------------------------
   # Job 4 — the iOS UI test (plan 3.4). The only check in this pipeline that
