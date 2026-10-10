@@ -426,9 +426,25 @@
 
 #
 
-# 2. `test:live` needs a database. Locally that means starting one. Until then
+# 2. `test:live` needs a database; locally that means starting one.
 
-# the DB-backed paths have no automated coverage on this machine.
+# `scripts/quality/local-live-tests.sh` does exactly that — it brings up the
+
+# throwaway container (`oneteam-livepg`, :55445), applies schema + seed, boots
+
+# the API on a port it owns, and runs everything. Full run 2026-10-10 on :3912:
+
+# 19 suites, 668 checks, 0 failed, plus 42 break cases (23 + 13 + 6), each going
+
+# red against its own guard and restored. The harness closes two traps it was
+
+# itself tripping over: `web:test` hard-coded :3001 while the rest of the run
+
+# derived from `ONETEAM_API_URL`, so a run on any other port failed only the
+
+# portal smoke — fixed in `package.json`; and the API reads `PORT`, not
+
+# `API_PORT`, so the script sets both.
 
 #
 

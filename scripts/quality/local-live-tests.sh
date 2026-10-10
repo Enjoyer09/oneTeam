@@ -1,7 +1,8 @@
 #!/bin/bash
 # Run CI's live-test environment locally: Postgres + schema + seed + API + suites.
-# Mirrors .github/workflows/ci.yml job `live-tests`, which cannot run on this
-# private repo because Actions minutes are exhausted.
+# Mirrors .github/workflows/ci.yml job `live-tests`. CI runs that job too (and
+# did again from 2026-10-10); this is for reproducing it on this machine, with
+# a throwaway container instead of a service container.
 set -uo pipefail
 # scripts/quality/ -> repo root is two levels up, not one.
 cd "$(dirname "$0")/../.."
@@ -20,6 +21,11 @@ export API_PORT="${API_PORT:-3001}"
 export PORT="$API_PORT"
 export ONETEAM_API_URL="http://localhost:${API_PORT}"
 export VITE_API_BASE_URL="http://localhost:${API_PORT}"
+# `npm run web:test` reads ONETEAM_API_URL, not VITE_API_BASE_URL, so the
+# portal smoke test needs this too. Deriving it from the same one value is what
+# keeps a moved port from splitting the run: on 2026-10-10 a run on :3911 had
+# every DB-backed suite pass and only the portal smoke fail, pointed at a
+# hardcoded :3001 by the script's own body.
 export ONETEAM_API_TOKEN="oneteam-user:usr-admin-001"
 export TELEGRAM_BOT_TOKEN="ci-not-a-real-bot-token"
 export TELEGRAM_WEBHOOK_SECRET="ci-not-a-real-webhook-secret"
