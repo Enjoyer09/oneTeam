@@ -26,6 +26,7 @@
     "test:roi": "node ./node_modules/tsx/dist/cli.mjs --import ./scripts/test-credential.mjs src/services/vision/roi.test.ts",
     "test:portal-silent-success": "node scripts/quality/portal-silent-success.test.mjs",
     "test:auth-coverage": "node scripts/quality/auth-guard-coverage.test.mjs",
+    "smoke:prod": "node scripts/ops/prod-smoke.mjs",
     "test:secrets": "node scripts/quality/secret-scan.test.mjs",
     "test:break": "node scripts/dev/break-detector-queue.mjs",
     "test:break:device-revoke": "node scripts/dev/break-detector-device-revoke.mjs",

@@ -426,6 +426,34 @@ Telegram-da botunuza girib **/start** yazın. Cavab gəlməlidir.
 
 ---
 
+**7.5. Hamısını bir əmrlə yoxlayın (tövsiyə olunur)**
+
+Yuxarıdaki 7.1–7.4 addımları brauzerdə əl ilə görülür. Həmin yoxlamanın
+əksəriyyəti tək bir əmrlə də edilir və nəticəni rəqəmlə göstərir:
+
+```bash
+npm run smoke:prod
+```
+
+Gözlənilən son sətir: `19/19 checks passed, 0 failed`.
+
+Skript **heç nə yazmır** — bütün sorğular oxuma (GET) sorğusudur, ona görə canlı
+sistemdə istənilən vaxt işlədilə bilər. Əsas yoxladıqları:
+
+- API işləyir və **PostgreSQL**-ə qoşulub (səssizcə yaddaş rejiminə düşməyib);
+- baza sxemi tamamdır — gözləyən miqrasiya, çatışmayan cədvəl/sütun yoxdur;
+- panel **bağlıdır**: nə kredensialsız sorğu, nə də köhnə
+  `oneteam-user:usr-admin-001` kredensialı keçmir — ikisi də **401** alır;
+- veb servis proqramı verir və `/api/`-ı API-yə yönləndirir (brauzerin yolu).
+
+Panelə daxil olmuş kimliyi də yoxlamaq üçün açarı da verin:
+
+```bash
+ONETEAM_PANEL_KEY='<açarınız>' npm run smoke:prod
+```
+
+---
+
 ## 4. Nə qədər pul gedəcək?
 
 | Xərc                                     | Məbləğ                                  |
