@@ -5,17 +5,16 @@
  *
  * WHY THIS EXISTS
  * ---------------
- * `.github/workflows/ci.yml` has failed on every push since 2026-09-20. The
- * cause is not the workflow: GitHub reports, per run, "The job was not started
- * because recent account payments have failed or your spending limit needs to
- * be increased." The repository is PRIVATE, so Actions minutes are metered, and
- * the account is out of credit.
+ * This file runs the same checks locally, and `.githooks/pre-push` refuses to
+ * push until they pass. The pipeline is the authority on whether code is
+ * mergeable — that principle does not require a GitHub-hosted runner, only
+ * that the checks actually run before the change leaves the machine.
  *
- * We are not paying for it. So this file runs the same checks locally, and
- * `.githooks/pre-push` refuses to push until they pass. The pipeline is the
- * authority on whether code is mergeable — that principle does not require a
- * GitHub-hosted runner, only that the checks actually run before the change
- * leaves the machine.
+ * It was born of necessity: from 2026-09-20 the private repo's metered Actions
+ * minutes were exhausted and every push died with "recent account payments
+ * have failed". Billing was later resolved and `ci.yml` runs green again, so
+ * this is no longer the only CI — it is the earlier one. It runs before the
+ * push, on this machine, so a change that fails here never leaves.
  *
  * Two checks are genuinely out of reach locally and are reported as SKIPPED
  * rather than silently passing — see SKIPPED below.
@@ -49,6 +48,12 @@ const STEPS = [
       'AuthGuard is not global; a route is protected only where a decorator says so, and a new route that ships without one is a hole the runtime suites never see. This walks every controller and fails on any route that is neither guarded nor a named, justified exemption.',
   },
   {
+    name: 'Label association coverage',
+    cmd: ['node', 'scripts/quality/label-association.test.mjs'],
+    because:
+      'a <label> with no htmlFor and no control inside is invisible in review but announced as a blank field by a screen reader — this walks web/src and fails on any orphan label, any htmlFor that resolves to no id, and any duplicate id.',
+  },
+  {
     name: 'Mobile config check',
     cmd: ['npm', 'run', 'mobile:config'],
     because: 'the native project references paths that must exist before Xcode is opened',
@@ -79,7 +84,7 @@ const STEPS = [
     name: 'Web portal production build',
     cmd: ['npm', 'run', 'web:build'],
     because:
-      'type check passes on code that cannot bundle. Measured: a broken vite plugin plugin-hook makes web:check exit 0 and web:build exit 1, so without this step a portal that ships a blank page passes every gate. GitHub Actions checked this in its own `build` job — which cannot run on a private repo with exhausted Actions minutes, so the check that would have caught it has never actually run.',
+      'type check passes on code that cannot bundle. Measured: a broken vite plugin plugin-hook makes web:check exit 0 and web:build exit 1, so without this step a portal that ships a blank page passes every gate. `ci.yml` runs the same build in its own `build` job, but only after the push — this step is what keeps it from leaving.',
     slow: true,
   },
   {

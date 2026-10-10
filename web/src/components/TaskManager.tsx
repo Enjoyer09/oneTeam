@@ -698,10 +698,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {/* Chain Filter */}
                     <div>
-                      <label className="block text-[11px] font-bold text-ink-2 mb-1">
+                      <label
+                        htmlFor="bulk-chain"
+                        className="block text-[11px] font-bold text-ink-2 mb-1"
+                      >
                         Şəbəkə (Chain):
                       </label>
                       <select
+                        id="bulk-chain"
                         value={bulkChain}
                         onChange={(e) => {
                           setBulkChain(e.target.value);
@@ -720,10 +724,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
                     {/* Format Filter */}
                     <div>
-                      <label className="block text-[11px] font-bold text-ink-2 mb-1">
+                      <label
+                        htmlFor="bulk-format"
+                        className="block text-[11px] font-bold text-ink-2 mb-1"
+                      >
                         Format (Store Format):
                       </label>
                       <select
+                        id="bulk-format"
                         value={bulkFormat}
                         onChange={(e) => {
                           setBulkFormat(e.target.value);
@@ -742,10 +750,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
                     {/* Region Filter */}
                     <div>
-                      <label className="block text-[11px] font-bold text-ink-2 mb-1">
+                      <label
+                        htmlFor="bulk-region"
+                        className="block text-[11px] font-bold text-ink-2 mb-1"
+                      >
                         Region / Şəhər:
                       </label>
                       <select
+                        id="bulk-region"
                         value={bulkRegion}
                         onChange={(e) => {
                           setBulkRegion(e.target.value);
@@ -792,10 +804,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 {/* SECTION 2: Briefing content (title, instruction, options) */}
                 <div className="space-y-3.5">
                   <div>
-                    <label className="block text-xs font-bold text-ink mb-1.5 uppercase tracking-wider">
+                    <label
+                      htmlFor="bulk-title"
+                      className="block text-xs font-bold text-ink mb-1.5 uppercase tracking-wider"
+                    >
                       2. Təlimat Məzmunu
                     </label>
                     <input
+                      id="bulk-title"
                       type="text"
                       required
                       placeholder="Tapşırığın başlığı (məs: 0.5L Ön Vitrin Soyuducusu Auditi)"
@@ -836,10 +852,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 {/* SECTION 3: Priority & Deadline */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-ink-2 mb-1">
+                    <label
+                      htmlFor="bulk-priority"
+                      className="block text-xs font-bold text-ink-2 mb-1"
+                    >
                       Prioritet (Priority):
                     </label>
                     <select
+                      id="bulk-priority"
                       value={bulkPriority}
                       onChange={(e) => setBulkPriority(e.target.value as TaskPriority)}
                       className="w-full px-3 py-2 border border-hair rounded-lg text-xs bg-[var(--g-card)] text-ink focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45 font-semibold"
@@ -852,10 +872,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-ink-2 mb-1">
+                    <label
+                      htmlFor="bulk-deadline"
+                      className="block text-xs font-bold text-ink-2 mb-1"
+                    >
                       Yekunlaşma üçün Son Tarix (Deadline):
                     </label>
                     <input
+                      id="bulk-deadline"
                       type="date"
                       required
                       value={bulkDeadline}
@@ -943,10 +967,11 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
               <form onSubmit={(e) => void handleSubmit(e)} className="p-5 space-y-3.5">
                 {/* Title */}
                 <div>
-                  <label className="block text-xs font-bold text-ink-2 mb-1">
+                  <label htmlFor="task-title" className="block text-xs font-bold text-ink-2 mb-1">
                     Tapşırığın Başlığı *
                   </label>
                   <input
+                    id="task-title"
                     type="text"
                     required
                     placeholder="Məs: Coca-Cola Zero Sugar Promo Stand Check"
@@ -961,10 +986,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
                 {/* Instructions */}
                 <div>
-                  <label className="block text-xs font-bold text-ink-2 mb-1">
+                  <label
+                    htmlFor="task-instructions"
+                    className="block text-xs font-bold text-ink-2 mb-1"
+                  >
                     Düzülüş Təlimatı və Facing Qaydaları *
                   </label>
                   <textarea
+                    id="task-instructions"
                     rows={3}
                     required
                     placeholder="Məs: Bütün Coca-Cola 0.5L şüşələri soyuducunun 1-ci rəfində tələb olunan sayda..."
@@ -979,8 +1008,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-bold text-ink-2 mb-1">Prioritet</label>
+                    <label
+                      htmlFor="task-priority"
+                      className="block text-xs font-bold text-ink-2 mb-1"
+                    >
+                      Prioritet
+                    </label>
                     <select
+                      id="task-priority"
                       value={priority}
                       onChange={(e) => setPriority(e.target.value as TaskPriority)}
                       className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
@@ -993,10 +1028,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-ink-2 mb-1">
+                    <label
+                      htmlFor="task-deadline"
+                      className="block text-xs font-bold text-ink-2 mb-1"
+                    >
                       Yoxlama üçün Son Tarix *
                     </label>
                     <input
+                      id="task-deadline"
                       type="date"
                       required
                       value={deadline}
@@ -1009,9 +1048,9 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 {/* Planogram Reference Photo Upload / URL */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-bold text-ink-2">
+                    <span className="block text-xs font-bold text-ink-2">
                       Planogram Nümunə Fotosu
-                    </label>
+                    </span>
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
@@ -1064,12 +1103,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
                 {/* Store Assignment (Multi-select) */}
                 <div>
-                  <label className="block text-xs font-bold text-ink-2 mb-1.5">
+                  <span className="block text-xs font-bold text-ink-2 mb-1.5">
                     Təhkim Olunacaq Mağazalar:
-                  </label>
+                  </span>
                   <div className="grid grid-cols-2 gap-1.5 max-h-32 overflow-y-auto p-2.5 border border-hair rounded-lg bg-[var(--g-panel)]">
-                    <div
+                    <button
+                      type="button"
                       onClick={() => toggleStore('all')}
+                      aria-pressed={selectedStores.includes('all')}
                       className="flex items-center space-x-1.5 cursor-pointer p-1 rounded hover:bg-[var(--g-card)] text-xs font-bold text-ink"
                     >
                       {selectedStores.includes('all') ? (
@@ -1078,15 +1119,17 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                         <Square className="w-3.5 h-3.5 text-muted" />
                       )}
                       <span>Bütün Mağazalar (Şəbəkə Üzrə)</span>
-                    </div>
+                    </button>
 
                     {stores.map((store) => {
                       const isChecked =
                         selectedStores.includes('all') || selectedStores.includes(store.id);
                       return (
-                        <div
+                        <button
+                          type="button"
                           key={store.id}
                           onClick={() => toggleStore(store.id)}
+                          aria-pressed={isChecked}
                           className="flex items-center space-x-1.5 cursor-pointer p-1 rounded hover:bg-[var(--g-card)] text-xs text-ink-2"
                         >
                           {isChecked ? (
@@ -1095,7 +1138,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                             <Square className="w-3.5 h-3.5 text-muted" />
                           )}
                           <span className="truncate">{store.name}</span>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -1188,10 +1231,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 )}
 
                 <div>
-                  <label className="block text-[11px] font-bold text-ink-2 mb-1.5">
+                  <label
+                    htmlFor="task-edit-title"
+                    className="block text-[11px] font-bold text-ink-2 mb-1.5"
+                  >
                     Tapşırıq Başlığı *
                   </label>
                   <input
+                    id="task-edit-title"
                     type="text"
                     value={editValues.title}
                     onChange={(e) => setEditValues({ ...editValues, title: e.target.value })}
@@ -1200,8 +1247,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-ink-2 mb-1.5">Təlimat</label>
+                  <label
+                    htmlFor="task-edit-instructions"
+                    className="block text-[11px] font-bold text-ink-2 mb-1.5"
+                  >
+                    Təlimat
+                  </label>
                   <textarea
+                    id="task-edit-instructions"
                     rows={3}
                     value={editValues.description}
                     onChange={(e) => setEditValues({ ...editValues, description: e.target.value })}
@@ -1211,10 +1264,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[11px] font-bold text-ink-2 mb-1.5">
+                    <label
+                      htmlFor="task-edit-priority"
+                      className="block text-[11px] font-bold text-ink-2 mb-1.5"
+                    >
                       Prioritet
                     </label>
                     <select
+                      id="task-edit-priority"
                       value={editValues.priority}
                       onChange={(e) =>
                         setEditValues({ ...editValues, priority: e.target.value as TaskPriority })
@@ -1228,10 +1285,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-ink-2 mb-1.5">
+                    <label
+                      htmlFor="task-edit-deadline"
+                      className="block text-[11px] font-bold text-ink-2 mb-1.5"
+                    >
                       Son Tarix (bu mağaza üçün) *
                     </label>
                     <input
+                      id="task-edit-deadline"
                       type="datetime-local"
                       value={editValues.deadline}
                       onChange={(e) => setEditValues({ ...editValues, deadline: e.target.value })}
@@ -1259,9 +1320,9 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[11px] font-bold text-ink-2">
+                    <span className="text-[11px] font-bold text-ink-2">
                       Çeklist sualları ({editValues.checklist_schema.length})
-                    </label>
+                    </span>
                     <button
                       type="button"
                       onClick={() =>

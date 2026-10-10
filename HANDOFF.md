@@ -384,13 +384,27 @@
 
 # 1. No React test runner. There is no jsdom or testing-library, and `web/` has
 
-# its own lockfile. The portal's guard is a source-level contract check
+# its own lockfile. The portal's guards are source-level contract checks
 
-# (scripts/quality/portal-silent-success.test.mjs) and says so in its header:
+# (scripts/quality/portal-silent-success.test.mjs, auth-guard-coverage,
 
-# it cannot prove a modal stays open, only that nobody restored the broken
+# label-association) and each says so in its header: they cannot prove a modal
+
+# stays open or a label focuses its field, only that nobody restored the broken
 
 # shape. Adding a real runner is a decision for the owner.
+
+#
+
+# FIXED 2026-10-10 (was #5): every `<label>` is now associated — 33 carry
+
+# `htmlFor` pointing at a real `id`, 7 wrap their own control, 0 orphaned. The
+
+# same pass made the fake-checkbox rows real `<button aria-pressed>`, so the
+
+# store picker is reachable by Tab. `npm run test:labels` holds both rules
+
+# (plus: an htmlFor that resolves to nothing, and a duplicate id) at 52 checks.
 
 #
 
@@ -400,9 +414,15 @@
 
 #
 
-# 3. 298 lint warnings, 0 errors — mostly `no-explicit-any` and `no-console`.
+# 3. 358 lint warnings, 0 errors — mostly `no-explicit-any` and `no-console`.
 
-# Not a correctness problem; it is noise that will hide a real one.
+# Not a correctness problem; it is noise that will hide a real one. This count
+
+# was 298 when this gap was written: it grew unattended, which is the argument
+
+# for the gap staying on the list. The gate fails on errors only, so closing
+
+# this means real types and a logger — a decision, not a chore.
 
 #
 
@@ -412,9 +432,11 @@
 
 #
 
-# 5. 20+ `<label>` elements have no `htmlFor`. Invisible in review; shows up in
+# 5. FIXED 2026-10-10 — every `<label>` is associated now (see the note under
 
-# screen readers.
+# #1); the regression is held by `npm run test:labels`, which also fails on a
+
+# click handler that no keyboard can reach.
 
 #
 
@@ -502,11 +524,11 @@
 
 # .githooks/pre-push refuses the push if any check fails
 
-# scripts/quality/local-gate.mjs the 11 steps, same commands ci.yml ran
+# scripts/quality/local-gate.mjs the pre-push checks — the commands ci.yml runs
 
 #
 
-# `git push` runs gate:fast automatically (about 25s). To run everything:
+# `git push` runs gate:fast automatically (about 30s). To run everything:
 
 #
 

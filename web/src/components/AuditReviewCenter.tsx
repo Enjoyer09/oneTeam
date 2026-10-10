@@ -739,10 +739,14 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
               {/* Reject Feedback Textarea Drawer */}
               {showRejectInput && (
                 <div className="px-5 py-3 bg-rose-50 border-t border-rose-200 space-y-2">
-                  <label className="block text-xs font-bold text-rose-900">
+                  <label
+                    htmlFor="audit-reject-reason"
+                    className="block text-xs font-bold text-rose-900"
+                  >
                     İmtina Səbəbini və Tələb Olunan Düzəlişi Qeyd Edin:
                   </label>
                   <textarea
+                    id="audit-reject-reason"
                     rows={2}
                     placeholder="Məsələn: Coca-Cola Classic 0.5L alt sırada 2 facing çatışmır və etiketlər düz çevrilməyib..."
                     value={rejectFeedback}

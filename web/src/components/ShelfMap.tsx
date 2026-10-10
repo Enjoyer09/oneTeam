@@ -526,8 +526,11 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
 
               <form onSubmit={(event) => void handleSubmit(event)} className="space-y-3.5 p-5">
                 <div>
-                  <label className={labelClass}>Bölmə *</label>
+                  <label htmlFor="shelf-section" className={labelClass}>
+                    Bölmə *
+                  </label>
                   <input
+                    id="shelf-section"
                     type="text"
                     required
                     placeholder="Kola rəfi"
@@ -543,8 +546,11 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={labelClass}>Səviyyə *</label>
+                    <label htmlFor="shelf-level" className={labelClass}>
+                      Səviyyə *
+                    </label>
                     <input
+                      id="shelf-level"
                       type="number"
                       required
                       min={1}
@@ -558,8 +564,11 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
                   </div>
 
                   <div>
-                    <label className={labelClass}>Mövqe *</label>
+                    <label htmlFor="shelf-position" className={labelClass}>
+                      Mövqe *
+                    </label>
                     <input
+                      id="shelf-position"
                       type="number"
                       required
                       min={1}
@@ -574,8 +583,11 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
                 </div>
 
                 <div>
-                  <label className={labelClass}>Təyin olunmuş məhsul</label>
+                  <label htmlFor="shelf-product" className={labelClass}>
+                    Təyin olunmuş məhsul
+                  </label>
                   <select
+                    id="shelf-product"
                     value={form.product_id}
                     onChange={(e) => set('product_id', e.target.value)}
                     className={inputClass}

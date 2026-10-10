@@ -350,8 +350,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
               <form onSubmit={(event) => void handleSubmit(event)} className="space-y-3.5 p-5">
                 <div>
-                  <label className={labelClass}>Barkod *</label>
+                  <label htmlFor="product-barcode" className={labelClass}>
+                    Barkod *
+                  </label>
                   <input
+                    id="product-barcode"
                     type="text"
                     required
                     inputMode="numeric"
@@ -369,8 +372,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 </div>
 
                 <div>
-                  <label className={labelClass}>Məhsul Adı *</label>
+                  <label htmlFor="product-name" className={labelClass}>
+                    Məhsul Adı *
+                  </label>
                   <input
+                    id="product-name"
                     type="text"
                     required
                     placeholder="Coca-Cola 0.5L Şüşə"
@@ -382,8 +388,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className={labelClass}>Ölçü</label>
+                    <label htmlFor="product-size" className={labelClass}>
+                      Ölçü
+                    </label>
                     <input
+                      id="product-size"
                       type="text"
                       placeholder="0.5 L"
                       value={form.size}
@@ -393,8 +402,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   </div>
 
                   <div>
-                    <label className={labelClass}>Variant</label>
+                    <label htmlFor="product-variant" className={labelClass}>
+                      Variant
+                    </label>
                     <input
+                      id="product-variant"
                       type="text"
                       placeholder="Zero"
                       value={form.variant}

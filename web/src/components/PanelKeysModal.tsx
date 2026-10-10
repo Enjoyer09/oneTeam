@@ -204,11 +204,15 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
 
         {/* Mint */}
         <div className="mb-4 rounded-[14px] bg-[rgba(10,16,32,.04)] p-3.5">
-          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-[.06em] text-muted">
+          <label
+            htmlFor="panel-key-user"
+            className="mb-1.5 block text-[11px] font-bold uppercase tracking-[.06em] text-muted"
+          >
             Yeni açar üçün istifadəçi
           </label>
           <div className="flex flex-col gap-2 sm:flex-row">
             <select
+              id="panel-key-user"
               value={selectedUser}
               onChange={(event) => setSelectedUser(event.target.value)}
               className="min-w-0 flex-1 rounded-[11px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.72)]
