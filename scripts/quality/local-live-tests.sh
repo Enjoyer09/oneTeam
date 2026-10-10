@@ -7,7 +7,12 @@ set -uo pipefail
 # scripts/quality/ -> repo root is two levels up, not one.
 cd "$(dirname "$0")/../.."
 
-export DATABASE_URL="postgres://postgres:postgres@localhost:55445/oneteam"
+# One switch for the Postgres container, so its port and its name cannot drift
+# apart either. PG_PORT is the host port; the suites see it via DATABASE_URL.
+PG_CONTAINER="${PG_CONTAINER:-oneteam-livepg}"
+PG_PORT="${PG_PORT:-55445}"
+PG_IMAGE="${PG_IMAGE:-postgres:16-alpine}"
+export DATABASE_URL="postgres://postgres:postgres@localhost:${PG_PORT}/oneteam"
 export PGPASSWORD=postgres
 
 # Overridable, and every consumer is derived from it, so one value moves the
@@ -42,9 +47,33 @@ npm run api:build >>/tmp/lt_build.log 2>&1
 rc=$?; [ $rc -ne 0 ] && { echo "api:build FAILED ($rc)"; tail -25 /tmp/lt_build.log; exit $rc; }
 echo "ok"
 
+say "Postgres container"
+# Create it if it is missing. This script used to only `docker exec` into a
+# container it assumed had been made by hand, so it could not work from a clean
+# clone — the failure was a bare "no such container", nowhere near the cause.
+# CI supplies an equivalent service container instead.
+if ! docker inspect "$PG_CONTAINER" >/dev/null 2>&1; then
+  echo "  creating $PG_CONTAINER ($PG_IMAGE) on :$PG_PORT"
+  if ! docker run -d --name "$PG_CONTAINER" -e POSTGRES_PASSWORD=postgres \
+       -e POSTGRES_DB=oneteam -p "${PG_PORT}:5432" "$PG_IMAGE" >/dev/null; then
+    echo "  could not start the container. Is Docker running?"; exit 1
+  fi
+else
+  echo "  reusing existing $PG_CONTAINER"
+  docker start "$PG_CONTAINER" >/dev/null 2>&1 || true
+fi
+ready=0
+for i in $(seq 1 30); do
+  if docker exec "$PG_CONTAINER" pg_isready -U postgres -d oneteam >/dev/null 2>&1; then
+    echo "  ready after ${i} attempt(s)."; ready=1; break
+  fi
+  sleep 1
+done
+[ "$ready" -ne 1 ] && { echo "  $PG_CONTAINER never accepted connections."; exit 1; }
+
 say "Provision database (schema + seed)"
 for f in db/api-schema.sql db/api-seed.sql; do
-  if ! docker exec -i oneteam-livepg psql -U postgres -d oneteam -v ON_ERROR_STOP=1 -f - <"$f" >/tmp/lt_$(basename "$f").log 2>&1; then
+  if ! docker exec -i "$PG_CONTAINER" psql -U postgres -d oneteam -v ON_ERROR_STOP=1 -f - <"$f" >/tmp/lt_$(basename "$f").log 2>&1; then
     echo "FAILED: $f"; tail -20 /tmp/lt_$(basename "$f").log; exit 1
   fi
   echo "  applied $f"

@@ -428,11 +428,17 @@
 
 # 2. `test:live` needs a database; locally that means starting one.
 
-# `scripts/quality/local-live-tests.sh` does exactly that — it brings up the
+# `scripts/quality/local-live-tests.sh` does exactly that — it creates its own
 
-# throwaway container (`oneteam-livepg`, :55445), applies schema + seed, boots
+# `postgres:16-alpine` container on :55445 if one is not already there, applies
 
-# the API on a port it owns, and runs everything. Full run 2026-10-10 on :3912:
+# schema + seed, boots the API on a port it owns, and runs everything. Full runs
+
+# 2026-10-10: 668 checks on :3912 and again from a created-from-nothing container
+
+# on :3913 (proving the clean-clone path, which used to fail — the script only
+
+# `docker exec`-ed into a container it assumed existed). Numbers:
 
 # 19 suites, 668 checks, 0 failed, plus 42 break cases (23 + 13 + 6), each going
 
