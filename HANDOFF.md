@@ -336,17 +336,21 @@
 
 #
 
-# DATABASE_URL for GitHub Actions
+# Nightly backups for GitHub Actions — RESOLVED (removed)
 
-# `db-backup.yml` fails daily because the secret is absent AND because
+# The `db-backup.yml` workflow was deleted. It failed daily because the secret
 
-# Railway's Postgres is on a private network a hosted runner cannot reach.
+# was absent AND because Railway's Postgres is on a private network a hosted
 
-# Fixing it means either a public endpoint or a Railway cron service. Do not
+# runner cannot reach; it could never succeed. Backups run instead as a Railway
 
-# put the production DB password into GitHub without the owner's explicit
+# cron service (`db-backup`, image `scripts/ops/Dockerfile.backup`) that runs
 
-# agreement.
+# `scripts/ops/db-backup.sh` and uploads the dump to object storage. Do not
+
+# reintroduce a GitHub Actions backup job, and do not put the production DB
+
+# password into GitHub without the owner's explicit agreement.
 
 #
 

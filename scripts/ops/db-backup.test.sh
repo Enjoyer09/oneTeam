@@ -6,9 +6,9 @@
 # WHY THIS EXISTS
 # ---------------
 # `scripts/ops/db-backup.sh` wrote a dump to a local directory and stopped. Its
-# only caller was `.github/workflows/db-backup.yml`, uploading the file as a
-# build artifact with a 14-day window, and that workflow has failed on every one
-# of its last 8 runs:
+# only caller was a GitHub Actions workflow that uploaded the file as a build
+# artifact with a 14-day window, and that workflow failed on every one of its
+# last 8 runs:
 #
 #     ##[error]DATABASE_URL secret is not set.
 #

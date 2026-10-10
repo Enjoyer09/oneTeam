@@ -5,8 +5,9 @@
 #
 # Takes a compressed pg_dump of the database named by DATABASE_URL, writes it to
 # a timestamped file under PGDUMP_DIR, and prunes backups older than
-# RETENTION_DAYS. Designed to run from cron, a container, or the GitHub Actions
-# workflow in .github/workflows/db-backup.yml.
+# RETENTION_DAYS. Designed to run from cron, a container, or a scheduled
+# service — this is the entry point of the Railway cron service that backs the
+# production database up nightly.
 #
 # ENVIRONMENT
 # -----------
