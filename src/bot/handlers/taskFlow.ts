@@ -101,7 +101,12 @@ function questionText(question: ChecklistQuestion): string {
 
 /** Human-readable bounds for a number question, when the template sets them. */
 function numberHint(question: ChecklistQuestion): string {
-  const unit = question.unit ? ` ${question.unit}` : '';
+  // The unit is panel-authored and goes into a `parse_mode: 'Markdown'` string,
+  // so it must be escaped — exactly as the question header does one call site
+  // over. A unit containing `_`, `*`, `` ` ``, `[` or `]` would otherwise open a
+  // Markdown entity Telegram never closes (`400: can't parse entities`), the
+  // reply would throw, and the number-question prompt would "do nothing".
+  const unit = question.unit ? ` ${escapeMarkdown(question.unit)}` : '';
   if (question.minValue !== undefined && question.maxValue !== undefined) {
     return `\n\nℹ️ Qəbul olunan aralıq: *${question.minValue}${unit}* — *${question.maxValue}${unit}*`;
   }
@@ -483,7 +488,9 @@ export async function handleChecklistText(ctx: BotContext): Promise<boolean> {
     return true;
   }
 
-  const unit = question.unit ? ` ${question.unit}` : '';
+  // Escaped: same reason as `numberHint` — this unit is interpolated into a
+  // Markdown reply, so an unescaped special character would break parsing.
+  const unit = question.unit ? ` ${escapeMarkdown(question.unit)}` : '';
 
   if (question.minValue !== undefined && value < question.minValue) {
     await ctx.reply(

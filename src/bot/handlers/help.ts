@@ -70,6 +70,28 @@ export async function handleHelp(ctx: BotContext): Promise<void> {
 }
 
 /**
+ * The reply for a message the router has no specific handler for.
+ *
+ * The dispatcher only wires `message:location`, `message:photo` and
+ * `message:text`. Anything else — most importantly a shelf photo sent as a
+ * FILE/DOCUMENT (which Telegram offers as "send without compression", and which
+ * arrives as `message:document`, not `message:photo`), but also voice, video,
+ * stickers — used to be dropped silently, which reads to a merchandiser as "the
+ * bot is down". This catches those and says what the bot accepts, naming the
+ * send-as-a-photo fix first because that is the one that actually blocks an
+ * audit.
+ */
+export async function handleUnsupportedMessage(ctx: BotContext): Promise<void> {
+  await ctx.reply(
+    `🤔 *Bu mesajı emal edə bilmədim.*\n\n` +
+      `📸 Rəf fotosunu *şəkil kimi* göndərin — *fayl/sənəd kimi* yox. ` +
+      `(Telegram-da "sıxılmadan göndər" seçsəniz, foto fayl kimi gedir və bot onu tanımır.)\n\n` +
+      `Bot mətn, foto və lokasiya qəbul edir. Davam etmək üçün aşağıdakı menyudan istifadə edin.`,
+    { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard() },
+  );
+}
+
+/**
  * The main menu, as a message.
  *
  * Deliberately shorter than `/help`: this is reached by tapping a button or by

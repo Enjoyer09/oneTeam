@@ -109,10 +109,22 @@ const CAN_SIGN = Boolean(SERVICE_SIGNING_SECRET && SERVICE_USER_ID);
 const CAN_AUTHENTICATE = CAN_SIGN || Boolean(STATIC_API_TOKEN);
 const DEV_FALLBACK_TOKEN = 'oneteam-user:usr-admin-001';
 
+// The dev admin fallback is only safe where there is genuinely no deployment:
+// local development, the test suites, and CI (which never sets NODE_ENV, so
+// unset counts as local). ANY explicitly-set environment that is not
+// development/test — production, but also `staging`, `preview`, `prod` — is a
+// deployment and must carry a real credential rather than silently coming up as
+// the seeded administrator. Keying the old guard off `=== 'production'` alone
+// let exactly those non-production deployments through.
+const NODE_ENV = process.env.NODE_ENV;
+const ALLOW_DEV_FALLBACK =
+  NODE_ENV === undefined || NODE_ENV === '' || NODE_ENV === 'development' || NODE_ENV === 'test';
+
 if (!CAN_AUTHENTICATE) {
-  if (process.env.NODE_ENV === 'production') {
+  if (!ALLOW_DEV_FALLBACK) {
     throw new Error(
-      'oneTeam bot: set ONETEAM_API_TOKEN, or ONETEAM_SERVICE_SIGNING_SECRET + ' +
+      `oneTeam bot: no credential configured and NODE_ENV=${NODE_ENV} is a deployment ` +
+        'environment. Set ONETEAM_API_TOKEN, or ONETEAM_SERVICE_SIGNING_SECRET + ' +
         'ONETEAM_SERVICE_USER_ID. Refusing to start with an implicit admin credential.',
     );
   }

@@ -48,7 +48,7 @@ import {
 } from './handlers/taskFlow';
 import { handleConfirmPhoto, handlePhotoArrival, handleRetakePhoto } from './handlers/submission';
 import { handleMyStatus } from './handlers/status';
-import { handleHelp, handleMenuHome } from './handlers/help';
+import { handleHelp, handleMenuHome, handleUnsupportedMessage } from './handlers/help';
 
 /**
  * Attaches every route to the bot.
@@ -84,8 +84,17 @@ export function registerRoutes(bot: Bot<BotContext>): void {
 
   bot.on('message:photo', handlePhotoArrival);
 
-  // The text route is last and claims everything else.
+  // The text route is last among the SPECIFIC routes and claims every text
+  // message.
   bot.on('message:text', handleTextRoute);
+
+  // Catch-all for message types with no handler above — a photo sent as a
+  // file/document (Telegram's "send without compression"), voice, video,
+  // stickers. grammY only reaches this when none of the filtered routes above
+  // matched, so text/photo/location are untouched; without it those messages
+  // were dropped in silence, which reads as "the bot is down". See
+  // handleUnsupportedMessage.
+  bot.on('message', handleUnsupportedMessage);
 }
 
 /**
