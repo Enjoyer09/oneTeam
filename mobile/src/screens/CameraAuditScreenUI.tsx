@@ -57,6 +57,7 @@ import {
   Linking,
 } from 'react-native';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -71,6 +72,55 @@ import {
 } from '../utils/photoQuality';
 import type { MobileTask, MobileStore, GPSCoordinates } from '../types';
 import type { ChecklistAnswer } from './TaskDetailScreen';
+
+/**
+ * Longest edge (px) and JPEG quality the captured photo is downscaled to before
+ * it leaves this screen.
+ *
+ * WHY RESIZE AT ALL
+ * -----------------
+ * `takePictureAsync` returns a full-sensor JPEG — 2-5 MB on a modern phone. Two
+ * things break on that size: the inline submit path refuses a data: URL over
+ * ~1.5 MB (portalApi MAX_PHOTO_BYTES), and the offline queue's 50 MB budget then
+ * holds only a handful of audits. A shelf-compliance photo does not need
+ * full-sensor resolution; 1600 px on the long edge at quality 0.6 keeps the
+ * facings legible while landing well under the inline limit and stretching the
+ * queue to dozens of audits.
+ */
+const MAX_PHOTO_EDGE_PX = 1600;
+const PHOTO_JPEG_QUALITY = 0.6;
+
+/**
+ * Downscales a captured photo and returns its base64, falling back to the
+ * original bytes if the manipulator fails for any reason.
+ *
+ * The resize runs on the file URI, not the base64, so the large original string
+ * is never re-encoded in JS. EXIF is intentionally dropped from the sent image
+ * (image-manipulator does not carry it through) — the quality/anti-fraud
+ * assessment is taken from the ORIGINAL shot's `exif` by the caller before this
+ * runs, so nothing downstream needs the stripped copy's metadata.
+ */
+async function downscaleCapture(uri: string, originalBase64: string): Promise<string> {
+  try {
+    const context = ImageManipulator.manipulate(uri);
+    context.resize({ width: MAX_PHOTO_EDGE_PX });
+    const image = await context.renderAsync();
+    const result = await image.saveAsync({
+      format: SaveFormat.JPEG,
+      compress: PHOTO_JPEG_QUALITY,
+      base64: true,
+    });
+    // A resize that renders but returns no base64 is useless here; keep the
+    // original rather than send an empty string that would fail downstream.
+    return result.base64 && result.base64.length > 0 ? result.base64 : originalBase64;
+  } catch (error) {
+    console.warn(
+      '[oneTeam Mobile] Photo resize failed; sending original capture:',
+      error instanceof Error ? error.message : String(error),
+    );
+    return originalBase64;
+  }
+}
 
 export interface CameraAuditScreenProps {
   task: MobileTask;
@@ -263,8 +313,15 @@ export function CameraAuditScreenUI({
       // Judged from the EXIF the platform returned with these bytes, before the
       // photo can be sent. `exif: true` above is what makes this possible; the
       // assessment is pure and runs on the shutter, so there is no window in
-      // which an unjudged photo is sitting on screen.
+      // which an unjudged photo is sitting on screen. Taken from the ORIGINAL
+      // shot — the downscaled copy below drops EXIF, so order matters.
       const assessment = assessPhotoQuality(shot.exif as Record<string, unknown> | undefined);
+
+      // Downscale before the bytes travel any further. A full-sensor JPEG blows
+      // past the inline-submit size limit and fills the offline queue; see
+      // MAX_PHOTO_EDGE_PX. Falls back to the original bytes if the resize fails,
+      // so a capture is never lost to a manipulator error.
+      const sendBase64 = await downscaleCapture(shot.uri, shot.base64);
 
       // WHERE THE PHOTO WAS TAKEN, not where the worker signed in. The fresh fix
       // is requested at the moment of capture; if the platform cannot answer, the
@@ -277,7 +334,7 @@ export function CameraAuditScreenUI({
         source: 'camera',
         userGPS: position.gps,
         isFresh: position.isFresh,
-        base64: shot.base64,
+        base64: sendBase64,
         scannedBarcodes,
         photoQuality: assessment,
       });

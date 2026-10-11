@@ -550,6 +550,13 @@ export class OfflineQueueManager {
     photoUri: string;
     photoBase64?: string;
     metadata: AuditMetadata;
+    /**
+     * The server idempotency key the capture already owns. Pass it so a drain of
+     * this item files under the same key an earlier online attempt used — see
+     * QueueItem.idempotency_key. Omitted for a plain offline capture, where the
+     * drain keys on the item id.
+     */
+    idempotencyKey?: string;
   }): Promise<QueueItem> {
     await this.ensureLoaded();
 
@@ -563,6 +570,7 @@ export class OfflineQueueManager {
       created_at: new Date().toISOString(),
       retry_count: 0,
       sync_status: 'queued',
+      idempotency_key: params.idempotencyKey,
     };
 
     const next = [...this.queue, queueItem];

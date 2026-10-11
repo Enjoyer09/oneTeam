@@ -189,6 +189,16 @@ export interface QueueItem {
   retry_count: number;
   sync_status: 'queued' | 'syncing' | 'failed' | 'synced';
   error_message?: string;
+  /**
+   * The server idempotency key to file this audit under, when the capture that
+   * produced it already has one.
+   *
+   * The drain normally keys on `id`, but an item queued as a FALLBACK after an
+   * online submit failed must reuse the key that online attempt sent — otherwise
+   * a POST that actually landed (response lost on a dropped signal) would be
+   * filed a second time on drain. When absent, the drain falls back to `id`.
+   */
+  idempotency_key?: string;
 }
 
 /**
