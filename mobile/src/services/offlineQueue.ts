@@ -744,6 +744,24 @@ export class OfflineQueueManager {
     return cleared;
   }
 
+  /**
+   * Removes ONE item from the queue — the per-audit "discard" the history screen
+   * offers when a worker decides a stuck capture should not be resent (e.g. an
+   * item parked at the retry cap, or one whose photo bytes are gone). Returns
+   * true if an item was removed. Clears the whole queue is the blunt version;
+   * this is the surgical one, so a worker never has to drop everything to drop
+   * one.
+   */
+  async discardItem(id: string): Promise<boolean> {
+    await this.ensureLoaded();
+    const before = this.queue.length;
+    this.queue = this.queue.filter((item) => item.id !== id);
+    if (this.queue.length === before) return false;
+    await this.persist();
+    this.notifyChange();
+    return true;
+  }
+
   private notifyChange() {
     if (this.onQueueChangeListener) {
       this.onQueueChangeListener(this.pendingCount());

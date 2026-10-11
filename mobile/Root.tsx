@@ -87,6 +87,7 @@ import type { ChecklistAnswer } from './src/screens/TaskDetailScreen';
 
 import { LoginScreenUI } from './src/screens/LoginScreenUI';
 import { TaskListScreenUI } from './src/screens/TaskListScreenUI';
+import { AuditHistoryScreenUI } from './src/screens/AuditHistoryScreenUI';
 import { TaskDetailScreen } from './src/screens/TaskDetailScreen';
 import { CameraAuditScreenUI } from './src/screens/CameraAuditScreenUI';
 
@@ -107,6 +108,7 @@ type Screen =
   | { name: 'loading' }
   | { name: 'login' }
   | { name: 'taskList'; store: MobileStore; userGPS: GPSCoordinates }
+  | { name: 'history'; store: MobileStore; userGPS: GPSCoordinates }
   | { name: 'taskDetail'; store: MobileStore; task: MobileTask; userGPS: GPSCoordinates }
   | {
       name: 'camera';
@@ -288,8 +290,17 @@ export function Root() {
 
   const handleBackToTaskList = useCallback(() => {
     setScreen((prev) => {
-      if (prev.name === 'taskDetail' || prev.name === 'camera') {
+      if (prev.name === 'taskDetail' || prev.name === 'camera' || prev.name === 'history') {
         return { name: 'taskList', store: prev.store, userGPS: prev.userGPS };
+      }
+      return prev;
+    });
+  }, []);
+
+  const handleOpenHistory = useCallback(() => {
+    setScreen((prev) => {
+      if (prev.name === 'taskList') {
+        return { name: 'history', store: prev.store, userGPS: prev.userGPS };
       }
       return prev;
     });
@@ -358,7 +369,16 @@ export function Root() {
               store={screen.store}
               onSelectTask={handleSelectTask}
               onLogout={handleLogout}
+              onOpenHistory={handleOpenHistory}
             />
+          </>
+        );
+
+      case 'history':
+        return (
+          <>
+            <StatusBar style="dark" />
+            <AuditHistoryScreenUI store={screen.store} onBack={handleBackToTaskList} />
           </>
         );
 

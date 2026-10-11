@@ -37,9 +37,15 @@ export interface TaskListScreenProps {
   store: MobileStore;
   onSelectTask: (task: MobileTask) => void;
   onLogout: () => void;
+  onOpenHistory: () => void;
 }
 
-export function TaskListScreenUI({ store, onSelectTask, onLogout }: TaskListScreenProps) {
+export function TaskListScreenUI({
+  store,
+  onSelectTask,
+  onLogout,
+  onOpenHistory,
+}: TaskListScreenProps) {
   const insets = useSafeAreaInsets();
   const controller = new TaskListController();
   const [tasks, setTasks] = useState<MobileTask[]>([]);
@@ -146,7 +152,21 @@ export function TaskListScreenUI({ store, onSelectTask, onLogout }: TaskListScre
             </Text>
           )}
         </TouchableOpacity>
-        <TouchableOpacity onPress={onLogout} style={styles.logoutButton}>
+        <TouchableOpacity
+          testID="taskList.historyButton"
+          accessibilityRole="button"
+          accessibilityLabel="Audit tarixçəsi və göndərilməmiş növbə"
+          onPress={onOpenHistory}
+          style={styles.historyButton}
+        >
+          <Text style={styles.historyText}>Tarixçə{pendingSync > 0 ? ` (${pendingSync})` : ''}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={onLogout}
+          accessibilityRole="button"
+          accessibilityLabel="Çıxış"
+          style={styles.logoutButton}
+        >
           <Text style={styles.logoutText}>Çıxış</Text>
         </TouchableOpacity>
       </View>
@@ -250,16 +270,31 @@ const styles = StyleSheet.create({
   logoutButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   logoutText: {
     fontSize: 15,
     color: '#B00020',
   },
+  historyButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  historyText: {
+    fontSize: 15,
+    color: '#0066CC',
+    fontWeight: '600',
+  },
   syncButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     minWidth: 44,
+    minHeight: 44,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   syncText: {
     fontSize: 15,

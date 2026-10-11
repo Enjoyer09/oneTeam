@@ -119,4 +119,15 @@ export class AuditHistoryController {
   async triggerManualSync() {
     return offlineQueueService.processQueue(uploadQueuedAudit, { manual: true });
   }
+
+  /**
+   * Drops one queued audit the worker has decided not to resend — a stuck item
+   * at the retry cap, or one whose photo bytes are gone (`CAPTURE_NOT_AVAILABLE`).
+   * Returns true if it was removed, so the UI can tell "discarded" from "already
+   * gone". The whole-queue clear still exists; this is the per-item version so a
+   * worker never drops everything to drop one.
+   */
+  async discardQueuedAudit(id: string): Promise<boolean> {
+    return offlineQueueService.discardItem(id);
+  }
 }
