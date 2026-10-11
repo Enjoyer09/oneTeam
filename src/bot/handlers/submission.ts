@@ -59,6 +59,20 @@ import { escapeMarkdown } from '../markdown';
  */
 const PHOTO_FETCH_TIMEOUT_MS = Number(process.env.ONETEAM_PHOTO_FETCH_TIMEOUT_MS) || 20_000;
 
+/**
+ * Rejects if `promise` has not settled within `ms`. Used to bound a grammY API
+ * call whose own `signal` parameter is typed against a bundled AbortSignal the
+ * global `AbortSignal.timeout()` is not assignable to. The underlying call is
+ * not cancelled — the race just stops the sequential poll loop waiting on it.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer)) as Promise<T>;
+}
+
 /** What is held between the photo arriving and the merchandiser confirming it. */
 type PendingPhoto = NonNullable<BotContext['session']['pendingPhoto']>;
 
@@ -329,12 +343,16 @@ async function filePhoto(
   // Retrieve file path and download from Telegram servers
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   if (ctx.api && botToken && !botToken.includes('mockBotToken')) {
-    // grammY's API methods take an AbortSignal as their final positional
-    // argument (getFile has no "other" options), so the timeout is passed
-    // directly here, not wrapped in a `{ signal }` object like fetch below.
-    const fileInfo = await ctx.api.getFile(
-      pending.fileId,
-      AbortSignal.timeout(PHOTO_FETCH_TIMEOUT_MS),
+    // Bounded with a Promise.race rather than grammY's own `signal` argument:
+    // that parameter is typed against grammY's bundled `abort-controller`
+    // AbortSignal, which the global `AbortSignal.timeout()` is not assignable to.
+    // The race unblocks the (sequential) poll loop on a stalled CDN even though
+    // the underlying call keeps running — which is the point: one slow download
+    // must not freeze every other chat.
+    const fileInfo = await withTimeout(
+      ctx.api.getFile(pending.fileId),
+      PHOTO_FETCH_TIMEOUT_MS,
+      'Telegram getFile',
     );
     if (!fileInfo.file_path) {
       throw new Error('Telegram file path not returned');
