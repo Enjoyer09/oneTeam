@@ -55,11 +55,19 @@ export class HealthController {
       timestamp: Date.now(),
 
       // Which storage the repository decided to use at start-up.
+      //
+      // Only the MODE is public. `persistenceDetail` ("postgres — N users, N
+      // stores …") carries live row counts, and the storage `detail` carries
+      // the S3 bucket name and endpoint — infrastructure facts an anonymous
+      // caller has no need for. This endpoint is unauthenticated and, through
+      // the nginx proxy, reachable from the internet, so it answers "alive,
+      // saving, schema OK" without naming the bucket or counting the rows.
       persistence: db.persistence,
-      persistenceDetail: db.persistenceDetail,
 
       // Whether the database actually has the tables and columns this build
       // queries, and whether the migrations needed to get it there were applied.
+      // Kept (the production smoke test asserts these are clean); table and
+      // migration names are far less sensitive than a bucket address.
       schema: {
         ok: db.schemaOk,
         detail: db.schemaDetail,
@@ -70,11 +78,10 @@ export class HealthController {
         columnsChecked: db.schema?.checked ?? 0,
       },
 
-      // Where a submitted shelf photo ends up. `inline` means the image itself
-      // is inside the database row, which is the honest description of the
-      // default and the thing an operator needs to see before deciding it is
-      // fine at a thousand stores.
-      photoStorage: this.storage.description,
+      // Only the driver is public — not the bucket name or endpoint. `inline`
+      // vs `s3` is what the smoke test checks; the address behind an `s3` driver
+      // is infrastructure disclosure and is no longer returned here.
+      photoStorage: { driver: this.storage.description.driver },
 
       // Whether this process would notice another replica's writes.
       //

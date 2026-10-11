@@ -1937,10 +1937,38 @@ export async function insertNotification(
  * at-most-once. A lost notification is the bug this table exists to fix, so
  * erring towards a duplicate is deliberate.
  */
+/**
+ * How many times a notification may be leased without being delivered or
+ * explicitly failed before it is dead-lettered. A message the bot keeps
+ * choking on (a transient-looking error it never reports via
+ * `markNotificationFailed`) would otherwise be re-leased every lease window
+ * forever — a queue that never drains and a log nobody reads. The cap turns
+ * that into a terminal, visible failure.
+ */
+export const MAX_NOTIFICATION_ATTEMPTS = 5;
+
 export async function claimNotifications(
   pool: Pool,
   options: { chatId?: string | null; limit?: number; claimedBy: string; leaseSeconds: number },
 ): Promise<NotificationRow[]> {
+  // Dead-letter poison messages before claiming. A row leased
+  // MAX_NOTIFICATION_ATTEMPTS times that is still neither delivered nor failed
+  // is one no retry is fixing; mark it failed so it stops being re-leased and
+  // shows up as terminal rather than silently cycling. `attempts` is bumped on
+  // every claim below, so this reads the count from prior polls.
+  await pool.query(
+    `UPDATE notifications
+        SET failed_at = now(),
+            failure = COALESCE(
+              failure,
+              'dead-lettered after ' || attempts || ' delivery attempts with no success'
+            )
+      WHERE delivered_at IS NULL
+        AND failed_at IS NULL
+        AND attempts >= $1`,
+    [MAX_NOTIFICATION_ATTEMPTS],
+  );
+
   const result = await pool.query(
     `UPDATE notifications
         SET claimed_at = now(),
@@ -1951,6 +1979,7 @@ export async function claimNotifications(
                 FROM notifications
                WHERE delivered_at IS NULL
                  AND failed_at IS NULL
+                 AND attempts < $5
                  AND chat_id IS NOT NULL
                  AND ($1::text IS NULL OR chat_id = $1)
                  AND (claimed_at IS NULL
@@ -1960,7 +1989,13 @@ export async function claimNotifications(
                FOR UPDATE SKIP LOCKED
             )
       RETURNING *`,
-    [options.chatId ?? null, options.limit ?? 20, options.claimedBy, options.leaseSeconds],
+    [
+      options.chatId ?? null,
+      options.limit ?? 20,
+      options.claimedBy,
+      options.leaseSeconds,
+      MAX_NOTIFICATION_ATTEMPTS,
+    ],
   );
 
   return result.rows.map(toNotification);
