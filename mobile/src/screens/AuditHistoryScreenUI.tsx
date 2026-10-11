@@ -200,9 +200,7 @@ export function AuditHistoryScreenUI({ store, onBack }: AuditHistoryScreenProps)
             Göndərilməmiş növbə{queued.length > 0 ? ` (${queued.length})` : ''}
           </Text>
         }
-        ListEmptyComponent={
-          <Text style={styles.empty}>Göndərilməmiş audit yoxdur.</Text>
-        }
+        ListEmptyComponent={<Text style={styles.empty}>Göndərilməmiş audit yoxdur.</Text>}
         renderItem={({ item }) => (
           <View style={styles.card} testID="history.queueItem">
             <View style={styles.cardRow}>
@@ -217,9 +215,7 @@ export function AuditHistoryScreenUI({ store, onBack }: AuditHistoryScreenProps)
               {shortTime(item.created_at)}
               {item.retry_count > 0 ? ` · ${item.retry_count} cəhd` : ''}
             </Text>
-            {item.error_message ? (
-              <Text style={styles.cardError}>{item.error_message}</Text>
-            ) : null}
+            {item.error_message ? <Text style={styles.cardError}>{item.error_message}</Text> : null}
             <TouchableOpacity
               onPress={() => handleDiscard(item)}
               disabled={busy}
@@ -284,7 +280,12 @@ const styles = StyleSheet.create({
   backButton: { paddingRight: 12, minHeight: 44, justifyContent: 'center' },
   backText: { fontSize: 15, color: '#0066CC', fontWeight: '600' },
   headerTitle: { flex: 1, fontSize: 18, fontWeight: '700', color: '#111111' },
-  syncButton: { paddingHorizontal: 12, minHeight: 44, justifyContent: 'center', alignItems: 'center' },
+  syncButton: {
+    paddingHorizontal: 12,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   syncText: { fontSize: 15, color: '#0066CC', fontWeight: '600' },
   syncTextDisabled: { color: '#9AA0A6' },
   banner: {
@@ -341,5 +342,3 @@ const styles = StyleSheet.create({
   },
   discardText: { fontSize: 14, color: '#B00020', fontWeight: '600' },
 });
-
-

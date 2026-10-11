@@ -954,55 +954,56 @@ export class FieldService {
    * not been written yet at this point, so refusing costs one retry and costs
    * the audit trail nothing.
    */
-  async submitSubmission(payload: {
-    /** Exactly one of these identifies the acting person. See FieldActorKey. */
-    chatId?: string | number;
-    deviceId?: string;
-    storeTaskId: string;
-    photoUrl: string;
-    photoType?: 'before' | 'after' | 'standard';
-    latitude?: number;
-    longitude?: number;
-    locationUnverified?: boolean;
-    /** GPS horizontal accuracy in metres, when the client reports it. */
-    accuracy?: number;
-    /** True when the device flagged the fix as mock/simulated (Android exposes this). */
-    locationMocked?: boolean;
-    /**
-     * When the fix was taken, as an ISO-8601 instant.
-     *
-     * `accuracy` bounds the fix horizontally and `locationMocked` says whether it
-     * is real, but neither says how old it is — and no client sent this before,
-     * which left the pair of numbers an undated claim that could be replayed
-     * hours later from anywhere. See `gps-freshness.ts`.
-     */
-    locatedAt?: string;
-    checklistAnswers?: Array<{ questionId: string; value: boolean | number | string }>;
-    metadata?: Record<string, unknown>;
-    /** Client-supplied key that makes a resend return the same evidence. */
-    idempotencyKey?: string;
-    /**
-     * The vision engine's read of this photo, when one ran in the bot.
-     *
-     * TRUSTED ONLY FROM THE SERVICE CREDENTIAL
-     * ----------------------------------------
-     * These are honoured only when `caller` holds the shared service credential
-     * — i.e. the bot, which runs the engine server-side and then submits. A
-     * field *device* credential reaches this same route (it files its own
-     * audits), so if these fields were trusted unconditionally a merchandiser
-     * on a modified build could POST `aiScore:100, aiNeedsHumanReview:false`
-     * and auto-approve their own shelf photo, defeating review entirely. When
-     * the caller is a device/panel the AI fields are ignored and the record is
-     * left pending for a human (exactly as when vision is off).
-     */
-    aiScore?: number;
-    aiSummary?: string;
-    aiDetections?: unknown[];
-    aiConfidence?: number;
-    aiNeedsHumanReview?: boolean;
-    aiEngine?: string;
-    aiModel?: string;
-  },
+  async submitSubmission(
+    payload: {
+      /** Exactly one of these identifies the acting person. See FieldActorKey. */
+      chatId?: string | number;
+      deviceId?: string;
+      storeTaskId: string;
+      photoUrl: string;
+      photoType?: 'before' | 'after' | 'standard';
+      latitude?: number;
+      longitude?: number;
+      locationUnverified?: boolean;
+      /** GPS horizontal accuracy in metres, when the client reports it. */
+      accuracy?: number;
+      /** True when the device flagged the fix as mock/simulated (Android exposes this). */
+      locationMocked?: boolean;
+      /**
+       * When the fix was taken, as an ISO-8601 instant.
+       *
+       * `accuracy` bounds the fix horizontally and `locationMocked` says whether it
+       * is real, but neither says how old it is — and no client sent this before,
+       * which left the pair of numbers an undated claim that could be replayed
+       * hours later from anywhere. See `gps-freshness.ts`.
+       */
+      locatedAt?: string;
+      checklistAnswers?: Array<{ questionId: string; value: boolean | number | string }>;
+      metadata?: Record<string, unknown>;
+      /** Client-supplied key that makes a resend return the same evidence. */
+      idempotencyKey?: string;
+      /**
+       * The vision engine's read of this photo, when one ran in the bot.
+       *
+       * TRUSTED ONLY FROM THE SERVICE CREDENTIAL
+       * ----------------------------------------
+       * These are honoured only when `caller` holds the shared service credential
+       * — i.e. the bot, which runs the engine server-side and then submits. A
+       * field *device* credential reaches this same route (it files its own
+       * audits), so if these fields were trusted unconditionally a merchandiser
+       * on a modified build could POST `aiScore:100, aiNeedsHumanReview:false`
+       * and auto-approve their own shelf photo, defeating review entirely. When
+       * the caller is a device/panel the AI fields are ignored and the record is
+       * left pending for a human (exactly as when vision is off).
+       */
+      aiScore?: number;
+      aiSummary?: string;
+      aiDetections?: unknown[];
+      aiConfidence?: number;
+      aiNeedsHumanReview?: boolean;
+      aiEngine?: string;
+      aiModel?: string;
+    },
     /**
      * The credential that authenticated the HTTP request — NOT the field actor
      * derived from the body. Only the service credential (the bot) may supply a

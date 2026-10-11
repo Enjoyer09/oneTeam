@@ -157,7 +157,9 @@ export function TaskListScreenUI({
           onPress={onOpenHistory}
           style={styles.historyButton}
         >
-          <Text style={styles.historyText}>Tarixçə{pendingSync > 0 ? ` (${pendingSync})` : ''}</Text>
+          <Text style={styles.historyText}>
+            Tarixçə{pendingSync > 0 ? ` (${pendingSync})` : ''}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={onLogout}
