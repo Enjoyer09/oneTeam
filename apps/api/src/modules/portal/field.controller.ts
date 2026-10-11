@@ -235,15 +235,15 @@ export class FieldController {
   }
 
   @Get('tasks')
-  getTasks(@Query('storeId') storeId?: string) {
+  getTasks(@Request() request: AuthedRequest, @Query('storeId') storeId?: string) {
     if (!storeId) throw new BadRequestException('storeId parametri tələb olunur');
-    const data = this.fieldService.getTasksForStore(storeId);
+    const data = this.fieldService.getTasksForStore(storeId, getPrincipal(request));
     return { success: true, data, total: data.length };
   }
 
   @Get('tasks/:id')
-  getTaskById(@Param('id') id: string) {
-    const task = this.fieldService.getTaskById(id);
+  getTaskById(@Request() request: AuthedRequest, @Param('id') id: string) {
+    const task = this.fieldService.getTaskById(id, getPrincipal(request));
     if (!task) {
       return { success: false, data: null, message: `Tapşırıq tapılmadı: ${id}` };
     }

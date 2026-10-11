@@ -807,17 +807,39 @@ export class FieldService {
    * states are excluded because there is nothing left to do. Everything in
    * between is work in progress and stays visible, which is what makes a task
    * disappear from the bot at the right moment rather than never.
+   *
+   * SCOPED TO THE CALLER. The bot holds the service credential and serves every
+   * chat, so it sees the store's full open list; a device/panel credential
+   * resolves to one person and sees only the tasks they can act on. Without this
+   * any device token could enumerate any store's task list by id (IDOR).
    */
-  getTasksForStore(storeId: string): PanelTask[] {
+  getTasksForStore(storeId: string, principal: AuthenticatedPrincipal): PanelTask[] {
     const open = new Set(['PUBLISHED', 'DELIVERED', 'ACKNOWLEDGED', 'IN_PROGRESS', 'SUBMITTED']);
+    const seesEverything = mayActAsAnotherUser(principal);
     return db.storeTasks
-      .filter((task) => task.storeId === storeId && open.has(task.status))
+      .filter(
+        (task) =>
+          task.storeId === storeId &&
+          open.has(task.status) &&
+          (seesEverything || db.canUserAccessTask(principal.userId, principal.role, task.id)),
+      )
       .map((task) => this.portal.toPanelTask(task));
   }
 
-  getTaskById(taskId: string): PanelTask | null {
+  getTaskById(taskId: string, principal: AuthenticatedPrincipal): PanelTask | null {
     const task = db.getTask(taskId);
-    return task ? this.portal.toPanelTask(task) : null;
+    if (!task) return null;
+    // A missing task and a task this caller may not read both answer null (the
+    // controller renders that as "not found"), so a device token cannot confirm
+    // a task exists by its id. The bot's service credential is exempt because it
+    // acts for whichever chat an update came from.
+    if (
+      !mayActAsAnotherUser(principal) &&
+      !db.canUserAccessTask(principal.userId, principal.role, taskId)
+    ) {
+      return null;
+    }
+    return this.portal.toPanelTask(task);
   }
 
   /**

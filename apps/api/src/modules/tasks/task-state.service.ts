@@ -334,7 +334,12 @@ export class TaskStateService {
     }
 
     // 2. Perform State Update
-    const updatedTask = db.updateTaskState(taskId, targetState);
+    //
+    // `previousState` is handed down so the persisted write is conditional on
+    // the row still being in that state — optimistic concurrency that stops a
+    // stale replica from clobbering a decision it has not yet seen. See
+    // EnterpriseDatabase.updateTaskState / updateStoreTaskStateConditional.
+    const updatedTask = db.updateTaskState(taskId, targetState, previousState);
     if (!updatedTask) {
       throw new HttpException(
         'Tapşırığın statusunu yeniləmək mümkün olmadı',

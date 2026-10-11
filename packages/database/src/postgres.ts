@@ -375,6 +375,56 @@ export async function updateStoreTaskRow(pool: Pool, task: InMemoryStoreTask): P
 }
 
 /**
+ * Persists a state transition ONLY if the row is still in the state the caller
+ * decided from — optimistic concurrency for the one write that two replicas can
+ * race on.
+ *
+ * The in-memory read-validate-write in `transitionTask` is synchronous and safe
+ * within one process, but across replicas the refresh window means replica B can
+ * still see SUBMITTED after replica A has written APPROVED/REJECTED. A plain
+ * `WHERE id` UPDATE would then let B's stale decision clobber A's — a rejected
+ * audit silently flipped to approved. The extra `AND status = $11` makes B's
+ * write affect zero rows instead; the returned count lets the caller log the
+ * conflict, and B's own snapshot is corrected on its next refresh. On the
+ * single-replica deployment this always matches (the expected state is the one
+ * just read), so it is a no-op there and a safety net the day a second replica
+ * runs.
+ */
+export async function updateStoreTaskStateConditional(
+  pool: Pool,
+  task: InMemoryStoreTask,
+  expectedPreviousStatus: string,
+): Promise<number> {
+  const result = await pool.query(
+    `UPDATE store_tasks
+        SET status = $2,
+            published_at = $3,
+            delivered_at = $4,
+            acknowledged_at = $5,
+            submitted_at = $6,
+            reviewed_at = $7,
+            updated_at = $8,
+            assigned_user_id = $9,
+            deadline = $10
+      WHERE id = $1 AND status = $11`,
+    [
+      task.id,
+      task.status,
+      task.publishedAt ?? null,
+      task.deliveredAt ?? null,
+      task.acknowledgedAt ?? null,
+      task.submittedAt ?? null,
+      task.reviewedAt ?? null,
+      task.updatedAt,
+      task.assignedUserId ?? null,
+      task.deadline,
+      expectedPreviousStatus,
+    ],
+  );
+  return result.rowCount ?? 0;
+}
+
+/**
  * Inserts a task template created from the web panel.
  *
  * The panel authors a briefing (title, description, reference image, priority)

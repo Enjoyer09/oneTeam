@@ -2148,7 +2148,11 @@ export class EnterpriseDatabase {
     return task;
   }
 
-  public updateTaskState(taskId: string, newState: TaskState): InMemoryStoreTask | null {
+  public updateTaskState(
+    taskId: string,
+    newState: TaskState,
+    expectedPreviousStatus?: TaskState,
+  ): InMemoryStoreTask | null {
     const task = this.getTask(taskId);
     if (!task) return null;
 
@@ -2163,8 +2167,29 @@ export class EnterpriseDatabase {
       task.reviewedAt = new Date();
     }
 
-    if (this.pool)
-      this.persist((pool) => pg.updateStoreTaskRow(pool, task), `task ${task.id} state`);
+    if (this.pool) {
+      // When the caller tells us the state it decided from, persist the
+      // transition conditionally so a concurrent replica cannot clobber a
+      // decision we have not seen yet (see updateStoreTaskStateConditional). A
+      // zero-row result is a real conflict: log it and let the next refresh
+      // reconcile this replica's snapshot. Without an expected state (callers
+      // that are not a validated transition) fall back to the plain write.
+      if (expectedPreviousStatus !== undefined) {
+        const expected = expectedPreviousStatus;
+        this.persist(async (pool) => {
+          const updated = await pg.updateStoreTaskStateConditional(pool, task, expected);
+          if (updated === 0) {
+            console.error(
+              `⛔ [oneTeam DB] State transition conflict on task ${task.id}: expected ` +
+                `prior state ${expected} was no longer in the database, so ${newState} was ` +
+                `not written. A concurrent writer won; this replica will reconcile on refresh.`,
+            );
+          }
+        }, `task ${task.id} state`);
+      } else {
+        this.persist((pool) => pg.updateStoreTaskRow(pool, task), `task ${task.id} state`);
+      }
+    }
 
     return task;
   }
