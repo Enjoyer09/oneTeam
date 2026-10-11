@@ -120,6 +120,17 @@ export function TaskListScreenUI({
     void load();
   }, [store.id]);
 
+  // Keep the "Növbəni göndər (N)" badge live. The queue drains on reconnection,
+  // on foreground and at startup — none of which this screen initiates — so a
+  // count read only on load/refresh goes stale the moment a background drain
+  // empties the queue. Registering the queue's own change listener updates the
+  // badge the instant the queue changes; cleared on unmount so a backgrounded
+  // screen is not retained by the singleton.
+  useEffect(() => {
+    offlineQueueService.setOnQueueChange((count) => setPendingSync(count));
+    return () => offlineQueueService.setOnQueueChange(null);
+  }, []);
+
   if (loading) {
     return (
       <View style={styles.center}>

@@ -1157,7 +1157,7 @@ export class FieldService {
       hasRealFix && accuracyMeters !== null && accuracyMeters > LOW_CONFIDENCE_ACCURACY_M;
 
     if (locationMocked) {
-      db.logAuditEvent({
+      await db.logAuditEventDurable({
         entityType: 'task_evidence',
         entityId: payload.storeTaskId,
         action: 'LOCATION_MOCKED',

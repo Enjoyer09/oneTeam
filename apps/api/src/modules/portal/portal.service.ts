@@ -1502,7 +1502,7 @@ export class PortalService {
     // the anti-fraud hold, and it must leave a trail naming who cleared it —
     // otherwise the block is silently undone with nothing to answer for later.
     if (decision.status === 'approved' && evidence.locationMocked === true) {
-      db.logAuditEvent({
+      await db.logAuditEventDurable({
         entityType: 'task_evidence',
         entityId: evidenceId,
         action: 'LOCATION_MOCK_OVERRIDE',

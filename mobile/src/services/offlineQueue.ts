@@ -271,8 +271,8 @@ export class OfflineQueueManager {
   // Wiring
   // -------------------------------------------------------------------------
 
-  setOnQueueChange(listener: (count: number) => void) {
-    this.onQueueChangeListener = listener;
+  setOnQueueChange(listener: ((count: number) => void) | null) {
+    this.onQueueChangeListener = listener ?? undefined;
   }
 
   /**

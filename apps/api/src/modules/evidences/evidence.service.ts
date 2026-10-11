@@ -155,8 +155,10 @@ export class EvidenceService {
         `⚠️ [GEOFENCE REJECTION] Audit outside allowed perimeter: ${geofence.distanceMeters}m (Max: ${geofence.maxAllowedMeters}m)`,
       );
 
-      // Log anti-fraud security rejection in audit log
-      db.logAuditEvent({
+      // Log anti-fraud security rejection in audit log. Durable + awaited: a
+      // geofence rejection is exactly the kind of record that must survive, so
+      // it is written before the 400 below rather than fired and forgotten.
+      await db.logAuditEventDurable({
         entityType: 'task_evidence',
         entityId: dto.storeTaskId,
         action: 'GEOFENCE_REJECTION',
