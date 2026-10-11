@@ -60,17 +60,39 @@ export function App() {
     'all' | 'pending_review' | 'approved' | 'rejected'
   >('all');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastIsError, setToastIsError] = useState(false);
 
   /* Mobil çekmece + toolbar kölgəsi */
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
   const mainRef = useRef<HTMLElement | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showToast = (msg: string) => {
+  /**
+   * Shows a transient toast.
+   *
+   * The timer handle is held in a ref and cleared before each new toast, so two
+   * toasts in quick succession do not leave the first one's timer running to
+   * wipe the second early; it is also cleared on unmount to avoid a
+   * setState-after-unmount. `isError` routes the message to an assertive live
+   * region so a failure is announced promptly rather than deferred.
+   */
+  const showToast = (msg: string, isError = false) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
+    setToastIsError(isError);
+    toastTimer.current = setTimeout(() => {
+      setToastMessage(null);
+      toastTimer.current = null;
+    }, 3500);
   };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, []);
 
   /**
    * Asks the API whether a key is needed, and whether the one in this browser
@@ -146,6 +168,43 @@ export function App() {
     }
   }, []);
 
+  /**
+   * A QUIET refresh of the auth status/identity that never leaves the `ready`
+   * shell mounted.
+   *
+   * WHY THIS EXISTS, SEPARATE FROM `checkAuth`
+   * ------------------------------------------
+   * `checkAuth` begins with `setAuth({ phase: 'checking' })`, which makes the
+   * whole app render the full-screen "checking" spinner — unmounting the key and
+   * user modals. The key modals show a freshly minted key EXACTLY ONCE (only its
+   * SHA-256 is kept server-side), so running `checkAuth` the instant a key is
+   * minted tore the modal down and destroyed the one-time plaintext before the
+   * admin could copy it — breaking the core key-issuance flow. Minting the first
+   * key is worse still: `required` flips to true while the browser still has no
+   * stored key, so `checkAuth` would route to the LOGIN screen mid-mint.
+   *
+   * So the modals call this instead. It re-fetches status/identity (to drop the
+   * "panel is open" banner and update the live-key count) and patches them into
+   * the existing `ready` state in place — the modal, and the key it is showing,
+   * stay mounted. A failure here is swallowed: a refresh that cannot complete is
+   * not a reason to tear down a shell the admin is actively using.
+   */
+  const refreshAuth = useCallback(async () => {
+    let status: PanelAuthStatus;
+    try {
+      status = await fetchAuthStatus();
+    } catch {
+      return;
+    }
+    let identity: PanelIdentity | null = null;
+    try {
+      identity = await fetchIdentity();
+    } catch {
+      identity = null;
+    }
+    setAuth((prev) => (prev.phase === 'ready' ? { phase: 'ready', status, identity } : prev));
+  }, []);
+
   const loadData = async () => {
     try {
       const [m, s, t, subs] = await Promise.all([
@@ -173,7 +232,7 @@ export function App() {
       // "işləyirdi", sadəcə yanlış məlumatla.
       const message = error instanceof Error ? error.message : String(error);
       console.error('⛔ [oneTeam Portal] Məlumat yüklənə bilmədi:', message);
-      showToast(`Məlumat yüklənə bilmədi — ${message}`);
+      showToast(`Məlumat yüklənə bilmədi — ${message}`, true);
     }
   };
 
@@ -207,7 +266,7 @@ export function App() {
       }
       const message = error instanceof Error ? error.message : String(error);
       console.error('⛔ [oneTeam Portal] Əməliyyat alınmadı:', message);
-      showToast(`Əməliyyat alınmadı — ${message}`);
+      showToast(`Əməliyyat alınmadı — ${message}`, true);
     }
   };
 
@@ -482,22 +541,24 @@ export function App() {
       {/* Bildiriş — şüşə popover */}
       {toastMessage && (
         <div
-          role="status"
-          aria-live="polite"
+          role={toastIsError ? 'alert' : 'status'}
+          aria-live={toastIsError ? 'assertive' : 'polite'}
           className="glass-pop fixed top-4 right-4 z-[60] flex items-center gap-2.5
                      max-w-[calc(100vw-2rem)] rounded-[14px] px-4 py-3
                      text-[12px] font-bold text-ink animate-toastIn"
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-ok flex-shrink-0" />
+          <span
+            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${toastIsError ? 'bg-bad' : 'bg-ok'}`}
+          />
           <span>{toastMessage}</span>
         </div>
       )}
 
       {keysOpen && (
-        <PanelKeysModal onClose={() => setKeysOpen(false)} onChanged={() => void checkAuth()} />
+        <PanelKeysModal onClose={() => setKeysOpen(false)} onChanged={() => void refreshAuth()} />
       )}
       {usersOpen && (
-        <PanelUsersModal onClose={() => setUsersOpen(false)} onChanged={() => void checkAuth()} />
+        <PanelUsersModal onClose={() => setUsersOpen(false)} onChanged={() => void refreshAuth()} />
       )}
 
       {/* Yan panel */}

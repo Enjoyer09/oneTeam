@@ -115,9 +115,9 @@ export const PanelLogin: React.FC<PanelLoginProps> = ({ status, onSignedIn }) =>
             autoComplete="off"
             spellCheck={false}
             placeholder="otp_..."
-            className="w-full rounded-[12px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.72)]
+            className="w-full rounded-[12px] border border-hair bg-[var(--g-card)]
                        px-3 py-2.5 font-mono text-[13px] text-ink outline-none
-                       focus:border-[rgba(10,16,32,.34)]"
+                       focus:border-[var(--ink-2)]"
           />
 
           {error && (

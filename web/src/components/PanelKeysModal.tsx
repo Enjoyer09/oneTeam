@@ -24,6 +24,7 @@ import {
   type PanelKeyRow,
   type PanelUserRow,
 } from '../lib/panelAuth';
+import { useModalA11y } from '../lib/useModalA11y';
 
 interface PanelKeysModalProps {
   onClose: () => void;
@@ -56,6 +57,25 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
   const [copied, setCopied] = useState(false);
   const [selectedUser, setSelectedUser] = useState('');
 
+  /**
+   * A revoke awaiting confirmation. Revoking cuts a person's access immediately
+   * and cannot be undone, so — like the store/task deletes elsewhere in the
+   * portal — it asks first. `{ kind: 'key', ref }` is a single key by its hash
+   * prefix; `{ kind: 'user', ref }` is every live key a person holds.
+   */
+  const [pendingRevoke, setPendingRevoke] = useState<{
+    kind: 'key' | 'user';
+    ref: string;
+    label: string;
+  } | null>(null);
+
+  // Focus trap + restore + dialog Escape, shared with the other modals. Escape
+  // is guarded: it must NOT close while a freshly minted key is still on screen,
+  // because dismissing the dialog is the only way that one-time key is lost.
+  const dialogRef = useModalA11y<HTMLDivElement>(true, () => {
+    if (!freshKey) onClose();
+  });
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -74,15 +94,6 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
   useEffect(() => {
     void load();
   }, [load]);
-
-  /** Escape closes, unless there is an unacknowledged key on screen. */
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !freshKey) onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClose, freshKey]);
 
   const run = async (action: () => Promise<void>, failure: string) => {
     setBusy(true);
@@ -107,19 +118,20 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
       onChanged();
     }, 'Açar yaradıla bilmədi.');
 
-  const handleRevoke = (row: PanelKeyRow) =>
-    run(async () => {
-      await revokeKey(row.hashPrefix);
-      await load();
-      onChanged();
-    }, 'Açar ləğv edilə bilmədi.');
-
-  const handleRevokeUser = (user: PanelUserRow) =>
-    run(async () => {
-      await revokeUserKeys(user.id);
-      await load();
-      onChanged();
-    }, 'Açarlar ləğv edilə bilmədi.');
+  const confirmPendingRevoke = () => {
+    const target = pendingRevoke;
+    if (!target) return;
+    setPendingRevoke(null);
+    void run(
+      async () => {
+        if (target.kind === 'key') await revokeKey(target.ref);
+        else await revokeUserKeys(target.ref);
+        await load();
+        onChanged();
+      },
+      target.kind === 'key' ? 'Açar ləğv edilə bilmədi.' : 'Açarlar ləğv edilə bilmədi.',
+    );
+  };
 
   const copyFreshKey = async () => {
     if (!freshKey) return;
@@ -138,7 +150,13 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[rgba(10,16,32,.34)] p-4 backdrop-blur-[2px] sm:items-center">
-      <div className="glass-pop w-full max-w-[720px] rounded-[18px] p-5 text-ink sm:p-6">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Panel giriş açarları"
+        className="glass-pop w-full max-w-[720px] rounded-[18px] p-5 text-ink sm:p-6"
+      >
         <div className="mb-4 flex items-start gap-3">
           <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[11px] bg-[rgba(10,16,32,.06)]">
             <KeyRound className="h-4 w-4" strokeWidth={2} />
@@ -168,6 +186,34 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
           </div>
         )}
 
+        {/* Revoke confirmation — immediate, irreversible, so it asks first. */}
+        {pendingRevoke && (
+          <div className="mb-4 rounded-[12px] border border-[rgba(200,60,60,.28)] bg-[rgba(200,60,60,.07)] p-3.5">
+            <b className="block text-[12px] font-extrabold text-[#b23b3b]">
+              {pendingRevoke.kind === 'user'
+                ? `${pendingRevoke.label} — bütün açarları kəsilsin?`
+                : `${pendingRevoke.label} açarı ləğv edilsin?`}
+            </b>
+            <p className="mt-1 text-[11.5px] leading-relaxed text-ink">
+              Giriş dərhal kəsiləcək və bu geri qaytarıla bilməz.
+            </p>
+            <div className="mt-2.5 flex gap-2">
+              <button
+                type="button"
+                onClick={confirmPendingRevoke}
+                disabled={busy}
+                className="btn-g btn-danger disabled:opacity-60"
+              >
+                <Trash2 className="h-4 w-4" strokeWidth={2.1} />
+                Bəli, ləğv et
+              </button>
+              <button type="button" onClick={() => setPendingRevoke(null)} className="btn-g">
+                İmtina
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* The one and only sighting of a new key. */}
         {freshKey && (
           <div className="mb-4 rounded-[14px] border border-[rgba(30,140,90,.32)] bg-[rgba(30,140,90,.07)] p-3.5">
@@ -179,7 +225,7 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
               yalnız onun şifrələnmiş barmaq izi saxlanılır.
             </p>
             <div className="mt-2.5 flex items-center gap-2">
-              <code className="min-w-0 flex-1 truncate rounded-[10px] bg-[rgba(255,255,255,.8)] px-3 py-2 font-mono text-[12px]">
+              <code className="min-w-0 flex-1 truncate rounded-[10px] border border-hair bg-[var(--g-card)] px-3 py-2 font-mono text-[12px] text-ink">
                 {freshKey.token}
               </code>
               <button
@@ -211,7 +257,7 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
             <select
               value={selectedUser}
               onChange={(event) => setSelectedUser(event.target.value)}
-              className="min-w-0 flex-1 rounded-[11px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.72)]
+              className="min-w-0 flex-1 rounded-[11px] border border-hair bg-[var(--g-card)]
                          px-3 py-2 text-[12.5px] text-ink outline-none"
             >
               {users.map((user) => (
@@ -289,7 +335,13 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
                     <td className="py-2 text-right">
                       <button
                         type="button"
-                        onClick={() => void handleRevoke(row)}
+                        onClick={() =>
+                          setPendingRevoke({
+                            kind: 'key',
+                            ref: row.hashPrefix,
+                            label: row.userName ?? row.userId,
+                          })
+                        }
                         disabled={busy || row.current}
                         title={
                           row.current
@@ -324,7 +376,9 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
                   <button
                     key={user.id}
                     type="button"
-                    onClick={() => void handleRevokeUser(user)}
+                    onClick={() =>
+                      setPendingRevoke({ kind: 'user', ref: user.id, label: user.fullName })
+                    }
                     disabled={busy}
                     className="btn-g disabled:opacity-50"
                   >

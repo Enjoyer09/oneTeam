@@ -45,6 +45,7 @@ import {
   type ManagedUserRow,
   type UserBlockReason,
 } from '../lib/panelAuth';
+import { useModalA11y } from '../lib/useModalA11y';
 
 interface PanelUsersModalProps {
   onClose: () => void;
@@ -120,6 +121,23 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
   /** A key minted from this screen, shown once and not yet acknowledged. */
   const [freshKey, setFreshKey] = useState<{ token: string; forWhom: string } | null>(null);
 
+  /**
+   * A delete or key-revoke awaiting confirmation. Both cut a person's access
+   * and the delete is irreversible, so — like the store/task deletes elsewhere
+   * — they ask first instead of firing on the first click.
+   */
+  const [confirm, setConfirm] = useState<{
+    kind: 'delete' | 'revoke';
+    user: ManagedUserRow;
+  } | null>(null);
+
+  // Focus trap + restore + dialog Escape, shared with the other modals. Escape
+  // is guarded so it cannot dismiss the dialog — and lose the one-time key —
+  // while a freshly minted key is still on screen.
+  const dialogRef = useModalA11y<HTMLDivElement>(true, () => {
+    if (!freshKey) onClose();
+  });
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -141,15 +159,6 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
   useEffect(() => {
     void load();
   }, [load]);
-
-  /** Escape closes, unless a freshly minted key is still on screen. */
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !freshKey) onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClose, freshKey]);
 
   const run = async (action: () => Promise<void>, failure: string) => {
     setBusy(true);
@@ -238,6 +247,14 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
       onChanged();
     }, 'Açarlar ləğv edilə bilmədi.');
 
+  const confirmPending = () => {
+    const target = confirm;
+    if (!target) return;
+    setConfirm(null);
+    if (target.kind === 'delete') void handleDelete(target.user);
+    else void handleRevokeKeys(target.user);
+  };
+
   const copyFreshKey = async () => {
     if (!freshKey) return;
     try {
@@ -250,7 +267,13 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[rgba(10,16,32,.34)] p-4 backdrop-blur-[2px] sm:items-center">
-      <div className="glass-pop w-full max-w-[820px] rounded-[18px] p-5 text-ink sm:p-6">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="İstifadəçilərin idarə edilməsi"
+        className="glass-pop w-full max-w-[820px] rounded-[18px] p-5 text-ink sm:p-6"
+      >
         <div className="mb-4 flex items-start gap-3">
           <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[11px] bg-[rgba(10,16,32,.06)]">
             <ShieldCheck className="h-4 w-4" strokeWidth={2} />
@@ -289,6 +312,36 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
           </div>
         )}
 
+        {/* Delete / revoke confirmation — both cut access, delete is permanent. */}
+        {confirm && (
+          <div className="mb-4 rounded-[12px] border border-[rgba(200,60,60,.28)] bg-[rgba(200,60,60,.07)] p-3.5">
+            <b className="block text-[12px] font-extrabold text-[#b23b3b]">
+              {confirm.kind === 'delete'
+                ? `${confirm.user.fullName} silinsin?`
+                : `${confirm.user.fullName} — bütün açarları kəsilsin?`}
+            </b>
+            <p className="mt-1 text-[11.5px] leading-relaxed text-ink">
+              {confirm.kind === 'delete'
+                ? 'Hesab və bütün açarları silinəcək, keçmiş əməliyyatları audit jurnalında adsız qalacaq. Bu geri qaytarıla bilməz.'
+                : 'Bu adamın bütün aktiv açarları dərhal işləməz olacaq. Bu geri qaytarıla bilməz.'}
+            </p>
+            <div className="mt-2.5 flex gap-2">
+              <button
+                type="button"
+                onClick={confirmPending}
+                disabled={busy}
+                className="btn-g btn-danger disabled:opacity-60"
+              >
+                <Trash2 className="h-4 w-4" strokeWidth={2.1} />
+                {confirm.kind === 'delete' ? 'Bəli, sil' : 'Bəli, kəs'}
+              </button>
+              <button type="button" onClick={() => setConfirm(null)} className="btn-g">
+                İmtina
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* The one and only sighting of a key minted from this screen. */}
         {freshKey && (
           <div className="mb-4 rounded-[14px] border border-[rgba(30,140,90,.32)] bg-[rgba(30,140,90,.07)] p-3.5">
@@ -300,7 +353,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
               yalnız onun barmaq izi saxlanılır. Açarı həmin adama ötürün.
             </p>
             <div className="mt-2.5 flex items-center gap-2">
-              <code className="min-w-0 flex-1 truncate rounded-[10px] bg-[rgba(255,255,255,.8)] px-3 py-2 font-mono text-[12px]">
+              <code className="min-w-0 flex-1 truncate rounded-[10px] border border-hair bg-[var(--g-card)] px-3 py-2 font-mono text-[12px] text-ink">
                 {freshKey.token}
               </code>
               <button
@@ -347,7 +400,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                     value={draft.fullName}
                     onChange={(event) => setDraft({ ...draft, fullName: event.target.value })}
                     placeholder="Məsələn: Aysel Hüseynova"
-                    className="w-full rounded-[11px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.72)] px-3 py-2 text-[12.5px] text-ink outline-none"
+                    className="w-full rounded-[11px] border border-hair bg-[var(--g-card)] px-3 py-2 text-[12.5px] text-ink outline-none"
                   />
                 </label>
                 <label className="block">
@@ -358,7 +411,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                     value={draft.email}
                     onChange={(event) => setDraft({ ...draft, email: event.target.value })}
                     placeholder="aysel@coke.oneteam.az"
-                    className="w-full rounded-[11px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.72)] px-3 py-2 text-[12.5px] text-ink outline-none"
+                    className="w-full rounded-[11px] border border-hair bg-[var(--g-card)] px-3 py-2 text-[12.5px] text-ink outline-none"
                   />
                 </label>
                 <label className="block">
@@ -369,7 +422,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                     value={draft.phone}
                     onChange={(event) => setDraft({ ...draft, phone: event.target.value })}
                     placeholder="+99450..."
-                    className="w-full rounded-[11px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.72)] px-3 py-2 text-[12.5px] text-ink outline-none"
+                    className="w-full rounded-[11px] border border-hair bg-[var(--g-card)] px-3 py-2 text-[12.5px] text-ink outline-none"
                   />
                 </label>
                 <label className="block">
@@ -379,7 +432,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                   <select
                     value={draft.role}
                     onChange={(event) => setDraft({ ...draft, role: event.target.value })}
-                    className="w-full rounded-[11px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.72)] px-3 py-2 text-[12.5px] text-ink outline-none"
+                    className="w-full rounded-[11px] border border-hair bg-[var(--g-card)] px-3 py-2 text-[12.5px] text-ink outline-none"
                   >
                     {roles.map((role) => (
                       <option key={role} value={role}>
@@ -445,7 +498,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
             {users.map((user) => (
               <div
                 key={user.id}
-                className="rounded-[12px] border border-[rgba(10,16,32,.08)] bg-[rgba(255,255,255,.5)] p-3"
+                className="rounded-[12px] border border-hair bg-[var(--g-card)] p-3"
               >
                 {editing === user.id ? (
                   <div>
@@ -455,7 +508,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                         onChange={(event) =>
                           setEditDraft({ ...editDraft, fullName: event.target.value })
                         }
-                        className="rounded-[10px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.8)] px-2.5 py-1.5 text-[12px] text-ink outline-none"
+                        className="rounded-[10px] border border-hair bg-[var(--g-card)] px-2.5 py-1.5 text-[12px] text-ink outline-none"
                       />
                       <select
                         value={editDraft.role}
@@ -464,7 +517,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                         }
                         disabled={user.isSelf}
                         title={user.isSelf ? 'Öz rolunuzu özünüz dəyişə bilməzsiniz' : 'Rolu dəyiş'}
-                        className="rounded-[10px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.8)] px-2.5 py-1.5 text-[12px] text-ink outline-none disabled:opacity-50"
+                        className="rounded-[10px] border border-hair bg-[var(--g-card)] px-2.5 py-1.5 text-[12px] text-ink outline-none disabled:opacity-50"
                       >
                         {roles.map((role) => (
                           <option key={role} value={role}>
@@ -478,7 +531,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                           setEditDraft({ ...editDraft, phone: event.target.value })
                         }
                         placeholder="Telefon"
-                        className="rounded-[10px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.8)] px-2.5 py-1.5 text-[12px] text-ink outline-none"
+                        className="rounded-[10px] border border-hair bg-[var(--g-card)] px-2.5 py-1.5 text-[12px] text-ink outline-none"
                       />
                     </div>
                     {ROLE_HELP[editDraft.role] && (
@@ -547,7 +600,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                       {user.liveKeys > 0 && (
                         <button
                           type="button"
-                          onClick={() => void handleRevokeKeys(user)}
+                          onClick={() => setConfirm({ kind: 'revoke', user })}
                           disabled={busy || user.isSelf}
                           className="btn-g disabled:opacity-40"
                           title={
@@ -572,7 +625,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                       </button>
                       <button
                         type="button"
-                        onClick={() => void handleDelete(user)}
+                        onClick={() => setConfirm({ kind: 'delete', user })}
                         disabled={busy || !user.deletable}
                         className="btn-g disabled:opacity-40"
                         title={
