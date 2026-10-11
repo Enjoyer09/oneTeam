@@ -72,9 +72,22 @@ export class EvidenceService {
     principal: AuthenticatedPrincipal,
   ): Promise<SubmitEvidenceResult> {
     const idempotencyKey = dto.idempotencyKey?.trim();
-    if (idempotencyKey) {
-      const cached = this.idempotencyGet(idempotencyKey);
-      if (cached) {
+    // Namespace the client-chosen key by the acting user AND the task it is for.
+    // Keyed on the bare client key alone, a second caller presenting a key
+    // already used (collision, or a guessed value) would get the FIRST caller's
+    // cached evidence returned here — before the task-access and geofence checks
+    // below ever run — leaking another user's record and short-circuiting
+    // anti-fraud. The composite key makes a cross-user/cross-task replay a miss,
+    // so those checks run as normal.
+    const cacheKey = idempotencyKey
+      ? `${principal.userId}::${dto.storeTaskId}::${idempotencyKey}`
+      : null;
+    if (cacheKey) {
+      const cached = this.idempotencyGet(cacheKey);
+      // Belt-and-braces: only return a cached result that actually belongs to
+      // this caller. The composite key already guarantees this, but a future
+      // key-shape change must not silently reopen the cross-user hole.
+      if (cached && cached.evidence.submittedById === principal.userId) {
         this.logger.log(
           `↩️ [IDEMPOTENT] Reusing evidence ${cached.evidence.id} for a repeated submission.`,
         );
@@ -363,7 +376,7 @@ export class EvidenceService {
       taskState: task.status,
     };
 
-    if (idempotencyKey) this.idempotencyPut(idempotencyKey, result);
+    if (cacheKey) this.idempotencyPut(cacheKey, result);
 
     return result;
   }
