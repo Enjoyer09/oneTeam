@@ -21,6 +21,7 @@ import type { VisionAnalysis, VisionInput, VisionLLMClient, VisionProvider } fro
 import { combineHybrid, HybridVisionProvider } from './hybridProvider';
 import { VisionLLMProvider } from './llmProvider';
 import { resolveVisionProvider, SimulationVisionProvider, YoloVisionProvider } from './index';
+import { aiVisionService, yoloCliArgs } from '../aiVision';
 
 let passed = 0;
 let failed = 0;
@@ -246,6 +247,196 @@ async function main(): Promise<void> {
     check(
       'unknown provider is disabled → null',
       resolveVisionProvider({ ONETEAM_VISION_PROVIDER: 'gpt5-vision' } as any) === null,
+    );
+  }
+
+  // --- The remote YOLO worker (HTTP) ---------------------------------------
+  //
+  // The worker was reachable only through `spawnSync`, which freezes the event
+  // loop for the whole run — a cold start measured 47s, and that cost was paid
+  // inside the bot process, which has a Telegram answer to send. A long-lived
+  // worker owns the cost instead, so these checks drive the client against a
+  // real socket: a stub that answers with the worker's own JSON contract.
+  await (async () => {
+    const http = await import('node:http');
+    type Stub = { body: string; status?: number };
+    let stub: Stub = { body: '' };
+    let hits = 0;
+    let lastRequest: { image?: unknown; conf?: unknown; raw?: string } = {};
+
+    const server = http.createServer((req, res) => {
+      hits++;
+      const chunks: Buffer[] = [];
+      req.on('data', (c: Buffer) => chunks.push(c));
+      req.on('end', () => {
+        const raw = Buffer.concat(chunks).toString('utf-8');
+        lastRequest = { raw };
+        try {
+          const parsed = JSON.parse(raw);
+          lastRequest.image = parsed.image;
+          lastRequest.conf = parsed.conf;
+        } catch {
+          lastRequest.image = undefined;
+        }
+        res.writeHead(stub.status ?? 200, { 'content-type': 'application/json' });
+        res.end(stub.body);
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    const port = typeof address === 'object' && address ? address.port : 0;
+    const url = `http://127.0.0.1:${port}`;
+
+    const box = {
+      id: 'det-1',
+      sku: 'coca_cola_classic',
+      label: 'Coca-Cola Classic 0.5L',
+      confidence: 0.91,
+      box: { x: 10, y: 20, width: 8, height: 40 },
+      color: '#F40009',
+      shelfRow: 1,
+      facingIndex: 1,
+    };
+
+    stub = {
+      body: JSON.stringify({ success: true, detections: [box], synthetic_fallback: false }),
+    };
+    let out = await aiVisionService.runUltralyticsInferenceRemote(INPUT.photoUrl, {
+      workerUrl: url,
+    });
+    check(
+      'remote worker: a real box is reported as ok and not synthetic',
+      out.ok === true && out.detections.length === 1 && out.synthetic === false,
+      JSON.stringify(out),
+    );
+
+    stub = { body: JSON.stringify({ success: true, detections: [box], synthetic_fallback: true }) };
+    out = await aiVisionService.runUltralyticsInferenceRemote(INPUT.photoUrl, { workerUrl: url });
+    check(
+      'remote worker: the synthetic flag survives the round-trip',
+      out.ok === true && out.synthetic === true,
+      JSON.stringify(out),
+    );
+
+    stub = { body: JSON.stringify({ success: true, detections: [], synthetic_fallback: false }) };
+    out = await aiVisionService.runUltralyticsInferenceRemote(INPUT.photoUrl, { workerUrl: url });
+    check(
+      'remote worker: an empty detection list is no-detections, not ok',
+      out.ok === false && out.reason === 'no-detections',
+      JSON.stringify(out),
+    );
+
+    stub = { body: JSON.stringify({ success: false, error: 'Import error: cv2' }) };
+    out = await aiVisionService.runUltralyticsInferenceRemote(INPUT.photoUrl, { workerUrl: url });
+    check(
+      'remote worker: the worker’s own error is surfaced with its text',
+      out.ok === false &&
+        out.reason === 'worker-failed' &&
+        out.detail.includes('Import error: cv2'),
+      JSON.stringify(out),
+    );
+
+    stub = { body: '<html>500</html>', status: 500 };
+    out = await aiVisionService.runUltralyticsInferenceRemote(INPUT.photoUrl, { workerUrl: url });
+    check(
+      'remote worker: a non-JSON failure is worker-failed, never detections',
+      out.ok === false && out.reason === 'worker-failed',
+      JSON.stringify(out),
+    );
+
+    // Nothing is listening on this port: the connection is refused outright.
+    const dead = 'http://127.0.0.1:9';
+    out = await aiVisionService.runUltralyticsInferenceRemote(INPUT.photoUrl, { workerUrl: dead });
+    check(
+      'remote worker: an unreachable worker is worker-unavailable and names the URL',
+      out.ok === false && out.reason === 'worker-unavailable' && out.detail.includes(dead),
+      JSON.stringify(out),
+    );
+
+    hits = 0;
+    stub = {
+      body: JSON.stringify({ success: true, detections: [box], synthetic_fallback: false }),
+    };
+    // The bot holds the decoded bytes already (it just downloaded them from
+    // Telegram) — the configured R2 URL is a second fetch away and a data: URL
+    // is not addressable at all. When an imageBuffer is supplied it must win,
+    // as the inline payload, instead of the URL.
+    hits = 0;
+    stub = {
+      body: JSON.stringify({ success: true, detections: [box], synthetic_fallback: false }),
+    };
+    lastRequest = {};
+    const providerBuf = new YoloVisionProvider(url);
+    await providerBuf.analyze({
+      ...INPUT,
+      imageBuffer: Buffer.from('fake-jpeg-bytes'),
+    });
+    check(
+      'an imageBuffer reaches the worker inline instead of the photo URL',
+      typeof lastRequest.image === 'string' &&
+        lastRequest.image.startsWith('data:image/jpeg;base64,'),
+      JSON.stringify(lastRequest).slice(0, 200),
+    );
+
+    // Two analyze calls happened by this point (the imageBuffer one above and
+    // this one) — asserting exactly one would pin the test to its own ordering.
+    const provider = new YoloVisionProvider(url);
+    const analysis = await provider.analyze(INPUT);
+    check(
+      'YoloVisionProvider with a worker URL talks to the worker, not to spawnSync',
+      hits === 2 && analysis.provider === 'yolo' && analysis.engine === 'ultralytics-yolo',
+      `hits=${hits} provider=${analysis.provider} engine=${analysis.engine}`,
+    );
+    // Not `needsHumanReview === false`: one bottle against a planogram that
+    // demands three facings SHOULD land on human review, and asserting the
+    // opposite would pin the test to a wrong rule. What the remote path must
+    // preserve is that the run counts as *trustworthy* — the hybrid turns on
+    // confidence, and an untrustworthy run reports 0 no matter how good the
+    // boxes were.
+    check(
+      'a trustworthy remote result carries the detector’s confidence',
+      analysis.confidence > 0 && !analysis.summary.includes('etibarsız'),
+      JSON.stringify({ confidence: analysis.confidence, summary: analysis.summary }),
+    );
+
+    // The conf knob must reach the worker on the HTTP transport too, or the
+    // deployed threshold would silently stay the script default.
+    lastRequest = {};
+    process.env.ONETEAM_YOLO_CONF = '0.55';
+    try {
+      const providerConf = new YoloVisionProvider(url);
+      await providerConf.analyze(INPUT);
+      check(
+        'remote payload carries ONETEAM_YOLO_CONF when set',
+        lastRequest.conf === 0.55,
+        JSON.stringify(lastRequest).slice(0, 200),
+      );
+    } finally {
+      delete process.env.ONETEAM_YOLO_CONF;
+    }
+
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  })();
+
+  // The model is the worker's to own: the local spawn path must read the same
+  // ONETEAM_YOLO_MODEL the worker's /health reports, or the two transports
+  // silently run different detectors.
+  {
+    const saved = process.env.ONETEAM_YOLO_MODEL;
+    delete process.env.ONETEAM_YOLO_MODEL;
+    delete process.env.ONETEAM_YOLO_CONF;
+    const defaults = yoloCliArgs('/x/yolo_inference.py', 'IMG');
+    process.env.ONETEAM_YOLO_MODEL = 'yolo11n.pt';
+    process.env.ONETEAM_YOLO_CONF = '0.55';
+    const configured = yoloCliArgs('/x/yolo_inference.py', 'IMG');
+    if (saved === undefined) delete process.env.ONETEAM_YOLO_MODEL;
+    else process.env.ONETEAM_YOLO_MODEL = saved;
+    delete process.env.ONETEAM_YOLO_CONF;
+    check(
+      'local spawn args default to yolo11n and honor ONETEAM_YOLO_MODEL',
+      defaults.join(' ') === '/x/yolo_inference.py --image IMG --model yolo11n.pt' &&
+        configured.join(' ') === '/x/yolo_inference.py --image IMG --model yolo11n.pt --conf 0.55',
+      JSON.stringify({ defaults, configured }),
     );
   }
 

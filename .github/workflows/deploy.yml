@@ -24,12 +24,11 @@
 name: Deploy
 
 on:
-  # Automatic runs are disabled to stay within the free GitHub Actions
-  # allowance. These images are published to GHCR, but Railway deploys the
-  # services independently and never consumes them, so building three Docker
-  # images on every push was pure metered-minute cost. The workflow can still
-  # be run by hand from the Actions tab. To restore push/tag builds, uncomment
-  # the `push:` block below.
+  # Automatic runs are disabled because nothing consumes the images: they are
+  # published to GHCR, but Railway deploys the services independently and never
+  # pulls them, so building three Docker images on every push was pure
+  # metered-minute cost with no effect. The workflow can still be run by hand
+  # from the Actions tab. To restore push/tag builds, uncomment `push:` below.
   workflow_dispatch:
   # push:
   #   branches: [main]

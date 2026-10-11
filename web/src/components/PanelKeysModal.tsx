@@ -250,11 +250,15 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
 
         {/* Mint */}
         <div className="mb-4 rounded-[14px] bg-[rgba(10,16,32,.04)] p-3.5">
-          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-[.06em] text-muted">
+          <label
+            htmlFor="panel-key-user"
+            className="mb-1.5 block text-[11px] font-bold uppercase tracking-[.06em] text-muted"
+          >
             Yeni açar üçün istifadəçi
           </label>
           <div className="flex flex-col gap-2 sm:flex-row">
             <select
+              id="panel-key-user"
               value={selectedUser}
               onChange={(event) => setSelectedUser(event.target.value)}
               className="min-w-0 flex-1 rounded-[11px] border border-hair bg-[var(--g-card)]
@@ -326,7 +330,7 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
                         </span>
                       )}
                       {row.label && (
-                        <span className="block text-[10.5px] text-muted">{row.label}</span>
+                        <span className="block text-[11px] text-muted">{row.label}</span>
                       )}
                     </td>
                     <td className="py-2 pr-3 font-mono text-muted">{row.hashPrefix}…</td>
@@ -391,7 +395,7 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
         )}
 
         {revokedKeys.length > 0 && (
-          <p className="mt-3 text-[10.5px] text-muted">
+          <p className="mt-3 text-[11px] text-muted">
             Ləğv edilmiş açarlar: {revokedKeys.length}. Onlar işləmir, amma qeyd kimi saxlanılır.
           </p>
         )}

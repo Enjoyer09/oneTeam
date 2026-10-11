@@ -51,6 +51,7 @@
  */
 
 import { Client } from 'pg';
+import { FRESH_FIX_AT } from './helpers/fresh-fix';
 
 const API_BASE = (process.env.ONETEAM_API_URL || 'http://localhost:3001').replace(/\/+$/, '');
 const DATABASE_URL = process.env.DATABASE_URL || '';
@@ -130,6 +131,7 @@ function storeBody(overrides: Record<string, unknown> = {}) {
     // Fountain Square, Baku — inside the plausible-bounds guard.
     latitude: 40.3724,
     longitude: 49.8372,
+    locatedAt: FRESH_FIX_AT(),
     ...overrides,
   };
 }
@@ -386,6 +388,7 @@ async function main(): Promise<void> {
         address: 'Yalnız tələb olunan sahələr 1, Bakı',
         latitude: 40.3724,
         longitude: 49.8372,
+        locatedAt: FRESH_FIX_AT(),
       },
     });
 

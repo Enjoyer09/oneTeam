@@ -1,0 +1,615 @@
+# HANDOFF — oneTeam, for the next coding agent
+
+# =============================================================================
+
+#
+
+# Read this first. It maps the state of the work and — more importantly — the
+
+# things that are easy to get wrong here. Much of it is not derivable from the
+
+# code: several entries describe bugs that were FIXED and why the fix was shaped
+
+# the way it was, so they are not repeated.
+
+#
+
+# Written 2026-10-03. Verify anything load-bearing before relying on it; this
+
+# document is a starting point, not an authority.
+
+#
+
+# =============================================================================
+
+# 1. WHAT THIS IS
+
+# =============================================================================
+
+#
+
+# oneTeam: retail shelf monitoring for FMCG distribution. Supervisors dispatch
+
+# merchandising tasks and planograms; field merchandisers submit shelf photos
+
+# and telemetry from a Telegram bot or an iOS app; supervisors review and
+
+# approve from a web portal.
+
+#
+
+# web/ React + Vite admin & supervisor portal (private key login)
+
+# mobile/ Expo / React Native iOS app (offline-first queue)
+
+# src/ Telegram bot (grammY) + vision services
+
+# apps/api/ NestJS API — the ONLY thing that touches the database
+
+# packages/ @oneteam/types, @oneteam/database
+
+#
+
+# There is no Supabase. The database is plain PostgreSQL 16 and the API is an
+
+# in-memory replica with write-through persistence. All three clients are API
+
+# clients; none opens a database connection.
+
+#
+
+# Production: 4 Railway services (api, bot, web, Postgres)
+
+# api https://api-production-c17b.up.railway.app
+
+# web https://web-production-1392e.up.railway.app
+
+# Railway deploys from GitHub on push to main. There is no railway.json; the
+
+# project is configured in the Railway dashboard.
+
+#
+
+# =============================================================================
+
+# 2. RUNNING IT
+
+# =============================================================================
+
+#
+
+# npm run gate # the full local gate — RUN THIS BEFORE YOU PUSH
+
+# npm run gate:fast # everything except the test suite (~25s)
+
+#
+
+# Individual suites worth knowing:
+
+# npm run test:all # all hermetic suites (~60s), no database needed
+
+# npm run test:live # DB-backed suites; needs a running PostgreSQL
+
+# npm run type-check # root tsconfig
+
+# npm run web:check # web/ — NOT covered by the root tsconfig (§9)
+
+#
+
+# =============================================================================
+
+# 3. ⭐ THE PUSH GATE — WHY YOU MUST USE IT
+
+# =============================================================================
+
+#
+
+# CI WAS OUT; IT RUNS AGAIN. From 2026-09-20 to 2026-10-10 nothing ran: the
+
+# repo is private, so Actions minutes are metered, and every run died with
+
+# "The job was not started because recent account payments have failed". The
+
+# owner resolved the billing and `ci.yml` is green again, DB-backed live suites
+
+# included. Notes elsewhere about a check that "had never actually run" date
+
+# from that window — they are history, not current state.
+
+#
+
+# The push gate below predates that fix and survives it: it runs the SAME checks
+
+# on this machine before the push — a defect costs a second instead of a round
+
+# trip, and it is the only gate that works when GitHub does not:
+
+#
+
+# =============================================================================
+
+# 4. TEST PHILOSOPHY — READ BEFORE WRITING A TEST
+
+# =============================================================================
+
+#
+
+# Every new guard in this repo was BROKEN ON PURPOSE after being written, to
+
+# confirm it turns red. Three stayed green the first time, and those were the
+
+# instructive failures:
+
+#
+
+# - The portal silent-success guard passed while `runAction` still returned
+
+# `void` — it checked the handlers but not the contract they depend on.
+
+# - The ROI guard passed with `padRatio: 0`. "The crop contains every box" is
+
+# also true of a crop taken exactly to the union edge, which is precisely
+
+# what clips product. Fixed by asserting the margin against the CONFIGURED
+
+# pad, not just `> 0`.
+
+# - An ROI case asserted a lone edge detection would crop. The code refused and
+
+# the code was RIGHT. The test was wrong, and now says so in a comment.
+
+#
+
+# So: after writing a test, deliberately break the code it guards and confirm the
+
+# test goes red. If it does not, the test is not testing the thing.
+
+#
+
+# Also: when a test fails and the CODE is right, fix the test and say so in a
+
+# comment. That happened twice above and both comments are load-bearing.
+
+#
+
+# =============================================================================
+
+# 5. WHAT IS DONE
+
+# =============================================================================
+
+#
+
+# Plan phase 1 (security, panel CRUD, roles) — done, deployed.
+
+# Plan phase 2 (bot inline keyboard, session store, notifications) — done.
+
+# Plan 3.1-3.5 (Expo app) — partial; blocked by the environment, not the code
+
+# (see §7). 4.1, 4.2, 4.3 — done (this session).
+
+# Plan 4.4 (BullMQ worker), 4.5 (fallback), 4.6 (DPA doc) — NOT started.
+
+# Plan 5 (E2E, load test, operator guide, demo) — NOT started.
+
+#
+
+# Docs: the operator deploy guide `docs/DEPLOY-TEST-AZ.md` was corrected
+
+# 2026-10-10 — it still told the operator the panel reads Supabase, that data
+
+# lives in memory, and to set TELEGRAM_BOT_TOKEN on the API. All three have been
+
+# false for a while. `docs/deploy-test-az.html` is the same document as a
+
+# 14 Sep snapshot and is NOT regenerated (nothing generates it); it now carries
+
+# a stale banner. Decide whether that file should exist at all.
+
+#
+
+# Recent commits worth reading in full, in this order:
+
+#
+
+# 58c2dab Portal reported success when a write had FAILED. `runAction`
+
+# returned void, so callers could not tell success from failure and
+
+# destroyed the user's work assuming it had succeeded.
+
+# deb9cf6 Auto-approve could fire on a submission with NO LOCATION. The gate
+
+# checked `locationMocked` (the device says this is a lie) but not
+
+# `locationUnverified` (there was no fix at all). The Telegram bot has
+
+# a skip button; the API then substitutes the store's own coordinates,
+
+# so the geofence passes by construction. The one channel that cannot
+
+# prove location was the one that never had to.
+
+# 53ba3ad Moved CI locally (§3). Found while building it: `web/` is not in
+
+# the root tsconfig, so the portal's types were NEVER checked by any
+
+# gate, including the GitHub one.
+
+# 8d87e64 Verdict schema + ROI pre-filter (§6).
+
+#
+
+# =============================================================================
+
+# 6. THE VISION LAYER — WHAT 4.1-4.3 SET UP, AND WHAT IS STILL MISSING
+
+# =============================================================================
+
+#
+
+# src/services/vision/ is the seam. Read types.ts first: it explains why the
+
+# layer exists and what a `VisionProvider` must be.
+
+#
+
+# index.ts the edge: reads env, returns a provider or null
+
+# types.ts the interface — read this one
+
+# hybridProvider.ts YOLO-then-LLM escalation. combineHybrid is pure
+
+# llmProvider.ts judges a VisionLLMClient's answer
+
+# openrouterClient.ts 4.1 — transport, 20/min token bucket, retries only 429
+
+# verdict.ts 4.2 — zod schema + triage (NEW)
+
+# roi.ts 4.3 — crop decision + refusal reasons (NEW)
+
+#
+
+# WHAT IS DELIBERATELY OFF. `ONETEAM_VISION_PROVIDER` defaults to `off`, so
+
+# nothing judges shelf photos in production today. That is the intended state,
+
+# not an oversight. Do not flip it on without the operator deciding, and read
+
+# the external-call warning in index.ts first.
+
+#
+
+# 4.1's retry policy is worth internalising: 429 is the ONLY retried status. A
+
+# 401 or a 402 must throw on the first attempt — retrying a wrong key or a spent
+
+# balance turns a config error into minutes of silence before the same verdict.
+
+#
+
+# =============================================================================
+
+# 7. ENVIRONMENT LIMITS — MEASURED, NOT ASSUMED
+
+# =============================================================================
+
+#
+
+# `npm install` in mobile/ FAILS in the agent sandbox: `reify:createSparse`
+
+# → mkdir denied. It is not a package-count problem — 400 sequential and 50
+
+# parallel mkdirs succeed; 200+ parallel ones are refused, and the budget does
+
+# not recover. npm and pnpm both build their tree with one Promise.all. The
+
+# measurements are in docs/PRODUCT-PLAN-AZ.md §3.1.
+
+#
+
+# Consequence: `npm run mobile:ios` and the Xcode UI tests cannot run here. That
+
+# is why those two checks are SKIPPED rather than failing.
+
+#
+
+# =============================================================================
+
+# 8. PRODUCTION STATE — WHAT IS SET, AND THE TWO TRAPS
+
+# =============================================================================
+
+#
+
+# Set on Railway (api AND bot unless noted):
+
+# DATABASE_URL, CORS_ALLOWED_ORIGINS, TELEGRAM_BOT_TOKEN,
+
+# TELEGRAM_WEBHOOK_SECRET, ONETEAM_ENROLLMENT_SECRET
+
+# STORAGE_DRIVER=s3, S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID,
+
+# S3_SECRET_ACCESS_KEY, S3_REGION, S3_FORCE_PATH_STYLE, S3_PUBLIC_BASE_URL
+
+# ONETEAM_SERVICE_SIGNING_SECRET (32 bytes of randomness)
+
+# ONETEAM_ALLOW_LEGACY_SERVICE_TOKEN=false
+
+# ONETEAM_SERVICE_USER_ID (bot only)
+
+#
+
+# NOT SET — both are known, both are open:
+
+#
+
+# OPENROUTER_API_KEY + OPENROUTER_MODEL
+
+# 4.1-4.3 are shipped but unreachable until the operator supplies a key.
+
+# Without it `resolveVisionProvider` returns null for vision-llm/hybrid,
+
+# which is correct behaviour, not a bug.
+
+#
+
+# Nightly backups for GitHub Actions — RESOLVED (removed)
+
+# The `db-backup.yml` workflow was deleted. It failed daily because the secret
+
+# was absent AND because Railway's Postgres is on a private network a hosted
+
+# runner cannot reach; it could never succeed. Backups run instead as a Railway
+
+# cron service (`db-backup`, image `scripts/ops/Dockerfile.backup`) that runs
+
+# `scripts/ops/db-backup.sh` and uploads the dump to object storage. Do not
+
+# reintroduce a GitHub Actions backup job, and do not put the production DB
+
+# password into GitHub without the owner's explicit agreement.
+
+#
+
+# TRAP 1 — the signing secret must be set on BOTH api and bot. The bot mints a
+
+# 5-minute token per request, and the API refuses unsigned credentials the
+
+# moment the secret is non-empty. Set on the API alone and the bot is locked out,
+
+# holding a static token that is already refused. The symptom is a silently
+
+# broken bot, which is worse than the original hole.
+
+#
+
+# TRAP 2 — `ONETEAM_PANEL_BOOTSTRAP_KEY` is a way in before any personal panel
+
+# key exists. Sign in, mint a real key, then UNSET it. Leaving it set means
+
+# anyone holding it is an administrator.
+
+#
+
+# =============================================================================
+
+# 9. KNOWN GAPS, IN THE ORDER THEY MATTER
+
+# =============================================================================
+
+#
+
+# FIXED 2026-10-10 (was #1): `web/` now has a real runner — vitest + jsdom +
+
+# @testing-library/react, driven from `vite.config.ts` (no separate config), run
+
+# by `npm run test:web` and wired into `test:all` AND the local gate's step 5.
+
+# The first real component test is `web/src/components/PanelLogin.test.tsx`:
+
+# a blank key refused without a request, the key stored equal to the one the
+
+# identity call carried, a 401 surfacing as the human message, and a
+
+# bootstrapProblem shown. Mutation-verified: blanking the empty-key guard turns
+
+# exactly that test red, restoring it turns it green. The source-level guards
+
+# (portal-silent-success, auth-guard-coverage, label-association) stay — they
+
+# still catch shapes no render exercises — but are no longer the only thing
+
+# between a broken modal and production. The gap read "Adding a real runner is
+
+# a decision for the owner"; the owner made it on 2026-10-10.
+
+#
+
+# FIXED 2026-10-10 (was #5): every `<label>` is now associated — 33 carry
+
+# `htmlFor` pointing at a real `id`, 7 wrap their own control, 0 orphaned. The
+
+# same pass made the fake-checkbox rows real `<button aria-pressed>`, so the
+
+# store picker is reachable by Tab. `npm run test:labels` holds both rules
+
+# (plus: an htmlFor that resolves to nothing, and a duplicate id) at 52 checks.
+
+#
+
+# 2. `test:live` needs a database; locally that means starting one.
+
+# `scripts/quality/local-live-tests.sh` does exactly that — it creates its own
+
+# `postgres:16-alpine` container on :55445 if one is not already there, applies
+
+# schema + seed, boots the API on a port it owns, and runs everything. Full runs
+
+# 2026-10-10: 668 checks on :3912 and again from a created-from-nothing container
+
+# on :3913 (proving the clean-clone path, which used to fail — the script only
+
+# `docker exec`-ed into a container it assumed existed). Numbers:
+
+# 19 suites, 668 checks, 0 failed, plus 42 break cases (23 + 13 + 6), each going
+
+# red against its own guard and restored. The harness closes two traps it was
+
+# itself tripping over: `web:test` hard-coded :3001 while the rest of the run
+
+# derived from `ONETEAM_API_URL`, so a run on any other port failed only the
+
+# portal smoke — fixed in `package.json`; and the API reads `PORT`, not
+
+# `API_PORT`, so the script sets both.
+
+#
+
+# 3. 358 lint warnings, 0 errors — mostly `no-explicit-any` and `no-console`.
+
+# Not a correctness problem; it is noise that will hide a real one. This count
+
+# was 298 when this gap was written: it grew unattended, which is the argument
+
+# for the gap staying on the list. The gate fails on errors only, so closing
+
+# this means real types and a logger — a decision, not a chore.
+
+#
+
+# 4. Dark mode is half-implemented: the theme toggle and the CSS variables
+
+# exist, but several components still use hard-coded light Tailwind classes.
+
+#
+
+# 5. FIXED 2026-10-10 — every `<label>` is associated now (see the note under
+
+# #1); the regression is held by `npm run test:labels`, which also fails on a
+
+# click handler that no keyboard can reach.
+
+#
+
+# 6. `yolov8n.pt` is a generic COCO model. It detects bottles, not SKUs, which
+
+# is why the ROI pre-filter is a pre-filter and not an answer.
+
+#
+
+# =============================================================================
+
+# 10. HOUSE RULES
+
+# =============================================================================
+
+#
+
+# - Run `npm run gate` before you finish. If you cannot, say so explicitly
+
+# rather than implying it passed.
+
+# - Never make a failure look like a success. Not in a return value, not in a
+
+# toast, not in a default field value, not in a test. Most of the bugs fixed
+
+# this session were one of those wearing a costume.
+
+# - Comments should explain WHY and name what was measured. "For readability"
+
+# is worth deleting. A measured number in a comment outlives the person who
+
+# wrote it — that is how the 47s cold start, the 0.12s mint TTL and the ~70%
+
+# crop saving stay honest.
+
+# - If you break something deliberately to prove a test works, say so in the
+
+# commit message. Several commits here do exactly that, and it is the reason
+
+# their test counts can be trusted.
+
+#
+
+# =============================================================================
+
+# THE THREE THINGS 4.4 MUST WIRE TOGETHER (nothing calls 4.2/4.3 yet):
+
+#
+
+# 1. Run YOLO → DetectionItem[] with .box (0-100 frame fractions).
+
+# 2. computeRoi(detections.map(d => d.box)) → either an ROI or a refusal.
+
+# On 'none', send the FULL photo. On 'roi', crop, and pass roiNoteFor(...)
+
+# into buildVerdictPrompt's `roiNote` option so the model knows it is
+
+# looking at a crop.
+
+# 3. Send image + buildVerdictPrompt(...) → OpenRouter → parseVerdict(raw)
+
+# → assessVerdict(result).
+
+#
+
+# Then: `assessVerdict` returning 'human-review' must NEVER become a score. Feed
+
+# it into the existing `needsHumanReview` on VisionAnalysis and let the existing
+
+# hybrid logic do its job. The invariant the whole layer rests on: a model that
+
+# could not be reached, or could not be read, has said NOTHING about the shelf,
+
+# and must never be recorded as a low score.
+
+#
+
+# Worker choice for 4.4 is still OPEN and needs a decision: BullMQ + Redis
+
+# (neither is in node_modules) or a DB-backed in-memory queue. Pick deliberately
+
+# — the plan says BullMQ, but adding Redis to Railway is a new billable service.
+
+#
+
+# .githooks/pre-push refuses the push if any check fails
+
+# scripts/quality/local-gate.mjs the pre-push checks — the commands ci.yml runs
+
+#
+
+# `git push` runs gate:fast automatically (about 30s). To run everything:
+
+#
+
+# ONETEAM_GATE=full git push
+
+#
+
+# You can bypass with `git push --no-verify`, and that bypass is intentional —
+
+# a gate that cannot be bypassed gets bypassed destructively. Use it when you
+
+# have already run `npm run gate` yourself. (This file was itself pushed with
+
+# --no-verify because the tool session timed out mid-gate; the gate had been run
+
+# separately and was green.)
+
+#
+
+# Two checks CANNOT run locally and are reported as SKIPPED, never as passing:
+
+# - `test:live` — needs a running PostgreSQL
+
+# - iOS UI tests — need macOS + Xcode + a simulator (`npm run mobile:ios`)
+
+#
+
+# Do not "fix" a SKIP by reporting it as a pass. A gate that lies is worse than
+
+# no gate.
+
+#

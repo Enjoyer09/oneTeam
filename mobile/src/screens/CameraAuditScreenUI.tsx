@@ -253,6 +253,10 @@ export function CameraAuditScreenUI({
         // can be flagged on the submission; `undefined` on iOS, where it is not
         // exposed.
         mocked: typeof position.mocked === 'boolean' ? position.mocked : undefined,
+        // `expo-location` reports when the fix was taken. Forwarded so the server can
+        // tell a present fix from one replayed hours later — it refuses a submission
+        // whose coordinates are older than a few minutes.
+        timestamp: typeof position.timestamp === 'number' ? position.timestamp : undefined,
       };
     } catch {
       // A failure to fix is a state, not an error to surface: the caller falls
@@ -617,7 +621,9 @@ export function CameraAuditScreenUI({
 
   // Review after capture
   const renderReview = () => (
-    <ScrollView contentContainerStyle={[styles.reviewContent, { paddingBottom: insets.bottom + 40 }]}>
+    <ScrollView
+      contentContainerStyle={[styles.reviewContent, { paddingBottom: insets.bottom + 40 }]}
+    >
       <Text style={styles.reviewTitle}>✅ Şəkil çəkildi</Text>
 
       {/* The photo itself, so "review before sending" is actually possible.

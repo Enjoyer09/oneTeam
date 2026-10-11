@@ -80,6 +80,7 @@
  */
 
 import { Client } from 'pg';
+import { FRESH_FIX_AT } from './helpers/fresh-fix';
 
 const API_BASE = (process.env.ONETEAM_API_URL || 'http://localhost:3001').replace(/\/+$/, '');
 const DATABASE_URL = process.env.DATABASE_URL || '';
@@ -150,6 +151,7 @@ function storeBody(code: string) {
     address: 'Rol suite ünvanı 1, Bakı',
     latitude: 40.3724,
     longitude: 49.8372,
+    locatedAt: FRESH_FIX_AT(),
   };
 }
 
@@ -433,6 +435,7 @@ async function main(): Promise<void> {
         photoType: 'standard',
         latitude: 40.3724,
         longitude: 49.8372,
+        locatedAt: FRESH_FIX_AT(),
       },
     });
     check('and a photo is submitted', submitted.status === 201, submitted.body);

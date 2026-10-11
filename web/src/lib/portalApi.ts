@@ -36,7 +36,16 @@
  * no component had to change.
  */
 
-import { Store, Task, Submission, DashboardMetrics, SubmissionStatus } from '../types';
+import {
+  ShelfMetrics,
+  ShelfPosition,
+  Store,
+  Task,
+  Submission,
+  DashboardMetrics,
+  SubmissionStatus,
+  Product,
+} from '../types';
 import { panelAuthHeaders } from './panelAuth';
 
 const env: Record<string, any> =
@@ -224,6 +233,107 @@ class PortalDataService {
     await request<Envelope<{ id: string }>>(`/api/portal/stores/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // Məhsul kataloqu (SKU) — dalğa 1.2
+  // -------------------------------------------------------------------------
+
+  async getProducts(): Promise<Product[]> {
+    return this.get<Product[]>('/api/portal/products');
+  }
+
+  /**
+   * Yeni SKU yaradır.
+   *
+   * `barcode` rəqəmli və 8–14 xanalı olmalıdır — API bunu məcburi yoxlayır
+   * (güvən sərhədi serverdədir), brauzer yalnız `pattern` ilə ön yoxlama
+   * edir ki istifadəçi yazarkən dərhal görə bilsin.
+   */
+  async createProduct(data: {
+    barcode: string;
+    name: string;
+    size?: string;
+    variant?: string;
+  }): Promise<Product> {
+    const body = await request<Envelope<Product>>('/api/portal/products', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return body.data;
+  }
+
+  async updateProduct(id: string, changes: Partial<Product>): Promise<Product> {
+    const body = await request<Envelope<Product>>(
+      `/api/portal/products/${encodeURIComponent(id)}`,
+      { method: 'PATCH', body: JSON.stringify(changes) },
+    );
+    return body.data;
+  }
+
+  async deleteProduct(id: string): Promise<void> {
+    await request<Envelope<{ id: string }>>(`/api/portal/products/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Rəf xəritəsi — dalğa 1.3
+  // -------------------------------------------------------------------------
+
+  async getShelfPositions(): Promise<ShelfPosition[]> {
+    return this.get<ShelfPosition[]>('/api/portal/shelf-positions');
+  }
+
+  /**
+   * Yeni mövqe yaradır.
+   *
+   * `level` / `position` tam ədəd və >= 1 — API məcburi yoxlayır (güvən
+   * sərhədi serverdədir), forma yalnız `min` ilə ön yoxlama edir.
+   * `product_id: null` boş mövqedir; sahə tamamilə göndərilməsə də boş
+   * sayılır.
+   */
+  async createShelfPosition(data: {
+    section: string;
+    level: number;
+    position: number;
+    product_id?: string | null;
+  }): Promise<ShelfPosition> {
+    const body = await request<Envelope<ShelfPosition>>('/api/portal/shelf-positions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return body.data;
+  }
+
+  /** `product_id: null` təyini silir (boşaltmaq), göndərilməməsi isə toxunulmaz qoyur. */
+  async updateShelfPosition(id: string, changes: Partial<ShelfPosition>): Promise<ShelfPosition> {
+    const body = await request<Envelope<ShelfPosition>>(
+      `/api/portal/shelf-positions/${encodeURIComponent(id)}`,
+      { method: 'PATCH', body: JSON.stringify(changes) },
+    );
+    return body.data;
+  }
+
+  async deleteShelfPosition(id: string): Promise<void> {
+    await request<Envelope<{ id: string }>>(
+      `/api/portal/shelf-positions/${encodeURIComponent(id)}`,
+      { method: 'DELETE' },
+    );
+  }
+
+  /** Əl sayımı qeyd edir (dalğa 1.4) — worker action, roldan asılı deyil. */
+  async countShelfPosition(id: string, units: number): Promise<ShelfPosition> {
+    const body = await request<Envelope<ShelfPosition>>(
+      `/api/portal/shelf-positions/${encodeURIComponent(id)}/count`,
+      { method: 'POST', body: JSON.stringify({ units }) },
+    );
+    return body.data;
+  }
+
+  /** OSA + share of shelf — serverin saydığı rəqəm, panel sadəcə göstərir. */
+  async getShelfMetrics(): Promise<ShelfMetrics> {
+    return this.get<ShelfMetrics>('/api/portal/shelf-metrics');
   }
 
   async getTasks(): Promise<Task[]> {

@@ -122,6 +122,28 @@ const DATABASE_URL =
 const SERVICE_TOKEN = process.env.ONETEAM_TEST_ADMIN_TOKEN || 'oneteam-user:usr-admin-001';
 
 /**
+ * The user `ONETEAM_PANEL_BOOTSTRAP_USER` defaults to. Named once, because the
+ * guard resolves the bootstrap key to it and `ensureAdministrator` inserts it —
+ * two places that have to agree on the same id.
+ */
+const ADMIN_USER_ID = 'usr-admin-001';
+
+/**
+ * The secret `scripts/test-credential.mjs` loads for this suite via `--import`.
+ *
+ * That loader runs before any of this file is evaluated, so it wins over
+ * anything set here — which is why the suite has to *read* it rather than pick
+ * its own value, and why the API this suite starts has to be given the same
+ * one. Reading it also means that if the loader's value ever changes, this
+ * suite follows it instead of silently signing with a secret nothing verifies.
+ */
+const TEST_SIGNING_SECRET =
+  process.env.ONETEAM_SERVICE_SIGNING_SECRET || 'test-only-signing-secret';
+
+/** The user those signed calls act as; matches the loader, and the admin above. */
+const TEST_SERVICE_USER_ID = process.env.ONETEAM_SERVICE_USER_ID || ADMIN_USER_ID;
+
+/**
  * The credential this suite uses for the supervisor calls it makes to set up and
  * tear down its fixtures — a DIFFERENT credential from `SERVICE_TOKEN`.
  *
@@ -248,10 +270,57 @@ async function waitForHealth(timeoutMs = 40_000): Promise<void> {
   );
 }
 
-async function startApi(): Promise<void> {
+/**
+ * Makes sure `usr-admin-001` exists before the API this suite starts is asked
+ * to accept its bootstrap key.
+ *
+ * The API refuses the bootstrap key when that user is absent, and says so in
+ * the log rather than to the caller — so the failure reaches the suite as a
+ * 403 on its first fixture call. Seeding the one row it needs is idempotent and
+ * scoped to that id, so this is safe to run against a database another suite
+ * populated, and it does not touch the counts the cleanup check compares.
+ */
+async function ensureAdministrator(): Promise<string[]> {
+  // The signed bot calls act as this id, so it has to exist for the flow to
+  // resolve a user — not only for the bootstrap key.
+  const ids = [ADMIN_USER_ID, TEST_SERVICE_USER_ID];
+  const seeded: string[] = [];
+  const client = new Client({ connectionString: DATABASE_URL });
+  await client.connect();
+  try {
+    for (const id of [...new Set(ids)]) {
+      const existing = await client.query('SELECT 1 FROM users WHERE id = $1', [id]);
+      if (existing.rowCount && existing.rowCount > 0) continue;
+
+      await client.query(
+        `INSERT INTO users (id, email, full_name, role, telegram_chat_id, phone)
+         VALUES ($1, $2, $3, 'ADMIN', NULL, $4)
+         ON CONFLICT (id) DO NOTHING`,
+        [
+          id,
+          id === ADMIN_USER_ID ? 'admin@coke.oneteam.az' : 'router-suite@coke.oneteam.az',
+          id === ADMIN_USER_ID
+            ? 'Kamran Əhmədov (Head of Retail)'
+            : 'Router Suite Service Identity',
+          '+994****2233',
+        ],
+      );
+      seeded.push(id);
+      console.log(`  · seeded ${id} (the bootstrap key and the signed bot calls need it)`);
+    }
+    return seeded;
+  } finally {
+    await client.end();
+  }
+}
+
+async function startApi(): Promise<string[]> {
   if (!existsSync(API_ENTRY)) {
     throw new Error('apps/api/dist/main.js is missing — run `npm run api:build` first.');
   }
+
+  const seeded = await ensureAdministrator();
+
   apiLog = [];
   const child = spawn(process.execPath, [API_ENTRY], {
     cwd: REPO_ROOT,
@@ -265,6 +334,23 @@ async function startApi(): Promise<void> {
       // The other half of `SUPERVISOR_TOKEN`: the API this suite starts accepts
       // that value as its bootstrap key, so the fixture calls below do not depend
       // on — and do not change — how many panel keys the database holds.
+      // The bot's credential, matched to what `scripts/test-credential.mjs`
+      // loads for this suite (it runs as `--import`, so it sets these before
+      // any of this suite's code is evaluated).
+      //
+      // The bot signs its calls when `ONETEAM_SERVICE_SIGNING_SECRET` is set,
+      // which that loader guarantees — and the API this suite starts must
+      // therefore hold the same secret or it rejects every bot call with a 401
+      // and no message explaining which half was missing. That is what happened:
+      //
+      //     The suite could not finish: FlowStorageError:
+      //       The guided flow could not be loaded: Authentication required
+      //
+      // at `/start`, on a suite whose own subject was the flow. Measured on
+      // 2026-10-05: without the loader 68 passed / 0 failed; with the loader and
+      // no secret on the API side, 1 passed / 1 failed and the flow never ran.
+      ONETEAM_SERVICE_SIGNING_SECRET: TEST_SIGNING_SECRET,
+      ONETEAM_SERVICE_USER_ID: TEST_SERVICE_USER_ID,
       ONETEAM_PANEL_BOOTSTRAP_KEY: SUPERVISOR_TOKEN,
       // `ONETEAM_PANEL_BOOTSTRAP_USER` is left at its default (`usr-admin-001`),
       // which is the same administrator `SERVICE_TOKEN` names.
@@ -279,6 +365,7 @@ async function startApi(): Promise<void> {
   child.stderr?.on('data', collect);
   api = child;
   await waitForHealth();
+  return seeded;
 }
 
 async function stopApi(): Promise<void> {
@@ -607,6 +694,10 @@ async function main(): Promise<void> {
     return last;
   };
 
+  // This snapshot is the database as the suite FOUND it. The snapshot is taken
+  // before the seed and before the API starts, because both are this suite's
+  // own doing — so counting them here would make the cleanup's own work read as
+  // leftovers it failed to remove.
   const before = {
     stores: await countOf('stores'),
     storeTasks: await countOf('store_tasks'),
@@ -622,6 +713,13 @@ async function main(): Promise<void> {
   let taskId: string | undefined;
   let templateId: string | undefined;
   let userId: string | undefined;
+  /**
+   * The identities this run inserted, so the cleanup removes exactly those and
+   * leaves rows the database already had. Deleting by a fixed id instead would
+   * take out a seeded `usr-admin-001` that belongs to the database, not to this
+   * suite.
+   */
+  let seededUsers: string[] = [];
   /** Audit rows name the evidence, so their ids are collected before deletion. */
   let evidenceIds: string[] = [];
 
@@ -640,7 +738,7 @@ async function main(): Promise<void> {
   };
 
   try {
-    await startApi();
+    seededUsers = await startApi();
     console.log('  · the API is up on its own port');
 
     // -----------------------------------------------------------------------
@@ -737,10 +835,19 @@ async function main(): Promise<void> {
     );
 
     // The claim happened on the way in, which is what makes the task assignable.
-    const claimed = await db.query('SELECT assigned_user_id FROM store_tasks WHERE id = $1', [
-      taskId,
-    ]);
-    const assignedTo = claimed.rows[0]?.assigned_user_id;
+    // `assignStoreTask` mutates memory and persists through the database's
+    // fire-and-forget queue, so the row lands a tick after the API has already
+    // replied with `claimedTaskIds` — one direct SELECT raced that queue and
+    // read `null`. Wait for the durable value instead of assuming it is
+    // already there; a claim that never lands still fails, with what it is.
+    let assignedTo: string | null | undefined;
+    for (let i = 0; i < 50 && typeof assignedTo !== 'string'; i += 1) {
+      const claimed = await db.query('SELECT assigned_user_id FROM store_tasks WHERE id = $1', [
+        taskId,
+      ]);
+      assignedTo = claimed.rows[0]?.assigned_user_id;
+      if (typeof assignedTo !== 'string') await sleep(100);
+    }
     check('and the store code claimed the open task', typeof assignedTo === 'string', assignedTo);
     if (typeof assignedTo === 'string') userId = assignedTo;
 
@@ -1212,6 +1319,11 @@ async function main(): Promise<void> {
       // first; `panel_tokens`/`device_tokens` cascade.
       await attempt('the user', 'DELETE FROM users WHERE id = $1', [userId]);
     }
+    // Only the identities this run created. The flow's own user may already be
+    // one of them, so `userId` is excluded rather than deleted twice.
+    for (const id of seededUsers.filter((seeded) => seeded !== userId)) {
+      await attempt('the seeded identity', 'DELETE FROM users WHERE id = $1', [id]);
+    }
     if (storeId) {
       await attempt('the store', 'DELETE FROM stores WHERE id = $1', [storeId]);
     }
@@ -1278,5 +1390,11 @@ main()
   })
   .catch((error) => {
     console.error('\nThe suite could not finish:', error);
+    // The API's own output is buffered in `apiLog` and only ever printed on
+    // success paths — a FLOW_NOT_STORED came with `⛔ [FLOW] ...` on the server
+    // side and the tail was thrown away with the process, leaving only the
+    // client's 503 to guess from.
+    const tail = apiLog.join('').slice(-4000);
+    if (tail.trim()) console.error('\n--- api log (tail) ---\n' + tail);
     process.exit(1);
   });

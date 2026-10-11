@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useReducer } from 'react';
 import { Sidebar, TabType } from './components/Sidebar';
 import { Header } from './components/Header';
 import { DashboardOverview } from './components/DashboardOverview';
 import { AuditReviewCenter } from './components/AuditReviewCenter';
 import { TaskManager, TaskEditValues } from './components/TaskManager';
 import { StoreDirectory, StoreFormValues } from './components/StoreDirectory';
+import { ProductCatalog, ProductFormValues } from './components/ProductCatalog';
+import { ShelfMap, ShelfFormValues } from './components/ShelfMap';
 import { PanelLogin } from './components/PanelLogin';
 import { PanelKeysModal } from './components/PanelKeysModal';
 import { PanelUsersModal } from './components/PanelUsersModal';
@@ -18,7 +20,17 @@ import {
   type PanelAuthStatus,
   type PanelIdentity,
 } from './lib/panelAuth';
-import { Store, Task, Submission, DashboardMetrics, TaskPriority } from './types';
+import {
+  Store,
+  Task,
+  Submission,
+  DashboardMetrics,
+  TaskPriority,
+  Product,
+  ShelfPosition,
+  ShelfMetrics,
+} from './types';
+import { loadPhaseReducer } from './lib/loadPhase';
 
 /**
  * The two questions the shell has to answer before it can render anything:
@@ -51,7 +63,13 @@ export function App() {
     pendingReviews: 0,
     complianceRate: 100,
   });
+  // Sıfırlar və `complianceRate: 100` yalnız dolu deyil, həm də YALANŞI ilk
+  // paintdir — skelet, məlumat və xəta paneli bu phase-dan asılıdır.
+  const [phase, dispatchPhase] = useReducer(loadPhaseReducer, 'loading');
   const [stores, setStores] = useState<Store[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [shelfPositions, setShelfPositions] = useState<ShelfPosition[]>([]);
+  const [shelfMetrics, setShelfMetrics] = useState<ShelfMetrics | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
@@ -207,23 +225,41 @@ export function App() {
 
   const loadData = async () => {
     try {
-      const [m, s, t, subs] = await Promise.all([
+      const [m, s, t, subs, prods, shelf, shelfM] = await Promise.all([
         portalService.getMetrics(),
         portalService.getStores(),
         portalService.getTasks(),
         portalService.getSubmissions('all'),
+        portalService.getProducts(),
+        portalService.getShelfPositions(),
+        portalService.getShelfMetrics(),
       ]);
       setMetrics(m);
       setStores(s);
       setTasks(t);
       setSubmissions(subs);
+      setProducts(prods);
+      setShelfPositions(shelf);
+      setShelfMetrics(shelfM);
+      dispatchPhase({ type: 'loaded' });
     } catch (error) {
       // A rejected credential is not a data problem and must not be reported as
       // one — the remedy is to sign in, not to retry. Everything else falls
       // through to the honest-failure path below.
       if (isAuthFailure(error)) {
+        const hadKey = storedKey() !== null;
         clearStoredKey();
-        await checkAuth();
+        // Açar yox ikən yenidən yoxlama heç nəyi dəyişmir: `ready` → `checking`
+        // → `ready` osillasiyası effect-i yenidən işə salır və loadData
+        // sonsuz 401 döngüsünə girir (açar mövcud olanda bu yol düzgündür —
+        // köhnə açar təmizlənir və giriş ekranı açılır).
+        // ponytail: açarsız 403 (panel ortada konfiqurasiya olunubsa) sadəcə
+        // xəta paneli göstərir; reload/login axını bunu həll edər.
+        if (hadKey) {
+          await checkAuth();
+        } else {
+          dispatchPhase({ type: 'failed' });
+        }
         return;
       }
 
@@ -233,6 +269,7 @@ export function App() {
       const message = error instanceof Error ? error.message : String(error);
       console.error('⛔ [oneTeam Portal] Məlumat yüklənə bilmədi:', message);
       showToast(`Məlumat yüklənə bilmədi — ${message}`, true);
+      dispatchPhase({ type: 'failed' });
     }
   };
 
@@ -246,10 +283,39 @@ export function App() {
     if (auth.phase === 'ready') void loadData();
   }, [auth.phase]);
 
+  // Gün ərzində açıq qalan portal boot-anın rəqəmlərini göstərməməlidir —
+  // tab-a qayıdanda (və başqa supervisor işləyəndə) rəqəmlər yenilənir.
+  useEffect(() => {
+    if (auth.phase !== 'ready') return;
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void loadData();
+    };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [auth.phase]);
+
   /**
    * Yazma əməliyyatlarını vahid şəkildə sarır: xəta olsa istifadəçi görür,
    * olsa da ekran yenilənir. Hər handler-də təkrar try/catch yazmaq əvəzinə
    * bir yerdə saxlanılır.
+   *
+   * NƏTİCƏNİ QAYTARIR — bu, bu funksiyanın ən vacib hissəsidir.
+   *
+   * Keçmişdə `Promise<void>` idi və xətanı udub normal qayıdırdı. Bunun
+   * komponentlər üçün görünməz bir nəticəsi var idi: `await onApprove(id)`
+   * səhv olanda da "uğurla bitdi" sayılırdı, ona görə `setSelectedSubmission(null)`
+   * işləyirdi — istifadəçi 500 qaytarmış bir sorğunu uğur kimi görüb, modal
+   * bağlanmış və yeni auditi açmış vəziyyətdə qalırdı. Eyni səbəb `TaskManager`-də
+   * **yazılmış formu** silirdi: `handleSubmit` uğursuzluqda da modalı bağlayıb
+   * `setTitle('')`/`setDescription('')` çağırırdı.
+   *
+   * İndi `true` = əməliyyat də edildi, `false` = xəta var idi (toxunulan
+   * `showToast` eynidir). Çağıran yalnız uğurluqda "uzağa atılacaq" işləri —
+   * modalı bağlamaq, formu təmizləmək, yazılmış mətni silmək — aparır.
    */
   const runAction = async (action: () => Promise<unknown>, successMessage: string) => {
     try {
@@ -258,15 +324,17 @@ export function App() {
       // Boş mesaj "artıq öz bildirişini göstərən" əməliyyatlar üçündür —
       // məsələn kütləvi göndərmə, hansı ki sayı özü bildirir.
       if (successMessage) showToast(successMessage);
+      return true;
     } catch (error) {
       if (isAuthFailure(error)) {
         clearStoredKey();
         await checkAuth();
-        return;
+        return false;
       }
       const message = error instanceof Error ? error.message : String(error);
       console.error('⛔ [oneTeam Portal] Əməliyyat alınmadı:', message);
       showToast(`Əməliyyat alınmadı — ${message}`, true);
+      return false;
     }
   };
 
@@ -370,6 +438,62 @@ export function App() {
 
   const handleDeleteStore = (id: string) =>
     runFormAction(() => portalService.deleteStore(id), 'Mağaza silindi.');
+
+  /**
+   * Məhsul (SKU) kataloqu əməliyyatları — dalğa 1.2.
+   *
+   * Forma yalnız boş olmayan sahələri göndərir (size/variant undefined),
+   * beləliklə PATCH "sahəni boşaltmaq" ilə "sahəni oxumamaq"ı seçir.
+   */
+  const handleCreateProduct = (form: ProductFormValues) =>
+    runFormAction(
+      () =>
+        portalService.createProduct({
+          barcode: form.barcode,
+          name: form.name,
+          size: form.size.trim() || undefined,
+          variant: form.variant.trim() || undefined,
+        }),
+      'Yeni məhsul kataloqa əlavə olundu.',
+    );
+
+  const handleUpdateProduct = (id: string, changes: Partial<Product>) =>
+    runFormAction(() => portalService.updateProduct(id, changes), 'Məhsul məlumatları yeniləndi.');
+
+  const handleDeleteProduct = (id: string) =>
+    runFormAction(() => portalService.deleteProduct(id), 'Məhsul silindi.');
+
+  /**
+   * Rəf xəritəsi əməliyyatları — dalğa 1.3.
+   *
+   * level/position artıq rəqəmdir (komponentdə təsdiqdə parse olunub);
+   * product_id boş string boş mövqedir — null göndərilir ki PATCH
+   * "təyini silmək" ilə "toxunmamaq"ı seçsin.
+   */
+  const handleCreateShelfPosition = (form: ShelfFormValues) =>
+    runFormAction(
+      () =>
+        portalService.createShelfPosition({
+          section: form.section.trim(),
+          level: Number(form.level),
+          position: Number(form.position),
+          product_id: form.product_id || null,
+        }),
+      'Yeni rəf mövqesi xəritəyə əlavə olundu.',
+    );
+
+  const handleUpdateShelfPosition = (id: string, changes: Partial<ShelfPosition>) =>
+    runFormAction(() => portalService.updateShelfPosition(id, changes), 'Rəf mövqesi yeniləndi.');
+
+  const handleDeleteShelfPosition = (id: string) =>
+    runFormAction(() => portalService.deleteShelfPosition(id), 'Rəf mövqesi silindi.');
+
+  /**
+   * Əl sayımı (dalğa 1.4) — roldan asılı deyil: saymaq işçinin öz işidir,
+   * xəritə redaktəsi isə ayrıca qapıdadır (requireShelfEditor).
+   */
+  const handleCountShelfPosition = (id: string, units: number) =>
+    runFormAction(() => portalService.countShelfPosition(id, units), 'Sayım qeyd olundu.');
 
   const handleCreateTask = (taskData: {
     title: string;
@@ -543,7 +667,7 @@ export function App() {
         <div
           role={toastIsError ? 'alert' : 'status'}
           aria-live={toastIsError ? 'assertive' : 'polite'}
-          className="glass-pop fixed top-4 right-4 z-[60] flex items-center gap-2.5
+          className="glass-pop fixed bottom-4 right-4 z-[60] flex items-center gap-2.5
                      max-w-[calc(100vw-2rem)] rounded-[14px] px-4 py-3
                      text-[12px] font-bold text-ink animate-toastIn"
         >
@@ -614,8 +738,13 @@ export function App() {
             <div key={activeTab} className="view-g">
               {activeTab === 'dashboard' && (
                 <DashboardOverview
+                  phase={phase}
                   metrics={metrics}
                   recentSubmissions={submissions.slice(0, 6)}
+                  onRetry={() => {
+                    dispatchPhase({ type: 'retry' });
+                    void loadData();
+                  }}
                   onOpenSubmissionReview={openSubmissionFromDashboard}
                   onNavigateTab={(tab, filter) => {
                     if (tab === 'review') {
@@ -660,6 +789,29 @@ export function App() {
                   onCreate={handleCreateStore}
                   onUpdate={handleUpdateStore}
                   onDelete={handleDeleteStore}
+                  canEdit={canEditMasterData}
+                />
+              )}
+
+              {activeTab === 'products' && (
+                <ProductCatalog
+                  products={products}
+                  onCreate={handleCreateProduct}
+                  onUpdate={handleUpdateProduct}
+                  onDelete={handleDeleteProduct}
+                  canEdit={canEditMasterData}
+                />
+              )}
+
+              {activeTab === 'shelfmap' && (
+                <ShelfMap
+                  shelfPositions={shelfPositions}
+                  metrics={shelfMetrics}
+                  products={products}
+                  onCreate={handleCreateShelfPosition}
+                  onUpdate={handleUpdateShelfPosition}
+                  onDelete={handleDeleteShelfPosition}
+                  onCount={handleCountShelfPosition}
                   canEdit={canEditMasterData}
                 />
               )}

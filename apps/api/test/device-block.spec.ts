@@ -331,7 +331,11 @@ async function main(): Promise<void> {
     )
   )[0];
   check('an active device_blocks row exists', Boolean(activeBlock), deviceA);
-  check('and it names the supervisor who set it', activeBlock?.blocked_by === SUPERVISOR_USER, activeBlock);
+  check(
+    'and it names the supervisor who set it',
+    activeBlock?.blocked_by === SUPERVISOR_USER,
+    activeBlock,
+  );
 
   // -------------------------------------------------------------------------
   // The assertion this feature exists for: a blocked device cannot re-enrol
@@ -427,10 +431,9 @@ async function main(): Promise<void> {
   );
 
   const stillBlocked = (
-    await query(
-      `SELECT 1 FROM device_blocks WHERE device_id = $1 AND cleared_at IS NULL LIMIT 1`,
-      [deviceA],
-    )
+    await query(`SELECT 1 FROM device_blocks WHERE device_id = $1 AND cleared_at IS NULL LIMIT 1`, [
+      deviceA,
+    ])
   ).length;
   check('a refused unblock leaves the block standing', stillBlocked === 1, { stillBlocked });
 
@@ -474,13 +477,21 @@ async function main(): Promise<void> {
     )
   )[0];
   check('the block row is now cleared', clearedBlock?.cleared_at !== null, clearedBlock);
-  check('and names the administrator who lifted it', clearedBlock?.cleared_by === ADMIN_USER, clearedBlock);
+  check(
+    'and names the administrator who lifted it',
+    clearedBlock?.cleared_by === ADMIN_USER,
+    clearedBlock,
+  );
 
   const clearedList = await call('GET', '/api/panel/devices', { token: supervisorKey });
   const rowACleared = (clearedList.body?.data?.devices ?? []).find(
     (row: any) => row.deviceId === deviceA,
   );
-  check('and the device list reports it no longer blocked', rowACleared?.blocked === false, rowACleared);
+  check(
+    'and the device list reports it no longer blocked',
+    rowACleared?.blocked === false,
+    rowACleared,
+  );
 
   const clearAudit = await waitFor(async () => {
     const rows = await query(
@@ -577,4 +588,3 @@ main().catch(async (error) => {
   }
   process.exitCode = 1;
 });
-

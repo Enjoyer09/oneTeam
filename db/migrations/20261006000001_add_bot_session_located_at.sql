@@ -1,0 +1,35 @@
+-- ============================================================================
+-- oneTeam migration — keep the fix's timestamp with the fix
+-- File: db/migrations/20261006000001_add_bot_session_located_at.sql
+-- ============================================================================
+--
+-- WHAT THIS CHANGES
+-- -----------------
+-- Adds `bot_sessions.located_at`, next to the existing `latitude`/`longitude`.
+--
+-- WHY
+-- ---
+-- A coordinate pair is a claim about *where*, and `located_at` is what says
+-- *when*. The bot collects both when the merchandiser shares their location:
+-- `handlers/taskFlow.ts` stores `locatedAt` from the message's own timestamp.
+-- But `field.service.saveFlow` wrote only `latitude` and `longitude` into this
+-- table, so the timestamp was dropped the moment the session round-tripped
+-- through the database — which is every button tap, because the bot reads its
+-- session back from here before handling anything.
+--
+-- The submission then arrived at the API with coordinates and no date, and
+-- `isFixFresh(undefined)` is false, so every Telegram audit carrying a real
+-- location was refused with LOCATION_STALE. Measured on 2026-10-06: the router
+-- suite filed 0 audits and left the flow stuck at `awaiting_confirm`, 60 passed
+-- / 8 failed. The guard itself was right; it was being told nothing about a fix
+-- the bot had actually collected.
+--
+-- The column is nullable on purpose. NULL means the merchandiser skipped the
+-- location prompt, which is the case the flow already represents by leaving
+-- `latitude`/`longitude` NULL — it must not be confused with "a fix was taken
+-- but never dated", which is what a row with coordinates and no `located_at`
+-- says, and which the API still refuses.
+-- ============================================================================
+
+ALTER TABLE bot_sessions
+    ADD COLUMN IF NOT EXISTS located_at TIMESTAMPTZ;

@@ -16,6 +16,7 @@ import { EvidenceService } from '../src/modules/evidences/evidence.service';
 import { PortalService } from '../src/modules/portal/portal.service';
 import { isAiAutoApproveEligible } from '../src/modules/portal/field.service';
 import { AuthenticatedPrincipal } from '../src/common/auth/authenticated-principal';
+import { FRESH_FIX_AT } from './helpers/fresh-fix';
 
 /**
  * Test principals — the actor passed to service methods.
@@ -193,6 +194,7 @@ async function runPhase2TestSuite() {
         photoUrl: 'https://images.unsplash.com/photo-coke-shelf-1.jpg',
         latitude: 40.38505,
         longitude: 49.8106,
+        locatedAt: FRESH_FIX_AT(),
         photoType: 'before',
         checklistAnswers: [
           { questionId: 'q-clean', value: true },
@@ -219,6 +221,7 @@ async function runPhase2TestSuite() {
         photoUrl: 'https://images.unsplash.com/photo-coke-shelf-1.jpg',
         latitude: 40.38505,
         longitude: 49.8106,
+        locatedAt: FRESH_FIX_AT(),
         photoType: 'before',
         checklistAnswers: [
           { questionId: 'q-temp', value: 'soyuqdur' as any },
@@ -245,6 +248,7 @@ async function runPhase2TestSuite() {
         photoUrl: 'https://images.unsplash.com/photo-coke-shelf-1.jpg',
         latitude: 40.38505,
         longitude: 49.8106,
+        locatedAt: FRESH_FIX_AT(),
         photoType: 'before',
         checklistAnswers: [
           { questionId: 'q-temp', value: 3.5 },
@@ -271,6 +275,7 @@ async function runPhase2TestSuite() {
         photoUrl: 'https://images.unsplash.com/photo-coke-shelf-1.jpg',
         latitude: 40.38505,
         longitude: 49.8106,
+        locatedAt: FRESH_FIX_AT(),
         photoType: 'before',
         checklistAnswers: [
           { questionId: 'q-temp', value: 38.0 },
@@ -301,6 +306,7 @@ async function runPhase2TestSuite() {
       photoUrl: 'https://images.unsplash.com/photo-coke-shelf-before.jpg',
       latitude: 40.38505,
       longitude: 49.8106,
+      locatedAt: FRESH_FIX_AT(),
       photoType: 'before',
       checklistAnswers: validAnswers,
     },
@@ -341,6 +347,7 @@ async function runPhase2TestSuite() {
         photoType: 'after',
         latitude: 40.38505,
         longitude: 49.8106,
+        locatedAt: FRESH_FIX_AT(),
         checklistAnswers: validAnswers,
       },
       PRINCIPALS.merchandiser,
@@ -361,6 +368,7 @@ async function runPhase2TestSuite() {
       photoType: 'before',
       latitude: 40.38505,
       longitude: 49.8106,
+      locatedAt: FRESH_FIX_AT(),
       checklistAnswers: validAnswers,
     },
     PRINCIPALS.merchandiser,
@@ -382,6 +390,7 @@ async function runPhase2TestSuite() {
       photoType: 'after',
       latitude: 40.38505,
       longitude: 49.8106,
+      locatedAt: FRESH_FIX_AT(),
       aiScore: 96,
       aiSummary: '✅ Planogram uyğunluğu: 96%',
       checklistAnswers: validAnswers,
@@ -421,6 +430,55 @@ async function runPhase2TestSuite() {
     'Test 4.2: A mock/spoofed fix is NOT auto-approve eligible even at score 96',
   );
 
+  // 4.2b THE OTHER HALF OF THE SAME HOLE — NO FIX AT ALL.
+  //
+  // `locationMocked` says "this location is a lie". It does NOT cover "there is
+  // no location": the Telegram bot offers a skip button, and a skip sends
+  // `locationUnverified: true` with no device to report a mock, so the flag
+  // arrives false. The API then substitutes the store's own coordinates, which
+  // makes the geofence pass by construction.
+  //
+  // The case below is the exact shape of that submission: score 96, confident,
+  // not mocked — identical to 4.1 except that nobody proved where anyone was.
+  // Before the `locationUnverified` parameter existed it returned TRUE, so the
+  // one channel that cannot prove location was the one channel that never had
+  // to. It must be false now.
+  assert(
+    isAiAutoApproveEligible({
+      score: 96,
+      confident: true,
+      locationMocked: false,
+      locationUnverified: true,
+    }) === false,
+    'Test 4.2b: A submission with NO real fix is NOT auto-approve eligible, even at score 96 and not mocked',
+  );
+
+  // 4.2c Both flags together — the realistic mobile case where a device reports
+  //     a mock and the channel also has no trustworthy fix.
+  assert(
+    isAiAutoApproveEligible({
+      score: 100,
+      confident: true,
+      locationMocked: true,
+      locationUnverified: true,
+    }) === false,
+    'Test 4.2c: Mocked AND unverified is held',
+  );
+
+  // 4.2d The parameter is optional, so a caller that says nothing is treated as
+  //     "verified" — the pre-existing 4.1 behaviour is preserved rather than
+  //     silently inverted. This is what keeps the change opt-in and narrow.
+  assert(
+    isAiAutoApproveEligible({ score: 96, confident: true, locationMocked: false }) === true &&
+      isAiAutoApproveEligible({
+        score: 96,
+        confident: true,
+        locationMocked: false,
+        locationUnverified: false,
+      }) === true,
+    'Test 4.2d: Omitting the flag keeps the old behaviour (no silent inversion)',
+  );
+
   // 4.3 Evidence carries the mock flag so the panel can show it and a later
   //     review can be recorded as a deliberate override.
   const mockTaskId = `task-mock-${Date.now()}`;
@@ -442,6 +500,7 @@ async function runPhase2TestSuite() {
       photoType: 'standard',
       latitude: 40.38505,
       longitude: 49.8106,
+      locatedAt: FRESH_FIX_AT(),
       locationMocked: true,
       checklistAnswers: [{ questionId: 'q-eye-clean', value: true }],
     },
@@ -475,6 +534,7 @@ async function runPhase2TestSuite() {
       photoType: 'standard',
       latitude: 40.38505,
       longitude: 49.8106,
+      locatedAt: FRESH_FIX_AT(),
       checklistAnswers: [{ questionId: 'q-eye-clean', value: true }],
     },
     PRINCIPALS.merchandiser,
@@ -538,6 +598,7 @@ async function runPhase2TestSuite() {
         photoType: 'standard',
         latitude: 40.4,
         longitude: 49.85,
+        locatedAt: FRESH_FIX_AT(),
         checklistAnswers: [{ questionId: 'q-eye-clean', value: true }],
       },
       PRINCIPALS.merchandiser,
@@ -576,6 +637,7 @@ async function runPhase2TestSuite() {
       photoType: 'standard',
       latitude: 40.38505,
       longitude: 49.8106,
+      locatedAt: FRESH_FIX_AT(),
       checklistAnswers: [{ questionId: 'q-eye-clean', value: true }],
     },
     PRINCIPALS.merchandiser,

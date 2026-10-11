@@ -18,6 +18,59 @@ export interface Store {
   created_at: string;
 }
 
+/** SKU kataloqu (dalğa 1.2) — barkod → məhsul identiteti. */
+export interface Product {
+  id: string;
+  barcode: string;
+  name: string;
+  size: string | null;
+  variant: string | null;
+  created_at: string;
+}
+
+/** Rəf xəritəsi mövqesi (dalğa 1.3). `product_id` null = boş mövqe. */
+export interface ShelfPosition {
+  id: string;
+  section: string;
+  level: number;
+  position: number;
+  product_id: string | null;
+  /**
+   * Ən son əl sayımı (dalğa 1.4): 0 = sayılıb, məhsul yoxdur;
+   * null = hələ heç kim saymayıb — OSA bu ikini fərqləndirir.
+   */
+  units: number | null;
+  counted_at: string | null;
+  created_at: string;
+}
+
+/** Bir bölmənin sayğac payı (share of shelf), faizlə. */
+export interface ShelfProductShare {
+  product_id: string;
+  name: string;
+  units: number;
+  share: number;
+}
+
+export interface ShelfSectionMetric {
+  section: string;
+  assigned: number;
+  present: number;
+  units: number;
+  products: ShelfProductShare[];
+}
+
+/** Manual OSA / share of shelf (dalğa 1.4) — server hesablayır. */
+export interface ShelfMetrics {
+  assigned_slots: number;
+  counted_slots: number;
+  present_slots: number;
+  /** present/counted, 0–100; null = hələ heç nə sayılmayıb. */
+  osa: number | null;
+  total_units: number;
+  sections: ShelfSectionMetric[];
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -103,6 +156,9 @@ export interface Submission {
    * mandatory review; approving it is a deliberate supervisor override.
    */
   location_mocked?: boolean;
+  /** No real fix was captured (Telegram skip / declined prompt). Weaker
+   *  evidence, not a fraud finding — so it is styled as a caution, not a fault. */
+  location_unverified?: boolean;
   reviewer_feedback: string | null;
   ai_score?: number | null;
   ai_detections?: DetectionItem[];

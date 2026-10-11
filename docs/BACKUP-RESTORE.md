@@ -41,13 +41,20 @@ environments.
 
 ## Scheduled backups
 
-`.github/workflows/db-backup.yml` runs the script nightly (02:30 UTC) and on
-demand, then uploads the dump as a workflow artifact. It needs a `DATABASE_URL`
-**repository secret**, and the database must be reachable from GitHub's hosted
-runners (a public managed endpoint with TLS). For a private database, run the
-same script from inside the network — a host cron job, a Railway cron service,
-or a self-hosted runner. An artifact is adequate for short-horizon recovery; for
-long-term retention push to object storage (see the TODO in the workflow).
+Backups run as a **Railway cron service**, not a GitHub Actions workflow. The
+production database is a Railway service on a private network, and hosted
+runners cannot reach it — a GitHub Actions job would need a `DATABASE_URL`
+repository secret pointing at a publicly reachable endpoint, which this
+database does not have. The service image is `scripts/ops/Dockerfile.backup`;
+its entry point is `scripts/ops/db-backup.sh`, and it runs at 03:00 UTC.
+
+The same script runs anywhere it can reach the database — a host cron job, a
+Railway cron service, or a self-hosted runner. If a scheduled backup ever
+fails, check the service logs rather than the repository's Actions tab.
+
+Dumps are pushed to object storage (S3/R2, configured through `BACKUP_S3_*`
+environment variables on the service), which is what gives long-term
+retention.
 
 ## Restoring
 

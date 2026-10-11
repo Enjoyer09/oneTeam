@@ -99,6 +99,13 @@ export interface SubmitEvidenceRequestDto {
   latitude: number;
   longitude: number;
   /**
+   * When the fix was taken, ISO-8601. Required for a submission that carries
+   * coordinates: an undated pair cannot be shown to be current, and a fix
+   * captured hours ago passes the geofence precisely because it was inside the
+   * radius when it was taken. The API refuses one older than a few minutes.
+   */
+  locatedAt?: string;
+  /**
    * The caller states that this channel could not collect the checklist.
    *
    * Only the Telegram bot sets this: it submits a photo without ever asking the
@@ -131,6 +138,9 @@ export interface SubmitEvidenceRequestDto {
    * spoofer is not tipped off that the fix was caught.
    */
   locationMocked?: boolean;
+  /** No real fix was captured (Telegram skip / declined prompt). Blocks
+   *  auto-approval, and is shown to the reviewer as weaker evidence. */
+  locationUnverified?: boolean;
   aiScore?: number;
   aiDetections?: any[];
   aiSummary?: string;
@@ -204,8 +214,7 @@ export interface FieldFlowPayload {
    * as location-unverified. The store's own coordinates must never be put here
    * — see `createSubmission` for why.
    */
-  location?: { latitude: number; longitude: number } | null;
-
+  location?: { latitude: number; longitude: number; locatedAt?: string } | null;
   /** The questions the flow started with, so a resumed flow asks the same ones. */
   checklistQuestions?: ChecklistQuestion[];
 

@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { ModalPortal } from './ui/ModalPortal';
+import { StatusBadge } from './ui/StatusBadge';
 import {
   PlusCircle,
   Calendar,
@@ -103,38 +104,17 @@ function toLocalInput(iso: string | undefined): string {
   );
 }
 
-/**
- * Renders the task's real status.
- *
- * This slot used to hold a hardcoded green "Aktiv" on every card, so a task
- * that had been approved or rejected still read as active — the same class of
- * lie as the store list's hardcoded "Aktiv". An unrecognised status shows the
- * raw value rather than being rounded to something reassuring.
- */
-function getStatusBadge(status: string | undefined) {
-  const map: Record<string, { label: string; className: string }> = {
-    draft: { label: 'Qaralama', className: 'bg-slate-100 text-slate-700' },
-    published: { label: 'Aktiv', className: 'bg-emerald-50 text-emerald-700' },
-    completed: { label: 'Tamamlandı', className: 'bg-indigo-50 text-indigo-700' },
-    archived: { label: 'Arxivlənmiş', className: 'bg-amber-50 text-amber-700' },
-  };
-  const entry = status ? map[status] : undefined;
-  return (
-    <span
-      className={`text-[10px] px-2 py-0.5 rounded font-bold ${
-        entry?.className ?? 'bg-slate-100 text-slate-700'
-      }`}
-    >
-      {entry?.label ?? (status || 'Bilinmir')}
-    </span>
-  );
-}
-
 interface TaskManagerProps {
   tasks: Task[];
   stores: Store[];
   isCreateModalOpen: boolean;
   setIsCreateModalOpen: (open: boolean) => void;
+  /**
+   * Hər ikisi `Promise<boolean>` qaytarır: `true` = tapşırıq həqiqətən yaradıldı
+   * yaxud göndərildi. Komponent bu bayraq olmadan formanı sıfırlamır və modalı
+   * bağlamır, çünki `App`-dəki `runAction` xətanı udub normal qayıdır — əgər
+   * burada nəticə soruşulmasaydı, uğursuz göndərmə "uğur" kimi görünərdi.
+   */
   onCreateTask: (taskData: {
     title: string;
     description: string;
@@ -144,7 +124,7 @@ interface TaskManagerProps {
     assigned_stores: string[];
     requires_before_after_photo?: boolean;
     checklist_schema?: any[];
-  }) => Promise<void>;
+  }) => Promise<boolean>;
   onBulkDispatch?: (data: {
     title: string;
     description: string;
@@ -156,7 +136,7 @@ interface TaskManagerProps {
     regionId: string;
     requires_before_after_photo?: boolean;
     checklist_schema?: any[];
-  }) => Promise<void>;
+  }) => Promise<boolean>;
   /**
    * Resolves with how many store tasks the content change reached.
    *
@@ -384,6 +364,15 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     return true;
   });
 
+  /**
+   * Modal YALNIZ uğurluqdan sonra bağlanır.
+   *
+   * Əvvəl `try { … setIsBulkModalOpen(false) } finally { … }` idi: xəta halında da
+   * modal bağlanırdı, halbuki `App`-dəki `runAction` xətanı udub normal qayıdır.
+   * Supervayzer "Əməliyyat alınmadı" toast-unu 3.5 saniyə görüb, filtrlərini və
+   * seçimlərini itirmiş vəziyyətdə qalırdı. `false` gələndə `runAction` artıq
+   * toast göstərib, ona görə burada yalnız "heç nə dəyişmə" deyirik.
+   */
   const handleBulkSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (matchedStores.length === 0) {
@@ -396,8 +385,8 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     }
     setBulkError(null);
 
+    setIsBulkSubmitting(true);
     try {
-      setIsBulkSubmitting(true);
       const taskData = {
         title: bulkTitle.trim(),
         description: bulkDescription.trim(),
@@ -411,13 +400,8 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
         assigned_stores: matchedStores.map((s) => s.id),
       };
 
-      if (onBulkDispatch) {
-        await onBulkDispatch(taskData);
-      } else {
-        await onCreateTask(taskData);
-      }
-
-      setIsBulkModalOpen(false);
+      const ok = onBulkDispatch ? await onBulkDispatch(taskData) : await onCreateTask(taskData);
+      if (ok) setIsBulkModalOpen(false);
     } finally {
       setIsBulkSubmitting(false);
     }
@@ -439,6 +423,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     setSelectedStores(updated);
   };
 
+  /**
+   * Forma yalnız uğurluqdan sonra sıfırlanır.
+   *
+   * Əvvəl uğursuzluqda da `setTitle('')`/`setDescription('')` çağırılırdı: server
+   * 500 qaytardıqda supervayzer yazdığı bütün məzmunu itirmiş, modalı bağlanmış
+   * və yalnız 3.5 saniyəlik "Əməliyyat alınmadı" zolağı qalırdı. Bir tapşırıq
+   * təlimatının yazılması dəqiqələr çəkir — bu, bu panelin ən ağır itkisidir.
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !description.trim()) {
@@ -447,11 +439,11 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     }
     setCreateError(null);
 
+    setIsSubmitting(true);
     try {
-      setIsSubmitting(true);
       const storeIds = selectedStores.includes('all') ? stores.map((s) => s.id) : selectedStores;
 
-      await onCreateTask({
+      const ok = await onCreateTask({
         title: title.trim(),
         description: description.trim(),
         reference_image_url: referenceImageUrl,
@@ -460,10 +452,11 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
         assigned_stores: storeIds,
       });
 
-      // Reset form
-      setTitle('');
-      setDescription('');
-      setIsCreateModalOpen(false);
+      if (ok) {
+        setTitle('');
+        setDescription('');
+        setIsCreateModalOpen(false);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -535,111 +528,120 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
       </div>
 
       {/* Task Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {tasks.map((task) => {
-          const deadlineStr = new Date(task.deadline).toLocaleDateString('az-AZ', {
-            timeZone: 'Asia/Baku',
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-          });
+      {tasks.length === 0 ? (
+        <div className="glass-card rounded-card p-12 text-center">
+          <p className="text-sm font-semibold text-ink-2">Hələ planogram tapşırığı yoxdur.</p>
+          <p className="text-xs text-muted mt-1">
+            "Yeni Təlimat Yarat" düyməsi ilə ilk təlimatı hazırlayın.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {tasks.map((task) => {
+            const deadlineStr = new Date(task.deadline).toLocaleDateString('az-AZ', {
+              timeZone: 'Asia/Baku',
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+            });
 
-          return (
-            <div
-              key={task.id}
-              className="glass-card rounded-card overflow-hidden flex flex-col justify-between hover:shadow-md transition-all"
-            >
-              <div>
-                {/* Planogram Image Preview */}
-                <div className="relative aspect-[16/9] bg-[var(--g-panel)] overflow-hidden border-b border-hair-2">
-                  <img
-                    src={task.reference_image_url || '/logo.jpg'}
-                    alt={task.title}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute top-2.5 right-2.5">
-                    {getPriorityBadge(task.priority)}
+            return (
+              <div
+                key={task.id}
+                className="glass-card rounded-card overflow-hidden flex flex-col justify-between hover:shadow-md transition-all"
+              >
+                <div>
+                  {/* Planogram Image Preview */}
+                  <div className="relative aspect-[16/9] bg-[var(--g-panel)] overflow-hidden border-b border-hair-2">
+                    <img
+                      src={task.reference_image_url || '/logo.jpg'}
+                      alt={task.title}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute top-2.5 right-2.5">
+                      {getPriorityBadge(task.priority)}
+                    </div>
+                    <div className="absolute bottom-2.5 left-2.5 bg-slate-950/75 backdrop-blur-sm text-white px-2.5 py-1 rounded-md text-[10px] font-semibold flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-muted" />
+                      Son tarix: {deadlineStr}
+                    </div>
                   </div>
-                  <div className="absolute bottom-2.5 left-2.5 bg-slate-950/75 backdrop-blur-sm text-white px-2.5 py-1 rounded-md text-[10px] font-semibold flex items-center gap-1">
-                    <Calendar className="w-3 h-3 text-muted" />
-                    Son tarix: {deadlineStr}
-                  </div>
-                </div>
 
-                <div className="p-4 space-y-2">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {/* The API derives `kind` from the fields below, so this
+                  <div className="p-4 space-y-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {/* The API derives `kind` from the fields below, so this
                         badge appears exactly when neither of the other two
                         does — a plain audit with no checklist and no
                         before/after pair. */}
-                    {task.kind === 'AUDIT' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200">
-                        <Layers className="w-3 h-3 text-slate-500" />
-                        Ümumi audit
-                      </span>
-                    )}
-                    {task.requires_before_after_photo && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                        <Camera className="w-3 h-3 text-indigo-500" />
-                        Before & After Tələbi
-                      </span>
-                    )}
-                    {task.checklist_schema && task.checklist_schema.length > 0 && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
-                        <CheckSquare className="w-3 h-3 text-blue-500" />
-                        {task.checklist_schema.length} Çeklist Sualı
-                      </span>
+                      {task.kind === 'AUDIT' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200">
+                          <Layers className="w-3 h-3 text-slate-500" />
+                          Ümumi audit
+                        </span>
+                      )}
+                      {task.requires_before_after_photo && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          <Camera className="w-3 h-3 text-indigo-500" />
+                          Before & After Tələbi
+                        </span>
+                      )}
+                      {task.checklist_schema && task.checklist_schema.length > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
+                          <CheckSquare className="w-3 h-3 text-blue-500" />
+                          {task.checklist_schema.length} Çeklist Sualı
+                        </span>
+                      )}
+                    </div>
+                    <h4 className="font-bold text-xs sm:text-sm text-ink leading-snug">
+                      {task.title}
+                    </h4>
+                    <p className="text-xs text-ink-2 line-clamp-3 leading-relaxed">
+                      {task.description}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 pt-0 border-t border-hair-2 mt-2 flex items-center justify-between gap-2 text-xs text-muted">
+                  <span className="flex min-w-0 items-center gap-1 font-medium text-[11px]">
+                    <StoreIcon className="w-3.5 h-3.5 flex-shrink-0 text-muted" />
+                    <span className="truncate">
+                      {task.assigned_stores?.length || 'Bütün'} Mağaza Təhkim edilib
+                    </span>
+                  </span>
+                  <div className="flex flex-shrink-0 items-center gap-1.5">
+                    <StatusBadge value={task.status ?? 'Bilinmir'} />
+                    {canEdit && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => openEdit(task)}
+                          aria-label={`"${task.title}" tapşırığını redaktə et`}
+                          title="Redaktə et"
+                          className="rounded-lg p-1.5 text-muted transition-colors hover:bg-[var(--g-panel)] hover:text-ink cursor-pointer"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeleteError(null);
+                            setDeletingTask(task);
+                          }}
+                          aria-label={`"${task.title}" tapşırığını sil`}
+                          title="Sil"
+                          className="rounded-lg p-1.5 text-muted transition-colors hover:bg-[rgba(200,60,60,.08)] hover:text-[#b23b3b] cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
                     )}
                   </div>
-                  <h4 className="font-bold text-xs sm:text-sm text-ink leading-snug">
-                    {task.title}
-                  </h4>
-                  <p className="text-xs text-ink-2 line-clamp-3 leading-relaxed">
-                    {task.description}
-                  </p>
                 </div>
               </div>
-
-              <div className="p-4 pt-0 border-t border-hair-2 mt-2 flex items-center justify-between gap-2 text-xs text-muted">
-                <span className="flex min-w-0 items-center gap-1 font-medium text-[11px]">
-                  <StoreIcon className="w-3.5 h-3.5 flex-shrink-0 text-muted" />
-                  <span className="truncate">
-                    {task.assigned_stores?.length || 'Bütün'} Mağaza Təhkim edilib
-                  </span>
-                </span>
-                <div className="flex flex-shrink-0 items-center gap-1.5">
-                  {getStatusBadge(task.status)}
-                  {canEdit && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => openEdit(task)}
-                        aria-label={`"${task.title}" tapşırığını redaktə et`}
-                        title="Redaktə et"
-                        className="rounded-lg p-1.5 text-muted transition-colors hover:bg-[var(--g-panel)] hover:text-ink cursor-pointer"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDeleteError(null);
-                          setDeletingTask(task);
-                        }}
-                        aria-label={`"${task.title}" tapşırığını sil`}
-                        title="Sil"
-                        className="rounded-lg p-1.5 text-muted transition-colors hover:bg-[rgba(200,60,60,.08)] hover:text-[#b23b3b] cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* ====================================================================== */}
       {/* BULK TASK DISPATCH MODAL (STORE SEGMENTATION ENGINE) */}
@@ -696,10 +698,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {/* Chain Filter */}
                     <div>
-                      <label className="block text-[11px] font-bold text-ink-2 mb-1">
+                      <label
+                        htmlFor="bulk-chain"
+                        className="block text-[11px] font-bold text-ink-2 mb-1"
+                      >
                         Şəbəkə (Chain):
                       </label>
                       <select
+                        id="bulk-chain"
                         value={bulkChain}
                         onChange={(e) => {
                           setBulkChain(e.target.value);
@@ -718,10 +724,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
                     {/* Format Filter */}
                     <div>
-                      <label className="block text-[11px] font-bold text-ink-2 mb-1">
+                      <label
+                        htmlFor="bulk-format"
+                        className="block text-[11px] font-bold text-ink-2 mb-1"
+                      >
                         Format (Store Format):
                       </label>
                       <select
+                        id="bulk-format"
                         value={bulkFormat}
                         onChange={(e) => {
                           setBulkFormat(e.target.value);
@@ -740,10 +750,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
                     {/* Region Filter */}
                     <div>
-                      <label className="block text-[11px] font-bold text-ink-2 mb-1">
+                      <label
+                        htmlFor="bulk-region"
+                        className="block text-[11px] font-bold text-ink-2 mb-1"
+                      >
                         Region / Şəhər:
                       </label>
                       <select
+                        id="bulk-region"
                         value={bulkRegion}
                         onChange={(e) => {
                           setBulkRegion(e.target.value);
@@ -790,10 +804,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 {/* SECTION 2: Briefing content (title, instruction, options) */}
                 <div className="space-y-3.5">
                   <div>
-                    <label className="block text-xs font-bold text-ink mb-1.5 uppercase tracking-wider">
+                    <label
+                      htmlFor="bulk-title"
+                      className="block text-xs font-bold text-ink mb-1.5 uppercase tracking-wider"
+                    >
                       2. Təlimat Məzmunu
                     </label>
                     <input
+                      id="bulk-title"
                       type="text"
                       required
                       placeholder="Tapşırığın başlığı (məs: 0.5L Ön Vitrin Soyuducusu Auditi)"
@@ -834,10 +852,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 {/* SECTION 3: Priority & Deadline */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-ink-2 mb-1">
+                    <label
+                      htmlFor="bulk-priority"
+                      className="block text-xs font-bold text-ink-2 mb-1"
+                    >
                       Prioritet (Priority):
                     </label>
                     <select
+                      id="bulk-priority"
                       value={bulkPriority}
                       onChange={(e) => setBulkPriority(e.target.value as TaskPriority)}
                       className="w-full px-3 py-2 border border-hair rounded-lg text-xs bg-[var(--g-card)] text-ink focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45 font-semibold"
@@ -850,10 +872,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-ink-2 mb-1">
+                    <label
+                      htmlFor="bulk-deadline"
+                      className="block text-xs font-bold text-ink-2 mb-1"
+                    >
                       Yekunlaşma üçün Son Tarix (Deadline):
                     </label>
                     <input
+                      id="bulk-deadline"
                       type="date"
                       required
                       value={bulkDeadline}
@@ -941,10 +967,11 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
               <form onSubmit={(e) => void handleSubmit(e)} className="p-5 space-y-3.5">
                 {/* Title */}
                 <div>
-                  <label className="block text-xs font-bold text-ink-2 mb-1">
+                  <label htmlFor="task-title" className="block text-xs font-bold text-ink-2 mb-1">
                     Tapşırığın Başlığı *
                   </label>
                   <input
+                    id="task-title"
                     type="text"
                     required
                     placeholder="Məs: Coca-Cola Zero Sugar Promo Stand Check"
@@ -959,10 +986,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
                 {/* Instructions */}
                 <div>
-                  <label className="block text-xs font-bold text-ink-2 mb-1">
+                  <label
+                    htmlFor="task-instructions"
+                    className="block text-xs font-bold text-ink-2 mb-1"
+                  >
                     Düzülüş Təlimatı və Facing Qaydaları *
                   </label>
                   <textarea
+                    id="task-instructions"
                     rows={3}
                     required
                     placeholder="Məs: Bütün Coca-Cola 0.5L şüşələri soyuducunun 1-ci rəfində tələb olunan sayda..."
@@ -977,8 +1008,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-bold text-ink-2 mb-1">Prioritet</label>
+                    <label
+                      htmlFor="task-priority"
+                      className="block text-xs font-bold text-ink-2 mb-1"
+                    >
+                      Prioritet
+                    </label>
                     <select
+                      id="task-priority"
                       value={priority}
                       onChange={(e) => setPriority(e.target.value as TaskPriority)}
                       className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
@@ -991,10 +1028,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-ink-2 mb-1">
+                    <label
+                      htmlFor="task-deadline"
+                      className="block text-xs font-bold text-ink-2 mb-1"
+                    >
                       Yoxlama üçün Son Tarix *
                     </label>
                     <input
+                      id="task-deadline"
                       type="date"
                       required
                       value={deadline}
@@ -1007,9 +1048,9 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 {/* Planogram Reference Photo Upload / URL */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-bold text-ink-2">
+                    <span className="block text-xs font-bold text-ink-2">
                       Planogram Nümunə Fotosu
-                    </label>
+                    </span>
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
@@ -1054,7 +1095,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       </div>
                     )}
                   </div>
-                  <p className="text-[10px] text-muted mt-1">
+                  <p className="text-[11px] text-muted mt-1">
                     Kompüterinizdən birbaşa şəkil seçə və ya URL daxil edə bilərsiniz (PNG, JPG,
                     WebP).
                   </p>
@@ -1062,12 +1103,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
                 {/* Store Assignment (Multi-select) */}
                 <div>
-                  <label className="block text-xs font-bold text-ink-2 mb-1.5">
+                  <span className="block text-xs font-bold text-ink-2 mb-1.5">
                     Təhkim Olunacaq Mağazalar:
-                  </label>
+                  </span>
                   <div className="grid grid-cols-2 gap-1.5 max-h-32 overflow-y-auto p-2.5 border border-hair rounded-lg bg-[var(--g-panel)]">
-                    <div
+                    <button
+                      type="button"
                       onClick={() => toggleStore('all')}
+                      aria-pressed={selectedStores.includes('all')}
                       className="flex items-center space-x-1.5 cursor-pointer p-1 rounded hover:bg-[var(--g-card)] text-xs font-bold text-ink"
                     >
                       {selectedStores.includes('all') ? (
@@ -1076,15 +1119,17 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                         <Square className="w-3.5 h-3.5 text-muted" />
                       )}
                       <span>Bütün Mağazalar (Şəbəkə Üzrə)</span>
-                    </div>
+                    </button>
 
                     {stores.map((store) => {
                       const isChecked =
                         selectedStores.includes('all') || selectedStores.includes(store.id);
                       return (
-                        <div
+                        <button
+                          type="button"
                           key={store.id}
                           onClick={() => toggleStore(store.id)}
+                          aria-pressed={isChecked}
                           className="flex items-center space-x-1.5 cursor-pointer p-1 rounded hover:bg-[var(--g-card)] text-xs text-ink-2"
                         >
                           {isChecked ? (
@@ -1093,7 +1138,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                             <Square className="w-3.5 h-3.5 text-muted" />
                           )}
                           <span className="truncate">{store.name}</span>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -1186,10 +1231,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 )}
 
                 <div>
-                  <label className="block text-[11px] font-bold text-ink-2 mb-1.5">
+                  <label
+                    htmlFor="task-edit-title"
+                    className="block text-[11px] font-bold text-ink-2 mb-1.5"
+                  >
                     Tapşırıq Başlığı *
                   </label>
                   <input
+                    id="task-edit-title"
                     type="text"
                     value={editValues.title}
                     onChange={(e) => setEditValues({ ...editValues, title: e.target.value })}
@@ -1198,8 +1247,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-ink-2 mb-1.5">Təlimat</label>
+                  <label
+                    htmlFor="task-edit-instructions"
+                    className="block text-[11px] font-bold text-ink-2 mb-1.5"
+                  >
+                    Təlimat
+                  </label>
                   <textarea
+                    id="task-edit-instructions"
                     rows={3}
                     value={editValues.description}
                     onChange={(e) => setEditValues({ ...editValues, description: e.target.value })}
@@ -1209,10 +1264,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[11px] font-bold text-ink-2 mb-1.5">
+                    <label
+                      htmlFor="task-edit-priority"
+                      className="block text-[11px] font-bold text-ink-2 mb-1.5"
+                    >
                       Prioritet
                     </label>
                     <select
+                      id="task-edit-priority"
                       value={editValues.priority}
                       onChange={(e) =>
                         setEditValues({ ...editValues, priority: e.target.value as TaskPriority })
@@ -1226,10 +1285,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-ink-2 mb-1.5">
+                    <label
+                      htmlFor="task-edit-deadline"
+                      className="block text-[11px] font-bold text-ink-2 mb-1.5"
+                    >
                       Son Tarix (bu mağaza üçün) *
                     </label>
                     <input
+                      id="task-edit-deadline"
                       type="datetime-local"
                       value={editValues.deadline}
                       onChange={(e) => setEditValues({ ...editValues, deadline: e.target.value })}
@@ -1257,9 +1320,9 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[11px] font-bold text-ink-2">
+                    <span className="text-[11px] font-bold text-ink-2">
                       Çeklist sualları ({editValues.checklist_schema.length})
-                    </label>
+                    </span>
                     <button
                       type="button"
                       onClick={() =>

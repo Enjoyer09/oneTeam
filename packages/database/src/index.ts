@@ -21,7 +21,14 @@ export * from './types';
 export type { BotSessionRow, PanelTokenRow, NotificationRow, NotificationKind } from './postgres';
 import { SEED_DATA } from './seed';
 import { TaskState, UserRole } from '@oneteam/types';
-import type { InMemoryStoreTask, InMemoryEvidence, InMemoryAuditLog, InMemoryStore } from './types';
+import type {
+  InMemoryShelfPosition,
+  InMemoryStoreTask,
+  InMemoryEvidence,
+  InMemoryAuditLog,
+  InMemoryStore,
+  InMemoryProduct,
+} from './types';
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import * as pg from './postgres';
 import {
@@ -41,6 +48,10 @@ export class EnterpriseDatabase {
   public users = [...SEED_DATA.users];
   public region = { ...SEED_DATA.region };
   public stores: InMemoryStore[] = [...SEED_DATA.stores];
+  /** SKU catalogue. Seeded from PostgreSQL; empty in seed-only mode. */
+  public products: InMemoryProduct[] = [];
+  /** Shelf map: section / level / position slots (wave 1.3). */
+  public shelfPositions: InMemoryShelfPosition[] = [];
   public campaign = { ...SEED_DATA.campaign };
   public templates = [...SEED_DATA.templates];
   public storeTasks: InMemoryStoreTask[] = [
@@ -162,6 +173,16 @@ export class EnterpriseDatabase {
    * impossible to reproduce and easy to blame on something else.
    */
   private pendingWrites = 0;
+  /**
+   * Bumped when a write STARTS, never decremented.
+   *
+   * `pendingWrites` alone cannot protect the refresh: an INSERT can commit
+   * after the snapshot was read but before the arrays are swapped, and by
+   * then the counter is back to 0 — the swap would drop the row that a 201
+   * just acknowledged. A monotonic start-counter makes that window visible:
+   * capture it before reading, refuse to swap if it moved.
+   */
+  private writeSeq = 0;
 
   /**
    * The tail of the write queue. See `persist()` for why writes are ordered.
@@ -269,6 +290,8 @@ export class EnterpriseDatabase {
           this.users = state.users as typeof this.users;
           if (state.region) this.region = state.region as typeof this.region;
           this.stores = state.stores as typeof this.stores;
+          this.products = state.products;
+          this.shelfPositions = state.shelfPositions;
           if (state.campaign) this.campaign = state.campaign as typeof this.campaign;
           this.templates = state.templates as typeof this.templates;
           this.storeTasks = state.storeTasks;
@@ -471,6 +494,7 @@ export class EnterpriseDatabase {
 
     this.refreshing = true;
     try {
+      const writeSeqAtStart = this.writeSeq;
       const version = await pg.readDataVersion(this.pool);
 
       // `null` means "could not tell" — a database that predates the migration,
@@ -493,6 +517,15 @@ export class EnterpriseDatabase {
       // database that momentarily returns no users must not blank the working
       // set — the same guard `init()` applies, for the same reason.
       if (state.users.length === 0) return false;
+
+      // A write can START while the snapshot above was being read — including
+      // one whose INSERT commits after the read, so `pendingWrites` is already
+      // 0 again by now. Swapping would drop that row from memory even though
+      // a 201 just acknowledged it, and every read would 404 until the next
+      // poll. The start-counter cannot be rewound, so refusing here is always
+      // safe: the write's own version bump makes the next tick reload with
+      // the row present.
+      if (this.writeSeq !== writeSeqAtStart) return false;
 
       this.users = state.users as typeof this.users;
       if (state.region) this.region = state.region as typeof this.region;
@@ -615,6 +648,7 @@ export class EnterpriseDatabase {
     if (!pool) return Promise.resolve();
 
     this.pendingWrites += 1;
+    this.writeSeq += 1;
     const attempt = this.writeQueue.then(() => op(pool));
 
     this.writeQueue = attempt
@@ -737,6 +771,9 @@ export class EnterpriseDatabase {
 
   /** PostgreSQL's unique-violation code. */
   private static readonly PG_UNIQUE_VIOLATION = '23505';
+
+  /** PostgreSQL's foreign-key-violation code. */
+  private static readonly PG_FOREIGN_KEY_VIOLATION = '23503';
 
   /**
    * Creates a store.
@@ -899,6 +936,341 @@ export class EnterpriseDatabase {
     }
 
     this.stores = this.stores.filter((candidate) => candidate.id !== storeId);
+    return { deleted: true };
+  }
+
+  // -------------------------------------------------------------------------
+  // Products (SKU catalogue — wave 1.2)
+  //
+  // Same shape as the store write path: the row is pushed into the in-memory
+  // list, the insert is AWAITED through the write queue, and a failure rolls
+  // the list back — so a 201 always means PostgreSQL has the row. See
+  // store-crud and product-crud for why that ordering is load-bearing.
+  // -------------------------------------------------------------------------
+
+  public getProduct(productId: string) {
+    return this.products.find((p) => p.id === productId) || null;
+  }
+
+  public getProducts() {
+    return this.products;
+  }
+
+  public async createProduct(params: {
+    barcode: string;
+    name: string;
+    size?: string;
+    variant?: string;
+  }): Promise<{ product?: InMemoryProduct; error?: 'DUPLICATE_BARCODE' | 'NOT_STORED' }> {
+    const now = new Date();
+    const product: InMemoryProduct = {
+      id: `prd-${now.getTime().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      barcode: params.barcode,
+      name: params.name,
+      size: params.size,
+      variant: params.variant,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.products.push(product);
+
+    if (this.pool) {
+      try {
+        await this.enqueue((pool) => pg.insertProduct(pool, product), `product ${product.id}`);
+      } catch (error) {
+        this.products = this.products.filter((candidate) => candidate.id !== product.id);
+        const code = (error as { code?: string } | null)?.code;
+        if (code === EnterpriseDatabase.PG_UNIQUE_VIOLATION) {
+          return { error: 'DUPLICATE_BARCODE' };
+        }
+        console.error(
+          `⛔ [oneTeam DB] Could not store the new product ${product.barcode}: ` +
+            describeError(error),
+        );
+        return { error: 'NOT_STORED' };
+      }
+    }
+
+    return { product };
+  }
+
+  /**
+   * Applies an edit to an existing product.
+   *
+   * Only the fields present in `changes` are touched, and the previous values
+   * are captured before the edit and restored if the write fails — an edit
+   * that did not reach the database must not leave the process showing a
+   * change it will lose on restart.
+   */
+  public async updateProduct(
+    productId: string,
+    changes: Partial<Pick<InMemoryProduct, 'barcode' | 'name' | 'size' | 'variant'>>,
+  ): Promise<{
+    product?: InMemoryProduct;
+    error?: 'NOT_FOUND' | 'DUPLICATE_BARCODE' | 'NOT_STORED';
+  }> {
+    const product = this.getProduct(productId);
+    if (!product) return { error: 'NOT_FOUND' };
+
+    const before: InMemoryProduct = { ...product };
+
+    for (const [key, value] of Object.entries(changes)) {
+      if (value !== undefined) (product as any)[key] = value;
+    }
+    product.updatedAt = new Date();
+
+    if (this.pool) {
+      try {
+        await this.enqueue((pool) => pg.updateProductRow(pool, product), `product ${productId}`);
+      } catch (error) {
+        Object.assign(product, before);
+        const code = (error as { code?: string } | null)?.code;
+        if (code === EnterpriseDatabase.PG_UNIQUE_VIOLATION) {
+          return { error: 'DUPLICATE_BARCODE' };
+        }
+        console.error(
+          `⛔ [oneTeam DB] Could not update product ${product.barcode}: ` + describeError(error),
+        );
+        return { error: 'NOT_STORED' };
+      }
+    }
+
+    return { product };
+  }
+
+  /**
+   * Deletes a product.
+   *
+   * A SKU standing on a shelf (shelf_positions, wave 1.3) is refused with
+   * `IN_USE`: the map must let go first, or the planogram baseline would point
+   * at a product that no longer exists. The in-memory count answers the normal
+   * case (and the only case there is, when no pool is configured); the RESTRICT
+   * FK is still the authority on a race — two processes deleting at once, or a
+   * row written straight to PostgreSQL behind the API's back — and is caught
+   * below as the backstop.
+   */
+  public async deleteProduct(productId: string): Promise<{
+    deleted: boolean;
+    reason?: 'NOT_FOUND' | 'IN_USE' | 'NOT_DELETED';
+    positions?: number;
+  }> {
+    const product = this.getProduct(productId);
+    if (!product) return { deleted: false, reason: 'NOT_FOUND' };
+
+    const shelfRows = this.shelfPositions.filter((slot) => slot.productId === productId);
+    if (shelfRows.length > 0) {
+      return { deleted: false, reason: 'IN_USE', positions: shelfRows.length };
+    }
+
+    if (this.pool) {
+      try {
+        await this.enqueue(
+          (pool) => pg.deleteProductRow(pool, productId),
+          `product ${productId} delete`,
+        );
+      } catch (error) {
+        const code = (error as { code?: string } | null)?.code;
+        if (code === EnterpriseDatabase.PG_FOREIGN_KEY_VIOLATION) {
+          const positions = this.shelfPositions.filter(
+            (slot) => slot.productId === productId,
+          ).length;
+          return { deleted: false, reason: 'IN_USE', positions };
+        }
+        console.error(
+          `⛔ [oneTeam DB] Could not delete product ${product.barcode}: ` + describeError(error),
+        );
+        return { deleted: false, reason: 'NOT_DELETED' };
+      }
+    }
+
+    this.products = this.products.filter((candidate) => candidate.id !== productId);
+    return { deleted: true };
+  }
+
+  // -------------------------------------------------------------------------
+  // Shelf map (shelf_positions — wave 1.3)
+  // -------------------------------------------------------------------------
+
+  public getShelfPositions(): InMemoryShelfPosition[] {
+    return this.shelfPositions;
+  }
+
+  public getShelfPosition(id: string): InMemoryShelfPosition | undefined {
+    return this.shelfPositions.find((slot) => slot.id === id);
+  }
+
+  /**
+   * Stores a shelf slot.
+   *
+   * The slot is pushed into memory first and rolled back if the write fails,
+   * the same shape as `createProduct`. No duplicate SELECT: the UNIQUE
+   * constraint has no race window, so the 23505 it raises IS the answer. A
+   * 23503 means `product_id` named no product — again the constraint's answer,
+   * reported as UNKNOWN_PRODUCT rather than a generic failure.
+   */
+  public async createShelfPosition(params: {
+    section: string;
+    level: number;
+    position: number;
+    productId?: string;
+  }): Promise<{
+    slot?: InMemoryShelfPosition;
+    error?: 'DUPLICATE_POSITION' | 'UNKNOWN_PRODUCT' | 'NOT_STORED';
+  }> {
+    const now = new Date();
+    const slot: InMemoryShelfPosition = {
+      id: `shf-${now.getTime().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      section: params.section,
+      level: params.level,
+      position: params.position,
+      productId: params.productId,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.shelfPositions.push(slot);
+
+    if (this.pool) {
+      try {
+        await this.enqueue((pool) => pg.insertShelfPosition(pool, slot), `shelf slot ${slot.id}`);
+      } catch (error) {
+        this.shelfPositions = this.shelfPositions.filter((candidate) => candidate.id !== slot.id);
+        const code = (error as { code?: string } | null)?.code;
+        if (code === EnterpriseDatabase.PG_UNIQUE_VIOLATION) {
+          return { error: 'DUPLICATE_POSITION' };
+        }
+        if (code === EnterpriseDatabase.PG_FOREIGN_KEY_VIOLATION) {
+          return { error: 'UNKNOWN_PRODUCT' };
+        }
+        console.error(
+          `⛔ [oneTeam DB] Could not store shelf slot ${slot.section}/${slot.level}/${slot.position}: ` +
+            describeError(error),
+        );
+        return { error: 'NOT_STORED' };
+      }
+    }
+
+    return { slot };
+  }
+
+  /**
+   * Applies an edit to an existing shelf slot.
+   *
+   * Only the fields present in `changes` are touched; previous values are
+   * captured and restored if the write fails, so an edit that did not reach
+   * the database never leaves the process showing a change it would lose on
+   * restart.
+   */
+  public async updateShelfPosition(
+    slotId: string,
+    // `productId: null` means "unassign" (a real edit); `undefined` means
+    // "not mentioned". The two must stay distinguishable or clearing an
+    // assignment would silently do nothing.
+    changes: Partial<Pick<InMemoryShelfPosition, 'section' | 'level' | 'position'>> & {
+      productId?: string | null;
+    },
+  ): Promise<{
+    slot?: InMemoryShelfPosition;
+    error?: 'NOT_FOUND' | 'DUPLICATE_POSITION' | 'UNKNOWN_PRODUCT' | 'NOT_STORED';
+  }> {
+    const slot = this.getShelfPosition(slotId);
+    if (!slot) return { error: 'NOT_FOUND' };
+
+    const before: InMemoryShelfPosition = { ...slot };
+
+    for (const [key, value] of Object.entries(changes)) {
+      if (value !== undefined) (slot as any)[key] = value;
+    }
+    slot.updatedAt = new Date();
+
+    if (this.pool) {
+      try {
+        await this.enqueue((pool) => pg.updateShelfPositionRow(pool, slot), `shelf slot ${slotId}`);
+      } catch (error) {
+        Object.assign(slot, before);
+        const code = (error as { code?: string } | null)?.code;
+        if (code === EnterpriseDatabase.PG_UNIQUE_VIOLATION) {
+          return { error: 'DUPLICATE_POSITION' };
+        }
+        if (code === EnterpriseDatabase.PG_FOREIGN_KEY_VIOLATION) {
+          return { error: 'UNKNOWN_PRODUCT' };
+        }
+        console.error(
+          `⛔ [oneTeam DB] Could not update shelf slot ${slotId}: ` + describeError(error),
+        );
+        return { error: 'NOT_STORED' };
+      }
+    }
+
+    return { slot };
+  }
+
+  /** Deletes a shelf slot. Idempotent callers see NOT_FOUND, not a crash. */
+  /**
+   * Records the latest manual count for a shelf slot (wave 1.4).
+   *
+   * Current state only: the next count overwrites this one. `ponytail:` the
+   * upgrade path is a per-visit history table once the vision model has to be
+   * graded against a specific walk. Layout columns are untouched — counting
+   * is not an edit — and both copies (memory + PostgreSQL) are rolled back
+   * together when the write fails, so a count the caller was told succeeded
+   * cannot vanish on restart.
+   */
+  public async recordShelfCount(
+    slotId: string,
+    units: number,
+  ): Promise<{ slot?: InMemoryShelfPosition; error?: 'NOT_FOUND' | 'NOT_STORED' }> {
+    const slot = this.getShelfPosition(slotId);
+    if (!slot) return { error: 'NOT_FOUND' };
+
+    const before = { units: slot.units, countedAt: slot.countedAt };
+    const now = new Date();
+    slot.units = units;
+    slot.countedAt = now;
+
+    if (this.pool) {
+      try {
+        await this.enqueue(
+          (pool) => pg.countShelfPositionRow(pool, slotId, units, now),
+          `shelf slot count ${slotId}`,
+        );
+      } catch (error) {
+        slot.units = before.units;
+        slot.countedAt = before.countedAt;
+        console.error(
+          `⛔ [oneTeam DB] Could not store count for shelf slot ${slotId}:`,
+          describeError(error),
+        );
+        return { error: 'NOT_STORED' };
+      }
+    }
+
+    return { slot };
+  }
+
+  public async deleteShelfPosition(slotId: string): Promise<{
+    deleted: boolean;
+    reason?: 'NOT_FOUND' | 'NOT_DELETED';
+  }> {
+    const slot = this.getShelfPosition(slotId);
+    if (!slot) return { deleted: false, reason: 'NOT_FOUND' };
+
+    if (this.pool) {
+      try {
+        await this.enqueue(
+          (pool) => pg.deleteShelfPositionRow(pool, slotId),
+          `shelf slot ${slotId}`,
+        );
+      } catch (error) {
+        console.error(
+          `⛔ [oneTeam DB] Could not delete shelf slot ${slotId}: ` + describeError(error),
+        );
+        return { deleted: false, reason: 'NOT_DELETED' };
+      }
+    }
+
+    this.shelfPositions = this.shelfPositions.filter((candidate) => candidate.id !== slotId);
     return { deleted: true };
   }
 
@@ -1278,17 +1650,30 @@ export class EnterpriseDatabase {
     activeTaskTitle?: string | null;
     latitude?: number | null;
     longitude?: number | null;
+    locatedAt?: string | null;
     checklistQuestions?: unknown[];
     checklistAnswers?: unknown[];
     checklistIndex?: number | null;
     pendingPhoto?: Record<string, unknown> | null;
   }): Promise<pg.BotSessionRow | null> {
     if (!this.pool) return null;
-    return pg.upsertBotSession(
-      this.pool,
-      { ...session, chatId: String(session.chatId) },
-      this.botSessionTtlSeconds,
+    // Queued, not direct: `user_id` references a user whose INSERT may still
+    // be sitting in this very queue — `bindTelegramUser()` runs on the message
+    // before the flow is saved, and a direct upsert outran it into
+    // `bot_sessions_user_id_fkey` (FLOW_NOT_STORED on a person's first
+    // exchange). This is the queue's own rule — a write that can only succeed
+    // once another write has landed goes through here — and `enqueue` hands
+    // back the row the caller reads.
+    const row = await this.enqueue(
+      (pool) =>
+        pg.upsertBotSession(
+          pool,
+          { ...session, chatId: String(session.chatId) },
+          this.botSessionTtlSeconds,
+        ),
+      `bot session ${String(session.chatId)}`,
     );
+    return (row ?? null) as pg.BotSessionRow | null;
   }
 
   /** Forgets a chat. Called when the flow finishes or the person starts over. */

@@ -1,0 +1,51 @@
+#!/bin/sh
+# =============================================================================
+# oneTeam — pre-push gate
+# =============================================================================
+#
+# The same checks `ci.yml` runs, run here and refused before the push leaves the
+# machine. `ci.yml` is the authority on a merged commit; this is what keeps an
+# obviously broken commit from ever reaching it — and it is the only gate that
+# runs when GitHub is unreachable.
+#
+# It began as a workaround: from 2026-09-20 the private repo's metered Actions
+# minutes were exhausted and no job ever started. Billing was later resolved and
+# `ci.yml` runs again. The hook stayed because it is still the cheaper one — a
+# defect caught here costs a second, one caught in CI costs a round trip.
+#
+# BYPASS, DELIBERATELY POSSIBLE: `git push --no-verify` skips this hook. The
+# escape hatch is intentional — a broken gate that cannot be bypassed gets
+# bypassed destructively (people delete it, or rewrite history). This is a
+# speed bump, not a vault.
+#
+# Fast mode: `git push` runs `gate:fast` (everything but the full test suite).
+# To run the complete gate, push with ONETEAM_GATE=full, or run `npm run gate`
+# and then `git push --no-verify`.
+# =============================================================================
+set -e
+
+# Documentation pushes and deletions do not touch code, so they skip the gate.
+# Without this, `git push origin --delete some-branch` would fail on a code
+# check for changes that are not being made.
+if [ "$1" = "" ] || echo "$@" | grep -q -- '--delete'; then
+    exit 0
+fi
+
+# Nothing staged-but-unpushed is the normal reason to push; nothing to check
+# only when the branch is already identical to its remote.
+if [ -z "$(git log --oneline @{u}..HEAD 2>/dev/null)" ] && [ -z "$ONETEAM_FORCE_GATE" ]; then
+    exit 0
+fi
+
+echo ""
+echo "┌─ pre-push: running the local gate ─┐"
+
+MODE="${ONETEAM_GATE:-fast}"
+if [ "$MODE" = "full" ]; then
+    npm run gate
+else
+    npm run gate:fast
+fi
+
+echo "└─ gate passed ─┘"
+echo ""

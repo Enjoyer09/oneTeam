@@ -127,6 +127,21 @@ export const EXPECTED_SCHEMA: Record<string, string[]> = {
     'created_at',
     'updated_at',
   ],
+  // The SKU catalogue (wave 1.2). Transcribed like the rest: postgres.ts now
+  // queries all six columns, so a database missing one of them is a query
+  // failure waiting to happen rather than a cosmetic drift.
+  products: ['id', 'barcode', 'name', 'size', 'variant', 'created_at', 'updated_at'],
+  shelf_positions: [
+    'id',
+    'section',
+    'level',
+    'position',
+    'product_id',
+    'units',
+    'counted_at',
+    'created_at',
+    'updated_at',
+  ],
   campaigns: [
     'id',
     'name',
@@ -175,6 +190,11 @@ export const EXPECTED_SCHEMA: Record<string, string[]> = {
     'latitude',
     'longitude',
     'gps_distance_meters',
+    // Location-integrity flags. Nullable: NULL means the row predates the
+    // column (unknown), which must not be read as "verified" — see migration
+    // 20260923000012.
+    'location_mocked',
+    'location_unverified',
     'ai_score',
     'ai_detections',
     'ai_summary',

@@ -51,6 +51,49 @@ export interface InMemoryStore {
   updatedAt?: Date;
 }
 
+/**
+ * A catalogue SKU, as the process holds it.
+ *
+ * Wave 1.2 of the Shelf Map plan: the barcode scanner resolves
+ * `barkod → məhsul`, and the panel maintains the mapping. `size` and
+ * `variant` are optional because plenty of products are fully described by
+ * their name, and the column is nullable in the table for the same reason.
+ */
+export interface InMemoryProduct {
+  id: string;
+  barcode: string;
+  name: string;
+  size?: string;
+  variant?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+/**
+ * One slot of the shelf map (wave 1.3): section / level / position, and the
+ * product assigned to it — or nothing, because an unassigned slot is a real
+ * state the panel renders as an empty position rather than a broken row.
+ */
+export interface InMemoryShelfPosition {
+  id: string;
+  section: string;
+  level: number;
+  position: number;
+  /** FK to products.id, ON DELETE RESTRICT — an assigned product cannot vanish. */
+  productId?: string;
+  /**
+   * The latest manual count for this slot (wave 1.4) — current state, not a
+   * history. null (or undefined) = nobody has counted it, which is NOT the
+   * same as 0 (counted, and the product is absent): OSA treats those two as
+   * different answers, so the distinction is load-bearing.
+   */
+  units?: number | null;
+  /** When `units` was last recorded; null alongside it. */
+  countedAt?: Date | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 export interface InMemoryStoreTask {
   id: string;
   templateId: string;
@@ -83,6 +126,17 @@ export interface InMemoryEvidence {
    * approval is recorded as a deliberate `LOCATION_MOCK_OVERRIDE`.
    */
   locationMocked?: boolean;
+  /**
+   * No real fix was captured at all — the Telegram channel's skip button, or a
+   * device that declined the location prompt. The API substituted the store's
+   * coordinates so the geofence could run, so a passed geofence here proves
+   * nothing about where anyone was.
+   *
+   * Kept separate from `locationMocked` because they are different defects:
+   * mocked is a device saying "this is a lie", this is "there was nothing".
+   * Both block auto-approval.
+   */
+  locationUnverified?: boolean;
   /**
    * AI vision results.
    *

@@ -67,6 +67,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { Client } from 'pg';
+import { FRESH_FIX_AT } from './helpers/fresh-fix';
 
 // `fetch` honours HTTP_PROXY and this suite talks to 127.0.0.1. Set before the
 // first request so undici builds its agent without a proxy.
@@ -428,6 +429,7 @@ async function main(): Promise<void> {
         address: 'Test ünvanı 2, Bakı',
         latitude: 40.3724,
         longitude: 49.8372,
+        locatedAt: FRESH_FIX_AT(),
       },
     });
     storeId = store.body?.data?.id;
@@ -727,6 +729,9 @@ async function main(): Promise<void> {
     );
 
     drain.stop();
+    // An in-flight pass can still be mid-claim; without this barrier it takes
+    // the refusal row the section below just inserted.
+    await drain.idle();
 
     // -----------------------------------------------------------------------
     console.log('\na chat Telegram refuses');
@@ -987,6 +992,7 @@ async function main(): Promise<void> {
           // Inside the store's perimeter, so the geofence passes.
           latitude: 40.3724,
           longitude: 49.8372,
+          locatedAt: FRESH_FIX_AT(),
           checklistAnswers: [],
         },
       });
@@ -1045,6 +1051,7 @@ async function main(): Promise<void> {
               photoType: 'standard',
               latitude: 40.3724,
               longitude: 49.8372,
+              locatedAt: FRESH_FIX_AT(),
               checklistAnswers: [],
             },
           });

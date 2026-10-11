@@ -48,7 +48,14 @@
 
 import { Pool } from 'pg';
 import type { TaskState } from '@oneteam/types';
-import type { InMemoryStoreTask, InMemoryEvidence, InMemoryAuditLog, InMemoryStore } from './types';
+import type {
+  InMemoryShelfPosition,
+  InMemoryStoreTask,
+  InMemoryEvidence,
+  InMemoryAuditLog,
+  InMemoryStore,
+  InMemoryProduct,
+} from './types';
 
 /** Everything the in-memory repository needs to start from real data. */
 export interface HydratedState {
@@ -60,6 +67,8 @@ export interface HydratedState {
   storeTasks: InMemoryStoreTask[];
   evidences: InMemoryEvidence[];
   auditLogs: InMemoryAuditLog[];
+  products: InMemoryProduct[];
+  shelfPositions: InMemoryShelfPosition[];
 }
 
 /**
@@ -123,6 +132,11 @@ function toEvidence(row: any): InMemoryEvidence {
     latitude: Number(row.latitude),
     longitude: Number(row.longitude),
     gpsDistanceMeters: Number(row.gps_distance_meters),
+    // Null means the row was written before these columns existed. That is
+    // "unknown", and it is kept as null rather than coerced to `false` — a
+    // false would claim the location was checked.
+    locationMocked: row.location_mocked ?? undefined,
+    locationUnverified: row.location_unverified ?? undefined,
     aiScore: row.ai_score,
     aiDetections: row.ai_detections ?? [],
     aiSummary: row.ai_summary,
@@ -159,17 +173,29 @@ function toAuditLog(row: any): InMemoryAuditLog {
  * loading, and it keeps the synchronous read path intact.
  */
 export async function loadAll(pool: Pool): Promise<HydratedState> {
-  const [users, regions, stores, campaigns, templates, storeTasks, evidences, auditLogs] =
-    await Promise.all([
-      pool.query('SELECT * FROM users ORDER BY created_at'),
-      pool.query('SELECT * FROM regions ORDER BY created_at'),
-      pool.query('SELECT * FROM stores ORDER BY store_code'),
-      pool.query('SELECT * FROM campaigns ORDER BY created_at'),
-      pool.query('SELECT * FROM task_templates ORDER BY created_at'),
-      pool.query('SELECT * FROM store_tasks ORDER BY created_at'),
-      pool.query('SELECT * FROM task_evidences ORDER BY created_at'),
-      pool.query('SELECT * FROM audit_logs ORDER BY created_at'),
-    ]);
+  const [
+    users,
+    regions,
+    stores,
+    campaigns,
+    templates,
+    storeTasks,
+    evidences,
+    auditLogs,
+    products,
+    shelfPositions,
+  ] = await Promise.all([
+    pool.query('SELECT * FROM users ORDER BY created_at'),
+    pool.query('SELECT * FROM regions ORDER BY created_at'),
+    pool.query('SELECT * FROM stores ORDER BY store_code'),
+    pool.query('SELECT * FROM campaigns ORDER BY created_at'),
+    pool.query('SELECT * FROM task_templates ORDER BY created_at'),
+    pool.query('SELECT * FROM store_tasks ORDER BY created_at'),
+    pool.query('SELECT * FROM task_evidences ORDER BY created_at'),
+    pool.query('SELECT * FROM audit_logs ORDER BY created_at'),
+    pool.query('SELECT * FROM products ORDER BY name'),
+    pool.query('SELECT * FROM shelf_positions ORDER BY section, level, position'),
+  ]);
 
   return {
     users: users.rows.map((r) => ({
@@ -243,6 +269,29 @@ export async function loadAll(pool: Pool): Promise<HydratedState> {
     storeTasks: storeTasks.rows.map(toStoreTask),
     evidences: evidences.rows.map(toEvidence),
     auditLogs: auditLogs.rows.map(toAuditLog),
+    products: products.rows.map((r) => ({
+      id: r.id,
+      barcode: r.barcode,
+      name: r.name,
+      size: r.size ?? undefined,
+      variant: r.variant ?? undefined,
+      createdAt: asRequiredDate(r.created_at),
+      updatedAt: asRequiredDate(r.updated_at),
+    })),
+    shelfPositions: shelfPositions.rows.map((r) => ({
+      id: r.id,
+      section: r.section,
+      level: r.level,
+      position: r.position,
+      productId: r.product_id ?? undefined,
+      // SELECT * carries the wave 1.4 columns; a mapping that dropped them
+      // would show every slot as "not counted" after a restart — the exact
+      // half-written-column failure this file has been burned by before.
+      units: r.units ?? null,
+      countedAt: r.counted_at ? asRequiredDate(r.counted_at) : null,
+      createdAt: asRequiredDate(r.created_at),
+      updatedAt: asRequiredDate(r.updated_at),
+    })),
   };
 }
 
@@ -281,9 +330,10 @@ export async function insertEvidence(pool: Pool, evidence: InMemoryEvidence): Pr
     `INSERT INTO task_evidences
        (id, store_task_id, submitted_by_id, photo_url, photo_type,
         checklist_answers, latitude, longitude, gps_distance_meters,
+        location_mocked, location_unverified,
         ai_score, ai_detections, ai_summary, reviewer_feedback,
         submitted_at, created_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
      ON CONFLICT (id) DO NOTHING`,
     [
       evidence.id,
@@ -295,6 +345,11 @@ export async function insertEvidence(pool: Pool, evidence: InMemoryEvidence): Pr
       evidence.latitude,
       evidence.longitude,
       evidence.gpsDistanceMeters,
+      // `?? null`, never `?? false`: an absent flag must stay SQL NULL so
+      // it keeps meaning "unknown". A false would assert a location was
+      // verified when no fix was ever captured.
+      evidence.locationMocked ?? null,
+      evidence.locationUnverified ?? null,
       evidence.aiScore ?? null,
       JSON.stringify(evidence.aiDetections ?? []),
       evidence.aiSummary ?? null,
@@ -700,6 +755,142 @@ export async function updateStoreRow(pool: Pool, store: InMemoryStore): Promise<
  */
 export async function deleteStoreRow(pool: Pool, storeId: string): Promise<boolean> {
   const result = await pool.query('DELETE FROM stores WHERE id = $1', [storeId]);
+  return (result.rowCount ?? 0) > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Products (SKU catalogue — wave 1.2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Inserts a catalogue SKU.
+ *
+ * No ON CONFLICT clause, unlike `insertStoreTask`: a duplicate barcode must
+ * surface as an error so the service can turn it into PRODUCT_BARCODE_TAKEN.
+ * The UNIQUE constraint on `products.barcode` has no race window, which is
+ * why the service never pre-checks the barcode with a SELECT.
+ */
+export async function insertProduct(pool: Pool, product: InMemoryProduct): Promise<void> {
+  await pool.query(
+    `INSERT INTO products (id, barcode, name, size, variant, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [
+      product.id,
+      product.barcode,
+      product.name,
+      product.size ?? null,
+      product.variant ?? null,
+      product.createdAt ?? new Date(),
+      product.updatedAt ?? new Date(),
+    ],
+  );
+}
+
+/**
+ * Writes back the editable columns of a product.
+ *
+ * `id` and `created_at` are not in the SET list: an edit must not be able to
+ * move a product's identity or rewrite when it was created.
+ */
+export async function updateProductRow(pool: Pool, product: InMemoryProduct): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE products
+        SET barcode = $1, name = $2, size = $3, variant = $4, updated_at = $5
+      WHERE id = $6`,
+    [
+      product.barcode,
+      product.name,
+      product.size ?? null,
+      product.variant ?? null,
+      product.updatedAt ?? new Date(),
+      product.id,
+    ],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+export async function deleteProductRow(pool: Pool, productId: string): Promise<boolean> {
+  const result = await pool.query('DELETE FROM products WHERE id = $1', [productId]);
+  return (result.rowCount ?? 0) > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Shelf map (shelf_positions — wave 1.3)
+// ---------------------------------------------------------------------------
+
+/**
+ * Inserts one shelf slot.
+ *
+ * No ON CONFLICT clause, same as `insertProduct`: a duplicate
+ * (section, level, position) must surface as an error so the service can turn
+ * it into SHELF_POSITION_TAKEN. The UNIQUE constraint has no race window,
+ * which is why the service never pre-checks the slot with a SELECT.
+ */
+export async function insertShelfPosition(pool: Pool, slot: InMemoryShelfPosition): Promise<void> {
+  await pool.query(
+    `INSERT INTO shelf_positions (id, section, level, position, product_id, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [
+      slot.id,
+      slot.section,
+      slot.level,
+      slot.position,
+      slot.productId ?? null,
+      slot.createdAt ?? new Date(),
+      slot.updatedAt ?? new Date(),
+    ],
+  );
+}
+
+/**
+ * Writes back the editable columns of a shelf slot.
+ *
+ * `id` and `created_at` are not in the SET list: an edit must not be able to
+ * move a slot's identity or rewrite when it was created.
+ */
+export async function updateShelfPositionRow(
+  pool: Pool,
+  slot: InMemoryShelfPosition,
+): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE shelf_positions
+        SET section = $1, level = $2, position = $3, product_id = $4, updated_at = $5
+      WHERE id = $6`,
+    [
+      slot.section,
+      slot.level,
+      slot.position,
+      slot.productId ?? null,
+      slot.updatedAt ?? new Date(),
+      slot.id,
+    ],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/**
+ * Writes the latest manual count (wave 1.4).
+ *
+ * The layout columns are deliberately NOT in the SET list: recording a count
+ * must never be able to move a slot or rewrite when it was created.
+ */
+export async function countShelfPositionRow(
+  pool: Pool,
+  slotId: string,
+  units: number,
+  countedAt: Date,
+): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE shelf_positions
+        SET units = $2, counted_at = $3
+      WHERE id = $1`,
+    [slotId, units, countedAt],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+export async function deleteShelfPositionRow(pool: Pool, slotId: string): Promise<boolean> {
+  const result = await pool.query('DELETE FROM shelf_positions WHERE id = $1', [slotId]);
   return (result.rowCount ?? 0) > 0;
 }
 
@@ -1422,6 +1613,8 @@ export interface BotSessionRow {
   activeTaskTitle: string | null;
   latitude: number | null;
   longitude: number | null;
+  /** When the fix was taken, or NULL when no fix was collected. */
+  locatedAt: string | null;
   checklistQuestions: unknown[];
   checklistAnswers: unknown[];
   checklistIndex: number | null;
@@ -1442,6 +1635,17 @@ function toBotSession(row: any): BotSessionRow {
     activeTaskTitle: row.active_task_title ?? null,
     latitude: row.latitude === null || row.latitude === undefined ? null : Number(row.latitude),
     longitude: row.longitude === null || row.longitude === undefined ? null : Number(row.longitude),
+    locatedAt:
+      row.located_at === null || row.located_at === undefined || row.located_at === ''
+        ? null
+        : // ISO-8601, not `String(date)`. `pg` hands back a JS `Date` for a
+          // timestamptz, and `String()` on one produces
+          // "Tue Oct 06 2026 11:41:30 GMT+0400 (Azerbaijan Standard Time)" — a
+          // value Postgres refuses on the way back in with
+          // `time zone "gmt+0400" not recognised`, so the very next save of the
+          // same session failed with FLOW_NOT_STORED and the bot's flow could
+          // not be written at all.
+          new Date(row.located_at).toISOString(),
     checklistQuestions: Array.isArray(row.checklist_questions) ? row.checklist_questions : [],
     checklistAnswers: Array.isArray(row.checklist_answers) ? row.checklist_answers : [],
     checklistIndex:
@@ -1514,6 +1718,7 @@ export async function upsertBotSession(
     activeTaskTitle?: string | null;
     latitude?: number | null;
     longitude?: number | null;
+    locatedAt?: string | null;
     checklistQuestions?: unknown[];
     checklistAnswers?: unknown[];
     checklistIndex?: number | null;
@@ -1527,6 +1732,7 @@ export async function upsertBotSession(
         store_id, store_code, store_name,
         active_task_id, active_task_title,
         latitude, longitude,
+        located_at,
         checklist_questions, checklist_answers, checklist_index,
         pending_photo,
         updated_at, expires_at
@@ -1535,9 +1741,10 @@ export async function upsertBotSession(
         $4, $5, $6,
         $7, $8,
         $9, $10,
-        $11::jsonb, $12::jsonb, $13,
-        $14::jsonb,
-        now(), now() + make_interval(secs => $15::double precision)
+        $11,
+        $12::jsonb, $13::jsonb, $14,
+        $15::jsonb,
+        now(), now() + make_interval(secs => $16::double precision)
      )
      ON CONFLICT (chat_id) DO UPDATE
         SET user_id = EXCLUDED.user_id,
@@ -1549,6 +1756,7 @@ export async function upsertBotSession(
             active_task_title = EXCLUDED.active_task_title,
             latitude = EXCLUDED.latitude,
             longitude = EXCLUDED.longitude,
+            located_at = EXCLUDED.located_at,
             checklist_questions = EXCLUDED.checklist_questions,
             checklist_answers = EXCLUDED.checklist_answers,
             checklist_index = EXCLUDED.checklist_index,
@@ -1567,6 +1775,7 @@ export async function upsertBotSession(
       session.activeTaskTitle ?? null,
       session.latitude ?? null,
       session.longitude ?? null,
+      session.locatedAt ?? null,
       JSON.stringify(session.checklistQuestions ?? []),
       JSON.stringify(session.checklistAnswers ?? []),
       session.checklistIndex ?? null,

@@ -112,19 +112,31 @@ def classify_retail_sku(crop_bgr, item_idx=0, total_items=1):
         return "sprite"
 
 
-def run_inference(image_path, model_path="yolov8n.pt", conf_thresh=0.25):
+def run_inference(image_path, model_path="yolo11n.pt", conf_thresh=0.25):
     """
     Executes Ultralytics YOLO inference and returns formatted detections.
     """
     if not os.path.exists(model_path):
         # Fallback to current directory or auto-download
-        model_path = "yolov8n.pt"
+        model_path = "yolo11n.pt"
 
     model = YOLO(model_path)
 
     # Load image with cv2 to get dimensions & crops
     img = None
-    if os.path.exists(image_path):
+    if image_path.startswith("data:image/"):
+        # Inline data URL — the caller (the Node bot) decoded the Telegram bytes
+        # in memory and sent them here instead of a URL, so there is nothing to
+        # fetch and nothing to scan for a file name.
+        try:
+            import base64
+
+            b64 = image_path.split(",", 1)[1]
+            arr = np.frombuffer(base64.b64decode(b64), dtype=np.uint8)
+            img = cv2.imdecode(arr, -1)
+        except Exception:
+            img = None
+    elif os.path.exists(image_path):
         img = cv2.imread(image_path)
     else:
         # Remote URL or image buffer
@@ -314,7 +326,7 @@ def run_inference(image_path, model_path="yolov8n.pt", conf_thresh=0.25):
 def main():
     parser = argparse.ArgumentParser(description="Ultralytics YOLO Retail Inference")
     parser.add_argument("--image", required=True, help="Path or URL to shelf image")
-    parser.add_argument("--model", default="yolov8n.pt", help="YOLO model path")
+    parser.add_argument("--model", default="yolo11n.pt", help="YOLO model path")
     parser.add_argument("--conf", type=float, default=0.25, help="Confidence threshold")
     args = parser.parse_args()
 

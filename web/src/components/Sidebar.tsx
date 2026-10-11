@@ -5,10 +5,12 @@ import {
   ClipboardList,
   Store as StoreIcon,
   ShieldCheck,
+  Barcode,
+  LayoutGrid,
 } from 'lucide-react';
 import type { PanelIdentity } from '../lib/panelAuth';
 
-export type TabType = 'dashboard' | 'review' | 'tasks' | 'stores';
+export type TabType = 'dashboard' | 'review' | 'tasks' | 'stores' | 'products' | 'shelfmap';
 
 interface SidebarProps {
   activeTab: TabType;
@@ -55,6 +57,8 @@ const NAV_ITEMS: {
   { id: 'review', label: 'Rəf Auditi (Yoxlama)', icon: Camera },
   { id: 'tasks', label: 'Planogram Tapşırıqları', icon: ClipboardList },
   { id: 'stores', label: 'Mağazalar Şəbəkəsi', icon: StoreIcon },
+  { id: 'products', label: 'Məhsullar (SKU)', icon: Barcode },
+  { id: 'shelfmap', label: 'Rəf Xəritəsi', icon: LayoutGrid },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -106,17 +110,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="min-w-0 md:hidden xl:block">
           <h1 className="font-extrabold text-[14px] leading-tight tracking-[-.025em] text-ink flex items-center gap-1.5">
             oneTeam
-            <span className="text-[9px] uppercase font-extrabold tracking-[.08em] px-1.5 py-[2px] rounded-md bg-coke/15 text-coke border border-coke/30">
+            <span className="text-[10px] uppercase font-extrabold tracking-[.08em] px-1.5 py-[2px] rounded-md bg-coke/15 text-coke border border-coke/30">
               Coca-Cola
             </span>
           </h1>
-          <p className="text-[10.5px] text-muted truncate mt-px">Rəf Monitorinq Portalı</p>
+          <p className="text-[11px] text-muted truncate mt-px">Rəf Monitorinq Portalı</p>
         </div>
       </div>
 
       {/* ── Naviqasiya ────────────────────────────────────────────────────── */}
       <nav className="flex-1 overflow-y-auto px-2.5 pb-3 md:px-2 xl:px-2.5">
-        <div className="hidden px-3 pb-2 text-[10px] font-extrabold uppercase tracking-[.1em] text-muted md:block md:text-center md:px-0 xl:text-left xl:px-3">
+        <div className="hidden px-3 pb-2 text-xs font-extrabold uppercase tracking-[.1em] text-muted md:block md:text-center md:px-0 xl:text-left xl:px-3">
           Əsas Menyu
         </div>
 
@@ -201,7 +205,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <p className="text-[11.5px] font-bold text-ink truncate">
                 {identity.fullName ?? 'Kimlik bilinmir'}
               </p>
-              <p className="text-[10px] text-muted truncate flex items-center gap-1 mt-px">
+              <p className="text-[11px] text-muted truncate flex items-center gap-1 mt-px">
                 <ShieldCheck className="w-3 h-3 text-ok flex-shrink-0" />
                 {ROLE_LABEL[identity.role] ?? identity.role}
               </p>

@@ -204,6 +204,9 @@ if (process.env.NODE_ENV !== 'test') {
       const stop = async (): Promise<void> => {
         console.log('Stopping bot...');
         drain.stop();
+        // A pass in flight would otherwise claim rows the exiting process can
+        // no longer deliver, holding their leases until they expire.
+        await drain.idle();
         // A failure to stop cleanly must not stop the process from exiting.
         await bot.stop().catch((error) => {
           console.error('⛔ [oneTeam Bot] Could not stop polling cleanly:', error);

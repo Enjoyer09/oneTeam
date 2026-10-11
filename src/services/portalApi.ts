@@ -720,6 +720,14 @@ class PortalApiClient {
     photoType?: 'before' | 'after' | 'standard';
     latitude?: number;
     longitude?: number;
+    /**
+     * When the fix was taken, ISO-8601.
+     *
+     * The API refuses a fix older than a few minutes, so this is required for any
+     * submission that carries coordinates — `handlers/submission.ts` passes the
+     * timestamp of the message the location was shared in.
+     */
+    locatedAt?: string;
     checklistAnswers?: Array<{ questionId: string; value: boolean | number | string }>;
     metadata?: Record<string, unknown>;
     /**
@@ -752,6 +760,9 @@ class PortalApiClient {
         photoType: params.photoType ?? 'standard',
         latitude: params.latitude,
         longitude: params.longitude,
+        // The API refuses an undated fix as stale, so this travels with the
+        // coordinates rather than being optional decoration.
+        locatedAt: params.locatedAt,
         locationUnverified: !hasFix,
         checklistAnswers: params.checklistAnswers ?? [],
         metadata: params.metadata ?? {},

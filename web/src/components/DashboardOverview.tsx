@@ -7,22 +7,34 @@ import {
   Camera,
   ArrowUpRight,
   Inbox,
+  AlertTriangle,
 } from 'lucide-react';
 import { DashboardMetrics, Submission } from '../types';
+import { LoadPhase } from '../lib/loadPhase';
+import { StatusBadge } from './ui/StatusBadge';
 
 interface DashboardOverviewProps {
+  phase: LoadPhase;
   metrics: DashboardMetrics;
   recentSubmissions: Submission[];
+  onRetry: () => void;
   onOpenSubmissionReview: (submission: Submission) => void;
   onNavigateTab: (tab: any, filter?: any) => void;
 }
 
 export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
+  phase,
   metrics,
   recentSubmissions,
+  onRetry,
   onOpenSubmissionReview,
   onNavigateTab,
 }) => {
+  // İlk paint heç vaxt sıfır KPI + "%100 uyğunluq" göstərməməlidir — bu,
+  // yüklənənə qədər YALAN rəqəmdir. Yüklənmə → skelet, uğursuzluq → xəta.
+  if (phase === 'loading') return <DashboardSkeleton />;
+  if (phase === 'error') return <DashboardLoadError onRetry={onRetry} />;
+
   const kpiCards = [
     {
       title: 'Tərəfdaş Mağazalar',
@@ -67,33 +79,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     },
   ];
 
-  const statusBadge = (status: Submission['status']) => {
-    switch (status) {
-      case 'pending_review':
-        return (
-          <span className="st-g st-warn">
-            <span className="dot" />
-            Gözləyir
-          </span>
-        );
-      case 'approved':
-        return (
-          <span className="st-g st-ok">
-            <span className="dot" />
-            Təsdiqləndi
-          </span>
-        );
-      case 'rejected':
-        return (
-          <span className="st-g st-bad">
-            <span className="dot" />
-            İmtina edildi
-          </span>
-        );
-      default:
-        return null;
-    }
-  };
+  // §10.4 canonical badge — ailə/etiket xəritəsi `lib/statusMap` (§11) saxlayır.
+  const statusBadge = (status: Submission['status']) => <StatusBadge value={status} />;
 
   const scoreTone = (score: number) => (score >= 80 ? 'st-ok' : score >= 60 ? 'st-warn' : 'st-bad');
 
@@ -130,7 +117,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               />
 
               <div className="relative flex items-start justify-between gap-2">
-                <span className="text-[10px] lg:text-[10.5px] font-extrabold uppercase tracking-[.05em] text-muted leading-tight">
+                <span className="text-xs font-extrabold uppercase tracking-[.05em] text-muted leading-tight">
                   {kpi.title}
                 </span>
                 <span
@@ -145,7 +132,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 <div className="text-[26px] lg:text-[30px] font-extrabold leading-none tracking-[-.045em] text-ink tabular-nums">
                   {kpi.value}
                 </div>
-                <p className="mt-1 text-[10.5px] text-muted leading-snug">{kpi.subtitle}</p>
+                <p className="mt-1 text-[11px] text-muted leading-snug">{kpi.subtitle}</p>
               </div>
             </div>
           );
@@ -275,7 +262,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                             {sub.task?.title || 'Rəf Auditi'}
                           </p>
                         </div>
-                        <span className="mt-0.5 block text-[10px] capitalize text-muted">
+                        <span className="mt-0.5 block text-[11px] capitalize text-muted">
                           {sub.task?.priority} prioritet
                         </span>
                       </td>
@@ -284,7 +271,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                         <b className="block text-[12px] font-bold tracking-[-.01em] text-ink">
                           {sub.store?.name || 'Mağaza'}
                         </b>
-                        <span className="mt-0.5 block font-mono text-[10px] text-muted">
+                        <span className="mt-0.5 block font-mono text-[11px] text-muted">
                           {sub.store?.store_code}
                         </span>
                       </td>
@@ -331,3 +318,47 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     </div>
   );
 };
+
+/** KPI kartlarının geometriyasını köçürən skelet — formularda sıfır yoxdur. */
+function DashboardSkeleton() {
+  return (
+    <div className="flex flex-col gap-4 sm:gap-5" aria-busy="true">
+      <span role="status" className="sr-only">
+        Göstəricilər yüklənir…
+      </span>
+      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-3.5">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="glass-card animate-pulse rounded-card p-3.5 lg:p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="h-3 w-24 rounded-md bg-muted/25" />
+              <div className="h-[30px] w-[30px] rounded-[9px] bg-muted/20" />
+            </div>
+            <div className="mt-3 h-7 w-16 rounded-md bg-muted/30" />
+            <div className="mt-2 h-3 w-32 rounded-md bg-muted/20" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Yükləmə uğursuzsa: susmaq yox, söz + yenidən cəhd düyməsi. */
+function DashboardLoadError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div
+      role="alert"
+      className="glass-card flex flex-col items-center gap-3 rounded-card p-8 text-center"
+    >
+      <AlertTriangle className="h-6 w-6 text-[var(--warn)]" strokeWidth={2} />
+      <p className="text-sm font-extrabold text-ink">Məlumat yüklənə bilmədi</p>
+      <p className="text-[13px] text-muted">Bağlantını yoxlayın və yenidən cəhd edin.</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="btn-coke mt-1 whitespace-nowrap rounded-xl px-3.5 py-2.5 text-xs font-extrabold text-white transition-all"
+      >
+        Yenidən yoxla
+      </button>
+    </div>
+  );
+}

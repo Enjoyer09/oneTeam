@@ -15,9 +15,10 @@
 #  IMPORTANT — repository layout
 #  -----------------------------
 #  This workflow only runs if the project is its own git repository with
-#  `.github/` at its root. At the time of writing, the git root sat at the
-#  user's home directory, so these files would not be picked up. See
-#  docs/ENGINEERING-STANDARDS.md §1 for the fix.
+#  `.github/` at its root. That was once not the case: the git root sat at the
+#  user's home directory and these files were not picked up at all. See
+#  docs/ENGINEERING-STANDARDS.md §1, which records the move. The layout is
+#  correct now — every push runs the jobs below.
 # =============================================================================
 
 name: CI
@@ -196,13 +197,12 @@ jobs:
       - name: Build web portal
         run: npm run web:build
 
-      - name: Upload build output
-        uses: actions/upload-artifact@v4
-        with:
-          name: web-dist
-          path: web/dist
-          retention-days: 7
-          if-no-files-found: error
+      # No artifact upload. This job's only purpose is to fail on a bundle that
+      # does not build; nothing consumes `web/dist` afterwards — Railway deploys
+      # from the repo, not from a GitHub artifact — so uploading it only spent
+      # metered minutes and artifact storage to imply a handoff that never
+      # happens. (The live-tests job still uploads its API log on failure,
+      # because a human reads that one.)
 
   # ---------------------------------------------------------------------------
   # Job 4 — the iOS UI test (plan 3.4). The only check in this pipeline that
@@ -369,23 +369,37 @@ jobs:
   # tables and the cross-replica refresh are actually exercised. The break
   # detectors then prove those suites still bite by reintroducing each defect.
   #
-  # WHY IT IS GATED (continue-on-error: true)
-  # -----------------------------------------
-  # This is a new integration job. It stands up Postgres, seeds it, boots the
-  # API, and drives a dozen suites plus three break detectors — several of which
-  # spawn their own API on their own port and have real external touch-points
-  # (the bot, the mobile runner). Its steady-state green has not yet been
-  # established in CI, so it is deliberately NON-BLOCKING for now: it produces a
-  # signal on every run without failing the pipeline while it is stabilised.
-  # Flip `continue-on-error` to false (and drop the `if: always()` escape on the
-  # break-detector steps if you want strict ordering) once it is reliably green.
+  # WHY IT IS GATED (continue-on-error: false)
+  # ------------------------------------------
+  # This is the only job that stands up Postgres, seeds it, boots the API and
+  # drives a dozen suites plus three break detectors — several of which spawn
+  # their own API on their own port and have real external touch-points (the
+  # bot, the mobile runner). It is blocking because the one thing it used to
+  # guarantee was that it never failed: `test:live` was a `&&` chain, so the
+  # first red suite ended the run, and `continue-on-error: true` filed the
+  # neutral result as success. `scripts/quality/run-live-suites.mjs` replaces
+  # the chain and runs every suite regardless of earlier failures, so a red
+  # live tier now says which suites are red and fails the job.
+  #
+  # Verified green on 2026-10-06 (twice, on a throwaway Postgres): 14 suites,
+  # 562 checks, 0 failed, then all three break detectors each breaking their own
+  # check. `test:live:suites` rather than `test:live` here because the build
+  # step above already produced apps/api/dist/main.js and the API is running
+  # from it — `test:live` would rebuild that tree underneath a live process.
   # ---------------------------------------------------------------------------
   live-tests:
     name: Live tests (Postgres + break detectors)
     runs-on: ubuntu-latest
     needs: verify
     timeout-minutes: 30
-    continue-on-error: true
+    # Blocking as of 2026-10-06, on the condition this comment used to set:
+    # "flip once it is reliably green". It is — 562 checks across 14 suites on
+    # a throwaway Postgres, then again after every fix below, plus all three
+    # break detectors. Before it was `continue-on-error: true`, and with the
+    # `&&` chain that `test:live` used to be, a red `test:stores` meant twelve
+    # suites never ran while this job still reported neutral. A job that cannot
+    # fail is not a check, and 552 green checks were hiding under it.
+    continue-on-error: false
 
     services:
       postgres:
@@ -418,8 +432,10 @@ jobs:
       TELEGRAM_WEBHOOK_SECRET: "ci-not-a-real-webhook-secret"
       CORS_ALLOWED_ORIGINS: "http://localhost,http://localhost:5173"
       # Some suites route through localhost; keep any runner proxy out of the way.
+      # Only one spell — GitHub Actions treats `NO_PROXY` and `no_proxy` as the
+      # same key (case-insensitive) and a duplicate is a workflow syntax error
+      # that kills the whole run before any job starts.
       NO_PROXY: "localhost,127.0.0.1"
-      no_proxy: "localhost,127.0.0.1"
 
     steps:
       - name: Checkout
@@ -483,7 +499,7 @@ jobs:
             sleep 2
           done
 
-          npm run test:live
+          npm run test:live:suites
 
       # The break detectors are the "green test is not proof" gate. They run
       # regardless of the live-suite outcome so a failure there does not hide

@@ -229,6 +229,36 @@ export class AuthGuard implements CanActivate {
         return null;
       }
 
+      // A BLOCK IS REVOCATION, OR IT IS NOT A BLOCK.
+      //
+      // `device_blocks` was consulted in exactly one place — `enrollment.controller`
+      // — so blocking a device stopped it enrolling again and nothing else. The
+      // token it was already holding stayed valid, which is the credential an
+      // operator is thinking about when a phone is stolen: the phone already has
+      // one, so "re-enrol me" is not the problem to solve.
+      //
+      // The check sits after `verifyDeviceToken` on purpose. A block is about a
+      // DEVICE, and only a verified token tells us which device this request is
+      // coming from; asking first would mean querying the table for an
+      // unverified, attacker-supplied string.
+      //
+      // `isDeviceBlocked` returns false when there is no pool. That is safe here
+      // and only here, because `verifyDeviceToken` above already returned null in
+      // that case — this code is unreachable without a database.
+      if (await db.isDeviceBlocked(device.deviceId)) {
+        this.logger.warn(
+          `⛔ Device token rejected: device ${device.deviceId} is blocked by an operator.`,
+        );
+        db.logAuditEvent({
+          entityType: 'device',
+          entityId: device.deviceId,
+          action: 'DEVICE_BLOCKED_TOKEN_REJECTED',
+          actorId: device.userId,
+          payload: { note: 'a valid device token was refused because the device is blocked' },
+        });
+        return null;
+      }
+
       // `via: 'device'` is not decoration — it is the single field that stops
       // this credential from acting as anyone else. An earlier version of this
       // method returned the plain user principal, which defaults to

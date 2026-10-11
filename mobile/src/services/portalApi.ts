@@ -1114,6 +1114,13 @@ class MobilePortalApi {
         locationAccuracy: accuracyMeters,
         locationLowConfidence,
         locationMocked,
+        // `expo-location` reports the fix time as epoch milliseconds; the API
+        // takes an ISO-8601 instant. Without it the fix is undated and the
+        // server refuses the submission as stale.
+        locatedAt:
+          hasFix && typeof gps?.timestamp === 'number'
+            ? new Date(gps.timestamp).toISOString()
+            : undefined,
         idempotencyKey,
         checklistAnswers: params.checklistAnswers ?? [],
         metadata: {

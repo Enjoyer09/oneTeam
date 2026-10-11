@@ -85,7 +85,7 @@ oneTeam/
 ├── docker-compose.prod.yml   # Postgres + API + web + bot
 ├── Dockerfile.bot            # bot worker image (multi-stage)
 ├── Dockerfile.postgres       # Postgres image that seeds schema+data on first boot
-└── .github/workflows/        # ci, codeql, deploy, db-backup
+└── .github/workflows/        # ci, codeql, deploy
 ```
 
 > `init_schema.sql` / `seed.sql` / the `supabase/` tree describe the **old**
@@ -261,8 +261,12 @@ GitHub Actions under `.github/workflows/`:
 - **`deploy.yml`** — builds the API/bot/web images and pushes them to GHCR on
   push to `main` and on `v*` tags. The Railway release step is a documented,
   commented-out block gated on a `RAILWAY_TOKEN` secret.
-- **`db-backup.yml`** — nightly `pg_dump` via `scripts/ops/db-backup.sh`
-  (needs a `DATABASE_URL` secret reachable from the runner).
+
+> Nightly database backups are **not** a GitHub Actions job. The production
+> database is a Railway service on a private network, unreachable from hosted
+> runners, so backups run as a **Railway cron service** (`db-backup`, image
+> `scripts/ops/Dockerfile.backup`) that runs `scripts/ops/db-backup.sh` at
+> 03:00 UTC and uploads the dump to object storage. See `docs/BACKUP-RESTORE.md`.
 
 ---
 

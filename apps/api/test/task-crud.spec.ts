@@ -54,6 +54,7 @@
  */
 
 import { Client } from 'pg';
+import { FRESH_FIX_AT } from './helpers/fresh-fix';
 
 const API_BASE = (process.env.ONETEAM_API_URL || 'http://localhost:3001').replace(/\/+$/, '');
 const DATABASE_URL = process.env.DATABASE_URL || '';
@@ -126,6 +127,7 @@ function storeBody(code: string, overrides: Record<string, unknown> = {}) {
     address: 'Test ünvanı 1, Bakı',
     latitude: 40.3724,
     longitude: 49.8372,
+    locatedAt: FRESH_FIX_AT(),
     ...overrides,
   };
 }
@@ -638,8 +640,21 @@ async function main(): Promise<void> {
     // -------------------------------------------------------------------------
 
     // The reason the refusal exists, asserted rather than assumed. If this
-    // constraint ever stops being ON DELETE CASCADE the guard becomes
+    // constraint ever stops being ON DELETE RESTRICT the guard becomes
     // decoration, and this check is what says so.
+    //
+    // This asserts RESTRICT, not the CASCADE it originally expected.
+    // Migration 20260920000009_evidence_fk_restrict moved it on purpose: with
+    // CASCADE, deleting a store task destroyed every photo, GPS reading and
+    // checklist answer filed against it, so an audit submitted between the
+    // application's "does this have evidence?" pre-check and the DELETE was
+    // silently cascaded away. The pre-check is a race; the constraint is not.
+    // The application still refuses such a delete, but the refusal now holds
+    // even if that check is bypassed.
+    //
+    // Reading CASCADE here is what made this suite report a phantom failure:
+    // the migration was correct, the assertion was stale, and the whole live
+    // tier was `continue-on-error` on a repo whose Actions minutes are spent.
     if (db) {
       const rule = await db.query<{ confdeltype: string }>(
         `SELECT c.confdeltype
@@ -651,8 +666,8 @@ async function main(): Promise<void> {
             AND a.attname = 'store_task_id'`,
       );
       check(
-        'the evidence foreign key really is ON DELETE CASCADE',
-        rule.rows[0]?.confdeltype === 'c',
+        'the evidence foreign key is ON DELETE RESTRICT, so a task with evidence cannot be cascaded away',
+        rule.rows[0]?.confdeltype === 'r',
         rule.rows[0]?.confdeltype,
       );
     }

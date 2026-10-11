@@ -200,6 +200,16 @@ export async function handleLocationMessage(ctx: BotContext): Promise<boolean> {
   ctx.session.location = {
     latitude: location.latitude,
     longitude: location.longitude,
+    // Telegram's `Location` object carries no capture time of its own — only the
+    // enclosing message does. That message's `date` is the moment the fix was
+    // shared, which is the closest honest timestamp available and is the
+    // client's own, not a server clock. `live_period` locations would need the
+    // message time too, which is why it is used rather than a fresh `Date.now()`
+    // that would date the fix to when the BOT read it and make a held location
+    // look current.
+    ...(typeof ctx.message?.date === 'number'
+      ? { locatedAt: new Date(ctx.message.date * 1000).toISOString() }
+      : {}),
   };
 
   await ctx.reply(

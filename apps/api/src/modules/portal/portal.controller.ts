@@ -77,6 +77,88 @@ export class PortalController {
     return this.portalService.deleteStore(id, getPrincipal(request));
   }
 
+  /**
+   * Product (SKU) catalogue — wave 1.2 of the Shelf Map plan.
+   *
+   * Same controller, same credential as the store routes: a SKU is business
+   * data, not panel administration, and the read must sit next to the write
+   * so one resource is never behind two credentials with two sets of rules.
+   */
+  @Get('products')
+  getProducts() {
+    const data = this.portalService.getProducts();
+    return { success: true, data, total: data.length };
+  }
+
+  @Post('products')
+  @HttpCode(HttpStatus.CREATED)
+  async createProduct(@Body() body: any, @Request() request: AuthedRequest) {
+    return this.portalService.createProduct(body, getPrincipal(request));
+  }
+
+  @Patch('products/:id')
+  @HttpCode(HttpStatus.OK)
+  async updateProduct(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Request() request: AuthedRequest,
+  ) {
+    return this.portalService.updateProduct(id, body, getPrincipal(request));
+  }
+
+  @Delete('products/:id')
+  @HttpCode(HttpStatus.OK)
+  async deleteProduct(@Param('id') id: string, @Request() request: AuthedRequest) {
+    return this.portalService.deleteProduct(id, getPrincipal(request));
+  }
+
+  // Shelf map (wave 1.3) — same controller, same credential as the catalogue:
+  // the panel must never have to hold two secrets with two sets of rules.
+  @Get('shelf-positions')
+  getShelfPositions() {
+    const data = this.portalService.getShelfPositions();
+    return { success: true, data, total: data.length };
+  }
+
+  @Post('shelf-positions')
+  @HttpCode(HttpStatus.CREATED)
+  async createShelfPosition(@Body() body: any, @Request() request: AuthedRequest) {
+    return this.portalService.createShelfPosition(body, getPrincipal(request));
+  }
+
+  @Patch('shelf-positions/:id')
+  @HttpCode(HttpStatus.OK)
+  async updateShelfPosition(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Request() request: AuthedRequest,
+  ) {
+    return this.portalService.updateShelfPosition(id, body, getPrincipal(request));
+  }
+
+  @Delete('shelf-positions/:id')
+  @HttpCode(HttpStatus.OK)
+  async deleteShelfPosition(@Param('id') id: string, @Request() request: AuthedRequest) {
+    return this.portalService.deleteShelfPosition(id, getPrincipal(request));
+  }
+
+  // Manual OSA / share of shelf (wave 1.4) — same controller, same credential
+  // as the map it counts over.
+  @Post('shelf-positions/:id/count')
+  @HttpCode(HttpStatus.OK)
+  async countShelfPosition(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Request() request: AuthedRequest,
+  ) {
+    return this.portalService.recordShelfCount(id, body, getPrincipal(request));
+  }
+
+  @Get('shelf-metrics')
+  getShelfMetrics() {
+    return { success: true, data: this.portalService.getShelfMetrics() };
+  }
+
   @Get('tasks')
   getTasks() {
     const data = this.portalService.getTasks();

@@ -7,6 +7,7 @@ import {
 } from '@oneteam/types';
 import { db, InMemoryEvidence } from '@oneteam/database';
 import { TaskStateService } from '../tasks/task-state.service';
+import { isFixFresh, MAX_FIX_AGE_MS } from '../portal/gps-freshness';
 import { AuthenticatedPrincipal } from '../../common/auth/authenticated-principal';
 
 /** The outcome of a submission — shared by the live path and the idempotent replay. */
@@ -107,6 +108,39 @@ export class EvidenceService {
     const store = db.getStore(task.storeId);
     if (!store) {
       throw new HttpException(`Mağaza məlumatı tapılmadı: ${task.storeId}`, HttpStatus.NOT_FOUND);
+    }
+
+    // The fix has to be dated before its coordinates mean anything. This is the
+    // same guard `field.service.ts` applies on the other write path — without it
+    // here the Telegram/mobile path was protected and the panel evidence path was
+    // not, which is no protection at all.
+    //
+    // Skipped ONLY when the caller declares `locationUnverified`. There is then
+    // no fix to date: the Telegram skip button collected nothing and the store's
+    // own coordinates were substituted upstream, so asking "how old is this fix"
+    // is asking about a fix that was never taken. `isFixFresh(undefined)` returns
+    // false, and refusing here turned every submission on that channel into a 400
+    // — including one whose fix was declared a millisecond earlier upstream, which
+    // is how `field.service.ts` dropping `locatedAt` went unnoticed: the same 400
+    // came out either way.
+    //
+    // This is not a weakening. `locationUnverified` is an explicit assertion that
+    // gets stored on the record and already disqualifies auto-approval
+    // (`isAiAutoApproveEligible`), so a submission that claims no location still
+    // ends with a human deciding. What cannot happen is a caller who claims no
+    // location getting a fresh-looking fix, or a caller with a real fix skipping
+    // the age test: the freshness requirement below applies to every submission
+    // that does not disclaim its location.
+    if (!dto.locationUnverified && !isFixFresh(dto.locatedAt)) {
+      throw new HttpException(
+        {
+          error: 'LOCATION_STALE',
+          message:
+            `Geolokasiya köhnədir. Koordinatlar ${Math.round(MAX_FIX_AGE_MS / 60000)} dəqiqədən ` +
+            'eski deyil — siqnalları söndürüb yenidən yoxlama edin, sonra auditı göndərin.',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     // 1. Anti-Fraud Geofencing Calculation (Haversine Distance Check)
@@ -340,6 +374,10 @@ export class EvidenceService {
       // A spoofed fix is stored on the record, not just logged, so the panel can
       // surface it and a later review can be recorded as a deliberate override.
       locationMocked: dto.locationMocked === true,
+      // Whether a real fix existed at all. Stored on the record for the same
+      // reason as the mock flag: the panel shows it, and a reviewer decides with
+      // both facts in hand rather than with a score alone.
+      locationUnverified: dto.locationUnverified === true,
       aiScore: null,
       aiDetections: [],
       aiSummary: null,

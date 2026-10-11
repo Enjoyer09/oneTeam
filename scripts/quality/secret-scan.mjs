@@ -317,6 +317,11 @@ const DETECTORS = [
       // and up to two '=' of padding), so it cannot hide a random credential.
       if (/^sha(?:256|384|512)-[A-Za-z0-9+/]+={0,2}$/.test(value)) return true; // CSP/SRI hash
       if (URL_PATH.test(value)) return true; // a route, not a key
+      // HF/Kaggle dataset refs (`owner/name`, no leading slash) — READMEs name
+      // training corpora by their repo path. One-token owner/name is not a
+      // credential shape (no scheme, no query, owner is a lowercase word).
+      if (/^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]+(?:\/[a-z0-9][a-z0-9._-]+)*$/.test(value))
+        return true; // dataset ref, not a key
       if (context && insideImageLiteral(context.text, context.index)) return true; // base64 photo
       const uniq = new Set(value).size;
       return uniq / value.length < 0.35; // low diversity -> not a real secret

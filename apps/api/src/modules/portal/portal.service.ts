@@ -43,7 +43,13 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { TaskState, UserRole, NotificationDispatchSummary, StoreTask } from '@oneteam/types';
-import { db, InMemoryEvidence, InMemoryStoreTask } from '@oneteam/database';
+import {
+  InMemoryShelfPosition,
+  db,
+  InMemoryEvidence,
+  InMemoryStoreTask,
+  InMemoryProduct,
+} from '@oneteam/database';
 import {
   AuthenticatedPrincipal,
   isPrivilegedPrincipal,
@@ -64,6 +70,75 @@ export interface PanelStore {
   longitude: number | null;
   is_active: boolean;
   created_at: string;
+}
+
+/** The SKU catalogue row as the panel sees it. Mirrors web/src/types. */
+export interface PanelProduct {
+  id: string;
+  barcode: string;
+  name: string;
+  size: string | null;
+  variant: string | null;
+  created_at: string;
+}
+
+/** One shelf map slot (bölmə / səviyyə / mövqe) as the panel sees it. */
+export interface PanelShelfPosition {
+  id: string;
+  section: string;
+  level: number;
+  position: number;
+  /** Assigned product, or null while the slot is empty. */
+  product_id: string | null;
+  /**
+   * The latest manual count for this slot (wave 1.4), or null while nobody
+   * has counted it. null and 0 are different answers: null is "nobody said",
+   * 0 is "counted, and the product is absent" — OSA only counts the former
+   * as neither present nor missing.
+   */
+  units: number | null;
+  /** When the count was recorded, ISO-8601; null alongside units. */
+  counted_at: string | null;
+  created_at: string;
+}
+
+/** Share-of-shelf of one counted product inside its section (wave 1.4). */
+export interface PanelShelfProductShare {
+  product_id: string;
+  name: string;
+  units: number;
+  /** Percent of this section's counted units, 0–100, one decimal. */
+  share: number;
+}
+
+/** One section's slice of the metrics. */
+export interface PanelShelfSection {
+  section: string;
+  assigned: number;
+  /** Counted assigned slots with units > 0. */
+  present: number;
+  units: number;
+  /** Counted products, sorted by units (then name) — the share list. */
+  products: PanelShelfProductShare[];
+}
+
+/** Manual OSA / share of shelf over the shelf map (wave 1.4). */
+export interface PanelShelfMetrics {
+  assigned_slots: number;
+  /** Assigned slots somebody has counted. OSA's denominator — see `osa`. */
+  counted_slots: number;
+  present_slots: number;
+  /**
+   * present / counted as 0–100, one decimal; null when nothing is counted.
+   *
+   * Deliberately NOT present / assigned: an uncounted slot means "nobody
+   * walked that aisle", and reporting it as a miss would turn the day nobody
+   * counted into 0 % availability.
+   */
+  osa: number | null;
+  total_units: number;
+  /** Sections holding at least one assigned slot, sorted by name. */
+  sections: PanelShelfSection[];
 }
 
 export interface PanelTask {
@@ -139,6 +214,21 @@ export interface PanelSubmission {
    * deliberate supervisor override.
    */
   location_mocked: boolean;
+  /**
+   * There was no real fix at all — the Telegram channel (which offers a skip
+   * button) or a device that declined the location prompt.
+   *
+   * Separate from `location_mocked` because the two mean different things to a
+   * reviewer. Mocked is "the device says this location is fake". Missing is "no
+   * location was ever captured", so the API substituted the store's own
+   * coordinates and the geofence passed by construction. The submission is
+   * therefore real evidence with a gap in it, and a reviewer is entitled to see
+   * the gap before deciding.
+   *
+   * Either flag blocks auto-approval; only `location_mocked` means the
+   * anti-fraud block is being overridden if the reviewer approves anyway.
+   */
+  location_unverified?: boolean;
   reviewer_feedback: string | null;
   ai_score: number | null;
   ai_detections: unknown[];
@@ -233,6 +323,30 @@ export class PortalService {
     };
   }
 
+  toPanelProduct(product: InMemoryProduct): PanelProduct {
+    return {
+      id: product.id,
+      barcode: product.barcode,
+      name: product.name,
+      size: product.size ?? null,
+      variant: product.variant ?? null,
+      created_at: iso(product.createdAt),
+    };
+  }
+
+  toPanelShelfPosition(slot: InMemoryShelfPosition): PanelShelfPosition {
+    return {
+      id: slot.id,
+      section: slot.section,
+      level: slot.level,
+      position: slot.position,
+      product_id: slot.productId ?? null,
+      units: slot.units ?? null,
+      counted_at: slot.countedAt ? iso(slot.countedAt) : null,
+      created_at: iso(slot.createdAt),
+    };
+  }
+
   toPanelTask(task: InMemoryStoreTask): PanelTask {
     // Title, description, reference image, priority and the checklist all live
     // on the template. A store task stores only (template, store, assignee,
@@ -305,6 +419,9 @@ export class PortalService {
       checklist_answers: evidence.checklistAnswers ?? [],
       status: toPanelSubmissionStatus(task?.status),
       location_mocked: evidence.locationMocked ?? false,
+      // Same honesty rule: a row written before the column existed reports
+      // "unknown" as absent, not as a verified location.
+      location_unverified: evidence.locationUnverified ?? false,
       reviewer_feedback: evidence.reviewerFeedback ?? null,
       ai_score: evidence.aiScore ?? null,
       ai_detections: evidence.aiDetections ?? [],
@@ -328,6 +445,78 @@ export class PortalService {
 
   getStores(): PanelStore[] {
     return db.stores.map((store) => this.toPanelStore(store));
+  }
+
+  getProducts(): PanelProduct[] {
+    return db.getProducts().map((product) => this.toPanelProduct(product));
+  }
+
+  getShelfPositions(): PanelShelfPosition[] {
+    return db.getShelfPositions().map((slot) => this.toPanelShelfPosition(slot));
+  }
+
+  /**
+   * Manual OSA and share of shelf (wave 1.4: "işçi sayır, sistem faizi
+   * hesablayır").
+   *
+   * Pure arithmetic over the map — no model, no photo. The denominator rules
+   * are the whole point and are spelled out on `PanelShelfMetrics`: OSA is
+   * over COUNTED assigned slots (uncounted is not a miss), share of shelf is
+   * per section over that section's counted units (a units-0 product reads
+   * 0 %, a single counted product reads 100 %).
+   */
+  getShelfMetrics(): PanelShelfMetrics {
+    const round1 = (value: number): number => Math.round(value * 10) / 10;
+
+    const slots = db.getShelfPositions();
+    // FK guarantees the product row exists; the map lookup only supplies the
+    // display name (and refuses to invent one if that ever changes).
+    const productNames = new Map(db.getProducts().map((p) => [p.id, p.name]));
+
+    const assigned = slots.filter((slot) => slot.productId);
+    const counted = assigned.filter((slot) => slot.units != null);
+    const present = counted.filter((slot) => (slot.units ?? 0) > 0);
+
+    const bySection = new Map<string, InMemoryShelfPosition[]>();
+    for (const slot of assigned) {
+      const group = bySection.get(slot.section) ?? [];
+      group.push(slot);
+      bySection.set(slot.section, group);
+    }
+
+    const sections: PanelShelfSection[] = [...bySection.entries()]
+      .sort(([a], [b]) => a.localeCompare(b, 'az'))
+      .map(([section, group]) => {
+        const countedGroup = group.filter((slot) => slot.units != null);
+        const units = countedGroup.reduce((sum, slot) => sum + (slot.units ?? 0), 0);
+        return {
+          section,
+          assigned: group.length,
+          present: countedGroup.filter((slot) => (slot.units ?? 0) > 0).length,
+          units,
+          products: countedGroup
+            .map((slot) => {
+              const productId = slot.productId!;
+              const unitsHere = slot.units ?? 0;
+              return {
+                product_id: productId,
+                name: productNames.get(productId) ?? productId,
+                units: unitsHere,
+                share: units > 0 ? round1((unitsHere / units) * 100) : 0,
+              };
+            })
+            .sort((a, b) => b.units - a.units || a.name.localeCompare(b.name, 'az')),
+        };
+      });
+
+    return {
+      assigned_slots: assigned.length,
+      counted_slots: counted.length,
+      present_slots: present.length,
+      osa: counted.length > 0 ? round1((present.length / counted.length) * 100) : null,
+      total_units: counted.reduce((sum, slot) => sum + (slot.units ?? 0), 0),
+      sections,
+    };
   }
 
   // -------------------------------------------------------------------------
@@ -650,6 +839,526 @@ export class PortalService {
     return { success: true, data: { id: storeId } };
   }
 
+  // -------------------------------------------------------------------------
+  // Product (SKU) catalogue writes — wave 1.2 of the Shelf Map plan
+  //
+  // Master data, exactly like stores: ADMIN and SUPERVISOR may edit it,
+  // MERCHANDISER and STORE_STAFF may not — a merchandiser handed a login must
+  // not be able to redefine the catalogue their own scans resolve against.
+  // -------------------------------------------------------------------------
+
+  /**
+   * A SKU is master data: same permission boundary as the stores.
+   *
+   * Named for its own resource so the 403 tells the operator which rule
+   * stopped them, while the check itself stays the shared one — two roles
+   * lists that drift apart would be worse than one.
+   */
+  private requireProductEditor(principal: AuthenticatedPrincipal): void {
+    if (!isPrivilegedPrincipal(principal)) {
+      throw new ForbiddenException({
+        error: 'PRODUCT_EDIT_FORBIDDEN',
+        message: 'Məhsul kataloqunu yalnız administrator və supervayzer dəyişə bilər.',
+      });
+    }
+  }
+
+  /**
+   * The shelf map is master data too: same shared check as the products and
+   * stores, its own error name so the 403 tells the operator which rule
+   * stopped them.
+   */
+  private requireShelfEditor(principal: AuthenticatedPrincipal): void {
+    if (!isPrivilegedPrincipal(principal)) {
+      throw new ForbiddenException({
+        error: 'SHELF_EDIT_FORBIDDEN',
+        message: 'Rəf xəritəsini yalnız administrator və supervayzer dəyişə bilər.',
+      });
+    }
+  }
+
+  /**
+   * Reads the product fields off a request body, refusing anything unusable.
+   *
+   * Unknown keys are REFUSED rather than ignored — stricter than the store
+   * reader. A typo'd column name in a barcode catalogue turns into an
+   * auditor's scan that silently resolves to nothing, and a body that is
+   * quietly half-applied is how that gets shipped.
+   */
+  private readProductFields(
+    body: Record<string, any>,
+    options: { requireAll: boolean },
+  ): { barcode?: string; name?: string; size?: string; variant?: string } {
+    const allowed = new Set(['barcode', 'name', 'size', 'variant']);
+    for (const key of Object.keys(body ?? {})) {
+      if (!allowed.has(key)) {
+        throw new HttpException(`Bilmədiyimiz sahə: "${key}"`, HttpStatus.BAD_REQUEST);
+      }
+    }
+
+    const fields: Record<string, any> = {};
+
+    const text = (key: string, label: string, required: boolean): string | undefined => {
+      const raw = body?.[key];
+      if (raw === undefined || raw === null || String(raw).trim() === '') {
+        if (required) {
+          throw new HttpException(`${label} tələb olunur`, HttpStatus.BAD_REQUEST);
+        }
+        return undefined;
+      }
+      return String(raw).trim();
+    };
+
+    const barcode = text('barcode', 'Barkod', options.requireAll);
+    if (barcode !== undefined) {
+      // Numeric only, 8–14 digits: EAN-8, UPC-A and EAN-13 all fit that window,
+      // and every retail barcode a scanner emits in this market does. The
+      // UNIQUE constraint does the duplicate work — this is format, not
+      // uniqueness.
+      if (!/^\d{8,14}$/.test(barcode)) {
+        throw new HttpException(
+          'Barkod 8–14 rəqəm olmalıdır (məsələn: 4860059000017)',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      fields.barcode = barcode;
+    }
+
+    const name = text('name', 'Məhsul adı', options.requireAll);
+    if (name !== undefined) fields.name = name;
+
+    const size = text('size', 'Ölçü', false);
+    if (size !== undefined) fields.size = size;
+
+    const variant = text('variant', 'Variant', false);
+    if (variant !== undefined) fields.variant = variant;
+
+    return fields;
+  }
+
+  /**
+   * Reads the shelf slot coordinates off a request body, refusing anything
+   * unusable. Unknown keys are REFUSED rather than ignored, the same contract
+   * as the product reader: a body that is quietly half-applied is how a map
+   * ends up disagreeing with the shelf it claims to describe.
+   *
+   * `level` / `position` are validated to positive integers here so the
+   * normal answer is a readable 400, not a raw CHECK-constraint violation.
+   * `product_id` is only syntax-checked — existence is the FK's answer.
+   */
+  private readShelfFields(
+    body: Record<string, any>,
+    options: { requireAll: boolean },
+  ): { section?: string; level?: number; position?: number; product_id?: string | null } {
+    const allowed = new Set(['section', 'level', 'position', 'product_id']);
+    for (const key of Object.keys(body ?? {})) {
+      if (!allowed.has(key)) {
+        throw new HttpException(`Bilmədiyimiz sahə: "${key}"`, HttpStatus.BAD_REQUEST);
+      }
+    }
+
+    const fields: Record<string, any> = {};
+
+    const sectionRaw = body?.section;
+    if (sectionRaw === undefined || sectionRaw === null || String(sectionRaw).trim() === '') {
+      if (options.requireAll) {
+        throw new HttpException('Bölmə tələb olunur', HttpStatus.BAD_REQUEST);
+      }
+    } else {
+      fields.section = String(sectionRaw).trim();
+    }
+
+    const slotNumber = (key: 'level' | 'position', label: string): number | undefined => {
+      const raw = body?.[key];
+      if (raw === undefined || raw === null) {
+        if (options.requireAll) {
+          throw new HttpException(`${label} tələb olunur`, HttpStatus.BAD_REQUEST);
+        }
+        return undefined;
+      }
+      const parsed =
+        typeof raw === 'number'
+          ? raw
+          : typeof raw === 'string' && /^\d+$/.test(raw.trim())
+            ? Number(raw.trim())
+            : Number.NaN;
+      if (!Number.isInteger(parsed) || parsed < 1) {
+        throw new HttpException(
+          `${label} 1 və ya daha böyük tam ədəd olmalıdır`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      return parsed;
+    };
+
+    const level = slotNumber('level', 'Səviyyə');
+    if (level !== undefined) fields.level = level;
+
+    const position = slotNumber('position', 'Mövqe');
+    if (position !== undefined) fields.position = position;
+
+    const rawProduct = body?.product_id;
+    if (rawProduct !== undefined) {
+      // null / '' clears the assignment (PATCH); on create `?? undefined`
+      // turns it back into "no product", which is what an empty slot is.
+      fields.product_id =
+        rawProduct === null || String(rawProduct).trim() === '' ? null : String(rawProduct).trim();
+    }
+
+    return fields;
+  }
+
+  async createProduct(body: Record<string, any>, principal: AuthenticatedPrincipal) {
+    this.requireProductEditor(principal);
+
+    const fields = this.readProductFields(body, { requireAll: true });
+
+    const result = await db.createProduct({
+      barcode: fields.barcode!,
+      name: fields.name!,
+      size: fields.size,
+      variant: fields.variant,
+    });
+
+    if (result.error === 'DUPLICATE_BARCODE') {
+      throw new ConflictException({
+        error: 'PRODUCT_BARCODE_TAKEN',
+        message: `"${fields.barcode}" barkodu artıq başqa məhsulda istifadə olunur.`,
+      });
+    }
+    if (result.error || !result.product) {
+      throw new HttpException(
+        'Məhsul yaradıla bilmədi — bazaya yazıla bilmədi, heç nə dəyişmədi.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    db.logAuditEvent({
+      entityType: 'product',
+      entityId: result.product.id,
+      action: 'PRODUCT_CREATED',
+      actorId: principal.userId,
+      payload: { barcode: result.product.barcode, name: result.product.name },
+    });
+
+    return { success: true, data: this.toPanelProduct(result.product) };
+  }
+
+  /** Applies an edit. Only the fields present in the body are touched. */
+  async updateProduct(
+    productId: string,
+    body: Record<string, any>,
+    principal: AuthenticatedPrincipal,
+  ) {
+    this.requireProductEditor(principal);
+
+    const fields = this.readProductFields(body, { requireAll: false });
+
+    if (Object.keys(fields).length === 0) {
+      throw new HttpException('Dəyişdiriləcək heç bir sahə göndərilmədi', HttpStatus.BAD_REQUEST);
+    }
+
+    const result = await db.updateProduct(productId, fields);
+
+    if (result.error === 'NOT_FOUND') {
+      throw new NotFoundException({
+        error: 'PRODUCT_NOT_FOUND',
+        message: 'Bu identifikatorla məhsul tapılmadı.',
+      });
+    }
+    if (result.error === 'DUPLICATE_BARCODE') {
+      throw new ConflictException({
+        error: 'PRODUCT_BARCODE_TAKEN',
+        message: `"${fields.barcode}" barkodu artıq başqa məhsulda istifadə olunur.`,
+      });
+    }
+    if (result.error || !result.product) {
+      throw new HttpException(
+        'Dəyişiklik yazıla bilmədi — əvvəlki məlumatlar qüvvədə qaldı.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    db.logAuditEvent({
+      entityType: 'product',
+      entityId: productId,
+      action: 'PRODUCT_UPDATED',
+      actorId: principal.userId,
+      payload: { changed: Object.keys(fields) },
+    });
+
+    return { success: true, data: this.toPanelProduct(result.product) };
+  }
+
+  async deleteProduct(productId: string, principal: AuthenticatedPrincipal) {
+    this.requireProductEditor(principal);
+
+    const result = await db.deleteProduct(productId);
+
+    if (result.reason === 'NOT_FOUND') {
+      throw new NotFoundException({
+        error: 'PRODUCT_NOT_FOUND',
+        message: 'Bu identifikatorla məhsul tapılmadı.',
+      });
+    }
+    if (result.reason === 'IN_USE') {
+      throw new ConflictException({
+        error: 'PRODUCT_ON_SHELF',
+        message: `Məhsul ${result.positions ?? 1} rəf mövqeyində yer alır — əvvəlcə rəf xəritəsindən çıxarın.`,
+      });
+    }
+    if (result.reason === 'NOT_DELETED') {
+      throw new HttpException(
+        'Məhsul silinə bilmədi — bazadan silinmədi, məhsul yerində qaldı.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    db.logAuditEvent({
+      entityType: 'product',
+      entityId: productId,
+      action: 'PRODUCT_DELETED',
+      actorId: principal.userId,
+    });
+
+    return { success: true, data: { id: productId } };
+  }
+
+  // -------------------------------------------------------------------------
+  // Shelf map writes (wave 1.3)
+  // -------------------------------------------------------------------------
+
+  async createShelfPosition(body: Record<string, any>, principal: AuthenticatedPrincipal) {
+    this.requireShelfEditor(principal);
+
+    const fields = this.readShelfFields(body, { requireAll: true });
+
+    const result = await db.createShelfPosition({
+      section: fields.section!,
+      level: fields.level!,
+      position: fields.position!,
+      productId: fields.product_id ?? undefined,
+    });
+
+    if (result.error === 'DUPLICATE_POSITION') {
+      throw new ConflictException({
+        error: 'SHELF_POSITION_TAKEN',
+        message: `"${fields.section}" bölməsində ${fields.level}. səviyyə / ${fields.position}. mövqe artıq doludur.`,
+      });
+    }
+    if (result.error === 'UNKNOWN_PRODUCT') {
+      throw new HttpException(
+        'Göndərdiyiniz məhsul kataloqda yoxdur — mövqe boş saxlanıldı.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    if (result.error || !result.slot) {
+      throw new HttpException(
+        'Rəf mövqesi yaradıla bilmədi — bazaya yazıla bilmədi, heç nə dəyişmədi.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    db.logAuditEvent({
+      entityType: 'shelf_position',
+      entityId: result.slot.id,
+      action: 'SHELF_POSITION_CREATED',
+      actorId: principal.userId,
+      payload: {
+        section: result.slot.section,
+        level: result.slot.level,
+        position: result.slot.position,
+      },
+    });
+
+    return { success: true, data: this.toPanelShelfPosition(result.slot) };
+  }
+
+  /** Applies an edit. Only the fields present in the body are touched. */
+  async updateShelfPosition(
+    slotId: string,
+    body: Record<string, any>,
+    principal: AuthenticatedPrincipal,
+  ) {
+    this.requireShelfEditor(principal);
+
+    const fields = this.readShelfFields(body, { requireAll: false });
+
+    if (Object.keys(fields).length === 0) {
+      throw new HttpException('Dəyişdiriləcək heç bir sahə göndərilmədi', HttpStatus.BAD_REQUEST);
+    }
+
+    const result = await db.updateShelfPosition(slotId, {
+      section: fields.section,
+      level: fields.level,
+      position: fields.position,
+      productId: fields.product_id,
+    });
+
+    if (result.error === 'NOT_FOUND') {
+      throw new NotFoundException({
+        error: 'SHELF_POSITION_NOT_FOUND',
+        message: 'Bu identifikatorla rəf mövqesi tapılmadı.',
+      });
+    }
+    if (result.error === 'DUPLICATE_POSITION') {
+      throw new ConflictException({
+        error: 'SHELF_POSITION_TAKEN',
+        message: 'Bu (bölmə, səviyyə, mövqe) artıq başqa məhsul tərəfindən tutulub.',
+      });
+    }
+    if (result.error === 'UNKNOWN_PRODUCT') {
+      throw new HttpException(
+        'Göndərdiyiniz məhsul kataloqda yoxdur — əvvəlki məlumatlar qüvvədə qaldı.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    if (result.error || !result.slot) {
+      throw new HttpException(
+        'Dəyişiklik yazıla bilmədi — əvvəlki məlumatlar qüvvədə qaldı.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    db.logAuditEvent({
+      entityType: 'shelf_position',
+      entityId: slotId,
+      action: 'SHELF_POSITION_UPDATED',
+      actorId: principal.userId,
+      payload: { changed: Object.keys(fields) },
+    });
+
+    return { success: true, data: this.toPanelShelfPosition(result.slot) };
+  }
+
+  async deleteShelfPosition(slotId: string, principal: AuthenticatedPrincipal) {
+    this.requireShelfEditor(principal);
+
+    const result = await db.deleteShelfPosition(slotId);
+
+    if (result.reason === 'NOT_FOUND') {
+      throw new NotFoundException({
+        error: 'SHELF_POSITION_NOT_FOUND',
+        message: 'Bu identifikatorla rəf mövqesi tapılmadı.',
+      });
+    }
+    if (result.reason === 'NOT_DELETED') {
+      throw new HttpException(
+        'Rəf mövqesi silinə bilmədi — bazadan silinmədi, mövqe yerində qaldı.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    db.logAuditEvent({
+      entityType: 'shelf_position',
+      entityId: slotId,
+      action: 'SHELF_POSITION_DELETED',
+      actorId: principal.userId,
+    });
+
+    return { success: true, data: { id: slotId } };
+  }
+
+  /**
+   * Reads the count off a request body — the same strictness as the layout
+   * reader: unknown keys REFUSED rather than ignored, because a body that is
+   * quietly half-applied is how a count ends up disagreeing with the shelf
+   * it claims to describe.
+   *
+   * Bounds: integer 0–999. 0 is a real answer (counted, absent); the cap
+   * exists because "4000 units on one slot" is a units/typo confusion, not a
+   * measurement, and a garbage number poisons every share it feeds.
+   */
+  private readCountUnits(body: Record<string, any>): number {
+    const allowed = new Set(['units']);
+    for (const key of Object.keys(body ?? {})) {
+      if (!allowed.has(key)) {
+        throw new HttpException(`Bilmədiyimiz sahə: "${key}"`, HttpStatus.BAD_REQUEST);
+      }
+    }
+
+    const raw = body?.units;
+    if (raw === undefined || raw === null) {
+      throw new HttpException('Sayım tələb olunur', HttpStatus.BAD_REQUEST);
+    }
+
+    const parsed =
+      typeof raw === 'number'
+        ? raw
+        : typeof raw === 'string' && /^\d+$/.test(raw.trim())
+          ? Number(raw.trim())
+          : Number.NaN;
+
+    if (!Number.isInteger(parsed) || parsed < 0 || parsed > 999) {
+      throw new HttpException(
+        'Sayım 0 ilə 999 arasında tam ədəd olmalıdır',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    return parsed;
+  }
+
+  /**
+   * Records a worker's count for one slot (wave 1.4).
+   *
+   * Deliberately OUTSIDE `requireShelfEditor`: counting is the worker action
+   * itself — a merchandiser who may not move the map must still be able to
+   * say how many units they see (shelf-count pins that split; shelf-crud
+   * pins the 403 on the layout side).
+   *
+   * The assignment check comes before the write, so counting an empty slot
+   * changes nothing — there is no product there to be present or missing.
+   */
+  async recordShelfCount(
+    slotId: string,
+    body: Record<string, any>,
+    principal: AuthenticatedPrincipal,
+  ) {
+    const units = this.readCountUnits(body);
+
+    const slot = db.getShelfPosition(slotId);
+    if (!slot) {
+      throw new NotFoundException({
+        error: 'SHELF_POSITION_NOT_FOUND',
+        message: 'Bu identifikatorla rəf mövqesi tapılmadı.',
+      });
+    }
+    if (!slot.productId) {
+      throw new HttpException(
+        {
+          error: 'SLOT_NOT_ASSIGNED',
+          message: 'Bu mövqeyə məhsul təyin olunmayıb — sayım mənasızdır.',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const result = await db.recordShelfCount(slotId, units);
+    if (result.error === 'NOT_FOUND') {
+      throw new NotFoundException({
+        error: 'SHELF_POSITION_NOT_FOUND',
+        message: 'Bu identifikatorla rəf mövqesi tapılmadı.',
+      });
+    }
+    if (result.error === 'NOT_STORED' || !result.slot) {
+      throw new HttpException(
+        'Sayım yaza bilmədi — bazaya yazılmadı, köhnə sayımda qaldı.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    db.logAuditEvent({
+      entityType: 'shelf_position',
+      entityId: slotId,
+      action: 'SHELF_COUNT_RECORDED',
+      actorId: principal.userId,
+      payload: { units },
+    });
+
+    return { success: true, data: this.toPanelShelfPosition(result.slot) };
+  }
+
   getTasks(): PanelTask[] {
     return db.storeTasks.map((task) => this.toPanelTask(task));
   }
@@ -862,6 +1571,42 @@ export class PortalService {
     const reasons: string[] = [];
     let score: number;
 
+    // ABSENT EVIDENCE IS NOT WEAK EVIDENCE — IT IS NO EVIDENCE.
+    //
+    // Scoring below starts from 100 and subtracts for signals that are weak. That
+    // is the wrong shape for a signal that is MISSING: a submission with no
+    // geofence reading, and one with a perfect 12m reading, both land on the
+    // same side of the threshold, and the missing one lands there more easily.
+    // `gpsDistanceMeters ?? 0` made "there was no location at all" indistinguishable
+    // from "the device was standing in the store" — so absent telemetry scored
+    // 100 while a genuine 60m capture scored 75.
+    //
+    // The two flags are what say the location cannot be believed:
+    //   locationMocked     — the device says "this fix is a lie" (Android mock)
+    //   locationUnverified — there was no fix at all (Telegram's skip button, or a
+    //                        declined permission prompt). The server then substitutes
+    //                        the store's own coordinates, which makes the geofence
+    //                        pass BY CONSTRUCTION — a 0m distance here is an artefact
+    //                        of that substitution, not a measurement.
+    //
+    // This mirrors `isAiAutoApproveEligible` in field.service.ts, which already
+    // refuses to auto-approve on either flag. The rule-based approver was the one
+    // path that consulted neither, so the channel that cannot prove where anyone
+    // was — Telegram — was the channel that never had to.
+    //
+    // Both cases are HELD for a human, not rejected: the evidence may well be
+    // fine, but nothing in the record proves it, and a supervisor can see why.
+    // `gpsDistanceMeters` is typed `number` and the DB writes the flags as NULL to
+    // mean "unknown", so a rehydrated record can arrive with neither a flag nor a
+    // distance. `?? 0` made that case indistinguishable from a perfect in-store
+    // capture, which is why the guard covers the missing reading as well as the
+    // two flags — not just the flags.
+    const locationIsCredible =
+      evidence.locationMocked !== true &&
+      evidence.locationUnverified !== true &&
+      typeof evidence.gpsDistanceMeters === 'number' &&
+      Number.isFinite(evidence.gpsDistanceMeters);
+
     if (typeof evidence.aiScore === 'number') {
       score = evidence.aiScore;
       reasons.push(`Mövcud AI balı istifadə olundu (${score})`);
@@ -872,8 +1617,13 @@ export class PortalService {
       if (distance > 50) {
         score -= 25;
         reasons.push(`Çəkiliş mağazadan ${Math.round(distance)} m aralıda aparılıb (−25)`);
-      } else {
+      } else if (locationIsCredible) {
         reasons.push(`Geolokasiya mağaza ərazisindədir (${Math.round(distance)} m)`);
+      } else {
+        // Say nothing about the distance here. Reporting "inside the geofence"
+        // for a fix that was mocked or substituted would put a false claim into
+        // the supervisor's audit trail, which is worse than reporting nothing.
+        reasons.push('Geolokasiya etibarlı deyil — məsafə qeydə alınmadı');
       }
 
       const answers = evidence.checklistAnswers ?? [];
@@ -892,7 +1642,10 @@ export class PortalService {
       score = Math.max(0, Math.min(100, score));
     }
 
-    const passed = score >= 70;
+    // A perfect score on telemetry that cannot be believed is not a pass. Force
+    // the verdict to `reject` with a stated reason rather than silently scoring,
+    // so the audit trail shows a held submission instead of a silent approval.
+    const passed = score >= 70 && locationIsCredible;
     const summary = `Qayda əsaslı yoxlama — bal ${score}/100. ` + reasons.join('; ') + '.';
 
     const decision = await this.reviewSubmission(

@@ -393,7 +393,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
               <b className="mb-2 block text-[12px] font-extrabold">Yeni adam</b>
               <div className="grid gap-2 sm:grid-cols-2">
                 <label className="block">
-                  <span className="mb-1 block text-[10.5px] font-bold uppercase tracking-[.06em] text-muted">
+                  <span className="mb-1 block text-xs font-bold uppercase tracking-[.06em] text-muted">
                     Ad və soyad *
                   </span>
                   <input
@@ -404,7 +404,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-[10.5px] font-bold uppercase tracking-[.06em] text-muted">
+                  <span className="mb-1 block text-xs font-bold uppercase tracking-[.06em] text-muted">
                     E-poçt (vacib deyil)
                   </span>
                   <input
@@ -415,7 +415,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-[10.5px] font-bold uppercase tracking-[.06em] text-muted">
+                  <span className="mb-1 block text-xs font-bold uppercase tracking-[.06em] text-muted">
                     Telefon (vacib deyil)
                   </span>
                   <input
@@ -426,7 +426,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-[10.5px] font-bold uppercase tracking-[.06em] text-muted">
+                  <span className="mb-1 block text-xs font-bold uppercase tracking-[.06em] text-muted">
                     Rol
                   </span>
                   <select
@@ -535,7 +535,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                       />
                     </div>
                     {ROLE_HELP[editDraft.role] && (
-                      <p className="mt-1.5 text-[10.5px] text-muted">{ROLE_HELP[editDraft.role]}</p>
+                      <p className="mt-1.5 text-[11px] text-muted">{ROLE_HELP[editDraft.role]}</p>
                     )}
                     <div className="mt-2 flex gap-2">
                       <button
@@ -573,14 +573,14 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                           </span>
                         )}
                       </div>
-                      <p className="mt-0.5 text-[10.5px] text-muted">
+                      <p className="mt-0.5 text-[11px] text-muted">
                         {user.email ?? 'E-poçt yoxdur'}
                         {user.phone ? ` · ${user.phone}` : ''}
                         {` · ${user.liveKeys} aktiv açar`}
                         {user.submissions !== null ? ` · ${user.submissions} təqdimat` : ''}
                       </p>
                       {!user.deletable && user.blockedBy && (
-                        <p className="mt-0.5 text-[10.5px] text-[#b23b3b]">
+                        <p className="mt-0.5 text-[11px] text-[#b23b3b]">
                           {BLOCK_REASON[user.blockedBy]}
                         </p>
                       )}
@@ -647,7 +647,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
           </div>
         )}
 
-        <p className="mt-3 text-[10.5px] leading-relaxed text-muted">
+        <p className="mt-3 text-[11px] leading-relaxed text-muted">
           Hesab silindikdə onun bütün açarları da silinir və keçmiş əməliyyatları audit jurnalında
           adsız qalır. Audit təqdimatı olan şəxs silinmir — ona görə də silmək əvəzinə açarlarını
           kəsmək tövsiyə olunur.

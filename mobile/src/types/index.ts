@@ -62,6 +62,18 @@ export interface GPSCoordinates {
   longitude: number;
   accuracy?: number; // in meters
   /**
+   * When the fix was taken, as an ISO-8601 instant.
+   *
+   * `accuracy` bounds the fix horizontally and `mocked` says whether it is real,
+   * but neither says how OLD it is. Without this the server had a pair of
+   * numbers it could not date — a fix acquired once could be replayed hours
+   * later — and it refuses a submission whose fix is older than a few minutes.
+   * `expo-location` reports this as `timestamp`; it is optional because older
+   * cached reads may not carry it, and the server treats its absence as "cannot
+   * prove this is current" rather than "assume it is".
+   */
+  timestamp?: number;
+  /**
    * Whether the platform reported this fix as a MOCK location.
    *
    * `expo-location` sets this on Android when a fake-GPS app produced the fix; on
