@@ -300,15 +300,19 @@ export class FieldController {
   @HttpCode(HttpStatus.CREATED)
   async submitSubmission(@Request() request: AuthedRequest, @Body() body: any) {
     // The scope check is the point of this line; the key itself already came
-    // from the body, so nothing needs merging back into it.
-    enforceActorScope(getPrincipal(request), requireActorKey(actorKeyFrom(body)));
+    // from the body, so nothing needs merging back into it. The principal is
+    // carried through so the service can tell the bot's service credential
+    // (which may supply a trusted AI verdict) from a field device (which may
+    // not) — see `submitSubmission`'s `aiScore` note.
+    const principal = getPrincipal(request);
+    enforceActorScope(principal, requireActorKey(actorKeyFrom(body)));
     if (!body?.storeTaskId) {
       throw new BadRequestException('storeTaskId tələb olunur');
     }
     if (!body?.photoUrl) {
       throw new BadRequestException('photoUrl tələb olunur');
     }
-    return this.fieldService.submitSubmission(body);
+    return this.fieldService.submitSubmission(body, principal);
   }
 
   /**

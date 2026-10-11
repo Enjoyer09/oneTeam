@@ -55,6 +55,10 @@ services:
       # No default. See the header: a silent, well-known password is a bug.
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - copy .env.production.example to .env.production and set it}
       POSTGRES_DB: ${POSTGRES_DB:-oneteam}
+      # Demo data is OPT-IN. Unset (the default) means a production database is
+      # seeded with the schema and NOTHING else. Set ONETEAM_SEED_DEMO=1 only to
+      # bring up a demo/test database with sample users, stores and tasks.
+      ONETEAM_SEED_DEMO: ${ONETEAM_SEED_DEMO:-}
     # ------------------------------------------------------------------------
     # The database is NOT published to the host by default.
     # ------------------------------------------------------------------------
@@ -87,8 +91,14 @@ services:
       # different product (profiles / tasks / task_assignments / submissions)
       # and both files declare a `stores` table, so they cannot share a
       # database. See db/api-schema.sql for the full explanation.
+      #
+      # The demo seed is NOT mounted as a runnable *.sql file — that would load
+      # demo users/stores/tasks into this production database on first boot.
+      # Instead the SQL is mounted out of the init path and loaded by
+      # 02-seed.sh only when ONETEAM_SEED_DEMO is set (see above).
       - ./db/api-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-      - ./db/api-seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./db/api-seed.sql:/opt/oneteam/demo-seed.sql:ro
+      - ./db/seed-if-demo.sh:/docker-entrypoint-initdb.d/02-seed.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-oneteam}"]
       interval: 10s
