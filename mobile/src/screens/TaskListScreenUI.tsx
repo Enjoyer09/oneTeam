@@ -26,6 +26,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import type { MobileTask, MobileStore } from '../types';
 import { buildSyncMessage } from '../services/syncMessage';
@@ -71,6 +72,29 @@ export function TaskListScreenUI({
     } catch {
       setPendingSync(0);
     }
+  };
+
+  // Logout confirms first, and warns when audits are still unsent — signing out
+  // drops the credential, and on a shared/handed-on phone the next worker must
+  // not inherit this session. The unsent audits are KEPT on the device (they
+  // are evidence tied to their store and drain when someone re-enrols), so the
+  // warning is about visibility, not loss.
+  const handleLogoutPress = () => {
+    let pending = 0;
+    try {
+      pending = offlineQueueService.getPendingCount();
+    } catch {
+      pending = 0;
+    }
+    const message =
+      pending > 0
+        ? `Çıxış etsəniz, bu cihaza yenidən mağaza kodu ilə daxil olmaq lazım olacaq. ` +
+          `Göndərilməmiş ${pending} audit cihazda qalır və növbəti girişdə göndərilə bilər.`
+        : `Çıxış etsəniz, bu cihaza yenidən mağaza kodu ilə daxil olmaq lazım olacaq.`;
+    Alert.alert('Çıxış edilsin?', message, [
+      { text: 'İmtina', style: 'cancel' },
+      { text: 'Çıxış', style: 'destructive', onPress: onLogout },
+    ]);
   };
 
   const load = async () => {
@@ -173,7 +197,7 @@ export function TaskListScreenUI({
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={onLogout}
+          onPress={handleLogoutPress}
           accessibilityRole="button"
           accessibilityLabel="Çıxış"
           style={styles.logoutButton}

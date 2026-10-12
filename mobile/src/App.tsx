@@ -4,7 +4,7 @@ import { CameraAuditController } from './screens/CameraAuditScreen';
 import { AuditHistoryController } from './screens/AuditHistoryScreen';
 import { offlineQueueService } from './services/offlineQueue';
 import type { DrainResult } from './services/offlineQueue';
-import { mobileApi, restoreCredential } from './services/portalApi';
+import { mobileApi, restoreCredential, forgetCredential } from './services/portalApi';
 import { MobileStore, MobileTask, GPSCoordinates } from './types';
 
 export class MobileAppCoordinator {
@@ -74,6 +74,23 @@ export class MobileAppCoordinator {
   async clearLocalData(): Promise<{ queuedItemsCleared: number }> {
     const queuedItemsCleared = await offlineQueueService.clearQueue();
     return { queuedItemsCleared };
+  }
+
+  /**
+   * Signs the worker out: drops the stored credential so the next person on this
+   * device must enrol again.
+   *
+   * Clears the CREDENTIAL only, not the device identity or the offline queue.
+   * Dropping the credential is what makes this a real sign-out on a shared or
+   * handed-on phone — before this, "logout" only changed the screen while the
+   * keychain token stayed, so the next person inherited the last worker's
+   * access. The device identity is kept (losing it spends the store's
+   * new-device allowance and orphans history), and unsent queued audits are
+   * kept rather than destroyed — they are field evidence tied to their store,
+   * and the caller warns about them instead of silently wiping them.
+   */
+  async signOut(): Promise<void> {
+    await forgetCredential();
   }
 
   /**

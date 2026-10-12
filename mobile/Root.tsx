@@ -321,7 +321,10 @@ export function Root() {
   }, []);
 
   const handleLogout = useCallback(() => {
-    setScreen({ name: 'login' });
+    // Drop the credential first (a real sign-out), then return to login. The
+    // confirmation lives on the button in TaskListScreenUI, which also warns
+    // about any unsent audits before this runs. signOut never throws.
+    void mobileApp.signOut().finally(() => setScreen({ name: 'login' }));
   }, []);
 
   // Render the current screen

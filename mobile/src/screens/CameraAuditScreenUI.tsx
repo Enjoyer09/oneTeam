@@ -179,6 +179,9 @@ export function CameraAuditScreenUI({
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<string | null>(null);
+  // Coarse upload progress ("Şəkil yüklənir…" then "Audit göndərilir…") so a
+  // multi-second upload reads as progress, not a hang. Cleared when done.
+  const [submitPhase, setSubmitPhase] = useState<string | null>(null);
 
   const cameraRef = useRef<CameraView | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
@@ -376,6 +379,8 @@ export function CameraAuditScreenUI({
         metadata: captured.metadata,
         base64: captured.base64,
         idempotencyKey: captured.idempotencyKey,
+        onProgress: (phase) =>
+          setSubmitPhase(phase === 'uploading' ? 'Şəkil yüklənir…' : 'Audit göndərilir…'),
       });
       if (result.status === 'uploaded') {
         setSubmitResult('✅ Audit uğurla göndərildi');
@@ -388,6 +393,7 @@ export function CameraAuditScreenUI({
       Alert.alert('Göndərmə alınmadı', e instanceof Error ? e.message : String(e));
     } finally {
       setSubmitting(false);
+      setSubmitPhase(null);
     }
   }, [controller, captured]);
 
@@ -716,7 +722,12 @@ export function CameraAuditScreenUI({
         </View>
       ) : (
         <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.retakeButton} onPress={handleRetake}>
+          <TouchableOpacity
+            style={styles.retakeButton}
+            onPress={handleRetake}
+            accessibilityRole="button"
+            accessibilityLabel="Yenidən çək"
+          >
             <Text style={styles.retakeButtonText}>🔄 Yenidən çək</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -726,9 +737,15 @@ export function CameraAuditScreenUI({
               void handleSubmit();
             }}
             disabled={submitting}
+            accessibilityRole="button"
+            accessibilityLabel="Auditi göndər"
+            accessibilityState={{ disabled: submitting, busy: submitting }}
           >
             {submitting ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <View style={styles.submitBusyRow}>
+                <ActivityIndicator color="#FFFFFF" />
+                {submitPhase ? <Text style={styles.submitButtonText}>{submitPhase}</Text> : null}
+              </View>
             ) : (
               <Text style={styles.submitButtonText}>📤 Göndər</Text>
             )}
@@ -741,7 +758,12 @@ export function CameraAuditScreenUI({
   return (
     <View style={styles.screen}>
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity onPress={onCancel} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={onCancel}
+          style={styles.backButton}
+          accessibilityRole="button"
+          accessibilityLabel="Ləğv et və geri qayıt"
+        >
           <Text style={styles.backButtonText}>← Ləğv et</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
@@ -1071,6 +1093,11 @@ const styles = StyleSheet.create({
   },
   submitButtonDisabled: {
     opacity: 0.5,
+  },
+  submitBusyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   submitButtonText: {
     fontSize: 16,

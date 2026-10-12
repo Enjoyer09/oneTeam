@@ -204,6 +204,14 @@ export class CameraAuditController {
     metadata: AuditMetadata;
     base64?: string;
     idempotencyKey?: string;
+    /**
+     * Coarse progress for the UI. The two online calls (upload the photo, then
+     * file the audit) each have a 20s timeout, so without this the worker sees a
+     * bare spinner for up to ~40s and cannot tell progress from a hang. `fetch`
+     * in RN has no byte-level upload progress, so the honest signal is which
+     * step is running, not a percentage.
+     */
+    onProgress?: (phase: 'uploading' | 'filing') => void;
   }): Promise<{
     status: 'uploaded' | 'queued_offline';
     submission?: MobileSubmission;
@@ -245,12 +253,14 @@ export class CameraAuditController {
       // to a `data:` URL. When there is no capture at all it throws rather than
       // inventing one — see mobileApi.uploadPhoto. The `fileName` directory
       // becomes the upload scope.
+      params.onProgress?.('uploading');
       const { photoUrl, origin } = await mobileApi.uploadPhoto({
         base64: params.base64,
         fileName: `audits/${this.store.id}/${this.task.id}_${Date.now()}.jpg`,
         placeholder: params.base64 === undefined,
       });
 
+      params.onProgress?.('filing');
       const submission = await mobileApi.submitAudit({
         taskId: this.task.id,
         storeId: this.store.id,
