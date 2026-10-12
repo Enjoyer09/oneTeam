@@ -34,8 +34,13 @@ COPY packages/types/package*.json ./packages/types/
 COPY packages/database/package*.json ./packages/database/
 COPY apps/api/package*.json ./apps/api/
 
-# Install all workspace dependencies
-RUN npm install
+# Install all workspace dependencies.
+#
+# `npm ci`, not `npm install`: ci installs exactly what package-lock.json pins
+# and fails loudly if the lockfile is out of sync, so the image is built from
+# the same dependency tree that was reviewed. `npm install` can quietly mutate
+# resolution, which is the one thing a production build must not do.
+RUN npm ci
 
 # ------------------------------------------------------------------------------
 # Link the workspace packages BEFORE anything tries to resolve @oneteam/*
@@ -107,6 +112,20 @@ COPY apps/api/package*.json ./apps/api/
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
+
+# ------------------------------------------------------------------------------
+# Drop devDependencies from the runtime image.
+# ------------------------------------------------------------------------------
+# The builder installs the full tree (it needs typescript/tsx and @types to
+# compile), and the line above copies that tree wholesale — so without this the
+# production image shipped the TypeScript compiler and the rest of the dev
+# toolchain, bloating it and putting a compiler in the runtime attack surface.
+# `npm prune --omit=dev` removes the devDependencies in place; the workspace
+# packages (@oneteam/types, @oneteam/database) are declared workspaces, not
+# extraneous, so their symlinks survive. NODE_ENV=production (set above) makes
+# the omit the default, but it is named explicitly so the intent does not depend
+# on an env var. The bot image already does the equivalent.
+RUN npm prune --omit=dev
 
 # ------------------------------------------------------------------------------
 # The schema, migrations and seed data — and this line is not optional
