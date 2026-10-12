@@ -430,6 +430,56 @@ export async function updateStoreTaskRow(pool: Pool, task: InMemoryStoreTask): P
 }
 
 /**
+ * Persists a state transition ONLY if the row is still in the state the caller
+ * decided from — optimistic concurrency for the one write that two replicas can
+ * race on.
+ *
+ * The in-memory read-validate-write in `transitionTask` is synchronous and safe
+ * within one process, but across replicas the refresh window means replica B can
+ * still see SUBMITTED after replica A has written APPROVED/REJECTED. A plain
+ * `WHERE id` UPDATE would then let B's stale decision clobber A's — a rejected
+ * audit silently flipped to approved. The extra `AND status = $11` makes B's
+ * write affect zero rows instead; the returned count lets the caller log the
+ * conflict, and B's own snapshot is corrected on its next refresh. On the
+ * single-replica deployment this always matches (the expected state is the one
+ * just read), so it is a no-op there and a safety net the day a second replica
+ * runs.
+ */
+export async function updateStoreTaskStateConditional(
+  pool: Pool,
+  task: InMemoryStoreTask,
+  expectedPreviousStatus: string,
+): Promise<number> {
+  const result = await pool.query(
+    `UPDATE store_tasks
+        SET status = $2,
+            published_at = $3,
+            delivered_at = $4,
+            acknowledged_at = $5,
+            submitted_at = $6,
+            reviewed_at = $7,
+            updated_at = $8,
+            assigned_user_id = $9,
+            deadline = $10
+      WHERE id = $1 AND status = $11`,
+    [
+      task.id,
+      task.status,
+      task.publishedAt ?? null,
+      task.deliveredAt ?? null,
+      task.acknowledgedAt ?? null,
+      task.submittedAt ?? null,
+      task.reviewedAt ?? null,
+      task.updatedAt,
+      task.assignedUserId ?? null,
+      task.deadline,
+      expectedPreviousStatus,
+    ],
+  );
+  return result.rowCount ?? 0;
+}
+
+/**
  * Inserts a task template created from the web panel.
  *
  * The panel authors a briefing (title, description, reference image, priority)
@@ -1887,10 +1937,38 @@ export async function insertNotification(
  * at-most-once. A lost notification is the bug this table exists to fix, so
  * erring towards a duplicate is deliberate.
  */
+/**
+ * How many times a notification may be leased without being delivered or
+ * explicitly failed before it is dead-lettered. A message the bot keeps
+ * choking on (a transient-looking error it never reports via
+ * `markNotificationFailed`) would otherwise be re-leased every lease window
+ * forever — a queue that never drains and a log nobody reads. The cap turns
+ * that into a terminal, visible failure.
+ */
+export const MAX_NOTIFICATION_ATTEMPTS = 5;
+
 export async function claimNotifications(
   pool: Pool,
   options: { chatId?: string | null; limit?: number; claimedBy: string; leaseSeconds: number },
 ): Promise<NotificationRow[]> {
+  // Dead-letter poison messages before claiming. A row leased
+  // MAX_NOTIFICATION_ATTEMPTS times that is still neither delivered nor failed
+  // is one no retry is fixing; mark it failed so it stops being re-leased and
+  // shows up as terminal rather than silently cycling. `attempts` is bumped on
+  // every claim below, so this reads the count from prior polls.
+  await pool.query(
+    `UPDATE notifications
+        SET failed_at = now(),
+            failure = COALESCE(
+              failure,
+              'dead-lettered after ' || attempts || ' delivery attempts with no success'
+            )
+      WHERE delivered_at IS NULL
+        AND failed_at IS NULL
+        AND attempts >= $1`,
+    [MAX_NOTIFICATION_ATTEMPTS],
+  );
+
   const result = await pool.query(
     `UPDATE notifications
         SET claimed_at = now(),
@@ -1901,6 +1979,7 @@ export async function claimNotifications(
                 FROM notifications
                WHERE delivered_at IS NULL
                  AND failed_at IS NULL
+                 AND attempts < $5
                  AND chat_id IS NOT NULL
                  AND ($1::text IS NULL OR chat_id = $1)
                  AND (claimed_at IS NULL
@@ -1910,7 +1989,13 @@ export async function claimNotifications(
                FOR UPDATE SKIP LOCKED
             )
       RETURNING *`,
-    [options.chatId ?? null, options.limit ?? 20, options.claimedBy, options.leaseSeconds],
+    [
+      options.chatId ?? null,
+      options.limit ?? 20,
+      options.claimedBy,
+      options.leaseSeconds,
+      MAX_NOTIFICATION_ATTEMPTS,
+    ],
   );
 
   return result.rows.map(toNotification);

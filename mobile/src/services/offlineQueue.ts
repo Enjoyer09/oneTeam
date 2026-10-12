@@ -271,8 +271,8 @@ export class OfflineQueueManager {
   // Wiring
   // -------------------------------------------------------------------------
 
-  setOnQueueChange(listener: (count: number) => void) {
-    this.onQueueChangeListener = listener;
+  setOnQueueChange(listener: ((count: number) => void) | null) {
+    this.onQueueChangeListener = listener ?? undefined;
   }
 
   /**
@@ -550,6 +550,13 @@ export class OfflineQueueManager {
     photoUri: string;
     photoBase64?: string;
     metadata: AuditMetadata;
+    /**
+     * The server idempotency key the capture already owns. Pass it so a drain of
+     * this item files under the same key an earlier online attempt used — see
+     * QueueItem.idempotency_key. Omitted for a plain offline capture, where the
+     * drain keys on the item id.
+     */
+    idempotencyKey?: string;
   }): Promise<QueueItem> {
     await this.ensureLoaded();
 
@@ -563,6 +570,7 @@ export class OfflineQueueManager {
       created_at: new Date().toISOString(),
       retry_count: 0,
       sync_status: 'queued',
+      idempotency_key: params.idempotencyKey,
     };
 
     const next = [...this.queue, queueItem];
@@ -734,6 +742,24 @@ export class OfflineQueueManager {
     await this.persist();
     this.notifyChange();
     return cleared;
+  }
+
+  /**
+   * Removes ONE item from the queue — the per-audit "discard" the history screen
+   * offers when a worker decides a stuck capture should not be resent (e.g. an
+   * item parked at the retry cap, or one whose photo bytes are gone). Returns
+   * true if an item was removed. Clears the whole queue is the blunt version;
+   * this is the surgical one, so a worker never has to drop everything to drop
+   * one.
+   */
+  async discardItem(id: string): Promise<boolean> {
+    await this.ensureLoaded();
+    const before = this.queue.length;
+    this.queue = this.queue.filter((item) => item.id !== id);
+    if (this.queue.length === before) return false;
+    await this.persist();
+    this.notifyChange();
+    return true;
   }
 
   private notifyChange() {

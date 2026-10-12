@@ -16,8 +16,14 @@
 #  tries to read it, which is a confusing place to start debugging.
 #
 #  ORDER MATTERS. The init directory is executed in lexical order, so the
-#  schema is numbered 01 and the seed data 02. Reversing them would try to
+#  schema is numbered 01 and the seed loader 02. Reversing them would try to
 #  insert rows into tables that do not exist yet.
+#
+#  THE DEMO SEED IS OPT-IN. db/api-seed.sql is demo data (named users, stores,
+#  tasks). It is NOT mounted as a runnable *.sql file, because the init hook
+#  would then load it into every fresh database — production included. Instead
+#  it is copied to /opt/oneteam/demo-seed.sql and loaded by 02-seed.sh ONLY
+#  when ONETEAM_SEED_DEMO is set. A production database gets the schema alone.
 #
 #  NOTE: init scripts run ONLY when the volume is empty. Changing these files
 #  and redeploying will NOT re-apply them to an existing volume — the volume
@@ -40,8 +46,9 @@
 
 FROM postgres:16-alpine
 
-COPY db/api-schema.sql /docker-entrypoint-initdb.d/01-schema.sql
-COPY db/api-seed.sql   /docker-entrypoint-initdb.d/02-seed.sql
+COPY db/api-schema.sql   /docker-entrypoint-initdb.d/01-schema.sql
+COPY db/api-seed.sql     /opt/oneteam/demo-seed.sql
+COPY db/seed-if-demo.sh  /docker-entrypoint-initdb.d/02-seed.sh
 
 # The base image already declares VOLUME /var/lib/postgresql/data and the
 # matching entrypoint, so nothing else is needed here.

@@ -18,6 +18,7 @@ import {
   Delete,
   Param,
   Body,
+  Query,
   HttpCode,
   HttpStatus,
   Request,
@@ -165,8 +166,8 @@ export class PortalController {
   }
 
   @Get('submissions')
-  getSubmissions() {
-    const data = this.portalService.getSubmissions();
+  getSubmissions(@Query('limit') limit?: string) {
+    const data = this.portalService.getSubmissions(limit ? Number(limit) : undefined);
     return { success: true, data, total: data.length };
   }
 

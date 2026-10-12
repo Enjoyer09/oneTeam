@@ -46,13 +46,18 @@ const uploadQueuedAudit: UploadHandler = async (item) => {
     gps: item.metadata.gps,
     distanceFromStoreMeters: item.metadata.distance_from_store_meters,
     metadata: item.metadata,
-    // The queue item's ID is the idempotency key for this drain.
+    // The idempotency key for this drain.
     //
     // A drain that crashes halfway through or times out on the wire may have
     // already filed this audit with the API. When the worker taps sync again,
     // or when the reconnection listener fires, this key makes the server
     // return the evidence it already created instead of filing a duplicate.
-    idempotencyKey: item.id,
+    //
+    // Prefer the capture's own key when the item carries one: an item queued as
+    // a fallback after an online submit failed must file under the SAME key that
+    // online attempt sent, or a POST that actually landed would be duplicated
+    // here. A plain offline capture has no such key, so the item id stands in.
+    idempotencyKey: item.idempotency_key ?? item.id,
   });
 
   return { photoUrl, submissionId: submission.id };
@@ -113,5 +118,16 @@ export class AuditHistoryController {
    */
   async triggerManualSync() {
     return offlineQueueService.processQueue(uploadQueuedAudit, { manual: true });
+  }
+
+  /**
+   * Drops one queued audit the worker has decided not to resend — a stuck item
+   * at the retry cap, or one whose photo bytes are gone (`CAPTURE_NOT_AVAILABLE`).
+   * Returns true if it was removed, so the UI can tell "discarded" from "already
+   * gone". The whole-queue clear still exists; this is the per-item version so a
+   * worker never drops everything to drop one.
+   */
+  async discardQueuedAudit(id: string): Promise<boolean> {
+    return offlineQueueService.discardItem(id);
   }
 }

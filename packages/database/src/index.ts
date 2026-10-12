@@ -683,6 +683,62 @@ export class EnterpriseDatabase {
     actorId?: string;
     payload?: any;
   }): InMemoryAuditLog {
+    const entry = this.buildAuditEntry(params);
+    this.auditLogs.push(entry);
+    if (this.pool) this.persist((pool) => pg.insertAuditLog(pool, entry), `audit ${entry.id}`);
+    return entry;
+  }
+
+  /**
+   * Records an audit event and AWAITS its database write.
+   *
+   * `logAuditEvent` fires the insert and returns; a transient DB error is only
+   * console.error'd, after the request has already answered. That is fine for
+   * ordinary state-change entries, but the anti-fraud trail — a geofence
+   * rejection, a mock-location flag, a supervisor's override of that hold — is
+   * the record the platform exists to keep, so it must not be lost silently
+   * after a 200. This waits for the write within the request's lifetime so a
+   * failure is observed while it still means something; it never throws (the
+   * in-memory entry is already recorded, and an audit-write hiccup must not turn
+   * a clean rejection into a 500), it logs loudly instead.
+   */
+  public async logAuditEventDurable(params: {
+    entityType: string;
+    entityId: string;
+    action: string;
+    fromState?: string;
+    toState?: string;
+    actorId?: string;
+    payload?: any;
+  }): Promise<InMemoryAuditLog> {
+    const entry = this.buildAuditEntry(params);
+    this.auditLogs.push(entry);
+    if (this.pool) {
+      try {
+        await this.enqueue(
+          (pool) => pg.insertAuditLog(pool, entry),
+          `audit ${entry.id} (security)`,
+        );
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        console.error(
+          `⛔ [oneTeam DB] Security audit event ${entry.action} (${entry.id}) failed to ` +
+            `persist: ${reason}. The in-memory copy is kept; the row is NOT in the database.`,
+        );
+      }
+    }
+    return entry;
+  }
+
+  private buildAuditEntry(params: {
+    entityType: string;
+    entityId: string;
+    action: string;
+    fromState?: string;
+    toState?: string;
+    actorId?: string;
+    payload?: any;
+  }): InMemoryAuditLog {
     const entry: InMemoryAuditLog = {
       id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
       entityType: params.entityType,
@@ -694,8 +750,6 @@ export class EnterpriseDatabase {
       payload: params.payload,
       createdAt: new Date(),
     };
-    this.auditLogs.push(entry);
-    if (this.pool) this.persist((pool) => pg.insertAuditLog(pool, entry), `audit ${entry.id}`);
     return entry;
   }
 
@@ -2533,7 +2587,11 @@ export class EnterpriseDatabase {
     return task;
   }
 
-  public updateTaskState(taskId: string, newState: TaskState): InMemoryStoreTask | null {
+  public updateTaskState(
+    taskId: string,
+    newState: TaskState,
+    expectedPreviousStatus?: TaskState,
+  ): InMemoryStoreTask | null {
     const task = this.getTask(taskId);
     if (!task) return null;
 
@@ -2548,8 +2606,29 @@ export class EnterpriseDatabase {
       task.reviewedAt = new Date();
     }
 
-    if (this.pool)
-      this.persist((pool) => pg.updateStoreTaskRow(pool, task), `task ${task.id} state`);
+    if (this.pool) {
+      // When the caller tells us the state it decided from, persist the
+      // transition conditionally so a concurrent replica cannot clobber a
+      // decision we have not seen yet (see updateStoreTaskStateConditional). A
+      // zero-row result is a real conflict: log it and let the next refresh
+      // reconcile this replica's snapshot. Without an expected state (callers
+      // that are not a validated transition) fall back to the plain write.
+      if (expectedPreviousStatus !== undefined) {
+        const expected = expectedPreviousStatus;
+        this.persist(async (pool) => {
+          const updated = await pg.updateStoreTaskStateConditional(pool, task, expected);
+          if (updated === 0) {
+            console.error(
+              `⛔ [oneTeam DB] State transition conflict on task ${task.id}: expected ` +
+                `prior state ${expected} was no longer in the database, so ${newState} was ` +
+                `not written. A concurrent writer won; this replica will reconcile on refresh.`,
+            );
+          }
+        }, `task ${task.id} state`);
+      } else {
+        this.persist((pool) => pg.updateStoreTaskRow(pool, task), `task ${task.id} state`);
+      }
+    }
 
     return task;
   }

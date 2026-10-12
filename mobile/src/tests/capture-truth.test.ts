@@ -765,12 +765,24 @@ const MUTATIONS: Mutation[] = [
   {
     rule: 'camera-asks-for-base64',
     how: 'takePictureAsync stops asking for base64',
-    apply: (s) => replaceIn(s, 'cameraScreen', /\bbase64\s*:\s*true/, 'base64: false'),
+    // Targets takePictureAsync's own `base64: true` specifically. The capture
+    // path now also recompresses to base64 (saveAsync in the downscale step), so
+    // a bare first-match replace would flip that occurrence instead and leave
+    // takePictureAsync's intact — a mutation that proves nothing.
+    apply: (s) =>
+      replaceIn(
+        s,
+        'cameraScreen',
+        /(takePictureAsync\s*\(\s*\{[^}]*\bbase64\s*:\s*)true/,
+        '$1false',
+      ),
   },
   {
     rule: 'camera-passes-the-bytes-on',
     how: 'the bytes are not handed to captureLiveAudit',
-    apply: (s) => replaceIn(s, 'cameraScreen', /\n\s*base64:\s*shot\.base64,/, '\n'),
+    // The bytes handed on are the downscaled copy (`sendBase64`), which falls
+    // back to the raw `shot.base64` if the resize fails — see downscaleCapture.
+    apply: (s) => replaceIn(s, 'cameraScreen', /\n\s*base64:\s*sendBase64,/, '\n'),
   },
   {
     rule: 'camera-refuses-a-byte-less-capture',

@@ -204,6 +204,14 @@ export class CameraAuditController {
     metadata: AuditMetadata;
     base64?: string;
     idempotencyKey?: string;
+    /**
+     * Coarse progress for the UI. The two online calls (upload the photo, then
+     * file the audit) each have a 20s timeout, so without this the worker sees a
+     * bare spinner for up to ~40s and cannot tell progress from a hang. `fetch`
+     * in RN has no byte-level upload progress, so the honest signal is which
+     * step is running, not a percentage.
+     */
+    onProgress?: (phase: 'uploading' | 'filing') => void;
   }): Promise<{
     status: 'uploaded' | 'queued_offline';
     submission?: MobileSubmission;
@@ -221,44 +229,77 @@ export class CameraAuditController {
         photoUri: params.photoUri,
         photoBase64: params.base64,
         metadata: params.metadata,
+        idempotencyKey: params.idempotencyKey,
       });
 
       return { status: 'queued_offline', queueItem };
     }
 
     try {
-      const ack = await mobileApi.acknowledgeTask(this.task.id);
-      if (ack.advanced) {
-        console.log(`[oneTeam Mobile] Task ${this.task.id} -> ${ack.currentState} (acknowledged)`);
+      try {
+        const ack = await mobileApi.acknowledgeTask(this.task.id);
+        if (ack.advanced) {
+          console.log(
+            `[oneTeam Mobile] Task ${this.task.id} -> ${ack.currentState} (acknowledged)`,
+          );
+        }
+      } catch (error) {
+        const detail = error instanceof MobileApiError ? error.message : String(error);
+        console.error(`[oneTeam Mobile] Acknowledge failed for ${this.task.id}:`, detail);
       }
+
+      // A real capture goes straight to the bucket via a presigned URL and this
+      // gets back the `publicUrl`; with no bucket (or a failed PUT) it falls back
+      // to a `data:` URL. When there is no capture at all it throws rather than
+      // inventing one — see mobileApi.uploadPhoto. The `fileName` directory
+      // becomes the upload scope.
+      params.onProgress?.('uploading');
+      const { photoUrl, origin } = await mobileApi.uploadPhoto({
+        base64: params.base64,
+        fileName: `audits/${this.store.id}/${this.task.id}_${Date.now()}.jpg`,
+        placeholder: params.base64 === undefined,
+      });
+
+      params.onProgress?.('filing');
+      const submission = await mobileApi.submitAudit({
+        taskId: this.task.id,
+        storeId: this.store.id,
+        photoUrl,
+        photoOrigin: origin,
+        gps: params.metadata.gps,
+        distanceFromStoreMeters: params.metadata.distance_from_store_meters,
+        metadata: params.metadata,
+        idempotencyKey: params.idempotencyKey,
+      });
+
+      return { status: 'uploaded', submission };
     } catch (error) {
+      // We believed we were online, but the upload or the submit failed — a
+      // signal that dropped mid-send, a timeout where the POST may never have
+      // landed, a bucket error, or a stale "online" flag whose listener had not
+      // fired yet. The capture must NOT be lost here: a worker who then backs
+      // out of the screen would lose field evidence in exactly the flaky-signal
+      // store this app is built for. So fall back to the same durable queue an
+      // offline capture uses. The idempotency key is carried through, so if the
+      // submit DID land, the later drain files under the same key and the server
+      // returns the existing evidence instead of a duplicate (see
+      // QueueItem.idempotency_key and uploadQueuedAudit).
       const detail = error instanceof MobileApiError ? error.message : String(error);
-      console.error(`[oneTeam Mobile] Acknowledge failed for ${this.task.id}:`, detail);
+      console.warn(
+        `[oneTeam Mobile] Online submit failed for ${this.task.id}; queuing locally instead:`,
+        detail,
+      );
+      const queueItem = await offlineQueueService.enqueueSubmission({
+        taskId: this.task.id,
+        storeId: this.store.id,
+        photoUri: params.photoUri,
+        photoBase64: params.base64,
+        metadata: params.metadata,
+        idempotencyKey: params.idempotencyKey,
+      });
+
+      return { status: 'queued_offline', queueItem };
     }
-
-    // A real capture goes straight to the bucket via a presigned URL and this
-    // gets back the `publicUrl`; with no bucket (or a failed PUT) it falls back
-    // to a `data:` URL. When there is no capture at all it throws rather than
-    // inventing one — see mobileApi.uploadPhoto. The `fileName` directory
-    // becomes the upload scope.
-    const { photoUrl, origin } = await mobileApi.uploadPhoto({
-      base64: params.base64,
-      fileName: `audits/${this.store.id}/${this.task.id}_${Date.now()}.jpg`,
-      placeholder: params.base64 === undefined,
-    });
-
-    const submission = await mobileApi.submitAudit({
-      taskId: this.task.id,
-      storeId: this.store.id,
-      photoUrl,
-      photoOrigin: origin,
-      gps: params.metadata.gps,
-      distanceFromStoreMeters: params.metadata.distance_from_store_meters,
-      metadata: params.metadata,
-      idempotencyKey: params.idempotencyKey,
-    });
-
-    return { status: 'uploaded', submission };
   }
 }
 

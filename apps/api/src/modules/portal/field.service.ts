@@ -52,7 +52,10 @@ import { EvidenceService } from '../evidences/evidence.service';
 import { TaskStateService } from '../tasks/task-state.service';
 import { isFixFresh, MAX_FIX_AGE_MS } from './gps-freshness';
 import { StorageService } from '../storage/storage.service';
-import { AuthenticatedPrincipal } from '../../common/auth/authenticated-principal';
+import {
+  AuthenticatedPrincipal,
+  mayActAsAnotherUser,
+} from '../../common/auth/authenticated-principal';
 
 /** Largest photo accepted as a data URL. See the note in submitSubmission. */
 const MAX_PHOTO_BYTES = 1_500_000;
@@ -862,6 +865,13 @@ export class FieldService {
    * states are excluded because there is nothing left to do. Everything in
    * between is work in progress and stays visible, which is what makes a task
    * disappear from the bot at the right moment rather than never.
+   *
+   * NOTE: this returns the store's whole open list, not just the caller's own
+   * assigned tasks. That is deliberate — a field client browses its store's work
+   * and claims a task on open (`claimStoreTask`), so a task pre-assigned to
+   * another merchandiser must still be visible to be taken on. Scoping this to
+   * the caller is tracked as a follow-up and needs a real device→store binding
+   * (filtering by task assignment hides the store's work and breaks the flow).
    */
   getTasksForStore(storeId: string): PanelTask[] {
     const open = new Set(['PUBLISHED', 'DELIVERED', 'ACKNOWLEDGED', 'IN_PROGRESS', 'SUBMITTED']);
@@ -944,53 +954,63 @@ export class FieldService {
    * not been written yet at this point, so refusing costs one retry and costs
    * the audit trail nothing.
    */
-  async submitSubmission(payload: {
-    /** Exactly one of these identifies the acting person. See FieldActorKey. */
-    chatId?: string | number;
-    deviceId?: string;
-    storeTaskId: string;
-    photoUrl: string;
-    photoType?: 'before' | 'after' | 'standard';
-    latitude?: number;
-    longitude?: number;
-    locationUnverified?: boolean;
-    /** GPS horizontal accuracy in metres, when the client reports it. */
-    accuracy?: number;
-    /** True when the device flagged the fix as mock/simulated (Android exposes this). */
-    locationMocked?: boolean;
+  async submitSubmission(
+    payload: {
+      /** Exactly one of these identifies the acting person. See FieldActorKey. */
+      chatId?: string | number;
+      deviceId?: string;
+      storeTaskId: string;
+      photoUrl: string;
+      photoType?: 'before' | 'after' | 'standard';
+      latitude?: number;
+      longitude?: number;
+      locationUnverified?: boolean;
+      /** GPS horizontal accuracy in metres, when the client reports it. */
+      accuracy?: number;
+      /** True when the device flagged the fix as mock/simulated (Android exposes this). */
+      locationMocked?: boolean;
+      /**
+       * When the fix was taken, as an ISO-8601 instant.
+       *
+       * `accuracy` bounds the fix horizontally and `locationMocked` says whether it
+       * is real, but neither says how old it is — and no client sent this before,
+       * which left the pair of numbers an undated claim that could be replayed
+       * hours later from anywhere. See `gps-freshness.ts`.
+       */
+      locatedAt?: string;
+      checklistAnswers?: Array<{ questionId: string; value: boolean | number | string }>;
+      metadata?: Record<string, unknown>;
+      /** Client-supplied key that makes a resend return the same evidence. */
+      idempotencyKey?: string;
+      /**
+       * The vision engine's read of this photo, when one ran in the bot.
+       *
+       * TRUSTED ONLY FROM THE SERVICE CREDENTIAL
+       * ----------------------------------------
+       * These are honoured only when `caller` holds the shared service credential
+       * — i.e. the bot, which runs the engine server-side and then submits. A
+       * field *device* credential reaches this same route (it files its own
+       * audits), so if these fields were trusted unconditionally a merchandiser
+       * on a modified build could POST `aiScore:100, aiNeedsHumanReview:false`
+       * and auto-approve their own shelf photo, defeating review entirely. When
+       * the caller is a device/panel the AI fields are ignored and the record is
+       * left pending for a human (exactly as when vision is off).
+       */
+      aiScore?: number;
+      aiSummary?: string;
+      aiDetections?: unknown[];
+      aiConfidence?: number;
+      aiNeedsHumanReview?: boolean;
+      aiEngine?: string;
+      aiModel?: string;
+    },
     /**
-     * When the fix was taken, as an ISO-8601 instant.
-     *
-     * `accuracy` bounds the fix horizontally and `locationMocked` says whether it
-     * is real, but neither says how old it is — and no client sent this before,
-     * which left the pair of numbers an undated claim that could be replayed
-     * hours later from anywhere. See `gps-freshness.ts`.
+     * The credential that authenticated the HTTP request — NOT the field actor
+     * derived from the body. Only the service credential (the bot) may supply a
+     * trusted AI verdict; see the `aiScore` note above.
      */
-    locatedAt?: string;
-    checklistAnswers?: Array<{ questionId: string; value: boolean | number | string }>;
-    metadata?: Record<string, unknown>;
-    /** Client-supplied key that makes a resend return the same evidence. */
-    idempotencyKey?: string;
-    /**
-     * The vision engine's read of this photo, when one ran in the bot.
-     *
-     * TRUSTED, AND WHY THAT IS SAFE HERE
-     * ----------------------------------
-     * These come from the bot, which holds the service credential — not from a
-     * chat. A merchandiser cannot set them: they send a photo, the bot runs the
-     * engine, and only the bot reaches this route. So the score that drives
-     * auto-approval is produced by our own server, never by the person being
-     * judged. (Absent entirely when vision is off — then the record is pending,
-     * exactly as before.)
-     */
-    aiScore?: number;
-    aiSummary?: string;
-    aiDetections?: unknown[];
-    aiConfidence?: number;
-    aiNeedsHumanReview?: boolean;
-    aiEngine?: string;
-    aiModel?: string;
-  }) {
+    caller: AuthenticatedPrincipal,
+  ) {
     const actor = this.requireActor({ chatId: payload.chatId, deviceId: payload.deviceId });
 
     if (typeof payload.photoUrl === 'string' && payload.photoUrl.startsWith('data:')) {
@@ -1003,6 +1023,30 @@ export class FieldService {
               `Maksimum ${Math.round(MAX_PHOTO_BYTES / 1024)} KB qəbul edilir.`,
           },
           HttpStatus.PAYLOAD_TOO_LARGE,
+        );
+      }
+    } else if (typeof payload.photoUrl === 'string') {
+      // A photoUrl that is NOT an inline data: URL came from the presigned-upload
+      // flow, so it must point into our own bucket. `persistPhoto` returns a
+      // non-data URL unchanged, so this is the only place that can refuse one —
+      // without it an arbitrary external URL (or a URL into someone else's
+      // object key) is stored verbatim as the evidence photo: fabricated
+      // evidence, and an SSRF/track-back vector when a reviewer's browser later
+      // loads it. `ownsPublicUrl` also returns false when no bucket is
+      // configured, which correctly refuses any non-data URL in inline mode.
+      if (!this.storage.ownsPublicUrl(payload.photoUrl)) {
+        this.logger.warn(
+          `⛔ [FIELD] Rejected a photoUrl that is not in our bucket for task ` +
+            `${payload.storeTaskId}: ${payload.photoUrl.slice(0, 80)}`,
+        );
+        throw new HttpException(
+          {
+            error: 'PHOTO_URL_NOT_OWNED',
+            message:
+              'Şəkil ünvanı qəbul edilmədi: yalnız sistemin öz obyekt anbarına ' +
+              'yüklənmiş şəkillər təqdim edilə bilər.',
+          },
+          HttpStatus.BAD_REQUEST,
         );
       }
     }
@@ -1113,7 +1157,7 @@ export class FieldService {
       hasRealFix && accuracyMeters !== null && accuracyMeters > LOW_CONFIDENCE_ACCURACY_M;
 
     if (locationMocked) {
-      db.logAuditEvent({
+      await db.logAuditEventDurable({
         entityType: 'task_evidence',
         entityId: payload.storeTaskId,
         action: 'LOCATION_MOCKED',
@@ -1232,7 +1276,32 @@ export class FieldService {
     // the bot calling the review endpoint. The bot acts as the merchandiser, and
     // a merchandiser may not approve their own audit (see `requireReviewer`).
     let effectiveTaskState = result.taskState;
-    if (typeof payload.aiScore === 'number') {
+
+    // Only the service credential (the bot, which ran the engine itself) may
+    // supply a trusted AI verdict. A device/panel caller that put `aiScore` in
+    // the body is ignored and the audit is left pending — otherwise a modified
+    // field build could forge a passing score and auto-approve its own work.
+    const mayProvideAiVerdict = mayActAsAnotherUser(caller);
+    if (!mayProvideAiVerdict && typeof payload.aiScore === 'number') {
+      this.logger.warn(
+        `⛔ [AI VERDICT IGNORED] Evidence ${result.evidence.id}: ${caller.userId} ` +
+          `(via ${caller.via ?? 'service'}) supplied aiScore but is not the service ` +
+          `credential; left pending for human review.`,
+      );
+      db.logAuditEvent({
+        entityType: 'task_evidence',
+        entityId: result.evidence.id,
+        action: 'AI_VERDICT_REJECTED_UNTRUSTED',
+        actorId: caller.userId,
+        payload: {
+          reason: 'Only the bot service credential may supply an AI verdict.',
+          via: caller.via ?? 'service',
+          suppliedScore: payload.aiScore,
+        },
+      });
+    }
+
+    if (mayProvideAiVerdict && typeof payload.aiScore === 'number') {
       const score = Math.max(0, Math.min(100, Math.round(payload.aiScore)));
       const confidencePct =
         typeof payload.aiConfidence === 'number'

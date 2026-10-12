@@ -54,6 +54,21 @@
       "why": "the worker triggers manual offline queue synchronization"
     },
     {
+      "id": "taskList.historyButton",
+      "where": "mobile/src/screens/TaskListScreenUI.tsx",
+      "why": "opens the audit-history screen listing sent audits and the unsent offline queue"
+    },
+    {
+      "id": "history.queueItem",
+      "where": "mobile/src/screens/AuditHistoryScreenUI.tsx",
+      "why": "an unsent (queued) audit row, so the test can see stuck items and their sync status"
+    },
+    {
+      "id": "history.submissionItem",
+      "where": "mobile/src/screens/AuditHistoryScreenUI.tsx",
+      "why": "a filed audit row with its review status"
+    },
+    {
       "id": "taskDetail.openCameraButton",
       "where": "mobile/src/screens/TaskDetailScreen.tsx",
       "why": "disabled until the checklist is complete, so the test must wait"

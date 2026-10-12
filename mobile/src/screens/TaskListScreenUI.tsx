@@ -26,6 +26,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import type { MobileTask, MobileStore } from '../types';
 import { buildSyncMessage } from '../services/syncMessage';
@@ -39,9 +40,15 @@ export interface TaskListScreenProps {
   store: MobileStore;
   onSelectTask: (task: MobileTask) => void;
   onLogout: () => void;
+  onOpenHistory: () => void;
 }
 
-export function TaskListScreenUI({ store, onSelectTask, onLogout }: TaskListScreenProps) {
+export function TaskListScreenUI({
+  store,
+  onSelectTask,
+  onLogout,
+  onOpenHistory,
+}: TaskListScreenProps) {
   const insets = useSafeAreaInsets();
   const controller = new TaskListController();
   const [tasks, setTasks] = useState<MobileTask[]>([]);
@@ -65,6 +72,29 @@ export function TaskListScreenUI({ store, onSelectTask, onLogout }: TaskListScre
     } catch {
       setPendingSync(0);
     }
+  };
+
+  // Logout confirms first, and warns when audits are still unsent — signing out
+  // drops the credential, and on a shared/handed-on phone the next worker must
+  // not inherit this session. The unsent audits are KEPT on the device (they
+  // are evidence tied to their store and drain when someone re-enrols), so the
+  // warning is about visibility, not loss.
+  const handleLogoutPress = () => {
+    let pending = 0;
+    try {
+      pending = offlineQueueService.getPendingCount();
+    } catch {
+      pending = 0;
+    }
+    const message =
+      pending > 0
+        ? `Çıxış etsəniz, bu cihaza yenidən mağaza kodu ilə daxil olmaq lazım olacaq. ` +
+          `Göndərilməmiş ${pending} audit cihazda qalır və növbəti girişdə göndərilə bilər.`
+        : `Çıxış etsəniz, bu cihaza yenidən mağaza kodu ilə daxil olmaq lazım olacaq.`;
+    Alert.alert('Çıxış edilsin?', message, [
+      { text: 'İmtina', style: 'cancel' },
+      { text: 'Çıxış', style: 'destructive', onPress: onLogout },
+    ]);
   };
 
   const load = async () => {
@@ -114,6 +144,17 @@ export function TaskListScreenUI({ store, onSelectTask, onLogout }: TaskListScre
     void load();
   }, [store.id]);
 
+  // Keep the "Növbəni göndər (N)" badge live. The queue drains on reconnection,
+  // on foreground and at startup — none of which this screen initiates — so a
+  // count read only on load/refresh goes stale the moment a background drain
+  // empties the queue. Registering the queue's own change listener updates the
+  // badge the instant the queue changes; cleared on unmount so a backgrounded
+  // screen is not retained by the singleton.
+  useEffect(() => {
+    offlineQueueService.setOnQueueChange((count) => setPendingSync(count));
+    return () => offlineQueueService.setOnQueueChange(null);
+  }, []);
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -144,7 +185,23 @@ export function TaskListScreenUI({ store, onSelectTask, onLogout }: TaskListScre
             </Text>
           )}
         </TouchableOpacity>
-        <TouchableOpacity onPress={onLogout} style={styles.logoutButton}>
+        <TouchableOpacity
+          testID="taskList.historyButton"
+          accessibilityRole="button"
+          accessibilityLabel="Audit tarixçəsi və göndərilməmiş növbə"
+          onPress={onOpenHistory}
+          style={styles.historyButton}
+        >
+          <Text style={styles.historyText}>
+            Tarixçə{pendingSync > 0 ? ` (${pendingSync})` : ''}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={handleLogoutPress}
+          accessibilityRole="button"
+          accessibilityLabel="Çıxış"
+          style={styles.logoutButton}
+        >
           <Text style={styles.logoutText}>Çıxış</Text>
         </TouchableOpacity>
       </View>
@@ -248,16 +305,31 @@ const styles = StyleSheet.create({
   logoutButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   logoutText: {
     fontSize: 15,
     color: '#B00020',
   },
+  historyButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  historyText: {
+    fontSize: 15,
+    color: '#0066CC',
+    fontWeight: '600',
+  },
   syncButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     minWidth: 44,
+    minHeight: 44,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   syncText: {
     fontSize: 15,

@@ -67,10 +67,11 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, StyleSheet, AppState } from 'react-native';
+import { View, StyleSheet, AppState, Alert } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { mobileApp } from './src/App';
+import { setAuthRevokedHandler } from './src/services/portalApi';
 import { credentialStore } from './src/services/credentialStore';
 import { keychainAvailable, keychainStore } from './src/services/keychain';
 import { offlineQueueService } from './src/services/offlineQueue';
@@ -86,6 +87,7 @@ import type { ChecklistAnswer } from './src/screens/TaskDetailScreen';
 
 import { LoginScreenUI } from './src/screens/LoginScreenUI';
 import { TaskListScreenUI } from './src/screens/TaskListScreenUI';
+import { AuditHistoryScreenUI } from './src/screens/AuditHistoryScreenUI';
 import { TaskDetailScreen } from './src/screens/TaskDetailScreen';
 import { CameraAuditScreenUI } from './src/screens/CameraAuditScreenUI';
 
@@ -106,6 +108,7 @@ type Screen =
   | { name: 'loading' }
   | { name: 'login' }
   | { name: 'taskList'; store: MobileStore; userGPS: GPSCoordinates }
+  | { name: 'history'; store: MobileStore; userGPS: GPSCoordinates }
   | { name: 'taskDetail'; store: MobileStore; task: MobileTask; userGPS: GPSCoordinates }
   | {
       name: 'camera';
@@ -166,6 +169,21 @@ export function Root() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // A credential that the server rejects with 401 (revoked, unknown, or its user
+  // deleted) is cleared by the API client; here we route the worker back to the
+  // login/enrol screen and say why, instead of leaving them on a screen that
+  // keeps failing with a generic "retry" that can never succeed.
+  useEffect(() => {
+    setAuthRevokedHandler(() => {
+      setScreen((prev) => (prev.name === 'login' ? prev : { name: 'login' }));
+      Alert.alert(
+        'Giriş etibarsızdır',
+        'Bu cihazın girişi ləğv edilib və ya artıq keçərli deyil. Mağaza kodu ilə yenidən daxil olun.',
+      );
+    });
+    return () => setAuthRevokedHandler(null);
   }, []);
 
   // Drain when the radio comes back — the case this app could not see before.
@@ -272,8 +290,17 @@ export function Root() {
 
   const handleBackToTaskList = useCallback(() => {
     setScreen((prev) => {
-      if (prev.name === 'taskDetail' || prev.name === 'camera') {
+      if (prev.name === 'taskDetail' || prev.name === 'camera' || prev.name === 'history') {
         return { name: 'taskList', store: prev.store, userGPS: prev.userGPS };
+      }
+      return prev;
+    });
+  }, []);
+
+  const handleOpenHistory = useCallback(() => {
+    setScreen((prev) => {
+      if (prev.name === 'taskList') {
+        return { name: 'history', store: prev.store, userGPS: prev.userGPS };
       }
       return prev;
     });
@@ -294,7 +321,10 @@ export function Root() {
   }, []);
 
   const handleLogout = useCallback(() => {
-    setScreen({ name: 'login' });
+    // Drop the credential first (a real sign-out), then return to login. The
+    // confirmation lives on the button in TaskListScreenUI, which also warns
+    // about any unsent audits before this runs. signOut never throws.
+    void mobileApp.signOut().finally(() => setScreen({ name: 'login' }));
   }, []);
 
   // Render the current screen
@@ -342,7 +372,16 @@ export function Root() {
               store={screen.store}
               onSelectTask={handleSelectTask}
               onLogout={handleLogout}
+              onOpenHistory={handleOpenHistory}
             />
+          </>
+        );
+
+      case 'history':
+        return (
+          <>
+            <StatusBar style="dark" />
+            <AuditHistoryScreenUI store={screen.store} onBack={handleBackToTaskList} />
           </>
         );
 

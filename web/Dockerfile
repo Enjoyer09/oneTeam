@@ -9,9 +9,14 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Copy dependency manifests and install dependencies
+# Copy dependency manifests and install dependencies.
+#
+# `npm ci` with no fallback: the previous `npm ci || npm install` silently
+# re-resolved against package.json whenever web/package-lock.json was out of
+# sync, which defeats the lockfile's supply-chain guarantee exactly when it
+# would matter. A drifted lockfile should fail the build, not be papered over.
 COPY package*.json ./
-RUN npm ci || npm install
+RUN npm ci
 
 # ------------------------------------------------------------------------------
 # Build-time configuration for the compiled SPA
@@ -88,12 +93,17 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # the first key is minted it stops being a way in and the login screen becomes
 # the only door (see `mayUseRoute` in apps/api/src/common/auth/auth.guard.ts).
 #
-# The default is the seeded administrator because that is what it takes to mint
-# the first key. It is worth replacing with a supervisor once keys are in use,
-# and it can be removed altogether once every person who needs the panel has
-# their own key — at which point the bootstrap key is the recovery path.
+# IT SHIPS EMPTY ON PURPOSE. A real credential baked here would be published
+# inside the public image and readable by anyone who pulls or inspects it — an
+# unsigned, non-expiring admin token for every deployment, forever. So the image
+# carries NO bootstrap credential: an operator sets `PORTAL_TOKEN` for exactly
+# as long as it takes to mint the first panel key, then clears it. The value
+# must still be *defined* (even as "") so the nginx envsubst hook substitutes it;
+# an undefined variable would be left as the literal `${PORTAL_TOKEN}` and break
+# the credential map in nginx.conf. When empty, that map emits no Authorization
+# header at all (see `$portal_injected`), which is the correct fail-closed state.
 ENV API_UPSTREAM=http://api:3001
-ENV PORTAL_TOKEN=oneteam-user:usr-admin-001
+ENV PORTAL_TOKEN=""
 ENV NGINX_ENVSUBST_FILTER=^(API_UPSTREAM|PORTAL_TOKEN)$
 
 COPY nginx.conf /etc/nginx/templates/default.conf.template

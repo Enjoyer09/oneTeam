@@ -95,7 +95,12 @@ export function TaskDetailScreen({
   return (
     <View style={styles.screen}>
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={onBack}
+          style={styles.backButton}
+          accessibilityRole="button"
+          accessibilityLabel="Geri"
+        >
           <Text style={styles.backButtonText}>← Geri</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
@@ -192,6 +197,9 @@ export function TaskDetailScreen({
           style={[styles.cameraButton, !allAnswered && styles.cameraButtonDisabled]}
           onPress={handleOpenCamera}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={allAnswered ? 'Kameranı aç' : 'Əvvəlcə çeklisti tamamla'}
+          accessibilityState={{ disabled: !allAnswered }}
         >
           <Text style={styles.cameraButtonText}>
             {allAnswered ? '📷 Kamera aç' : 'Çeklisti tamamla'}

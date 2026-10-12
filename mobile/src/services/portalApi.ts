@@ -484,6 +484,20 @@ type Envelope<T> = {
  * timeout and the same error mapping. Nothing else may use it — a second
  * anonymous call would be a credential-free request nobody intended.
  */
+/**
+ * Notified once when an AUTHENTICATED call is refused with 401 — the credential
+ * is unknown, revoked, or its user was deleted. The app registers this to route
+ * the worker back to enrolment; without it a revoked device just keeps failing
+ * every request with a generic error and no way back. Set by the app shell;
+ * `callApi` clears the credential and calls it (see below).
+ */
+let authRevokedHandler: (() => void) | null = null;
+
+/** Registers the one-shot 401 handler. Pass null to clear it. */
+export function setAuthRevokedHandler(handler: (() => void) | null): void {
+  authRevokedHandler = handler;
+}
+
 async function callApi(
   path: string,
   init: RequestInit = {},
@@ -546,6 +560,16 @@ async function callApi(
   if (!response.ok) {
     const raw = (payload as any)?.message ?? (payload as any)?.error;
     const message = Array.isArray(raw) ? raw.join('; ') : raw;
+    // A 401 on an authenticated call means the credential is dead (unknown,
+    // revoked, or its user deleted). Drop it and tell the shell to send the
+    // worker back to enrolment — otherwise every later request fails the same
+    // way with no path out. The anonymous store lookup is excluded: its 401 is
+    // not about a stored credential, and reacting to it would be a loop.
+    if (response.status === 401 && !options.allowAnonymous && deviceToken) {
+      void forgetCredential();
+      const notify = authRevokedHandler;
+      if (notify) notify();
+    }
     throw new MobileApiError(
       message || `API xətası (HTTP ${response.status})`,
       response.status,

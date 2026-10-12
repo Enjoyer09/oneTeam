@@ -1,12 +1,23 @@
 -- ============================================================================
--- oneTeam — seed data for the API schema
+-- oneTeam — DEMO seed data for the API schema
 -- File: db/api-seed.sql
 -- Target: plain PostgreSQL 16
 -- ============================================================================
 --
--- Runs once, on first boot, after db/api-schema.sql. Every statement is
--- idempotent (ON CONFLICT DO NOTHING), so re-running it against a populated
--- database is harmless.
+-- THIS IS DEMO DATA AND IS OPT-IN. It is applied on first boot ONLY when
+-- `ONETEAM_SEED_DEMO` is set (see db/seed-if-demo.sh, which the Postgres initdb
+-- hook runs instead of mounting this file directly). A fresh PRODUCTION
+-- database gets the schema and nothing else: named demo users, demo stores, a
+-- demo campaign, demo templates and demo tasks have no business in a real
+-- deployment, and this file used to load all of them unconditionally.
+--
+-- NO AUDIT ROWS ARE SEEDED. In a retail-compliance product `audit_logs` is the
+-- ledger the platform exists to keep; fabricated "Seeded demo task" entries are
+-- indistinguishable from real ones and corrupt exactly the record that must be
+-- trustworthy. The demo tasks below therefore carry no synthetic audit trail.
+--
+-- Every statement is idempotent (ON CONFLICT DO NOTHING), so re-running it
+-- against a populated database is harmless.
 --
 -- The rows mirror SEED_DATA in packages/database/src/seed.ts, id for id. That
 -- is deliberate: if the two ever drift, the API would hydrate a database that
@@ -14,10 +25,10 @@
 -- only show up as a confusing "some tasks are missing" report.
 --
 -- The three demo store tasks are seeded here rather than created by the
--- application, so that a freshly provisioned database is immediately useful:
--- one PUBLISHED task to work, one DRAFT task that is not dispatched yet, and
--- one SUBMITTED task waiting for review. Their deadlines are relative to the
--- moment of seeding.
+-- application, so that a demo database is immediately useful: one PUBLISHED
+-- task to work, one DRAFT task that is not dispatched yet, and one SUBMITTED
+-- task waiting for review. Their deadlines are relative to the moment of
+-- seeding.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -150,19 +161,6 @@ VALUES
      now() - interval '10 minutes')
 ON CONFLICT (id) DO NOTHING;
 
--- ----------------------------------------------------------------------------
--- Audit trail for the seeded tasks
--- ----------------------------------------------------------------------------
-INSERT INTO audit_logs (id, entity_type, entity_id, action, from_state, to_state, actor_id, payload) VALUES
-    ('audit-seed-0001', 'store_task', 'task-yasamal-cooler-01', 'TASK_BULK_DISPATCHED',
-     'DRAFT', 'PUBLISHED', 'usr-super-002',
-     '{"note":"Seeded demo task"}'::jsonb),
-
-    ('audit-seed-0002', 'store_task', 'task-portbaku-cooler-03', 'TASK_BULK_DISPATCHED',
-     'DRAFT', 'PUBLISHED', 'usr-super-002',
-     '{"note":"Seeded demo task"}'::jsonb),
-
-    ('audit-seed-0003', 'store_task', 'task-portbaku-cooler-03', 'TASK_SUBMITTED',
-     'IN_PROGRESS', 'SUBMITTED', 'usr-merch-003',
-     '{"note":"Seeded demo evidence submission"}'::jsonb)
-ON CONFLICT (id) DO NOTHING;
+-- No audit_logs are seeded — see the header. The audit trail is a record of
+-- things that actually happened; seeding it with "Seeded demo task" rows would
+-- plant fabricated entries that cannot be told apart from real ones.

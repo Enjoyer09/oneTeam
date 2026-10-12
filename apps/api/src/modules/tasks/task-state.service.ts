@@ -314,6 +314,50 @@ export class TaskStateService {
 
     const previousState = task.status;
 
+    // 0. Review-decision authority.
+    //
+    // Approving or rejecting a submitted audit is a reviewer's power, not
+    // something the task's assignee may do to their own work. `transitionTask`
+    // is the single door every caller passes through — the raw
+    // `POST /api/tasks/:id/transition` route, the panel's review flow, the
+    // AI auto-approver, the bot — so the lock lives here, mirroring
+    // `PortalService.requireReviewer` which guards the panel's own door.
+    //
+    // Without this, a MERCHANDISER who is the task's assignee (which, after
+    // `claimStoreTasks`, is always the submitter) could POST `APPROVED` on
+    // their own SUBMITTED task via the unguarded `/api/tasks` route and sign
+    // off their own shelf photo — the exact hole `requireReviewer` closes on
+    // the panel path, left open here. Only `→APPROVED`/`→REJECTED` are gated:
+    // the field progression (PUBLISHED→…→SUBMITTED) and the supervisor
+    // re-audit (REJECTED→IN_PROGRESS) stay reachable by the assignee.
+    const isReviewDecision =
+      targetState === TaskState.APPROVED || targetState === TaskState.REJECTED;
+    if (isReviewDecision && !isPrivilegedPrincipal(principal)) {
+      this.logger.warn(
+        `⛔ [REVIEW FORBIDDEN] Task ${taskId}: ${principal.userId} (role ${principal.role}) ` +
+          `attempted ${previousState} -> ${targetState} without reviewer authority.`,
+      );
+      db.logAuditEvent({
+        entityType: 'store_task',
+        entityId: taskId,
+        action: 'REVIEW_FORBIDDEN_ATTEMPT',
+        fromState: previousState,
+        toState: targetState,
+        actorId: principal.userId,
+        payload: { reason: 'Non-reviewer attempted an approve/reject decision.', notes },
+      });
+      throw new HttpException(
+        {
+          success: false,
+          error: 'REVIEW_FORBIDDEN',
+          message:
+            'Auditi yalnız administrator və supervayzer təsdiqləyə və ya imtina edə bilər. ' +
+            'Öz işinizi özünüz təsdiqləyə bilməzsiniz.',
+        },
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
     // 1. Strict State Machine Validation
     if (!isValidTransition(previousState, targetState)) {
       const allowed =
@@ -349,7 +393,12 @@ export class TaskStateService {
     }
 
     // 2. Perform State Update
-    const updatedTask = db.updateTaskState(taskId, targetState);
+    //
+    // `previousState` is handed down so the persisted write is conditional on
+    // the row still being in that state — optimistic concurrency that stops a
+    // stale replica from clobbering a decision it has not yet seen. See
+    // EnterpriseDatabase.updateTaskState / updateStoreTaskStateConditional.
+    const updatedTask = db.updateTaskState(taskId, targetState, previousState);
     if (!updatedTask) {
       throw new HttpException(
         'Tapşırığın statusunu yeniləmək mümkün olmadı',

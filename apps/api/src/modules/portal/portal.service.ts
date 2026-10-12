@@ -292,6 +292,10 @@ function toPanelSubmissionStatus(state: TaskState | undefined): PanelSubmission[
   return 'pending_review';
 }
 
+/** Default and hard ceiling for how many submissions the review feed returns. */
+const DEFAULT_SUBMISSIONS_LIMIT = 1000;
+const MAX_SUBMISSIONS_LIMIT = 5000;
+
 @Injectable()
 export class PortalService {
   private readonly logger = new Logger(PortalService.name);
@@ -1359,9 +1363,25 @@ export class PortalService {
     return db.storeTasks.map((task) => this.toPanelTask(task));
   }
 
-  getSubmissions(): PanelSubmission[] {
+  /**
+   * The review feed, newest first, bounded.
+   *
+   * `limit` caps the response so this never serves the entire evidence history
+   * (each row can carry an inline base64 photo, so an unbounded list is an
+   * unbounded payload and memory cost once the field has run for a while). The
+   * rows are sorted newest-first before the cap, so a caller always gets the
+   * most recent `limit` audits — which is what the review queue shows. The panel
+   * reads this and filters client-side, so a generous default keeps today's
+   * behaviour while putting a ceiling on the worst case.
+   */
+  getSubmissions(limit: number = DEFAULT_SUBMISSIONS_LIMIT): PanelSubmission[] {
+    const safeLimit =
+      Number.isFinite(limit) && limit > 0
+        ? Math.min(Math.floor(limit), MAX_SUBMISSIONS_LIMIT)
+        : DEFAULT_SUBMISSIONS_LIMIT;
     return [...db.evidences]
       .sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime())
+      .slice(0, safeLimit)
       .map((evidence) => this.toPanelSubmission(evidence));
   }
 
@@ -1482,7 +1502,7 @@ export class PortalService {
     // the anti-fraud hold, and it must leave a trail naming who cleared it —
     // otherwise the block is silently undone with nothing to answer for later.
     if (decision.status === 'approved' && evidence.locationMocked === true) {
-      db.logAuditEvent({
+      await db.logAuditEventDurable({
         entityType: 'task_evidence',
         entityId: evidenceId,
         action: 'LOCATION_MOCK_OVERRIDE',

@@ -38,8 +38,9 @@ COPY packages/database/package*.json ./packages/database/
 COPY apps/api/package*.json ./apps/api/
 
 # Full install — the build needs the dev dependencies (typescript) that the
-# runtime image will not carry.
-RUN npm install
+# runtime image will not carry. `npm ci` so the builder uses exactly the
+# locked tree and fails loudly on lockfile drift, rather than re-resolving.
+RUN npm ci
 
 # Link the workspace packages before the source tree is copied in, so that
 # `@oneteam/*` resolves the same way it does in the API image. Created
