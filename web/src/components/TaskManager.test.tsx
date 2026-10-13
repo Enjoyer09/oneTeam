@@ -62,3 +62,27 @@ describe('explicit task recipients', () => {
     );
   });
 });
+
+it('excludes stores without a region from a regional bulk preview', () => {
+  render(
+    <TaskManager
+      tasks={[]}
+      stores={
+        [
+          { id: 'north', name: 'Şimal', store_code: 'N', region_id: 'north', is_active: true },
+          { id: 'unknown', name: 'Naməlum', store_code: 'U', is_active: true },
+        ] as Store[]
+      }
+      isCreateModalOpen={false}
+      setIsCreateModalOpen={vi.fn()}
+      onCreateTask={vi.fn()}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Kütləvi Təlimat Göndər' }));
+  fireEvent.change(screen.getByLabelText('Region / Şəhər:'), { target: { value: 'north' } });
+
+  expect(screen.getByText('🎯 Hədəf: 1 mağaza seçildi')).toBeTruthy();
+  expect(screen.getByText('Şimal (N)')).toBeTruthy();
+  expect(screen.queryByText('Naməlum (U)')).toBeNull();
+});

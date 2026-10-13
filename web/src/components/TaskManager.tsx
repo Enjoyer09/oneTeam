@@ -347,7 +347,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     if (bulkFormat !== 'all' && s.store_format?.toLowerCase() !== bulkFormat.toLowerCase()) {
       return false;
     }
-    if (bulkRegion !== 'all' && s.region_id && s.region_id !== bulkRegion) {
+    if (bulkRegion !== 'all' && s.region_id !== bulkRegion) {
       return false;
     }
     return true;
@@ -544,11 +544,18 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 <div>
                   {/* Planogram Image Preview */}
                   <div className="relative aspect-[16/9] bg-[var(--g-panel)] overflow-hidden border-b border-hair-2">
-                    <img
-                      src={task.reference_image_url || '/logo.jpg'}
-                      alt={task.title}
-                      className="w-full h-full object-cover"
-                    />
+                    {task.reference_image_url ? (
+                      <img
+                        src={task.reference_image_url}
+                        alt={`${task.title} üçün nümunə foto`}
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center gap-2 text-sm text-muted">
+                        <Camera className="h-5 w-5" aria-hidden="true" />
+                        Nümunə foto əlavə edilməyib
+                      </div>
+                    )}
                     <div className="absolute top-2.5 right-2.5">
                       {getPriorityBadge(task.priority)}
                     </div>

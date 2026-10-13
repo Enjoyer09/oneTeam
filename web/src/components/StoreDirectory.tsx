@@ -417,12 +417,12 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
                   const audits = auditsByStore.get(store.id) ?? { total: 0, approved: 0 };
                   const totalAudits = audits.total;
                   const compliancePercent =
-                    totalAudits > 0 ? Math.round((audits.approved / totalAudits) * 100) : 100;
+                    totalAudits > 0 ? Math.round((audits.approved / totalAudits) * 100) : null;
 
                   const tone =
-                    compliancePercent >= 80
+                    compliancePercent !== null && compliancePercent >= 80
                       ? { bar: 'var(--ok-dot)', text: 'var(--ok)' }
-                      : compliancePercent >= 50
+                      : compliancePercent !== null && compliancePercent >= 50
                         ? { bar: 'var(--warn-dot)', text: 'var(--warn)' }
                         : { bar: 'var(--bad-dot)', text: 'var(--bad)' };
 
@@ -457,29 +457,33 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
                       </td>
 
                       <td>
-                        <div className="flex items-center gap-2.5">
-                          {/* Zolaq + faiz mətni — rəng tək başına məna daşımır */}
-                          <span
-                            className="h-[6px] w-[88px] flex-none overflow-hidden rounded-full"
-                            style={{ backgroundColor: 'var(--hair)' }}
-                            role="img"
-                            aria-label={`Uyğunluq ${compliancePercent} faiz`}
-                          >
+                        {compliancePercent === null ? (
+                          <span className="text-muted">Yoxlama yoxdur</span>
+                        ) : (
+                          <div className="flex items-center gap-2.5">
+                            {/* Zolaq + faiz mətni — rəng tək başına məna daşımır */}
                             <span
-                              className="block h-full rounded-full transition-[width] duration-400 ease-out"
-                              style={{
-                                width: `${compliancePercent}%`,
-                                backgroundColor: tone.bar,
-                              }}
-                            />
-                          </span>
-                          <span
-                            className="font-mono text-[11.5px] font-bold tabular-nums"
-                            style={{ color: tone.text }}
-                          >
-                            {compliancePercent}%
-                          </span>
-                        </div>
+                              className="h-[6px] w-[88px] flex-none overflow-hidden rounded-full"
+                              style={{ backgroundColor: 'var(--hair)' }}
+                              role="img"
+                              aria-label={`Uyğunluq ${compliancePercent} faiz`}
+                            >
+                              <span
+                                className="block h-full rounded-full transition-[width] duration-400 ease-out"
+                                style={{
+                                  width: `${compliancePercent}%`,
+                                  backgroundColor: tone.bar,
+                                }}
+                              />
+                            </span>
+                            <span
+                              className="font-mono text-[11.5px] font-bold tabular-nums"
+                              style={{ color: tone.text }}
+                            >
+                              {compliancePercent}%
+                            </span>
+                          </div>
+                        )}
                       </td>
 
                       <td className="text-right">

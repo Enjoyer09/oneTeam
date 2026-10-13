@@ -104,22 +104,24 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     setSaving(true);
     setFormError(null);
 
-    // Boş sahə göndərilmir (undefined), silinmir: PATCH-də "boşaltmaq" üçün
-    // forma sahəni boş göndərməməlidir — hələlik bütün sahələr create-də
-    // gəlir və edit-də doldurulur; ponytail: ayrıca "sahəni boşalt" düyməsi
-    // əlavə olunsun, nə vaxt istifadəçi boş ölçü saxlamaq istəsin.
+    // Create formasında boş mətn saxlanır; PATCH-də boş opsional sahələr
+    // göndərilmir, ona görə mövcud dəyər təsadüfən silinmir.
     const payload = {
       barcode: form.barcode.trim(),
       name: form.name.trim(),
-      size: form.size.trim() || undefined,
-      variant: form.variant.trim() || undefined,
+      size: form.size.trim(),
+      variant: form.variant.trim(),
     };
 
     try {
       if (editing === 'new') {
-        await onCreate(form);
+        await onCreate(payload);
       } else if (editing) {
-        await onUpdate(editing.id, payload);
+        await onUpdate(editing.id, {
+          ...payload,
+          size: payload.size || undefined,
+          variant: payload.variant || undefined,
+        });
       }
       closeForm();
     } catch (error) {
