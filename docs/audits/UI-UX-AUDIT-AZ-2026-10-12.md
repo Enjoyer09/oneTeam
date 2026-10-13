@@ -174,15 +174,15 @@ Kömək “6 addım”, axın “1/3” deyir; “Rəf Şəklini Göndər” dü
 
 **C02 · P2: vahid lüğət və vəziyyət modeli.** “Göndərildi”, “Tamamlandı”, “Gözləyir”, “İmtina edildi” eyni şeyi ifadə etməməlidir. Şəbəkəyə ötürülmə və nəzarətçinin qərarı iki ayrı vəziyyətdir:
 
-| Ölçü | İstifadəçi etiketi | Növbəti hərəkət |
-|---|---|---|
-| Göndəriş | Qaralama | Davam et |
-| Göndəriş | Cihazda saxlanılıb | İnternet olduqda avtomatik göndəriləcək |
-| Göndəriş | Göndərilir | Gözlə, fotonu yenidən yaratma |
-| Göndəriş | Göndərilmədi | Səbəbə bax / Yenidən göndər |
-| Yoxlama | Yoxlama gözləyir | Auditə bax |
-| Yoxlama | Təsdiqləndi | Nəticəyə bax |
-| Yoxlama | Düzəliş tələb olunur | Rəyə bax / Düzəliş et |
+| Ölçü     | İstifadəçi etiketi   | Növbəti hərəkət                         |
+| -------- | -------------------- | --------------------------------------- |
+| Göndəriş | Qaralama             | Davam et                                |
+| Göndəriş | Cihazda saxlanılıb   | İnternet olduqda avtomatik göndəriləcək |
+| Göndəriş | Göndərilir           | Gözlə, fotonu yenidən yaratma           |
+| Göndəriş | Göndərilmədi         | Səbəbə bax / Yenidən göndər             |
+| Yoxlama  | Yoxlama gözləyir     | Auditə bax                              |
+| Yoxlama  | Təsdiqləndi          | Nəticəyə bax                            |
+| Yoxlama  | Düzəliş tələb olunur | Rəyə bax / Düzəliş et                   |
 
 Backend enum-larını dəyişmək zəruri deyil; təqdimat və keçid müqaviləsi ortaq olmalıdır. Eyni insanın bot və cihaz hesabının əlaqəsi ayrıca məhsul qərarıdır; hazırda kanallar arasında draftın avtomatik davam etdiyi fərz edilmir.
 
@@ -231,12 +231,12 @@ Bunlar məhsulun artıq standartlara uyğunluğu barədə bəyanat deyil. Kontra
 
 ## İcra ardıcıllığı
 
-| Mərhələ | İş | Çıxış meyarı |
-|---|---|---|
-| 1 — Etibar və məlumat | W01–03, W05–06, I01–04, T01, C01 | İş itmir, naməlum vəziyyət boş/uğurlu göstərilmir, sübut kəsilmir, nəticəyə qayıdış var |
-| 2 — Əsas təcrübə | Tipli formalar, giriş bərpası, audit workspace, URL naviqasiyası, bot səhifələmə | İşçi və nəzarətçi əsas ssenariləri köməksiz tamamlayır |
-| 3 — Vahid vizual sistem | Tokenlər, komponentlər, lüğət, kontrast, ölçülər, adaptive görünüş | Üç kanalda eyni anlayış və status; WCAG/HIG yoxlama matrisi |
-| 4 — Real istifadəçi yoxlaması | Sahə pilotu, ölçmələr, iterasiya | Əvvəlki versiya ilə müqayisədə tamamlanma və səhv göstəriciləri yaxşılaşır |
+| Mərhələ                       | İş                                                                               | Çıxış meyarı                                                                            |
+| ----------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| 1 — Etibar və məlumat         | W01–03, W05–06, I01–04, T01, C01                                                 | İş itmir, naməlum vəziyyət boş/uğurlu göstərilmir, sübut kəsilmir, nəticəyə qayıdış var |
+| 2 — Əsas təcrübə              | Tipli formalar, giriş bərpası, audit workspace, URL naviqasiyası, bot səhifələmə | İşçi və nəzarətçi əsas ssenariləri köməksiz tamamlayır                                  |
+| 3 — Vahid vizual sistem       | Tokenlər, komponentlər, lüğət, kontrast, ölçülər, adaptive görünüş               | Üç kanalda eyni anlayış və status; WCAG/HIG yoxlama matrisi                             |
+| 4 — Real istifadəçi yoxlaması | Sahə pilotu, ölçmələr, iterasiya                                                 | Əvvəlki versiya ilə müqayisədə tamamlanma və səhv göstəriciləri yaxşılaşır              |
 
 İlk implementasiya paketi: **vebdə xəta/boş vəziyyət ayrımı + iOS draft qorunması + Auditlərim ekranı + tipli çeklist + botda tapşırıq dəyişmə qorunması**. Vizual yeniləmə bu işlərlə birləşdirilsin, amma onları əvəz etməsin.
 

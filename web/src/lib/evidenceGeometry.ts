@@ -9,4 +9,3 @@ export function fitEvidence(
   const scale = Math.min(width / imageWidth, height / imageHeight);
   return { width: imageWidth * scale, height: imageHeight * scale };
 }
-

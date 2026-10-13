@@ -24,7 +24,11 @@ function setup() {
   });
   return {
     create,
-    submit: () => { const form = screen.getByLabelText('Tapşırığın Başlığı *').closest('form'); if (!form) throw new Error('Form missing'); fireEvent.submit(form); },
+    submit: () => {
+      const form = screen.getByLabelText('Tapşırığın Başlığı *').closest('form');
+      if (!form) throw new Error('Form missing');
+      fireEvent.submit(form);
+    },
   };
 }
 describe('explicit task recipients', () => {

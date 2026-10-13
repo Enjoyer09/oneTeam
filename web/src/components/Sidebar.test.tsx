@@ -29,13 +29,11 @@ describe('mobile navigation focus', () => {
   it('hides the closed drawer, traps focus while open and restores it after Escape', () => {
     vi.stubGlobal(
       'matchMedia',
-      vi
-        .fn()
-        .mockReturnValue({
-          matches: false,
-          addEventListener: vi.fn(),
-          removeEventListener: vi.fn(),
-        }),
+      vi.fn().mockReturnValue({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
     );
     vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockImplementation(function (
       this: HTMLElement,
