@@ -36,7 +36,8 @@
  * happened is the thing this screen exists to prevent.
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   StyleSheet,
   Text,
@@ -47,11 +48,15 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Linking,
 } from 'react-native';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LoginScreenController } from './LoginScreen';
 import type { MobileStore, GPSCoordinates } from '../types';
+import { palette, spacing, typography } from '../theme';
+
+const LAST_STORE_CODE_KEY = 'oneteam.last-store-code';
 
 export interface LoginScreenProps {
   onLoginSuccess: (result: {
@@ -82,9 +87,22 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
   );
   const [gps, setGps] = useState<GPSCoordinates | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
+  const [permissionDenied, setPermissionDenied] = useState(false);
   const [locating, setLocating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    void AsyncStorage.getItem(LAST_STORE_CODE_KEY)
+      .then((saved) => {
+        if (mounted && saved?.trim()) setStoreCode(saved);
+      })
+      .catch(() => undefined);
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   /**
    * Asks the platform where this device is, and reports every way that can fail
@@ -98,11 +116,13 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
    */
   const acquireFix = useCallback(async () => {
     setGpsError(null);
+    setPermissionDenied(false);
     setLocating(true);
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (!permission.granted) {
         setGps(null);
+        setPermissionDenied(true);
         setGpsError(
           'Lokasiya icazəsi verilməyib. Parametrlər → Gizlilik və Təhlükəsizlik → ' +
             'Məkan Xidmətləri bölməsindən bu tətbiqə icazə verin.',
@@ -143,10 +163,6 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
     }
   }, [controller]);
 
-  useEffect(() => {
-    void acquireFix();
-  }, [acquireFix]);
-
   const handleLogin = useCallback(async () => {
     setError(null);
     setLoading(true);
@@ -157,6 +173,7 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
     setLoading(false);
 
     if (result.success && result.store) {
+      void AsyncStorage.setItem(LAST_STORE_CODE_KEY, storeCode.trim()).catch(() => undefined);
       // The sign-in button is already gated on a fix (`canSubmit`), so this is
       // a belt-and-braces check rather than the real guard. It is here because
       // the alternative — inventing a position, or letting the caller invent
@@ -202,7 +219,7 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
             value={storeCode}
             onChangeText={setStoreCode}
             placeholder="Məsələn: BRAVO_YASAMAL_01"
-            placeholderTextColor="#AAAAAA"
+            placeholderTextColor="#4B5563"
             autoCapitalize="characters"
             autoCorrect={false}
             editable={!loading}
@@ -225,7 +242,7 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
             value={enrollmentSecret}
             onChangeText={setEnrollmentSecret}
             placeholder="Yalnız ilk quraşdırmada"
-            placeholderTextColor="#AAAAAA"
+            placeholderTextColor="#4B5563"
             autoCapitalize="none"
             autoCorrect={false}
             secureTextEntry
@@ -236,17 +253,25 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
           </Text>
 
           <Text style={styles.label}>Cihaz lokasiyası</Text>
+          <Text style={styles.fieldHint}>
+            Mağazada olduğunuzu və auditin düzgün mağazaya aid olduğunu yoxlamaq üçün lokasiya tələb
+            olunur.
+          </Text>
           {/* One always-present status line, and it carries the `testID`. The UI
               test reads it as a static text, which it can only do if the element
               exists in every state — an element that is present only on success
               makes "still looking" indistinguishable from "the screen is gone". */}
           <View style={styles.gpsRow}>
-            {gps || gpsError ? null : <ActivityIndicator size="small" color="#0066CC" />}
+            {locating ? <ActivityIndicator size="small" color="#0066CC" /> : null}
             <Text
               testID="login.gpsStatus"
               style={gps ? styles.gpsOk : gpsError ? styles.gpsError : styles.gpsLoading}
             >
-              {gps ? '📍 Lokasiya alındı' : gpsError ? `❌ ${gpsError}` : 'Lokasiya axtarılır…'}
+              {gps
+                ? '📍 Lokasiya təsdiqləndi'
+                : gpsError
+                  ? `❌ ${gpsError}`
+                  : 'Lokasiya paylaşılmayıb'}
             </Text>
           </View>
           {gps ? (
@@ -255,7 +280,18 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
               {gps.accuracy === undefined ? '' : ` (±${Math.round(gps.accuracy)}m)`}
             </Text>
           ) : null}
-          {gpsError && !locating ? (
+          {permissionDenied ? (
+            <TouchableOpacity
+              accessibilityRole="button"
+              onPress={() => {
+                void Linking.openSettings();
+              }}
+              style={[styles.retryButton, { minHeight: 44, justifyContent: 'center' }]}
+            >
+              <Text style={styles.retryButtonText}>Parametrləri aç</Text>
+            </TouchableOpacity>
+          ) : null}
+          {!gps && !locating ? (
             <TouchableOpacity
               testID="login.retryLocationButton"
               accessibilityRole="button"
@@ -265,7 +301,9 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
               }}
               activeOpacity={0.8}
             >
-              <Text style={styles.retryButtonText}>Lokasiyanı yenidən yoxla</Text>
+              <Text style={styles.retryButtonText}>
+                {gpsError ? 'Yenidən cəhd et' : 'Lokasiyanı təsdiqlə'}
+              </Text>
             </TouchableOpacity>
           ) : null}
 
@@ -314,12 +352,12 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.background,
   },
   content: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 24,
+    padding: spacing.lg,
   },
   title: {
     fontSize: 32,
@@ -328,21 +366,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 15,
-    color: '#666666',
+    fontSize: typography.secondary,
+    color: palette.textSecondary,
     textAlign: 'center',
     marginTop: 4,
     marginBottom: 40,
   },
   card: {
-    backgroundColor: '#F8F8F8',
+    backgroundColor: palette.surface,
     borderRadius: 16,
     padding: 20,
   },
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#555555',
+    color: palette.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 8,
@@ -351,17 +389,17 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: palette.border,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#111111',
+    color: palette.text,
   },
   fieldHint: {
     marginTop: 6,
     fontSize: 12,
-    color: '#888888',
+    color: '#666666',
     lineHeight: 17,
   },
   gpsRow: {
@@ -376,7 +414,7 @@ const styles = StyleSheet.create({
   },
   gpsDetail: {
     fontSize: 13,
-    color: '#888888',
+    color: '#666666',
   },
   gpsLoading: {
     fontSize: 15,
@@ -429,7 +467,7 @@ const styles = StyleSheet.create({
   hint: {
     marginTop: 20,
     fontSize: 13,
-    color: '#888888',
+    color: '#666666',
     textAlign: 'center',
     lineHeight: 19,
   },

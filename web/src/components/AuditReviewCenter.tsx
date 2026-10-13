@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { EvidenceViewer } from './ui/EvidenceViewer';
 import { ModalPortal } from './ui/ModalPortal';
 import {
   CheckCircle2,
@@ -11,7 +12,6 @@ import {
   Calendar,
   Eye,
   EyeOff,
-  Zap,
   Bot,
   Camera,
   CheckSquare,
@@ -31,7 +31,6 @@ interface AuditReviewCenterProps {
    * ona görə komponent yalnız "heç nə etmə" deyir.
    */
   onApprove: (id: string) => Promise<boolean>;
-  onAIApprove?: (id: string) => Promise<boolean>;
   onReject: (id: string, feedback: string) => Promise<boolean>;
   initialFilter?: SubmissionStatus | 'all';
 }
@@ -41,14 +40,23 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
   selectedSubmission,
   setSelectedSubmission,
   onApprove,
-  onAIApprove,
   onReject,
   initialFilter,
 }) => {
-  const [filterStatus, setFilterStatus] = useState<SubmissionStatus | 'all'>(
-    initialFilter || 'all',
+  const [filterStatus, setFilterStatus] = useState<SubmissionStatus | 'all'>(() => {
+    const routeStatus = new URLSearchParams(window.location.search).get('status');
+    if (
+      routeStatus === 'pending_review' ||
+      routeStatus === 'approved' ||
+      routeStatus === 'rejected'
+    ) {
+      return routeStatus;
+    }
+    return initialFilter || 'all';
+  });
+  const [searchQuery, setSearchQuery] = useState(
+    () => new URLSearchParams(window.location.search).get('q') ?? '',
   );
-  const [searchQuery, setSearchQuery] = useState('');
   const [rejectFeedback, setRejectFeedback] = useState('');
   const [rejectError, setRejectError] = useState<string | null>(null);
   const [showRejectInput, setShowRejectInput] = useState(false);
@@ -62,6 +70,35 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
       setFilterStatus(initialFilter);
     }
   }, [initialFilter]);
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (filterStatus === 'all') params.delete('status');
+    else params.set('status', filterStatus);
+    if (searchQuery.trim()) params.set('q', searchQuery.trim());
+    else params.delete('q');
+    const query = params.toString();
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${window.location.pathname}${query ? `?${query}` : ''}`,
+    );
+  }, [filterStatus, searchQuery]);
+
+  React.useEffect(() => {
+    const syncFromHistory = () => {
+      const params = new URLSearchParams(window.location.search);
+      const status = params.get('status');
+      setFilterStatus(
+        status === 'pending_review' || status === 'approved' || status === 'rejected'
+          ? status
+          : 'all',
+      );
+      setSearchQuery(params.get('q') ?? '');
+    };
+    window.addEventListener('popstate', syncFromHistory);
+    return () => window.removeEventListener('popstate', syncFromHistory);
+  }, []);
 
   /* Escape bağlayır, fokus modalın içində qalır, bağlananda geri qaytar */
   const reviewModalRef = useModalA11y<HTMLDivElement>(!!selectedSubmission, () =>
@@ -141,16 +178,6 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
     }
   };
 
-  const handleAIApproveClick = async (id: string) => {
-    setIsProcessing(true);
-    try {
-      const ok = onAIApprove ? await onAIApprove(id) : await onApprove(id);
-      if (ok) setSelectedSubmission(null);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
   const handleRejectSubmit = async (id: string) => {
     if (!rejectFeedback.trim()) {
       setRejectError('Zəhmət olmasa imtina səbəbini qeyd edin.');
@@ -187,7 +214,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setFilterStatus(tab.id as any)}
+              onClick={() => setFilterStatus(tab.id as SubmissionStatus | 'all')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
                 filterStatus === tab.id
                   ? 'bg-[var(--g-pop)] text-ink shadow-g1 border border-hair'
@@ -262,14 +289,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                       </span>
                     )}
                     {sub.ai_score !== undefined && sub.ai_score !== null && (
-                      <span
-                        className={`pill-photo ${
-                          sub.ai_score >= 80 ? 'p-ok' : sub.ai_score >= 60 ? 'p-warn' : 'p-bad'
-                        }`}
-                      >
-                        <span className="dot" />
-                        AI {sub.ai_score}%
-                      </span>
+                      <span className="pill-photo p-info">Uyğunluq təxmini: {sub.ai_score}%</span>
                     )}
                     {sub.before_photo_url && (
                       <span className="pill-photo p-info">
@@ -309,7 +329,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                   <div>
                     {getScenarioBadge(sub) && <div className="mb-1.5">{getScenarioBadge(sub)}</div>}
                     <h4 className="font-bold text-xs text-ink line-clamp-1">
-                      {sub.task?.title || 'Planogram Auditi'}
+                      {sub.task?.title || 'Rəf auditi'}
                     </h4>
                     <p className="text-[11px] text-ink-2 flex items-center gap-1 mt-1 font-medium">
                       <StoreIcon className="w-3.5 h-3.5 text-muted" />
@@ -336,7 +356,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                     className="w-full py-2 px-3 rounded-lg bg-[var(--g-panel)] hover:bg-[var(--coke-soft)] hover:text-coke text-ink font-bold text-xs transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
                   >
                     <Layers className="w-3.5 h-3.5" />
-                    <span>Planogramla Müqayisə Et</span>
+                    <span>Sübutları yoxla</span>
                   </button>
                 </div>
               </div>
@@ -436,69 +456,36 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
               {/* AI Vision Compliance Summary Banner */}
               {selectedSubmission.ai_score !== undefined &&
                 selectedSubmission.ai_score !== null && (
-                  <div
-                    className={`p-4 mx-5 mt-4 rounded-xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
-                      (selectedSubmission.ai_score ?? 0) >= 80
-                        ? 'bg-emerald-50/80 border-emerald-200'
-                        : (selectedSubmission.ai_score ?? 0) >= 60
-                          ? 'bg-amber-50/80 border-amber-200'
-                          : 'bg-rose-50/80 border-rose-200'
-                    }`}
-                  >
+                  <div className="p-4 mx-5 mt-4 rounded-xl border border-hair bg-[var(--g-panel)] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div className="flex items-center space-x-3.5">
-                      <div
-                        className={`w-14 h-14 rounded-xl flex flex-col items-center justify-center font-extrabold text-white shadow-sm flex-shrink-0 ${
-                          (selectedSubmission.ai_score ?? 0) >= 80
-                            ? 'bg-emerald-600'
-                            : (selectedSubmission.ai_score ?? 0) >= 60
-                              ? 'bg-amber-500'
-                              : 'bg-rose-600'
-                        }`}
-                      >
-                        <span className="text-base leading-none">
-                          {selectedSubmission.ai_score}%
-                        </span>
-                        <span className="text-[10px] uppercase tracking-wider opacity-90">
-                          AI BAL
-                        </span>
+                      <div className="w-14 h-14 rounded-xl flex flex-col items-center justify-center font-extrabold text-ink bg-[var(--g-card)] border border-hair flex-shrink-0">
+                        <span className="text-sm leading-none">{selectedSubmission.ai_score}%</span>
+                        <span className="text-[10px] tracking-wide opacity-90">Uyğunluq</span>
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <h4 className="font-extrabold text-xs sm:text-sm text-ink flex items-center gap-1.5">
                             <Bot className="w-4 h-4 text-coke-500" />
-                            Süni İntellekt (AI) Planogram Təhlili
+                            Avtomatik foto təhlili
                           </h4>
-                          <span
-                            className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold uppercase ${
-                              (selectedSubmission.ai_score ?? 0) >= 80
-                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                : 'bg-amber-100 text-amber-800 border border-amber-300'
-                            }`}
-                          >
-                            {(selectedSubmission.ai_score ?? 0) >= 80
-                              ? 'Avto-Təsdiqə Uyğun'
-                              : 'Əl ilə Yoxlama Tələb Olunur'}
+                          <span className="text-xs px-2 py-1 rounded-full font-bold bg-[var(--g-card)] text-ink-2 border border-hair">
+                            Uyğunluq balı · yekun status ayrıca
                           </span>
                         </div>
                         <p className="text-xs text-ink-2 mt-1 leading-relaxed">
                           {selectedSubmission.ai_summary ||
-                            'Rəf auditi üzrə süni intellekt təhlili aparılıb.'}
+                            'Şəkildəki məhsul və rəf düzülüşü avtomatik təhlil edilib.'}
+                        </p>
+                        <p className="text-xs text-ink-2 mt-1 leading-relaxed">
+                          Bu rəqəm uyğunluq balıdır, modelin əminlik faizi deyil. Yekun status
+                          ayrıca göstərilir. Yoxlama gözləyirsə, foto və lokasiya sübutlarını
+                          yoxlayıb qərar verin.
+                          {selectedSubmission.ai_detections?.length
+                            ? ` Təhlildə ${selectedSubmission.ai_detections.length} obyekt işarələnib.`
+                            : ''}
                         </p>
                       </div>
                     </div>
-
-                    {selectedSubmission.ai_score &&
-                      selectedSubmission.ai_score >= 80 &&
-                      selectedSubmission.status === 'pending_review' && (
-                        <button
-                          disabled={isProcessing}
-                          onClick={() => void handleAIApproveClick(selectedSubmission.id)}
-                          className="w-full md:w-auto px-4 py-2.5 rounded-xl btn-coke text-white font-extrabold text-xs shadow-md shadow-coke-500/20 flex items-center justify-center space-x-1.5 transition-all cursor-pointer whitespace-nowrap"
-                        >
-                          <Zap className="w-4 h-4 fill-white" />
-                          <span>Bir Kliklə AI Təsdiqi ({selectedSubmission.ai_score}%)</span>
-                        </button>
-                      )}
                   </div>
                 )}
 
@@ -510,7 +497,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                     <div className="flex items-center space-x-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
                       <h4 className="font-bold text-xs uppercase tracking-wider text-ink-2">
-                        Standart Planogram (İdeal Rəf Düzülüşü)
+                        Rəf üçün nümunə düzülüş
                       </h4>
                     </div>
                     <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
@@ -518,13 +505,10 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                     </span>
                   </div>
 
-                  <div className="flex-1 aspect-[4/3] rounded-lg overflow-hidden bg-[var(--g-panel)] border border-hair relative">
-                    <img
-                      src={selectedSubmission.task?.reference_image_url || '/logo.jpg'}
-                      alt="Planogram Reference"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
+                  <EvidenceViewer
+                    src={selectedSubmission.task?.reference_image_url}
+                    alt="Nümunə rəf fotosu"
+                  />
 
                   <div className="mt-3 p-2.5 bg-[var(--g-panel)] rounded-lg border border-hair-2 text-xs text-ink-2">
                     <p className="font-bold text-ink mb-0.5 text-[11px]">Rəf Təlimatı:</p>
@@ -549,6 +533,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                       {selectedSubmission.before_photo_url && (
                         <div className="flex items-center gap-1 bg-[var(--g-panel)] p-0.5 rounded-lg border border-hair">
                           <button
+                            aria-pressed={activePhotoView === 'before'}
                             onClick={() => setActivePhotoView('before')}
                             className={`px-2 py-1 rounded text-[11px] font-extrabold transition-all cursor-pointer ${
                               activePhotoView === 'before'
@@ -556,9 +541,10 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                                 : 'text-ink-2 hover:text-ink'
                             }`}
                           >
-                            📷 Before
+                            📷 Əvvəl
                           </button>
                           <button
+                            aria-pressed={activePhotoView === 'after'}
                             onClick={() => setActivePhotoView('after')}
                             className={`px-2 py-1 rounded text-[11px] font-extrabold transition-all cursor-pointer ${
                               activePhotoView === 'after'
@@ -566,7 +552,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                                 : 'text-ink-2 hover:text-ink'
                             }`}
                           >
-                            ✨ After
+                            ✨ Sonra
                           </button>
                         </div>
                       )}
@@ -596,57 +582,23 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex-1 aspect-[4/3] rounded-lg overflow-hidden bg-slate-900 border border-hair relative select-none">
-                    <img
-                      src={
-                        activePhotoView === 'before' && selectedSubmission.before_photo_url
-                          ? selectedSubmission.before_photo_url
-                          : selectedSubmission.photo_url
-                      }
-                      alt="Store Shelf Upload"
-                      className="w-full h-full object-cover"
-                    />
-
-                    {/* Before / After Status Watermark */}
-                    {selectedSubmission.before_photo_url && (
-                      <div className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-md text-[10px] font-extrabold bg-slate-950/80 backdrop-blur-sm text-white border border-white/20">
-                        {activePhotoView === 'before'
-                          ? '📷 İLKİN RƏF (DÜZƏLİŞDƏN ƏVVƏL)'
-                          : '✨ YENİLƏNMİŞ RƏF (DÜZƏLİŞDƏN SONRA)'}
-                      </div>
-                    )}
-
-                    {/* Visual Bounding Boxes Overlay (only in After view) */}
-                    {activePhotoView === 'after' &&
-                      showBoundingBoxes &&
-                      selectedSubmission.ai_detections?.map((det) => (
-                        <div
-                          key={det.id}
-                          style={{
-                            left: `${det.box.x}%`,
-                            top: `${det.box.y}%`,
-                            width: `${det.box.width}%`,
-                            height: `${det.box.height}%`,
-                            borderColor: det.color,
-                            borderStyle: det.sku === 'out_of_stock_gap' ? 'dashed' : 'solid',
-                          }}
-                          className={`absolute border-2 rounded transition-transform duration-100 pointer-events-auto hover:scale-[1.02] hover:z-30 hover:border-[3px] ${
-                            det.sku === 'out_of_stock_gap' ? 'bg-rose-500/20' : 'bg-black/10'
-                          }`}
-                          title={`${det.label} (${Math.round(det.confidence * 100)}% etibarlılıq)`}
-                        >
-                          <div
-                            style={{ backgroundColor: det.color }}
-                            className="text-[9px] font-extrabold text-white px-1.5 py-0.5 rounded-br max-w-full truncate shadow-sm flex items-center gap-1"
-                          >
-                            {det.sku === 'out_of_stock_gap' ? '⚠️ BOŞLUQ' : det.label.split(' ')[0]}
-                            <span className="opacity-80 text-[8px]">
-                              {Math.round(det.confidence * 100)}%
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
+                  <EvidenceViewer
+                    src={
+                      activePhotoView === 'before' && selectedSubmission.before_photo_url
+                        ? selectedSubmission.before_photo_url
+                        : selectedSubmission.photo_url
+                    }
+                    alt={
+                      activePhotoView === 'before'
+                        ? 'Düzəlişdən əvvəl rəf fotosu'
+                        : 'Göndərilən rəf fotosu'
+                    }
+                    detections={
+                      activePhotoView === 'after' && showBoundingBoxes
+                        ? (selectedSubmission.ai_detections ?? [])
+                        : []
+                    }
+                  />
 
                   {/* Detected Products Color Legend */}
                   {selectedSubmission.ai_detections &&
@@ -699,7 +651,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                         sual təsdiqlənib)
                       </span>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">
-                        FMCG Validation Pass
+                        Yoxlama siyahısı
                       </span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -748,7 +700,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                   <textarea
                     id="audit-reject-reason"
                     rows={2}
-                    placeholder="Məsələn: Coca-Cola Classic 0.5L alt sırada 2 facing çatışmır və etiketlər düz çevrilməyib..."
+                    placeholder="Məsələn: Coca-Cola Classic 0.5L alt cərgədə 2 məhsul çatışmır və etiketlər tərsdir..."
                     value={rejectFeedback}
                     onChange={(e) => {
                       setRejectFeedback(e.target.value);
@@ -816,17 +768,6 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                         <XCircle className="w-4 h-4" />
                         <span>❌ İmtina Et</span>
                       </button>
-
-                      {selectedSubmission.ai_score && selectedSubmission.ai_score >= 80 && (
-                        <button
-                          disabled={isProcessing}
-                          onClick={() => void handleAIApproveClick(selectedSubmission.id)}
-                          className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-4 py-2 rounded-lg btn-coke text-white font-bold text-xs transition-all cursor-pointer"
-                        >
-                          <Zap className="w-4 h-4 fill-white" />
-                          <span>⚡ AI Təsdiqi</span>
-                        </button>
-                      )}
 
                       <button
                         disabled={isProcessing}

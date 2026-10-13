@@ -309,26 +309,29 @@ export async function enroll(params: {
   }
 
   const text = await response.text();
-  let payload: any = {};
+  // Widened to `Envelope<EnrollmentResult>` only after the checks below; until
+  // then this is a raw parse of whatever the API sent.
+  let parsed: unknown = {};
   if (text) {
     try {
-      payload = JSON.parse(text);
+      parsed = JSON.parse(text);
     } catch {
-      payload = {};
+      parsed = {};
     }
   }
+  const payload = (parsed ?? {}) as Envelope<EnrollmentResult & { token?: string }>;
 
-  if (!response.ok || !payload?.data?.token) {
+  if (!response.ok || !payload.data?.token) {
     const detail =
-      payload?.message || payload?.error || `Qeydiyyat alınmadı (HTTP ${response.status})`;
+      payload.message || payload.error || `Qeydiyyat alınmadı (HTTP ${response.status})`;
     throw new MobileApiError(
       Array.isArray(detail) ? detail.join(', ') : String(detail),
       response.status,
-      payload?.error ?? 'ENROLLMENT_FAILED',
+      payload.error ?? 'ENROLLMENT_FAILED',
     );
   }
 
-  deviceToken = payload.data.token as string;
+  deviceToken = payload.data.token;
 
   // Persisted BEFORE returning, because the API has just revoked this
   // installation's previous live token. Returning a token the device did not
@@ -488,7 +491,7 @@ async function callApi(
   path: string,
   init: RequestInit = {},
   options: { allowAnonymous?: boolean } = {},
-): Promise<Envelope<any>> {
+): Promise<Envelope<unknown>> {
   // Refused here rather than sent unauthenticated and rejected by the API: the
   // caller gets one clear instruction, and no request leaves the device without
   // a credential attached.
@@ -527,7 +530,7 @@ async function callApi(
   }
 
   const text = await response.text();
-  let payload: Envelope<any> = {};
+  let payload: Envelope<unknown> = {};
 
   if (text) {
     try {
@@ -544,12 +547,12 @@ async function callApi(
   }
 
   if (!response.ok) {
-    const raw = (payload as any)?.message ?? (payload as any)?.error;
+    const raw = payload.message ?? payload.error;
     const message = Array.isArray(raw) ? raw.join('; ') : raw;
     throw new MobileApiError(
       message || `API xətası (HTTP ${response.status})`,
       response.status,
-      (payload as any)?.error ?? null,
+      payload.error ?? null,
     );
   }
 

@@ -220,9 +220,10 @@ export class OpenRouterClient implements VisionLLMClient {
       const detail = (await response.text().catch(() => '')).slice(0, 300);
       throw new Error(`OpenRouter HTTP ${response.status}: ${detail}`);
     }
-    const payload = (await response.json()) as any;
-    const content: string = payload?.choices?.[0]?.message?.content ?? '';
-    return parseJudgement(content);
+    const payload = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    return parseJudgement(payload.choices?.[0]?.message?.content ?? '');
   }
 
   /** Seconds from `Retry-After`, else exponential backoff. Never above the cap. */
@@ -253,15 +254,15 @@ export function parseJudgement(raw: string): VisionLLMJudgement {
     .replace(/^```(?:json)?/i, '')
     .replace(/```$/, '')
     .trim();
-  let parsed: any;
+  let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(cleaned);
+    parsed = JSON.parse(cleaned) as Record<string, unknown>;
   } catch {
     throw new Error(`OpenRouter returned non-JSON: ${cleaned.slice(0, 200)}`);
   }
 
   const detectedCounts: Partial<Record<CocaColaSKU, number>> = {};
-  const rawCounts = parsed?.detectedCounts ?? {};
+  const rawCounts = (parsed.detectedCounts ?? {}) as Record<string, unknown>;
   for (const sku of COUNTED_SKUS) {
     const n = Number(rawCounts[sku]);
     if (Number.isFinite(n) && n > 0) detectedCounts[sku] = Math.round(n);

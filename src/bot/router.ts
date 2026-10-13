@@ -1,3 +1,4 @@
+import { handleTasksPage } from './handlers/tasks';
 /**
  * oneTeam Telegram Bot — the router
  * ============================================================================
@@ -37,7 +38,7 @@ import { AnswerCallback, BotContext } from './types';
 import { parseCallback } from './callbacks';
 import { MENU_STATUS_LABEL, MENU_TASKS_LABEL, MENU_TODAY_LABEL } from './keyboards';
 import { handleStart, handleStoreCodeInput } from './handlers/start';
-import { handleTasks, handleOpenTask } from './handlers/tasks';
+import { handleTasks, handleOpenTask, handleDiscardTask } from './handlers/tasks';
 import { handleToday } from './handlers/today';
 import {
   handleChecklistAnswer,
@@ -162,7 +163,7 @@ export async function handleCallbackQuery(ctx: BotContext): Promise<void> {
         return;
       case 'tasks':
         await answer();
-        await handleTasks(ctx);
+        await handleTasksPage(ctx, /^page-\d+$/.test(parsed.id) ? Number(parsed.id.slice(5)) : 0);
         return;
       case 'status':
         await answer();
@@ -176,6 +177,9 @@ export async function handleCallbackQuery(ctx: BotContext): Promise<void> {
         // Answered inside, because the guard has to say something before the
         // slow work starts.
         await handleOpenTask(ctx, parsed.id, answer);
+        return;
+      case 'discard':
+        await handleDiscardTask(ctx, parsed.id, answer);
         return;
       case 'restart':
         await handleRestartTask(ctx, parsed.id, answer);

@@ -3,6 +3,23 @@ export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type TaskStatus = 'draft' | 'published' | 'completed' | 'archived';
 export type SubmissionStatus = 'pending_review' | 'approved' | 'rejected';
 
+/**
+ * A checklist question in the panel's own vocabulary.
+ *
+ * The panel's `Task` carries the template's checklist, and the editor renders it
+ * with one-tap answer buttons. The API's canonical shape is `ChecklistQuestion`
+ * in `@oneteam/types`; the web portal deliberately does not depend on that
+ * package (see `web/src/lib/clock.ts` for the same reasoning), so this is the
+ * panel-side mirror. `label` is the field the API actually writes.
+ */
+export interface ChecklistItem {
+  id: string;
+  label: string;
+  type: 'boolean' | 'single_choice' | 'number' | 'text';
+  /** Only meaningful for `single_choice`; the one-tap answer buttons. */
+  options?: string[];
+}
+
 export interface Store {
   id: string;
   store_code: string;
@@ -84,7 +101,7 @@ export interface Task {
   updated_at?: string;
   assigned_stores?: string[]; // Array of store IDs
   requires_before_after_photo?: boolean;
-  checklist_schema?: any[];
+  checklist_schema?: ChecklistItem[];
 
   /**
    * The ids an edit or delete needs.
@@ -172,8 +189,9 @@ export interface Submission {
       latitude: number;
       longitude: number;
     };
-    ai_evaluation?: any;
-    [key: string]: any;
+    /** The vision engine's own report, when one ran. Shape belongs to the engine. */
+    ai_evaluation?: Record<string, unknown>;
+    [key: string]: unknown;
   };
   submitted_at: string;
   reviewed_at: string | null;

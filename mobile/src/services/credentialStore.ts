@@ -64,14 +64,17 @@ export interface SecureKeyValueStore {
 export class MemorySecureStore implements SecureKeyValueStore {
   private readonly values = new Map<string, string>();
 
+  // eslint-disable-next-line @typescript-eslint/require-await -- in-memory double for the Promise-returning SecureKeyValueStore interface.
   async get(key: string): Promise<string | null> {
     return this.values.get(key) ?? null;
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await -- in-memory double for the Promise-returning SecureKeyValueStore interface.
   async set(key: string, value: string): Promise<void> {
     this.values.set(key, value);
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await -- in-memory double for the Promise-returning SecureKeyValueStore interface.
   async remove(key: string): Promise<void> {
     this.values.delete(key);
   }

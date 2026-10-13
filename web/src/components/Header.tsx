@@ -1,3 +1,4 @@
+import { clock } from '../lib/clock';
 import React, { useState, useEffect } from 'react';
 import {
   PlusCircle,
@@ -18,6 +19,7 @@ interface HeaderProps {
   onOpenCreateTask: () => void;
   /** Telefon ölçüsündə çekmeceni açır */
   onOpenDrawer?: () => void;
+  drawerOpen?: boolean;
   /** Məzmun sürüşdürülübsə toolbar bir az qatılaşır — "üzən" hissi */
   scrolled?: boolean;
   /**
@@ -47,6 +49,7 @@ export const Header: React.FC<HeaderProps> = ({
   activeTab,
   onOpenCreateTask,
   onOpenDrawer,
+  drawerOpen = false,
   scrolled = false,
   identity,
   onSignOut,
@@ -61,7 +64,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   useEffect(() => {
     const updateTime = () => {
-      const now = new Date();
+      const now = clock.now();
       setTimeStr(
         now.toLocaleTimeString('az-AZ', {
           timeZone: 'Asia/Baku',
@@ -89,28 +92,28 @@ export const Header: React.FC<HeaderProps> = ({
 
   const titles: Record<TabType, { title: string; subtitle: string }> = {
     dashboard: {
-      title: 'İcmal & Əsas Göstəricilər',
-      subtitle: 'Real-vaxt rəf monitorinqi və mağaza uyğunluq statistikası',
+      title: 'İcmal',
+      subtitle: 'Mağazalar, tapşırıqlar və yoxlama vəziyyəti',
     },
     review: {
-      title: 'Rəf Auditi & Yoxlama Mərkəzi',
-      subtitle: 'Sahədən göndərilən rəf fotolarının planogramla müqayisəsi və təsdiqi',
+      title: 'Auditlər',
+      subtitle: 'Göndərilən fotoları yoxlayın və qərar verin',
     },
     tasks: {
-      title: 'Planogram & Təlimat İdarəetməsi',
-      subtitle: 'Mağazalara göndərilən rəf düzülüş standartları və tapşırıqlar',
+      title: 'Tapşırıqlar',
+      subtitle: 'Mağazalar üçün rəf işi yaradın və göndərin',
     },
     stores: {
-      title: 'Tərəfdaş Mağazalar Şəbəkəsi',
-      subtitle: 'Bravo, Araz, Bazarstore filialları və uyğunluq göstəriciləri',
+      title: 'Mağazalar',
+      subtitle: 'Filial məlumatları və audit nəticələri',
     },
     products: {
-      title: 'Məhsul Kataloqu (SKU)',
-      subtitle: 'Skanerilən barkodun həll etdiyi məhsul identiteti',
+      title: 'Məhsullar',
+      subtitle: 'Barkodlar və məhsul məlumatları',
     },
     shelfmap: {
-      title: 'Rəf Xəritəsi',
-      subtitle: 'Bölmə / səviyyə / mövqe — planogram müqayisəsinin bazası',
+      title: 'Rəf planı',
+      subtitle: 'Məhsulların rəfdə yerləşmə qaydası',
     },
   };
 
@@ -135,6 +138,7 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={onOpenDrawer}
           aria-label="Naviqasiya menyusunu aç"
           aria-controls="oneteam-sidebar"
+          aria-expanded={drawerOpen}
           className="iconbtn-g md:hidden"
         >
           <Menu className="w-[18px] h-[18px]" strokeWidth={2} />
@@ -146,7 +150,7 @@ export const Header: React.FC<HeaderProps> = ({
         <h2 className="text-[15.5px] font-extrabold tracking-[-.03em] text-ink truncate leading-tight">
           {title}
         </h2>
-        <p className="hidden sm:block text-[11px] text-muted truncate mt-px">{subtitle}</p>
+        <p className="hidden sm:block text-xs text-muted truncate mt-px">{subtitle}</p>
       </div>
 
       <div className="flex items-center gap-2 flex-shrink-0">
@@ -167,7 +171,7 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="block max-w-[190px] truncate text-[11.5px] font-bold text-ink">
               {identity?.fullName ?? 'Kimlik bilinmir'}
             </span>
-            <span className="block text-[11px] text-muted">
+            <span className="block text-xs text-muted">
               {signedIn
                 ? (ROLE_LABEL[identity?.role ?? ''] ?? identity?.role ?? '')
                 : 'Açıq panel — giriş yoxdur'}

@@ -58,9 +58,24 @@ import {
 
 type AuthedRequest = ExpressRequest & { principal?: AuthenticatedPrincipal };
 
-/** Reads the acting person's channel key off a request body. */
-function actorKeyFrom(body: any): FieldActorKey {
-  return { chatId: body?.chatId, deviceId: body?.deviceId };
+/** The submission body, taken from the service so the two cannot drift. */
+type SubmissionBody = Parameters<FieldService['submitSubmission']>[0];
+
+/**
+ * Reads the acting person's channel key off a request body.
+ *
+ * Narrowed rather than cast: this is the request body, so `chatId` is whatever
+ * the caller sent. A string or a number is the chat; anything else is the same
+ * as absent, and `requireActorKey` below is what refuses it.
+ */
+function actorKeyFrom(body: { chatId?: unknown; deviceId?: unknown }): FieldActorKey {
+  return {
+    chatId:
+      typeof body?.chatId === 'string' || typeof body?.chatId === 'number'
+        ? body.chatId
+        : undefined,
+    deviceId: typeof body?.deviceId === 'string' ? body.deviceId : undefined,
+  };
 }
 
 /** Reads the acting person's channel key off a query string. */
@@ -298,7 +313,7 @@ export class FieldController {
 
   @Post('submissions')
   @HttpCode(HttpStatus.CREATED)
-  async submitSubmission(@Request() request: AuthedRequest, @Body() body: any) {
+  async submitSubmission(@Request() request: AuthedRequest, @Body() body: SubmissionBody) {
     // The scope check is the point of this line; the key itself already came
     // from the body, so nothing needs merging back into it.
     enforceActorScope(getPrincipal(request), requireActorKey(actorKeyFrom(body)));

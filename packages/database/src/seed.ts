@@ -5,7 +5,9 @@
  * - 2 Task Templates: "Cooler Check" & "Eye-Level Placement"
  * - 3 Baku Stores: "Bravo Yasamal", "Araz Ganjlik", "Bazarstore Port Baku"
  * - 3 Role-based Users: Admin, Supervisor, Merchandiser
+
  */
+import { log, ChecklistQuestion, PlanogramRule } from '@oneteam/types';
 
 export interface SeedData {
   users: Array<{
@@ -64,11 +66,20 @@ export interface SeedData {
     description: string;
     referenceImageUrl: string;
     priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
-    planogramRules: any[];
+    planogramRules: PlanogramRule[];
     requiresBeforeAfterPhoto?: boolean;
-    checklistSchema?: any[];
+    checklistSchema?: ChecklistQuestion[];
   }>;
 }
+
+/**
+ * The seed's own row shapes, named so the database package can say what a
+ * hydrated row is instead of calling every one of them `any`.
+ */
+export type SeedUser = SeedData['users'][number];
+export type SeedRegion = SeedData['region'];
+export type SeedCampaign = SeedData['campaign'];
+export type SeedTemplate = SeedData['templates'][number];
 
 export const SEED_DATA: SeedData = {
   users: [
@@ -220,13 +231,14 @@ export const SEED_DATA: SeedData = {
 
 // `_prismaClient` is accepted for call-site compatibility and deliberately not
 // used: this seed writes through the repository, not through Prisma directly.
-export async function runDatabaseSeed(_prismaClient?: any): Promise<SeedData> {
-  console.log('🌱 [oneTeam SEED] Starting enterprise data seeding...');
-  console.log(`   - 1 Campaign: "${SEED_DATA.campaign.name}"`);
-  console.log(`   - 2 Templates: ${SEED_DATA.templates.map((t) => t.title).join(', ')}`);
-  console.log(`   - 3 Stores: ${SEED_DATA.stores.map((s) => s.name).join(', ')}`);
-  console.log(`   - 3 Users: ${SEED_DATA.users.map((u) => u.fullName).join(', ')}`);
-  console.log('✅ [oneTeam SEED] Seeding completed successfully.');
+// eslint-disable-next-line @typescript-eslint/require-await -- writes through the repository, not Prisma; keeps the Promise signature the CLI awaits.
+export async function runDatabaseSeed(_prismaClient?: unknown): Promise<SeedData> {
+  log.info('🌱 [oneTeam SEED] Starting enterprise data seeding...');
+  log.info(`   - 1 Campaign: "${SEED_DATA.campaign.name}"`);
+  log.info(`   - 2 Templates: ${SEED_DATA.templates.map((t) => t.title).join(', ')}`);
+  log.info(`   - 3 Stores: ${SEED_DATA.stores.map((s) => s.name).join(', ')}`);
+  log.info(`   - 3 Users: ${SEED_DATA.users.map((u) => u.fullName).join(', ')}`);
+  log.info('✅ [oneTeam SEED] Seeding completed successfully.');
   return SEED_DATA;
 }
 

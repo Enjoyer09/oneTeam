@@ -45,6 +45,7 @@ export class SimulationVisionProvider implements VisionProvider {
       'compliant' | 'minor_gap' | 'missing_sku' | 'severe_issues' = 'compliant',
   ) {}
 
+  // eslint-disable-next-line @typescript-eslint/require-await -- implements VisionProvider.analyze, which returns a Promise.
   async analyze(input: VisionInput): Promise<VisionAnalysis> {
     const { detections, engine } = aiVisionService.detectShelfProducts({
       photoUrl: input.photoUrl,

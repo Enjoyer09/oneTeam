@@ -115,6 +115,8 @@ export interface GeofenceResult {
  * longer claims to hold this shape.
  */
 export interface AuditMetadata {
+  task_title?: string;
+  checklist_answers?: Array<{ questionId: string; value: boolean | number | string }>;
   gps: GPSCoordinates;
   distance_from_store_meters: number;
   device_model: string;

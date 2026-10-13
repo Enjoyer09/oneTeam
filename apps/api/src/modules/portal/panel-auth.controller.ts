@@ -446,7 +446,7 @@ export class PanelAuthController {
     const rows = await db.listDeviceTokens(true);
 
     const nameOf = new Map<string, string>(
-      db.users.map((user: any) => [user.id, String(user.fullName ?? user.id)]),
+      db.users.map((user) => [user.id, String(user.fullName ?? user.id)]),
     );
 
     // A block is keyed by device_id and lives in its own table, not on the
@@ -644,13 +644,13 @@ export class PanelAuthController {
       liveKeyCount.set(row.userId, (liveKeyCount.get(row.userId) ?? 0) + 1);
     }
 
-    const adminCount = db.users.filter((user: any) => user.role === UserRole.ADMIN).length;
+    const adminCount = db.users.filter((user) => user.role === UserRole.ADMIN).length;
     const roles = Object.values(UserRole);
 
     return {
       success: true,
       data: {
-        users: db.users.map((user: any) => {
+        users: db.users.map((user) => {
           const made = submissions.get(user.id);
           const isSelf = user.id === principal.userId;
           const isLastAdmin = user.role === UserRole.ADMIN && adminCount <= 1;
@@ -742,6 +742,16 @@ export class PanelAuthController {
       });
     }
 
+    // Every named outcome is handled above and throws, so reaching here with no
+    // row means the repository returned nothing it can name. Said plainly rather
+    // than assumed away, and it narrows `created.user` for the lines below.
+    if (!created.user) {
+      throw new ServiceUnavailableException({
+        error: 'USER_NOT_STORED',
+        message: 'İstifadəçi yaradıla bilmədi: verilənlər bazasına yazıla bilmədi.',
+      });
+    }
+
     db.logAuditEvent({
       entityType: 'panel_user',
       entityId: created.user.id,
@@ -783,14 +793,15 @@ export class PanelAuthController {
     const principal = requireAdmin(request);
     const target = String(userId ?? '').trim();
 
-    if (!db.getUser(target)) {
+    const previousUser = db.getUser(target);
+    if (!previousUser) {
       throw new NotFoundException({
         error: 'USER_NOT_FOUND',
         message: `İstifadəçi tapılmadı: ${target}`,
       });
     }
 
-    const changes: { fullName?: string; role?: string; phone?: string } = {};
+    const changes: { fullName?: string; role?: UserRole; phone?: string } = {};
 
     if (body?.fullName !== undefined) {
       const fullName = String(body.fullName).trim();
@@ -827,7 +838,7 @@ export class PanelAuthController {
       });
     }
 
-    const previousRole = db.getUser(target)!.role;
+    const previousRole = previousUser.role;
     const result = await db.updateUser(target, changes);
 
     if (result.error === 'NOT_FOUND') {
@@ -845,6 +856,15 @@ export class PanelAuthController {
       });
     }
     if (result.error === 'NOT_STORED') {
+      throw new ServiceUnavailableException({
+        error: 'USER_NOT_STORED',
+        message: 'Dəyişiklik yazıla bilmədi. Heç nə dəyişmədi — yenidən cəhd edin.',
+      });
+    }
+
+    // See the note in `createUser`: named refusals throw above, so this is the
+    // unnamed case, and it narrows `result.user` for the response below.
+    if (!result.user) {
       throw new ServiceUnavailableException({
         error: 'USER_NOT_STORED',
         message: 'Dəyişiklik yazıla bilmədi. Heç nə dəyişmədi — yenidən cəhd edin.',
@@ -944,16 +964,16 @@ export class PanelAuthController {
 }
 
 /** The four roles a person may hold, refused with the list when it is not one. */
-function requireRole(raw: unknown): string {
+function requireRole(raw: unknown): UserRole {
   const role = String(raw ?? '').trim();
-  const allowed = Object.values(UserRole) as string[];
+  const allowed = Object.values(UserRole as Record<string, string>);
   if (!allowed.includes(role)) {
     throw new BadRequestException({
       error: 'INVALID_ROLE',
       message: `Rol yanlışdır. Qəbul edilən rollar: ${allowed.join(', ')}`,
     });
   }
-  return role;
+  return role as UserRole;
 }
 
 /**

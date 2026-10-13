@@ -59,18 +59,18 @@ import { encodeCallback } from './callbacks';
 export const LOCATION_SKIP_LABEL = '⏭️ Lokasiya olmadan davam et';
 
 /** The label on the reply-keyboard button that opens the day-at-a-glance view. */
-export const MENU_TODAY_LABEL = '🗓 Bugün';
+export const MENU_TODAY_LABEL = '🗓 Bu gün';
 
 /** The label on the reply-keyboard button that lists the store's tasks. */
 export const MENU_TASKS_LABEL = '📋 Tapşırıqlar';
 
 /** The label on the reply-keyboard button that shows recent audits. */
-export const MENU_STATUS_LABEL = '📊 Statusum';
+export const MENU_STATUS_LABEL = '📊 Auditlərim';
 
 /**
  * The everyday menu.
  *
- * "🗓 Bugün" sits on its own row at the top because it is the screen a
+ * "🗓 Bu gün" sits on its own row at the top because it is the screen a
  * merchandiser opens first each shift — the day's active tasks and what they
  * have already sent today, in one message. The two originals stay on the row
  * below: the task list, and the status of past submissions. All three are
@@ -98,7 +98,7 @@ export function mainMenuInline(): InlineKeyboard {
     .text(MENU_TODAY_LABEL, encodeCallback('today', 'me'))
     .row()
     .text('📋 Tapşırıqlar', encodeCallback('tasks', 'list'))
-    .text('📊 Statusum', encodeCallback('status', 'me'))
+    .text(MENU_STATUS_LABEL, encodeCallback('status', 'me'))
     .row()
     .text('❓ Kömək', encodeCallback('help', 'show'));
 }

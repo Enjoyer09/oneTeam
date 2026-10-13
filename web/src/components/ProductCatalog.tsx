@@ -157,7 +157,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             Məhsul Kataloqu (SKU)
           </h3>
           <p className="mt-0.5 text-[11px] text-muted">
-            Skanerilən barkodun həll etdiyi məhsul identiteti — ad, ölçü, variant
+            Barkoda uyğun məhsulun adı, ölçüsü və variantı
           </p>
         </div>
 

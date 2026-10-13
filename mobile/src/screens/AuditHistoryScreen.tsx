@@ -46,6 +46,7 @@ const uploadQueuedAudit: UploadHandler = async (item) => {
     gps: item.metadata.gps,
     distanceFromStoreMeters: item.metadata.distance_from_store_meters,
     metadata: item.metadata,
+    checklistAnswers: item.metadata.checklist_answers,
     // The queue item's ID is the idempotency key for this drain.
     //
     // A drain that crashes halfway through or times out on the wire may have

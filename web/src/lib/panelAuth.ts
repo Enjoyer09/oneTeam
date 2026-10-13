@@ -33,8 +33,7 @@
 const STORAGE_KEY = 'oneteam-panel-key';
 
 /** Same reasoning as portalApi: empty means same-origin, through the nginx proxy. */
-const API_BASE =
-  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_BASE_URL) || '';
+const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) || '';
 
 /**
  * The key, held in memory as well as in storage.
@@ -139,9 +138,12 @@ async function panelRequest<T>(path: string, init: RequestInit = {}): Promise<T>
   }
 
   const text = await response.text();
-  let payload: any;
+  // Parsed as `unknown` and narrowed below: the API's error body has more than
+  // one legal shape, and reading a field off the wrong one should be a compile
+  // error rather than an empty error message in production.
+  let payload: Record<string, unknown> | null;
   try {
-    payload = text ? JSON.parse(text) : null;
+    payload = text ? (JSON.parse(text) as Record<string, unknown>) : null;
   } catch {
     throw new PanelAuthError(
       `API gözlənilməz cavab qaytardı (HTTP ${response.status})`,
@@ -154,16 +156,22 @@ async function panelRequest<T>(path: string, init: RequestInit = {}): Promise<T>
     // Nest's exception filter puts the message at different depths depending on
     // whether the body came from a `throw` or a filter. Reading all three is
     // cheaper than getting an empty error message in production.
-    const detail =
-      payload?.message ?? payload?.error?.message ?? payload?.error ?? payload?.data?.message;
+    const nested = payload?.error as { message?: unknown } | undefined;
+    const data = payload?.data as { message?: unknown } | undefined;
+    const detail = payload?.message ?? nested?.message ?? payload?.error ?? data?.message;
+    const code = typeof payload?.error === 'string' ? payload.error : undefined;
     throw new PanelAuthError(
       Array.isArray(detail) ? detail.join('; ') : String(detail ?? response.statusText),
       response.status,
-      typeof payload?.error === 'string' ? payload.error : undefined,
+      code,
     );
   }
 
-  return (payload as Envelope<T>).data;
+  // The only assertion in this file, and it is the contract: `/api/panel`
+  // answers `{ success, data }` on 2xx, which is what `Envelope` says. The cast
+  // is needed because `payload` is held as `Record<string, unknown>` for the
+  // error path above.
+  return (payload as unknown as Envelope<T>).data;
 }
 
 export interface PanelAuthStatus {

@@ -35,7 +35,10 @@ document.addEventListener(
   true, // capture — şəkil xətaları qabarcıq kimi yuxarı çıxmır
 );
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+const rootElement = document.getElementById('root');
+if (!rootElement) throw new Error('index.html is missing #root — the portal cannot mount.');
+
+ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <ErrorBoundary>
       <App />

@@ -36,6 +36,7 @@
  * no component had to change.
  */
 
+import { clock } from './clock';
 import {
   ShelfMetrics,
   ShelfPosition,
@@ -45,13 +46,16 @@ import {
   DashboardMetrics,
   SubmissionStatus,
   Product,
+  ChecklistItem,
 } from '../types';
 import { panelAuthHeaders } from './panelAuth';
 
-const env: Record<string, any> =
-  (typeof import.meta !== 'undefined' && (import.meta as any).env) ||
-  (typeof process !== 'undefined' && process.env) ||
-  {};
+// Vite replaces `import.meta.env` at build time and types it (see
+// `vite-env.d.ts`); `process.env` is the fallback for the node-side test run,
+// where only the handful of keys this file reads may exist.
+const env: Record<string, string | undefined> =
+  (typeof import.meta !== 'undefined' && import.meta.env) ||
+  (typeof process !== 'undefined' ? process.env : {});
 
 /**
  * Empty by default so requests are same-origin and go through the nginx proxy.
@@ -125,9 +129,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   const text = await response.text();
-  let payload: any;
+  let payload: Record<string, unknown> | null;
   try {
-    payload = text ? JSON.parse(text) : null;
+    payload = text ? (JSON.parse(text) as Record<string, unknown>) : null;
   } catch {
     throw new PortalApiError(
       `API gözlənilməz cavab qaytardı (HTTP ${response.status})`,
@@ -136,8 +140,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   if (!response.ok) {
-    const detail =
-      payload?.message ?? payload?.error ?? payload?.data?.message ?? response.statusText;
+    const data = payload?.data as { message?: unknown } | undefined;
+    const detail = payload?.message ?? payload?.error ?? data?.message ?? response.statusText;
     throw new PortalApiError(
       Array.isArray(detail) ? detail.join('; ') : String(detail),
       response.status,
@@ -361,7 +365,7 @@ class PortalDataService {
     deadline: string;
     assigned_stores: string[];
     requires_before_after_photo?: boolean;
-    checklist_schema?: any[];
+    checklist_schema?: ChecklistItem[];
   }): Promise<Task> {
     const result = await request<
       Envelope<{ templateId?: string; tasksCreated?: number; taskIds?: string[] }>
@@ -398,7 +402,7 @@ class PortalDataService {
       priority: data.priority,
       status: 'published',
       deadline: data.deadline,
-      created_at: new Date().toISOString(),
+      created_at: clock.now().toISOString(),
       assigned_stores: data.assigned_stores,
       requires_before_after_photo: data.requires_before_after_photo,
       checklist_schema: data.checklist_schema,
@@ -425,7 +429,7 @@ class PortalDataService {
       deadline: string;
       assigned_user_id: string | null;
       requires_before_after_photo: boolean;
-      checklist_schema: any[];
+      checklist_schema: ChecklistItem[];
     }>,
   ): Promise<{ task: Task; templateEditReachedTasks: number }> {
     const body = await request<Envelope<Task> & { templateEditReachedTasks?: number }>(
@@ -462,7 +466,14 @@ class PortalDataService {
     regionId?: string;
     requires_before_after_photo?: boolean;
   }): Promise<{ success: boolean; count: number; matchedStores: Store[]; tasks: Task[] }> {
-    const result = await request<Envelope<any>>('/api/portal/tasks', {
+    const result = await request<
+      Envelope<{
+        templateId?: string;
+        tasksCreated?: number;
+        totalStoresMatched?: number;
+        taskIds?: string[];
+      }>
+    >('/api/portal/tasks', {
       method: 'POST',
       body: JSON.stringify({
         title: data.title,

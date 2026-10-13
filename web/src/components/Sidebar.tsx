@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
+import { useModalA11y } from '../lib/useModalA11y';
 import {
   LayoutDashboard,
   Camera,
@@ -55,7 +56,7 @@ const NAV_ITEMS: {
 }[] = [
   { id: 'dashboard', label: 'İcmal & Statistika', icon: LayoutDashboard },
   { id: 'review', label: 'Rəf Auditi (Yoxlama)', icon: Camera },
-  { id: 'tasks', label: 'Planogram Tapşırıqları', icon: ClipboardList },
+  { id: 'tasks', label: 'Tapşırıqlar', icon: ClipboardList },
   { id: 'stores', label: 'Mağazalar Şəbəkəsi', icon: StoreIcon },
   { id: 'products', label: 'Məhsullar (SKU)', icon: Barcode },
   { id: 'shelfmap', label: 'Rəf Xəritəsi', icon: LayoutGrid },
@@ -69,6 +70,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
   drawerOpen = false,
   onCloseDrawer,
 }) => {
+  const [wide, setWide] = useState(() =>
+    typeof window.matchMedia === 'function'
+      ? window.matchMedia('(min-width: 768px)').matches
+      : true,
+  );
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const query = window.matchMedia('(min-width: 768px)');
+    const update = () => {
+      setWide(query.matches);
+      if (query.matches) onCloseDrawer?.();
+    };
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, [onCloseDrawer]);
+  const mobileOpen = !wide && drawerOpen;
+  const drawerRef = useModalA11y<HTMLElement>(mobileOpen, () => onCloseDrawer?.());
+  useLayoutEffect(() => {
+    const node = drawerRef.current;
+    const content = document.getElementById('oneteam-content');
+    if (node) node.inert = !wide && !drawerOpen;
+    if (content) content.inert = mobileOpen;
+    return () => {
+      if (node) node.inert = false;
+      if (content) content.inert = false;
+    };
+  }, [wide, drawerOpen, mobileOpen, drawerRef]);
   const activeIndex = Math.max(
     0,
     NAV_ITEMS.findIndex((i) => i.id === activeTab),
@@ -82,19 +110,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside
       id="oneteam-sidebar"
+      ref={drawerRef}
+      role={mobileOpen ? 'dialog' : undefined}
+      aria-modal={mobileOpen ? true : undefined}
+      aria-hidden={!wide && !drawerOpen ? true : undefined}
       aria-label="Əsas naviqasiya"
       className={[
         /* Telefon: ekranın üstündə açılan çekmece */
         'fixed inset-y-0 left-0 z-40 w-[252px] flex flex-col flex-shrink-0 select-none',
         'glass-side border-y-0 border-l-0',
         'transition-transform duration-250 ease-apple',
-        drawerOpen ? 'translate-x-0 shadow-g3' : '-translate-x-full',
+        drawerOpen ? 'translate-x-0 shadow-g3' : '-translate-x-full invisible md:visible',
         /* Planşet: 74px ikon relsi — məzmun üçün yer açır */
         'md:static md:translate-x-0 md:w-[74px] md:shadow-none',
         /* Masaüstü: tam 252px panel */
         'xl:w-[252px]',
       ].join(' ')}
     >
+      {mobileOpen && (
+        <button type="button" className="btn-g m-3 min-h-[44px]" onClick={onCloseDrawer}>
+          Menyunu bağla
+        </button>
+      )}
       {/* ── Brend ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-2.5 px-3.5 pt-4 pb-3 md:justify-center md:px-0 xl:justify-start xl:px-3.5">
         <div className="w-9 h-9 rounded-[11px] bg-coke flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[0_3px_10px_-3px_var(--coke-ring)]">
@@ -148,6 +185,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     type="button"
                     onClick={() => handleSelect(item.id)}
                     title={item.label}
+                    aria-label={item.label}
                     aria-current={isActive ? 'page' : undefined}
                     className={[
                       'group w-full flex items-center justify-between rounded-[11px] px-3',

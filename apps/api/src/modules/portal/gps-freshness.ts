@@ -42,6 +42,8 @@
  * produce one — claiming it through would make the field pointless.
  */
 
+import { clock } from '@oneteam/types';
+
 /** How old a fix may be and still count as evidence of a present location. */
 export const MAX_FIX_AGE_MS = 4 * 60 * 1000;
 
@@ -64,7 +66,7 @@ const MAX_CLOCK_SKEW_MS = 60 * 1000;
  * from "stale timestamp" and callers handle them differently, so it is answered
  * here rather than by defaulting either way.
  */
-export function isFixFresh(timestamp: string | null | undefined, now: Date = new Date()): boolean {
+export function isFixFresh(timestamp: string | null | undefined, now: Date = clock.now()): boolean {
   if (!timestamp) return false;
 
   const taken = Date.parse(timestamp);

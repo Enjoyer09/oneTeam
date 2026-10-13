@@ -70,6 +70,8 @@ import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet, AppState } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { checklistDrafts } from './src/services/checklistDrafts';
 import { mobileApp } from './src/App';
 import { credentialStore } from './src/services/credentialStore';
 import { keychainAvailable, keychainStore } from './src/services/keychain';
@@ -84,6 +86,7 @@ import {
 import type { MobileStore, MobileTask, GPSCoordinates } from './src/types';
 import type { ChecklistAnswer } from './src/screens/TaskDetailScreen';
 
+import { AuditHistoryScreenUI } from './src/screens/AuditHistoryScreenUI';
 import { LoginScreenUI } from './src/screens/LoginScreenUI';
 import { TaskListScreenUI } from './src/screens/TaskListScreenUI';
 import { TaskDetailScreen } from './src/screens/TaskDetailScreen';
@@ -105,6 +108,7 @@ import { CameraAuditScreenUI } from './src/screens/CameraAuditScreenUI';
 type Screen =
   | { name: 'loading' }
   | { name: 'login' }
+  | { name: 'history'; store: MobileStore; userGPS: GPSCoordinates }
   | { name: 'taskList'; store: MobileStore; userGPS: GPSCoordinates }
   | { name: 'taskDetail'; store: MobileStore; task: MobileTask; userGPS: GPSCoordinates }
   | {
@@ -134,6 +138,7 @@ export function Root() {
         const queueIsPersistent = await queueStorageAvailable();
         if (queueIsPersistent) offlineQueueService.useStorage(asyncStorageQueue);
         await mobileApp.initializeQueue();
+        await checklistDrafts.initialize(AsyncStorage);
 
         // Seed the queue with a real connectivity reading before the first drain.
         // The queue defaults to "online", so without this a worker who opens the
@@ -272,7 +277,7 @@ export function Root() {
 
   const handleBackToTaskList = useCallback(() => {
     setScreen((prev) => {
-      if (prev.name === 'taskDetail' || prev.name === 'camera') {
+      if (prev.name === 'taskDetail' || prev.name === 'camera' || prev.name === 'history') {
         return { name: 'taskList', store: prev.store, userGPS: prev.userGPS };
       }
       return prev;
@@ -334,6 +339,9 @@ export function Root() {
           </>
         );
 
+      case 'history':
+        return <AuditHistoryScreenUI store={screen.store} onBack={handleBackToTaskList} />;
+
       case 'taskList':
         return (
           <>
@@ -342,6 +350,9 @@ export function Root() {
               store={screen.store}
               onSelectTask={handleSelectTask}
               onLogout={handleLogout}
+              onOpenHistory={() =>
+                setScreen({ name: 'history', store: screen.store, userGPS: screen.userGPS })
+              }
             />
           </>
         );
@@ -390,11 +401,14 @@ export function Root() {
 // Minimal imports for the fatal error screen — these are only used when the
 // app cannot start at all, so they are kept inline rather than adding a
 // dependency on the full screen set.
-function Text(props: { style?: any; children: React.ReactNode }) {
+function Text(props: {
+  style?: React.ComponentProps<typeof import('react-native').Text>['style'];
+  children: React.ReactNode;
+}) {
   // `require` here is deliberate, not an oversight: these two components exist
   // only for the fatal-error screen, and importing `react-native` at the top of
   // this file would make startup depend on it before we know it can load.
-  // eslint-disable-next-line no-undef, @typescript-eslint/no-require-imports
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const RN = require('react-native');
   return <RN.Text style={props.style}>{props.children}</RN.Text>;
 }
@@ -403,7 +417,7 @@ function ActivityIndicator(props: { size?: string | number; color?: string }) {
   // `require` here is deliberate, not an oversight: these two components exist
   // only for the fatal-error screen, and importing `react-native` at the top of
   // this file would make startup depend on it before we know it can load.
-  // eslint-disable-next-line no-undef, @typescript-eslint/no-require-imports
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const RN = require('react-native');
   return <RN.ActivityIndicator size={props.size} color={props.color} />;
 }

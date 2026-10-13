@@ -1114,7 +1114,7 @@ async function main(): Promise<void> {
     const menuLabels = (): string[] => replyButtons().map((button) => button.text);
     const menuIsOffered = (): boolean =>
       menuLabels().some((label) => label.includes('Tapşırıqlar')) &&
-      menuLabels().some((label) => label.includes('Statusum'));
+      menuLabels().some((label) => label.includes('Auditlərim'));
 
     await feed(textUpdate('/help'));
     check(
@@ -1125,7 +1125,7 @@ async function main(): Promise<void> {
     check('and shows the menu', menuIsOffered(), menuLabels());
     check(
       'and explains the six steps before it lists any command',
-      texts().some((text) => text.includes('6 addım')),
+      texts().some((text) => text.includes('3 mərhələ')),
       texts(),
     );
 

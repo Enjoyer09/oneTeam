@@ -46,9 +46,13 @@
  * work rather than a prerequisite for using the database at all.
  */
 
+import { clock } from '@oneteam/types';
 import { Pool } from 'pg';
-import type { TaskState } from '@oneteam/types';
+import type { QueryResultRow } from 'pg';
+import type { Campaign, Region, TaskState } from '@oneteam/types';
 import type {
+  InMemoryTemplate,
+  InMemoryUser,
   InMemoryShelfPosition,
   InMemoryStoreTask,
   InMemoryEvidence,
@@ -58,12 +62,26 @@ import type {
 } from './types';
 
 /** Everything the in-memory repository needs to start from real data. */
+/**
+ * A raw row as `pg` returns one.
+ *
+ * The library's own type (`QueryResultRow`) rather than a local one: it is the
+ * shape the driver documents, and re-declaring it here would give the mappers a
+ * second definition to drift from. It is deliberately untyped per column — a
+ * column is whatever PostgreSQL returned, and each mapper narrows the ones it
+ * uses (`asRequiredDate`, `Number`, `??`). The value of naming the parameter is
+ * that a column that does not exist reads as a known hole instead of a silent
+ * `undefined` from an `any`.
+ */
+type Row = QueryResultRow;
+
 export interface HydratedState {
-  users: any[];
-  region: any;
+  users: InMemoryUser[];
+  /** Null when the table is empty — callers must say what they do about that. */
+  region: Region | null;
   stores: InMemoryStore[];
-  campaign: any;
-  templates: any[];
+  campaign: Campaign | null;
+  templates: InMemoryTemplate[];
   storeTasks: InMemoryStoreTask[];
   evidences: InMemoryEvidence[];
   auditLogs: InMemoryAuditLog[];
@@ -103,7 +121,7 @@ const asRequiredDate = (value: unknown): Date => new Date(value as string);
 // Row mapping (snake_case columns -> the camelCase shapes the API already uses)
 // ---------------------------------------------------------------------------
 
-function toStoreTask(row: any): InMemoryStoreTask {
+function toStoreTask(row: Row): InMemoryStoreTask {
   return {
     id: row.id,
     templateId: row.template_id,
@@ -121,7 +139,7 @@ function toStoreTask(row: any): InMemoryStoreTask {
   };
 }
 
-function toEvidence(row: any): InMemoryEvidence {
+function toEvidence(row: Row): InMemoryEvidence {
   return {
     id: row.id,
     storeTaskId: row.store_task_id,
@@ -147,7 +165,7 @@ function toEvidence(row: any): InMemoryEvidence {
   };
 }
 
-function toAuditLog(row: any): InMemoryAuditLog {
+function toAuditLog(row: Row): InMemoryAuditLog {
   return {
     id: row.id,
     entityType: row.entity_type,
@@ -474,8 +492,8 @@ export async function insertTemplate(
       JSON.stringify(template.planogramRules ?? []),
       template.requiresBeforeAfterPhoto ?? false,
       JSON.stringify(template.checklistSchema ?? []),
-      template.createdAt ?? new Date(),
-      template.updatedAt ?? new Date(),
+      template.createdAt ?? clock.now(),
+      template.updatedAt ?? clock.now(),
     ],
   );
 }
@@ -521,7 +539,7 @@ export async function updateTemplateRow(
       JSON.stringify(template.planogramRules ?? []),
       template.requiresBeforeAfterPhoto ?? false,
       JSON.stringify(template.checklistSchema ?? []),
-      template.updatedAt ?? new Date(),
+      template.updatedAt ?? clock.now(),
     ],
   );
   return (result.rowCount ?? 0) > 0;
@@ -643,8 +661,8 @@ export async function insertStore(pool: Pool, store: InMemoryStore): Promise<voi
       store.latitude,
       store.longitude,
       store.isActive,
-      store.createdAt ?? new Date(),
-      store.updatedAt ?? new Date(),
+      store.createdAt ?? clock.now(),
+      store.updatedAt ?? clock.now(),
     ],
   );
 }
@@ -688,7 +706,7 @@ export async function updateStoreRow(pool: Pool, store: InMemoryStore): Promise<
       store.latitude,
       store.longitude,
       store.isActive,
-      store.updatedAt ?? new Date(),
+      store.updatedAt ?? clock.now(),
     ],
   );
   return (result.rowCount ?? 0) > 0;
@@ -730,8 +748,8 @@ export async function insertProduct(pool: Pool, product: InMemoryProduct): Promi
       product.name,
       product.size ?? null,
       product.variant ?? null,
-      product.createdAt ?? new Date(),
-      product.updatedAt ?? new Date(),
+      product.createdAt ?? clock.now(),
+      product.updatedAt ?? clock.now(),
     ],
   );
 }
@@ -752,7 +770,7 @@ export async function updateProductRow(pool: Pool, product: InMemoryProduct): Pr
       product.name,
       product.size ?? null,
       product.variant ?? null,
-      product.updatedAt ?? new Date(),
+      product.updatedAt ?? clock.now(),
       product.id,
     ],
   );
@@ -786,8 +804,8 @@ export async function insertShelfPosition(pool: Pool, slot: InMemoryShelfPositio
       slot.level,
       slot.position,
       slot.productId ?? null,
-      slot.createdAt ?? new Date(),
-      slot.updatedAt ?? new Date(),
+      slot.createdAt ?? clock.now(),
+      slot.updatedAt ?? clock.now(),
     ],
   );
 }
@@ -811,7 +829,7 @@ export async function updateShelfPositionRow(
       slot.level,
       slot.position,
       slot.productId ?? null,
-      slot.updatedAt ?? new Date(),
+      slot.updatedAt ?? clock.now(),
       slot.id,
     ],
   );
@@ -1573,7 +1591,7 @@ export interface BotSessionRow {
   expiresAt: Date;
 }
 
-function toBotSession(row: any): BotSessionRow {
+function toBotSession(row: Row): BotSessionRow {
   return {
     chatId: String(row.chat_id),
     userId: row.user_id ?? null,
@@ -1794,7 +1812,7 @@ export interface NotificationRow {
   attempts: number;
 }
 
-function toNotification(row: any): NotificationRow {
+function toNotification(row: Row): NotificationRow {
   return {
     id: String(row.id),
     kind: String(row.kind) as NotificationKind,

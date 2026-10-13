@@ -39,6 +39,7 @@
  * still works and the merchandiser retries instead of re-shooting.
  */
 
+import { clock, log } from '@oneteam/types';
 import { InlineKeyboard } from 'grammy';
 import { AnswerCallback, BotContext } from '../types';
 import { portalApi, PortalApiError } from '../../services/portalApi';
@@ -306,12 +307,28 @@ export async function handleConfirmPhoto(
 }
 
 /** Downloads, prepares and files the photo. Throws on any failure. */
+/**
+ * The chat this update belongs to, or a thrown error.
+ *
+ * Every handler here is routed only for a chat update, and each one addresses
+ * the chat on its first API call — so a missing chat is not a case to handle,
+ * it is a wiring mistake. Stating that once is what lets the calls below use a
+ * plain number instead of a `!` on every line.
+ */
+function requireChatId(ctx: BotContext): number {
+  if (!ctx.chat) {
+    throw new Error('Bot handler reached without a chat — the router only routes chat updates.');
+  }
+  return ctx.chat.id;
+}
+
 async function filePhoto(
   ctx: BotContext,
   pending: PendingPhoto,
   taskId: string,
   storeId: string,
 ): Promise<void> {
+  const chatId = requireChatId(ctx);
   let fileBuffer: Buffer;
 
   // Retrieve file path and download from Telegram servers
@@ -397,7 +414,7 @@ async function filePhoto(
 
   const submission = await portalApi.createSubmission({
     storeTaskId: taskId,
-    chatId: ctx.chat!.id,
+    chatId,
     photoUrl,
     latitude: location?.latitude,
     longitude: location?.longitude,
@@ -426,7 +443,7 @@ async function filePhoto(
       file_size: pending.fileSize,
       width: pending.width,
       height: pending.height,
-      captured_at: new Date().toISOString(),
+      captured_at: clock.now().toISOString(),
       // Recorded so the two controls this flow now applies can be audited
       // from the evidence record alone, without replaying the conversation.
       location_verified: Boolean(location),
@@ -453,9 +470,7 @@ async function filePhoto(
   ctx.session.checklistIndex = undefined;
   ctx.session.pendingPhoto = undefined;
 
-  console.log(
-    `[oneTeam Bot] Audit ${submission.id} filed for task ${taskId} by chat ${ctx.chat?.id}`,
-  );
+  log.info(`[oneTeam Bot] Audit ${submission.id} filed for task ${taskId} by chat ${chatId}`);
 
   // WHAT HAPPENED TO THE "AI SCORE" THIS MESSAGE USED TO SHOW
   // -------------------------------------------------------

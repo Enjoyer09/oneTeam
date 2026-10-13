@@ -22,6 +22,7 @@
  * `combineHybrid` is a pure function so the escalation logic is tested without a
  * worker or a network. The provider does only the I/O around it.
  */
+import { clock } from '@oneteam/types';
 import type { VisionAnalysis, VisionInput, VisionProvider } from './types';
 
 /** How confident YOLO must be, on its own, to skip the LLM. */
@@ -89,7 +90,7 @@ export class HybridVisionProvider implements VisionProvider {
   ) {}
 
   async analyze(input: VisionInput): Promise<VisionAnalysis> {
-    const analyzedAt = new Date().toISOString();
+    const analyzedAt = clock.now().toISOString();
     const yolo = await this.yolo.analyze(input);
 
     const yoloConfident =

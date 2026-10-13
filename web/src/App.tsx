@@ -8,6 +8,7 @@ import { StoreDirectory, StoreFormValues } from './components/StoreDirectory';
 import { ProductCatalog, ProductFormValues } from './components/ProductCatalog';
 import { ShelfMap, ShelfFormValues } from './components/ShelfMap';
 import { PanelLogin } from './components/PanelLogin';
+import { ChecklistItem } from './types';
 import { PanelKeysModal } from './components/PanelKeysModal';
 import { PanelUsersModal } from './components/PanelUsersModal';
 import { portalService, PortalApiError } from './lib/portalApi';
@@ -30,7 +31,7 @@ import {
   ShelfPosition,
   ShelfMetrics,
 } from './types';
-import { loadPhaseReducer } from './lib/loadPhase';
+import { loadPhaseReducer, type LoadPhase } from './lib/loadPhase';
 
 /**
  * The two questions the shell has to answer before it can render anything:
@@ -43,6 +44,7 @@ import { loadPhaseReducer } from './lib/loadPhase';
  */
 type AuthState =
   | { phase: 'checking' }
+  | { phase: 'unavailable' }
   | { phase: 'login'; status: PanelAuthStatus }
   | { phase: 'ready'; status: PanelAuthStatus; identity: PanelIdentity | null };
 
@@ -56,7 +58,16 @@ export function App() {
   const [keysOpen, setKeysOpen] = useState(false);
   const [usersOpen, setUsersOpen] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+  const tabFromPath = (): TabType => {
+    const path = window.location.pathname;
+    if (path.startsWith('/reviews')) return 'review';
+    if (path.startsWith('/tasks')) return 'tasks';
+    if (path.startsWith('/stores')) return 'stores';
+    if (path.startsWith('/products')) return 'products';
+    if (path.startsWith('/shelf-plan')) return 'shelfmap';
+    return 'dashboard';
+  };
+  const [activeTab, setActiveTab] = useState<TabType>(tabFromPath);
   const [metrics, setMetrics] = useState<DashboardMetrics>({
     totalStores: 0,
     activeTasks: 0,
@@ -66,6 +77,15 @@ export function App() {
   // Sıfırlar və `complianceRate: 100` yalnız dolu deyil, həm də YALANŞI ilk
   // paintdir — skelet, məlumat və xəta paneli bu phase-dan asılıdır.
   const [phase, dispatchPhase] = useReducer(loadPhaseReducer, 'loading');
+  const [tabPhases, setTabPhases] = useState<Record<TabType, LoadPhase>>({
+    dashboard: 'loading',
+    review: 'loading',
+    tasks: 'loading',
+    stores: 'loading',
+    products: 'loading',
+    shelfmap: 'loading',
+  });
+  const activePhase = activeTab === 'dashboard' ? phase : tabPhases[activeTab];
   const [stores, setStores] = useState<Store[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [shelfPositions, setShelfPositions] = useState<ShelfPosition[]>([]);
@@ -76,7 +96,12 @@ export function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [reviewInitialFilter, setReviewInitialFilter] = useState<
     'all' | 'pending_review' | 'approved' | 'rejected'
-  >('all');
+  >(() => {
+    const status = new URLSearchParams(window.location.search).get('status');
+    return status === 'pending_review' || status === 'approved' || status === 'rejected'
+      ? status
+      : 'all';
+  });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   /* Mobil çekmece + toolbar kölgəsi */
@@ -105,23 +130,9 @@ export function App() {
     let status: PanelAuthStatus;
     try {
       status = await fetchAuthStatus();
-    } catch (error) {
-      // The API is unreachable. That is not a reason to show a login form, and
-      // not a reason to show an empty dashboard either — the shell renders and
-      // `loadData` will report the failure in the usual place.
-      setAuth({
-        phase: 'ready',
-        status: {
-          required: false,
-          liveKeys: 0,
-          bootstrapConfigured: false,
-          bootstrapProblem: null,
-          detail:
-            'Panelin giriş vəziyyəti yoxlanıla bilmədi — ' +
-            (error instanceof Error ? error.message : String(error)),
-        },
-        identity: null,
-      });
+    } catch {
+      // Unknown authentication is neither an open panel nor a rejected login.
+      setAuth({ phase: 'unavailable' });
       return;
     }
 
@@ -164,9 +175,9 @@ export function App() {
     }
   }, []);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
-      const [m, s, t, subs, prods, shelf, shelfM] = await Promise.all([
+      const results = await Promise.allSettled([
         portalService.getMetrics(),
         portalService.getStores(),
         portalService.getTasks(),
@@ -174,16 +185,39 @@ export function App() {
         portalService.getProducts(),
         portalService.getShelfPositions(),
         portalService.getShelfMetrics(),
-      ]);
-      setMetrics(m);
-      setStores(s);
-      setTasks(t);
-      setSubmissions(subs);
-      setProducts(prods);
-      setShelfPositions(shelf);
-      setShelfMetrics(shelfM);
-      dispatchPhase({ type: 'loaded' });
+      ] as const);
+      for (const result of results) {
+        if (result.status === 'rejected' && isAuthFailure(result.reason)) throw result.reason;
+      }
+      const [m, s, t, subs, prods, shelf, shelfM] = results;
+      if (m.status === 'fulfilled') setMetrics(m.value);
+      if (s.status === 'fulfilled') setStores(s.value);
+      if (t.status === 'fulfilled') setTasks(t.value);
+      if (subs.status === 'fulfilled') setSubmissions(subs.value);
+      if (prods.status === 'fulfilled') setProducts(prods.value);
+      if (shelf.status === 'fulfilled') setShelfPositions(shelf.value);
+      if (shelfM.status === 'fulfilled') setShelfMetrics(shelfM.value);
+      const state = (...indices: number[]): LoadPhase =>
+        indices.every((i) => results[i].status === 'fulfilled') ? 'ready' : 'error';
+      const next = {
+        dashboard: state(0, 3),
+        review: state(3),
+        tasks: state(1, 2),
+        stores: state(1, 3),
+        products: state(4),
+        shelfmap: state(4, 5, 6),
+      };
+      setTabPhases(next);
+      dispatchPhase({ type: next.dashboard === 'ready' ? 'loaded' : 'failed' });
     } catch (error) {
+      setTabPhases({
+        dashboard: 'error',
+        review: 'error',
+        tasks: 'error',
+        stores: 'error',
+        products: 'error',
+        shelfmap: 'error',
+      });
       // A rejected credential is not a data problem and must not be reported as
       // one — the remedy is to sign in, not to retry. Everything else falls
       // through to the honest-failure path below.
@@ -212,7 +246,7 @@ export function App() {
       showToast(`Məlumat yüklənə bilmədi — ${message}`);
       dispatchPhase({ type: 'failed' });
     }
-  };
+  }, [checkAuth]);
 
   useEffect(() => {
     void checkAuth();
@@ -222,7 +256,7 @@ export function App() {
   // opens would fire requests that are certain to be refused.
   useEffect(() => {
     if (auth.phase === 'ready') void loadData();
-  }, [auth.phase]);
+  }, [auth.phase, loadData]);
 
   // Gün ərzində açıq qalan portal boot-anın rəqəmlərini göstərməməlidir —
   // tab-a qayıdanda (və başqa supervisor işləyəndə) rəqəmlər yenilənir.
@@ -237,7 +271,7 @@ export function App() {
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', refresh);
     };
-  }, [auth.phase]);
+  }, [auth.phase, loadData]);
 
   /**
    * Yazma əməliyyatlarını vahid şəkildə sarır: xəta olsa istifadəçi görür,
@@ -314,10 +348,52 @@ export function App() {
   /* Tab dəyişəndə məzmunu yuxarı qaytar — istifadəçi yeni ekranın başından başlayır */
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
+    const routes: Record<TabType, string> = {
+      dashboard: '/',
+      review: '/reviews',
+      tasks: '/tasks',
+      stores: '/stores',
+      products: '/products',
+      shelfmap: '/shelf-plan',
+    };
+    window.history.pushState({}, '', routes[tab]);
+    setSelectedSubmission(null);
     setDrawerOpen(false);
     setScrolled(false);
     mainRef.current?.scrollTo({ top: 0, behavior: 'auto' });
   };
+
+  const setReviewSelection = (submission: Submission | null) => {
+    setSelectedSubmission(submission);
+    if (submission) {
+      window.history.pushState(
+        { oneTeamReview: true },
+        '',
+        `/reviews/${encodeURIComponent(submission.id)}${window.location.search}`,
+      );
+    } else if (window.location.pathname.startsWith('/reviews/')) {
+      setSelectedSubmission(null);
+      if (window.history.state?.oneTeamReview === true) window.history.back();
+      else window.history.replaceState({}, '', `/reviews${window.location.search}`);
+    }
+  };
+
+  useEffect(() => {
+    const restoreRoute = () => {
+      const tab = tabFromPath();
+      setActiveTab(tab);
+      const match = window.location.pathname.match(/^\/reviews\/([^/]+)$/);
+      const id = match ? decodeURIComponent(match[1]) : null;
+      setSelectedSubmission(id ? (submissions.find((item) => item.id === id) ?? null) : null);
+      const status = new URLSearchParams(window.location.search).get('status');
+      if (tab === 'review' && ['pending_review', 'approved', 'rejected'].includes(status ?? '')) {
+        setReviewInitialFilter(status as 'pending_review' | 'approved' | 'rejected');
+      }
+    };
+    window.addEventListener('popstate', restoreRoute);
+    restoreRoute();
+    return () => window.removeEventListener('popstate', restoreRoute);
+  }, [submissions]);
 
   const handleSignOut = async () => {
     try {
@@ -337,12 +413,6 @@ export function App() {
     runAction(
       () => portalService.updateSubmissionStatus(id, 'approved'),
       'Rəf auditi uğurla təsdiqləndi!',
-    );
-
-  const handleAIApproveSubmission = (id: string) =>
-    runAction(
-      () => portalService.oneClickAIApprove(id),
-      'Rəf auditi avtomatik yoxlama əsasında qərarlandı!',
     );
 
   const handleRejectSubmission = (id: string, feedback: string) =>
@@ -444,7 +514,7 @@ export function App() {
     deadline: string;
     assigned_stores: string[];
     requires_before_after_photo?: boolean;
-    checklist_schema?: any[];
+    checklist_schema?: ChecklistItem[];
   }) =>
     runAction(
       () => portalService.createTask(taskData),
@@ -516,9 +586,9 @@ export function App() {
     }, '');
 
   const openSubmissionFromDashboard = (sub: Submission) => {
-    setSelectedSubmission(sub);
-    setReviewInitialFilter('all');
     handleTabChange('review');
+    setReviewInitialFilter('all');
+    setReviewSelection(sub);
   };
 
   const handleNavigateToReview = (
@@ -526,6 +596,7 @@ export function App() {
   ) => {
     setReviewInitialFilter(filter);
     handleTabChange('review');
+    if (filter !== 'all') window.history.replaceState({}, '', `/reviews?status=${filter}`);
   };
 
   const handleOpenCreateTask = () => {
@@ -563,6 +634,20 @@ export function App() {
           <b />
         </div>
         <p className="relative z-10 text-[12px] text-muted">Giriş vəziyyəti yoxlanılır…</p>
+      </div>
+    );
+  }
+
+  if (auth.phase === 'unavailable') {
+    return (
+      <div className="min-h-screen grid place-items-center p-6 bg-white text-slate-900">
+        <div role="alert" className="max-w-md text-center space-y-4">
+          <h1 className="text-xl font-bold">Giriş vəziyyəti yoxlanıla bilmədi</h1>
+          <p>Bağlantını yoxlayıb yenidən cəhd edin. Giriş məlumatlarınız saxlanılıb.</p>
+          <button className="btn-g btn-g-primary" onClick={() => void checkAuth()}>
+            Yenidən yoxla
+          </button>
+        </div>
       </div>
     );
   }
@@ -635,11 +720,15 @@ export function App() {
       />
 
       {/* Əsas sahə */}
-      <div className="relative z-10 flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div
+        id="oneteam-content"
+        className="relative z-10 flex-1 flex flex-col min-w-0 overflow-hidden"
+      >
         <Header
           activeTab={activeTab}
           onOpenCreateTask={handleOpenCreateTask}
           onOpenDrawer={() => setDrawerOpen(true)}
+          drawerOpen={drawerOpen}
           scrolled={scrolled}
           identity={auth.identity}
           onSignOut={() => void handleSignOut()}
@@ -675,13 +764,14 @@ export function App() {
           <div className="mx-auto w-full max-w-[1360px]">
             {/* key = tab → hər keçiddə yumşaq giriş animasiyası yenidən işə düşür */}
             <div key={activeTab} className="view-g">
-              {activeTab === 'dashboard' && (
+              {(activeTab === 'dashboard' || activePhase !== 'ready') && (
                 <DashboardOverview
-                  phase={phase}
+                  phase={activePhase}
                   metrics={metrics}
                   recentSubmissions={submissions.slice(0, 6)}
                   onRetry={() => {
                     dispatchPhase({ type: 'retry' });
+                    setTabPhases((prev) => ({ ...prev, [activeTab]: 'loading' }));
                     void loadData();
                   }}
                   onOpenSubmissionReview={openSubmissionFromDashboard}
@@ -695,19 +785,18 @@ export function App() {
                 />
               )}
 
-              {activeTab === 'review' && (
+              {activePhase === 'ready' && activeTab === 'review' && (
                 <AuditReviewCenter
                   submissions={submissions}
                   selectedSubmission={selectedSubmission}
-                  setSelectedSubmission={setSelectedSubmission}
+                  setSelectedSubmission={setReviewSelection}
                   onApprove={handleApproveSubmission}
-                  onAIApprove={handleAIApproveSubmission}
                   onReject={handleRejectSubmission}
                   initialFilter={reviewInitialFilter}
                 />
               )}
 
-              {activeTab === 'tasks' && (
+              {activePhase === 'ready' && activeTab === 'tasks' && (
                 <TaskManager
                   tasks={tasks}
                   stores={stores}
@@ -721,7 +810,7 @@ export function App() {
                 />
               )}
 
-              {activeTab === 'stores' && (
+              {activePhase === 'ready' && activeTab === 'stores' && (
                 <StoreDirectory
                   stores={stores}
                   submissions={submissions}
@@ -732,7 +821,7 @@ export function App() {
                 />
               )}
 
-              {activeTab === 'products' && (
+              {activePhase === 'ready' && activeTab === 'products' && (
                 <ProductCatalog
                   products={products}
                   onCreate={handleCreateProduct}
@@ -742,7 +831,7 @@ export function App() {
                 />
               )}
 
-              {activeTab === 'shelfmap' && (
+              {activePhase === 'ready' && activeTab === 'shelfmap' && (
                 <ShelfMap
                   shelfPositions={shelfPositions}
                   metrics={shelfMetrics}

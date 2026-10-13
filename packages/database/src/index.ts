@@ -20,7 +20,9 @@ export * from './types';
  */
 export type { BotSessionRow, PanelTokenRow, NotificationRow, NotificationKind } from './postgres';
 import { SEED_DATA } from './seed';
-import { TaskState, UserRole } from '@oneteam/types';
+import type { DetectionItem } from '@oneteam/types';
+import { TaskState, UserRole, clock, log } from '@oneteam/types';
+import type { ChecklistQuestion, PlanogramRule, TaskPriority } from '@oneteam/types';
 import type {
   InMemoryShelfPosition,
   InMemoryStoreTask,
@@ -28,6 +30,8 @@ import type {
   InMemoryAuditLog,
   InMemoryStore,
   InMemoryProduct,
+  InMemoryTemplate,
+  InMemoryUser,
 } from './types';
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import * as pg from './postgres';
@@ -44,8 +48,28 @@ import type { Pool } from 'pg';
  * Enterprise In-Memory Database Repository
  * Provides guaranteed 0-latency execution, seed state, and audit logs.
  */
+/**
+ * Copies the defined entries of `changes` onto `target`, in place.
+ *
+ * `undefined` here means "not mentioned", which is not the same as "set to
+ * nothing" — spreading the changes directly would let an omitted field wipe a
+ * real value. The cast is confined to this one line because `Object.entries`
+ * erases the key type and TypeScript will only accept a computed write through
+ * a single, visible hole rather than one per call site.
+ */
+function assignDefined<T extends object>(target: T, changes: Partial<T>): void {
+  for (const [key, value] of Object.entries(changes)) {
+    if (value !== undefined) (target as Record<string, unknown>)[key] = value;
+  }
+}
+
 export class EnterpriseDatabase {
-  public users = [...SEED_DATA.users];
+  /**
+   * Seeded rows carry no timestamps; a stored one always does. The cast states
+   * that "the row has been through the repository" is the invariant, and that
+   * seeding is the one path that skips it.
+   */
+  public users: InMemoryUser[] = [...SEED_DATA.users] as InMemoryUser[];
   public region = { ...SEED_DATA.region };
   public stores: InMemoryStore[] = [...SEED_DATA.stores];
   /** SKU catalogue. Seeded from PostgreSQL; empty in seed-only mode. */
@@ -53,7 +77,7 @@ export class EnterpriseDatabase {
   /** Shelf map: section / level / position slots (wave 1.3). */
   public shelfPositions: InMemoryShelfPosition[] = [];
   public campaign = { ...SEED_DATA.campaign };
-  public templates = [...SEED_DATA.templates];
+  public templates: InMemoryTemplate[] = [...SEED_DATA.templates] as InMemoryTemplate[];
   public storeTasks: InMemoryStoreTask[] = [
     {
       id: 'task-yasamal-cooler-01',
@@ -62,9 +86,9 @@ export class EnterpriseDatabase {
       assignedUserId: 'usr-merch-003',
       status: TaskState.PUBLISHED,
       deadline: new Date(Date.now() + 7 * 24 * 3600 * 1000),
-      publishedAt: new Date(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      publishedAt: clock.now(),
+      createdAt: clock.now(),
+      updatedAt: clock.now(),
     },
     {
       id: 'task-ganjlik-eyelevel-02',
@@ -73,8 +97,8 @@ export class EnterpriseDatabase {
       assignedUserId: 'usr-merch-003',
       status: TaskState.DRAFT,
       deadline: new Date(Date.now() + 5 * 24 * 3600 * 1000),
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: clock.now(),
+      updatedAt: clock.now(),
     },
     {
       id: 'task-portbaku-cooler-03',
@@ -255,7 +279,7 @@ export class EnterpriseDatabase {
         if (process.env.ONETEAM_AUTO_MIGRATE !== '0') {
           this.migrations = await runMigrations(this.pool);
           for (const applied of this.migrations.applied) {
-            console.log(`🔧 [oneTeam DB] Applied migration ${applied}`);
+            log.info(`🔧 [oneTeam DB] Applied migration ${applied}`);
           }
           for (const problem of this.migrations.problems) {
             console.error('⛔ [oneTeam DB] Migration problem: ' + problem);
@@ -276,7 +300,7 @@ export class EnterpriseDatabase {
         this.schemaDetail = schemaHealth.detail;
 
         if (schemaHealth.ok) {
-          console.log('✅ [oneTeam DB] Schema verified — ' + schemaHealth.detail);
+          log.info('✅ [oneTeam DB] Schema verified — ' + schemaHealth.detail);
         } else {
           console.error(
             '⛔ [oneTeam DB] The database schema is not what this build expects. ' +
@@ -287,13 +311,13 @@ export class EnterpriseDatabase {
         const state = await pg.loadAll(this.pool);
 
         if (state.users.length > 0) {
-          this.users = state.users as typeof this.users;
-          if (state.region) this.region = state.region as typeof this.region;
+          this.users = state.users;
+          if (state.region) this.region = state.region;
           this.stores = state.stores as typeof this.stores;
           this.products = state.products;
           this.shelfPositions = state.shelfPositions;
-          if (state.campaign) this.campaign = state.campaign as typeof this.campaign;
-          this.templates = state.templates as typeof this.templates;
+          if (state.campaign) this.campaign = state.campaign;
+          this.templates = state.templates;
           this.storeTasks = state.storeTasks;
           this.evidences = state.evidences;
           this.auditLogs = state.auditLogs;
@@ -309,7 +333,7 @@ export class EnterpriseDatabase {
           `postgres — ${this.users.length} users, ${this.stores.length} stores, ` +
           `${this.storeTasks.length} tasks, ${this.evidences.length} evidences, ` +
           `${this.auditLogs.length} audit entries`;
-        console.log('✅ [oneTeam DB] ' + this.persistenceDetail);
+        log.info('✅ [oneTeam DB] ' + this.persistenceDetail);
 
         // Started only now: the snapshot is loaded, so there is a baseline to
         // compare against. Starting it earlier would poll a counter with nothing
@@ -403,7 +427,7 @@ export class EnterpriseDatabase {
     // only matters while the process is serving.
     this.refreshTimer.unref?.();
 
-    console.log(
+    log.info(
       `🔄 [oneTeam DB] Cross-replica refresh every ${interval}ms — a write on another ` +
         'replica becomes visible here within about that long.',
     );
@@ -538,7 +562,7 @@ export class EnterpriseDatabase {
 
       this.observedVersion = version;
       this.refreshCount += 1;
-      this.lastRefreshAt = new Date();
+      this.lastRefreshAt = clock.now();
       this.persistenceDetail =
         `postgres — ${this.users.length} users, ${this.stores.length} stores, ` +
         `${this.storeTasks.length} tasks, ${this.evidences.length} evidences, ` +
@@ -681,7 +705,7 @@ export class EnterpriseDatabase {
     fromState?: string;
     toState?: string;
     actorId?: string;
-    payload?: any;
+    payload?: Record<string, unknown> | null;
   }): InMemoryAuditLog {
     const entry: InMemoryAuditLog = {
       id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
@@ -692,7 +716,7 @@ export class EnterpriseDatabase {
       toState: params.toState,
       actorId: params.actorId,
       payload: params.payload,
-      createdAt: new Date(),
+      createdAt: clock.now(),
     };
     this.auditLogs.push(entry);
     if (this.pool) this.persist((pool) => pg.insertAuditLog(pool, entry), `audit ${entry.id}`);
@@ -799,7 +823,7 @@ export class EnterpriseDatabase {
     longitude: number;
     isActive?: boolean;
   }): Promise<{ store?: InMemoryStore; error?: 'DUPLICATE_CODE' | 'NOT_STORED' }> {
-    const now = new Date();
+    const now = clock.now();
     const store: InMemoryStore = {
       id: `str-${now.getTime().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
       storeCode: params.storeCode,
@@ -875,10 +899,8 @@ export class EnterpriseDatabase {
     // Undefined means "not mentioned", which is not the same as "set to
     // undefined". Spreading the changes directly would let a field the caller
     // omitted overwrite a real value with nothing.
-    for (const [key, value] of Object.entries(changes)) {
-      if (value !== undefined) (store as any)[key] = value;
-    }
-    store.updatedAt = new Date();
+    assignDefined(store, changes);
+    store.updatedAt = clock.now();
 
     if (this.pool) {
       try {
@@ -962,7 +984,7 @@ export class EnterpriseDatabase {
     size?: string;
     variant?: string;
   }): Promise<{ product?: InMemoryProduct; error?: 'DUPLICATE_BARCODE' | 'NOT_STORED' }> {
-    const now = new Date();
+    const now = clock.now();
     const product: InMemoryProduct = {
       id: `prd-${now.getTime().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
       barcode: params.barcode,
@@ -1015,10 +1037,8 @@ export class EnterpriseDatabase {
 
     const before: InMemoryProduct = { ...product };
 
-    for (const [key, value] of Object.entries(changes)) {
-      if (value !== undefined) (product as any)[key] = value;
-    }
-    product.updatedAt = new Date();
+    assignDefined(product, changes);
+    product.updatedAt = clock.now();
 
     if (this.pool) {
       try {
@@ -1118,7 +1138,7 @@ export class EnterpriseDatabase {
     slot?: InMemoryShelfPosition;
     error?: 'DUPLICATE_POSITION' | 'UNKNOWN_PRODUCT' | 'NOT_STORED';
   }> {
-    const now = new Date();
+    const now = clock.now();
     const slot: InMemoryShelfPosition = {
       id: `shf-${now.getTime().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
       section: params.section,
@@ -1179,10 +1199,8 @@ export class EnterpriseDatabase {
 
     const before: InMemoryShelfPosition = { ...slot };
 
-    for (const [key, value] of Object.entries(changes)) {
-      if (value !== undefined) (slot as any)[key] = value;
-    }
-    slot.updatedAt = new Date();
+    assignDefined(slot, changes);
+    slot.updatedAt = clock.now();
 
     if (this.pool) {
       try {
@@ -1225,7 +1243,7 @@ export class EnterpriseDatabase {
     if (!slot) return { error: 'NOT_FOUND' };
 
     const before = { units: slot.units, countedAt: slot.countedAt };
-    const now = new Date();
+    const now = clock.now();
     slot.units = units;
     slot.countedAt = now;
 
@@ -1297,14 +1315,14 @@ export class EnterpriseDatabase {
       id: `usr-tg-${chatId}`,
       email: `tg-${chatId}@oneteam.local`,
       fullName: params.fullName,
-      role: UserRole.MERCHANDISER as string,
+      role: UserRole.MERCHANDISER,
       telegramChatId: chatId,
       phone: undefined as string | undefined,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: clock.now(),
+      updatedAt: clock.now(),
     };
 
-    this.users.push(record as (typeof this.users)[number]);
+    this.users.push(record);
     if (this.pool) this.persist((pool) => pg.upsertTelegramUser(pool, record), `user ${record.id}`);
 
     return { id: record.id, role: record.role };
@@ -1343,8 +1361,8 @@ export class EnterpriseDatabase {
       role: UserRole.MERCHANDISER as string,
       mobileDeviceId: deviceId,
       phone: undefined as string | undefined,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: clock.now(),
+      updatedAt: clock.now(),
     };
 
     this.users.push(record as (typeof this.users)[number]);
@@ -1391,10 +1409,10 @@ export class EnterpriseDatabase {
   public async createUser(params: {
     fullName: string;
     email?: string;
-    role: string;
+    role: UserRole;
     phone?: string;
-  }): Promise<{ user?: any; error?: 'DUPLICATE_EMAIL' | 'NOT_STORED' }> {
-    const now = new Date();
+  }): Promise<{ user?: InMemoryUser; error?: 'DUPLICATE_EMAIL' | 'NOT_STORED' }> {
+    const now = clock.now();
     const id = `usr-${now.getTime().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
     const record = {
@@ -1419,7 +1437,7 @@ export class EnterpriseDatabase {
         // has no row would be given a key, and the key would then fail on the
         // foreign key at the next restart — with the panel having said it
         // worked.
-        this.users = this.users.filter((candidate: any) => candidate.id !== record.id);
+        this.users = this.users.filter((candidate) => candidate.id !== record.id);
         const code = (error as { code?: string } | null)?.code;
         if (code === EnterpriseDatabase.PG_UNIQUE_VIOLATION) {
           return { error: 'DUPLICATE_EMAIL' };
@@ -1452,12 +1470,12 @@ export class EnterpriseDatabase {
    */
   public async updateUser(
     userId: string,
-    changes: Partial<{ fullName: string; role: string; phone: string }>,
+    changes: Partial<{ fullName: string; role: UserRole; phone: string }>,
   ): Promise<{
-    user?: any;
+    user?: InMemoryUser;
     error?: 'NOT_FOUND' | 'LAST_ADMIN' | 'NOT_STORED';
   }> {
-    const user = this.getUser(userId) as any;
+    const user = this.getUser(userId);
     if (!user) return { error: 'NOT_FOUND' };
 
     const before = { ...user };
@@ -1469,10 +1487,8 @@ export class EnterpriseDatabase {
       if (admins !== null && admins <= 1) return { error: 'LAST_ADMIN' };
     }
 
-    for (const [key, value] of Object.entries(changes)) {
-      if (value !== undefined) (user as any)[key] = value;
-    }
-    user.updatedAt = new Date();
+    assignDefined(user, changes);
+    user.updatedAt = clock.now();
 
     if (this.pool) {
       try {
@@ -1517,9 +1533,9 @@ export class EnterpriseDatabase {
      * gone, and "user usr-abc123 was deleted" is not something an operator can
      * read.
      */
-    user?: any;
+    user?: InMemoryUser;
   }> {
-    const user = this.getUser(userId) as any;
+    const user = this.getUser(userId);
     if (!user) return { deleted: false, reason: 'NOT_FOUND' };
 
     if (user.role === UserRole.ADMIN) {
@@ -1554,7 +1570,7 @@ export class EnterpriseDatabase {
       }
     }
 
-    this.users = this.users.filter((candidate: any) => candidate.id !== userId);
+    this.users = this.users.filter((candidate) => candidate.id !== userId);
     return { deleted: true, user };
   }
 
@@ -1808,19 +1824,19 @@ export class EnterpriseDatabase {
     title: string;
     description: string;
     referenceImageUrl: string;
-    priority: string;
-    planogramRules?: unknown[];
+    priority: TaskPriority;
+    planogramRules?: PlanogramRule[];
     requiresBeforeAfterPhoto?: boolean;
-    checklistSchema?: unknown[];
-  }): Promise<{ template?: any; error?: 'NOT_STORED' }> {
+    checklistSchema?: ChecklistQuestion[];
+  }): Promise<{ template?: InMemoryTemplate; error?: 'NOT_STORED' }> {
     const record = {
       ...template,
       planogramRules: template.planogramRules ?? [],
       checklistSchema: template.checklistSchema ?? [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: clock.now(),
+      updatedAt: clock.now(),
     };
-    this.templates.push(record as (typeof this.templates)[number]);
+    this.templates.push(record);
 
     if (this.pool) {
       try {
@@ -1853,23 +1869,21 @@ export class EnterpriseDatabase {
       title: string;
       description: string;
       referenceImageUrl: string;
-      priority: string;
-      planogramRules: unknown[];
+      priority: TaskPriority;
+      planogramRules: PlanogramRule[];
       requiresBeforeAfterPhoto: boolean;
-      checklistSchema: unknown[];
+      checklistSchema: ChecklistQuestion[];
     }>,
-  ): Promise<{ template?: any; error?: 'NOT_FOUND' | 'NOT_STORED' }> {
-    const template: any = this.getTemplate(templateId);
+  ): Promise<{ template?: InMemoryTemplate; error?: 'NOT_FOUND' | 'NOT_STORED' }> {
+    const template = this.getTemplate(templateId);
     if (!template) return { error: 'NOT_FOUND' };
 
     const before = { ...template };
 
     // Undefined means "not mentioned", which is not the same as "set to
     // undefined" — the same distinction `updateStore` makes.
-    for (const [key, value] of Object.entries(changes)) {
-      if (value !== undefined) template[key] = value;
-    }
-    template.updatedAt = new Date();
+    assignDefined(template, changes);
+    template.updatedAt = clock.now();
 
     if (this.pool) {
       try {
@@ -1914,7 +1928,7 @@ export class EnterpriseDatabase {
     if (changes.assignedUserId !== undefined) {
       task.assignedUserId = changes.assignedUserId ?? undefined;
     }
-    task.updatedAt = new Date();
+    task.updatedAt = clock.now();
 
     if (this.pool) {
       try {
@@ -2043,7 +2057,7 @@ export class EnterpriseDatabase {
       reviewerFeedback?: string;
       aiScore?: number | null;
       aiSummary?: string | null;
-      aiDetections?: any[];
+      aiDetections?: DetectionItem[];
     },
   ): InMemoryEvidence | null {
     const evidence = this.evidences.find((e) => e.id === evidenceId);
@@ -2053,7 +2067,7 @@ export class EnterpriseDatabase {
     if (patch.aiScore !== undefined) evidence.aiScore = patch.aiScore;
     if (patch.aiSummary !== undefined) evidence.aiSummary = patch.aiSummary;
     if (patch.aiDetections !== undefined) evidence.aiDetections = patch.aiDetections;
-    evidence.updatedAt = new Date();
+    evidence.updatedAt = clock.now();
 
     if (this.pool) {
       this.persist(
@@ -2526,7 +2540,7 @@ export class EnterpriseDatabase {
     if (task.assignedUserId === userId) return task;
 
     task.assignedUserId = userId;
-    task.updatedAt = new Date();
+    task.updatedAt = clock.now();
 
     if (this.pool)
       this.persist((pool) => pg.updateStoreTaskRow(pool, task), `task ${task.id} assignment`);
@@ -2538,14 +2552,14 @@ export class EnterpriseDatabase {
     if (!task) return null;
 
     task.status = newState;
-    task.updatedAt = new Date();
+    task.updatedAt = clock.now();
 
-    if (newState === TaskState.PUBLISHED) task.publishedAt = new Date();
-    if (newState === TaskState.DELIVERED) task.deliveredAt = new Date();
-    if (newState === TaskState.ACKNOWLEDGED) task.acknowledgedAt = new Date();
-    if (newState === TaskState.SUBMITTED) task.submittedAt = new Date();
+    if (newState === TaskState.PUBLISHED) task.publishedAt = clock.now();
+    if (newState === TaskState.DELIVERED) task.deliveredAt = clock.now();
+    if (newState === TaskState.ACKNOWLEDGED) task.acknowledgedAt = clock.now();
+    if (newState === TaskState.SUBMITTED) task.submittedAt = clock.now();
     if (newState === TaskState.APPROVED || newState === TaskState.REJECTED) {
-      task.reviewedAt = new Date();
+      task.reviewedAt = clock.now();
     }
 
     if (this.pool)

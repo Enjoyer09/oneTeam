@@ -33,6 +33,7 @@
  * inline shortcuts — the same two-message shape `/tasks` already uses.
  */
 
+import { clock } from '@oneteam/types';
 import { InlineKeyboard } from 'grammy';
 import { BotContext, SubmissionRecord, TaskRecord } from '../types';
 import { portalApi, PortalApiError } from '../../services/portalApi';
@@ -58,7 +59,7 @@ const STATUS_ICONS: Record<string, string> = {
  * it renders a sortable `YYYY-MM-DD`, which makes the comparison a string
  * equality rather than three field reads.
  */
-function isToday(iso: string, now: Date = new Date()): boolean {
+function isToday(iso: string, now: Date = clock.now()): boolean {
   const opts: Intl.DateTimeFormatOptions = { timeZone: 'Asia/Baku' };
   try {
     const then = new Date(iso);
@@ -108,7 +109,7 @@ export async function handleToday(ctx: BotContext): Promise<void> {
 
   const todays = submissions.filter((s) => isToday(s.submitted_at));
 
-  const dateStr = new Date().toLocaleDateString('az-AZ', {
+  const dateStr = clock.now().toLocaleDateString('az-AZ', {
     timeZone: 'Asia/Baku',
     weekday: 'long',
     day: '2-digit',
@@ -137,7 +138,10 @@ export async function handleToday(ctx: BotContext): Promise<void> {
     if (pending) parts.push(`⏳ ${pending}`);
     if (rejected) parts.push(`❌ ${rejected}`);
 
-    let block = `📸 *Bu gün göndərilən:* ${todays.length}  (${parts.join('  ')})\n`;
+    let block = `📸 *Son 20 qeyddə bu gün:* ${todays.length}  (${parts.join('  ')})\n`;
+    if (submissions.length === 20) {
+      block += `_Dəqiq ümumi say üçün Auditlərim bölməsinə baxın._\n`;
+    }
     for (const sub of todays.slice(0, 5)) {
       const icon = STATUS_ICONS[sub.status] ?? '•';
       const title = sub.task?.title ?? 'Rəf yoxlanışı';

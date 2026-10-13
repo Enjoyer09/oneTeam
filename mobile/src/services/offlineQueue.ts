@@ -73,6 +73,7 @@
  * the screen layer in 3.5.
  */
 
+import { clock } from '@oneteam/types';
 import { QueueItem, AuditMetadata } from '../types';
 
 export type UploadHandler = (
@@ -103,10 +104,12 @@ export interface QueueStorage {
 export class MemoryQueueStorage implements QueueStorage {
   private value: string | null = null;
 
+  // eslint-disable-next-line @typescript-eslint/require-await -- in-memory double for the Promise-returning QueueStorage interface.
   async read(): Promise<string | null> {
     return this.value;
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await -- in-memory double for the Promise-returning QueueStorage interface.
   async write(serialized: string): Promise<void> {
     this.value = serialized;
   }
@@ -235,6 +238,7 @@ export class OfflineQueueManager {
   private queue: QueueItem[] = [];
   private isDeviceOnline: boolean = true;
   private isSyncing: boolean = false;
+  private readonly subscribers = new Set<() => void>();
   private onQueueChangeListener?: (count: number) => void;
 
   private storage: QueueStorage = new MemoryQueueStorage();
@@ -270,6 +274,13 @@ export class OfflineQueueManager {
   // -------------------------------------------------------------------------
   // Wiring
   // -------------------------------------------------------------------------
+
+  subscribe(listener: () => void): () => void {
+    this.subscribers.add(listener);
+    return () => {
+      this.subscribers.delete(listener);
+    };
+  }
 
   setOnQueueChange(listener: (count: number) => void) {
     this.onQueueChangeListener = listener;
@@ -560,7 +571,7 @@ export class OfflineQueueManager {
       photo_uri: params.photoUri,
       photo_base64: params.photoBase64,
       metadata: params.metadata,
-      created_at: new Date().toISOString(),
+      created_at: clock.now().toISOString(),
       retry_count: 0,
       sync_status: 'queued',
     };
@@ -737,6 +748,13 @@ export class OfflineQueueManager {
   }
 
   private notifyChange() {
+    for (const listener of this.subscribers) {
+      try {
+        listener();
+      } catch {
+        /* UI observers must not interrupt persistence. */
+      }
+    }
     if (this.onQueueChangeListener) {
       this.onQueueChangeListener(this.pendingCount());
     }

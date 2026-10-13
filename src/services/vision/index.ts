@@ -121,9 +121,10 @@ class HttpVisionLLMClient implements VisionLLMClient {
       throw new Error(`Vision-LLM HTTP ${response.status}: ${detail}`);
     }
 
-    const payload: any = await response.json();
-    const content: string = payload?.choices?.[0]?.message?.content ?? '';
-    return parseJudgement(content);
+    const payload = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    return parseJudgement(payload.choices?.[0]?.message?.content ?? '');
   }
 
   /** Bytes → data URL. Prefers the supplied buffer, else downloads the photo once. */
@@ -176,15 +177,15 @@ function parseJudgement(raw: string): VisionLLMJudgement {
     .replace(/^```(?:json)?/i, '')
     .replace(/```$/, '')
     .trim();
-  let parsed: any;
+  let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(cleaned);
+    parsed = JSON.parse(cleaned) as Record<string, unknown>;
   } catch {
     throw new Error(`Vision-LLM returned non-JSON: ${cleaned.slice(0, 200)}`);
   }
 
   const detectedCounts: Partial<Record<CocaColaSKU, number>> = {};
-  const rawCounts = parsed?.detectedCounts ?? {};
+  const rawCounts = (parsed.detectedCounts ?? {}) as Record<string, unknown>;
   for (const sku of COUNTED_SKUS) {
     const n = Number(rawCounts[sku]);
     if (Number.isFinite(n) && n > 0) detectedCounts[sku] = Math.round(n);

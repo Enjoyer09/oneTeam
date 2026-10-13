@@ -3,6 +3,7 @@ import {
   BotStep,
   ChecklistAnswer,
   ChecklistQuestion,
+  DetectionItem,
   TaskPriority,
   TaskState,
 } from '@oneteam/types';
@@ -192,7 +193,7 @@ export interface SubmissionRecord {
   status: SubmissionStatus;
   reviewer_feedback: string | null;
   ai_score?: number | null;
-  ai_detections?: any;
+  ai_detections?: DetectionItem[];
   ai_summary?: string | null;
   metadata?: Record<string, unknown>;
 

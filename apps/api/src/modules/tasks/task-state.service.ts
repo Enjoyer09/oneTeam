@@ -10,6 +10,7 @@ import {
   StoreTask,
   BulkDispatchDto,
   BulkDispatchResultDto,
+  clock,
 } from '@oneteam/types';
 import { db, InMemoryStoreTask } from '@oneteam/database';
 import {
@@ -112,9 +113,9 @@ export class TaskStateService {
         assignedUserId,
         status: TaskState.PUBLISHED,
         deadline: new Date(dto.deadline),
-        publishedAt: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        publishedAt: clock.now(),
+        createdAt: clock.now(),
+        updatedAt: clock.now(),
       };
 
       // Awaited: the insert either lands or this store is reported as failed.
@@ -365,7 +366,7 @@ export class TaskStateService {
       fromState: previousState,
       toState: targetState,
       actorId: principal.userId,
-      payload: { notes, timestamp: new Date().toISOString() },
+      payload: { notes, timestamp: clock.now().toISOString() },
     });
 
     this.logger.log(

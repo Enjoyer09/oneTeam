@@ -40,6 +40,7 @@ import {
   isBotStep,
   ChecklistAnswer,
   ChecklistQuestion,
+  DetectionItem,
   FieldFlowPayload,
 } from '@oneteam/types';
 import {
@@ -1157,7 +1158,7 @@ export class FieldService {
         storeTaskId: payload.storeTaskId,
         photoUrl,
         photoType: payload.photoType ?? 'standard',
-        checklistAnswers: answers as any,
+        checklistAnswers: answers,
         checklistNotCollected: answers.length === 0,
         latitude: hasRealFix ? (payload.latitude as number) : store.latitude,
         longitude: hasRealFix ? (payload.longitude as number) : store.longitude,
@@ -1250,7 +1251,7 @@ export class FieldService {
       db.updateEvidence(result.evidence.id, {
         aiScore: score,
         aiSummary: composedSummary,
-        aiDetections: (payload.aiDetections as any[]) ?? [],
+        aiDetections: (payload.aiDetections as DetectionItem[] | undefined) ?? [],
       });
 
       const confident =

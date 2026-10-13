@@ -2,6 +2,8 @@ import { BotContext } from '../types';
 import { portalApi, PortalApiError } from '../../services/portalApi';
 import { mainMenuKeyboard } from '../keyboards';
 import { escapeMarkdown } from '../markdown';
+import { InlineKeyboard } from 'grammy';
+import { encodeCallback } from '../callbacks';
 
 /**
  * `/mystatus`, and the "📊 Statusum" button.
@@ -38,7 +40,7 @@ export async function handleMyStatus(ctx: BotContext) {
     return;
   }
 
-  let statusText = `📊 *Son Göndərilən Rəf Yoxlamaları (${submissions.length}):*\n\n`;
+  let statusText = `📊 *Son Göndərilən Auditlər (${submissions.length}):*\n\n`;
 
   const statusIcons: Record<string, string> = {
     pending_review: '⏳ Yoxlama gözləyir',
@@ -88,4 +90,14 @@ export async function handleMyStatus(ctx: BotContext) {
     link_preview_options: { is_disabled: true },
     reply_markup: mainMenuKeyboard(),
   });
+
+  for (const sub of submissions.filter((item) => item.status === 'rejected' && item.task_id)) {
+    const keyboard = new InlineKeyboard().text('Düzəliş et', encodeCallback('open', sub.task_id));
+    await ctx.reply(
+      `❌ *${escapeMarkdown(sub.task?.title || 'Rəf yoxlanışı')}* üçün düzəliş tələb olunur.` +
+        (sub.reviewer_feedback ? `\n\n📝 Səbəb: ${escapeMarkdown(sub.reviewer_feedback)}` : '') +
+        `\n\nTapşırığı açıb yenilənmiş foto göndərin.`,
+      { parse_mode: 'Markdown', reply_markup: keyboard },
+    );
+  }
 }

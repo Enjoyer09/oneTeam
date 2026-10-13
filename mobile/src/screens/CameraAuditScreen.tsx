@@ -1,3 +1,4 @@
+import { log } from '@oneteam/types';
 import {
   MobileTask,
   MobileStore,
@@ -91,6 +92,7 @@ export class CameraAuditController {
    * This is the position verified at sign-in, not a fresh fix taken at the
    * moment of capture. That distinction is real and is the next thing to close.
    */
+  // eslint-disable-next-line @typescript-eslint/require-await -- stamps metadata synchronously; the Promise signature stays because every caller awaits it.
   async captureLiveAudit(params: {
     source: 'camera' | 'gallery';
     userGPS: GPSCoordinates;
@@ -229,7 +231,7 @@ export class CameraAuditController {
     try {
       const ack = await mobileApi.acknowledgeTask(this.task.id);
       if (ack.advanced) {
-        console.log(`[oneTeam Mobile] Task ${this.task.id} -> ${ack.currentState} (acknowledged)`);
+        log.info(`[oneTeam Mobile] Task ${this.task.id} -> ${ack.currentState} (acknowledged)`);
       }
     } catch (error) {
       const detail = error instanceof MobileApiError ? error.message : String(error);
@@ -255,6 +257,7 @@ export class CameraAuditController {
       gps: params.metadata.gps,
       distanceFromStoreMeters: params.metadata.distance_from_store_meters,
       metadata: params.metadata,
+      checklistAnswers: params.metadata.checklist_answers,
       idempotencyKey: params.idempotencyKey,
     });
 

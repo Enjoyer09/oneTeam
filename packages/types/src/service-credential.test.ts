@@ -73,7 +73,6 @@ const NOW = 1_700_000_000_000; // fixed clock (ms)
   check('a device token is not', isServiceCredential('otd_abc') === false);
   check('a panel token is not', isServiceCredential('otp_abc') === false);
   check('an empty string is not', isServiceCredential('') === false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   check('a non-string never throws', isServiceCredential(undefined as any) === false);
 }
 

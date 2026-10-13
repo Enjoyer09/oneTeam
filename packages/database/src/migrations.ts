@@ -512,8 +512,9 @@ export async function checkSchema(pool: Pool): Promise<SchemaReport> {
   const found = new Map<string, Set<string>>();
   for (const row of result.rows) {
     const table = row.table_name as string;
-    if (!found.has(table)) found.set(table, new Set());
-    found.get(table)!.add(row.column_name as string);
+    const columns = found.get(table) ?? new Set<string>();
+    found.set(table, columns);
+    columns.add(row.column_name as string);
   }
 
   const missingTables: string[] = [];

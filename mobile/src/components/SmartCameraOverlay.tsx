@@ -1,3 +1,4 @@
+import { clock } from '@oneteam/types';
 import { AuditMetadata, GPSCoordinates } from '../types';
 import { calculateDistanceMeters } from '../utils/geofence';
 import { photoQualityStatus, type PhotoQualityAssessment } from '../utils/photoQuality';
@@ -132,7 +133,7 @@ export function stampAuditMetadata(params: {
     distance_from_store_meters: Math.round(distance),
     device_model: params.deviceModel || UNKNOWN_DEVICE_FIELD,
     os_version: params.osVersion || UNKNOWN_DEVICE_FIELD,
-    captured_at: new Date().toISOString(),
+    captured_at: clock.now().toISOString(),
     capture_mode: 'live_camera_only', // Gallery picks are strictly prohibited
     ghost_overlay_used: params.ghostOverlayUsed,
     app_version: params.appVersion || UNKNOWN_DEVICE_FIELD,

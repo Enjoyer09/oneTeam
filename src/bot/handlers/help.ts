@@ -34,15 +34,12 @@ import { BotContext } from '../types';
 import { mainMenuKeyboard } from '../keyboards';
 import { escapeMarkdown } from '../markdown';
 
-/** The six steps, in the order the flow runs them. */
+/** Three clear stages; checklist questions are part of the middle stage. */
 const FLOW_SUMMARY =
-  `*Necə işləyir — 6 addım:*\n` +
-  `1️⃣ 📋 *Tapşırıqlar* düyməsinə basın\n` +
-  `2️⃣ Mağazanız üçün tapşırığı seçin\n` +
-  `3️⃣ 📍 Lokasiyanızı paylaşın\n` +
-  `4️⃣ 📋 Çeklist suallarını cavablandırın\n` +
-  `5️⃣ 📸 Rəfin fotosunu göndərin\n` +
-  `6️⃣ ✅ Şəkli təsdiqləyin — o zaman göndərilir\n\n` +
+  `*Audit necə tamamlanır — 3 mərhələ:*\n` +
+  `1️⃣ 📍 *Məkan* — lokasiyanı paylaşın və ya lokasiyasız davam edin\n` +
+  `2️⃣ 📋 *Yoxlama* — tapşırığı seçin və sualları cavablandırın\n` +
+  `3️⃣ 📸 *Foto* — şəkli yoxlayıb təsdiqləyin, sonra göndərilir\n\n` +
   `Heç bir əmr yazmaq lazım deyil.`;
 
 /**
@@ -62,7 +59,7 @@ export async function handleHelp(ctx: BotContext): Promise<void> {
       `*Əmrlər (könüllü):*\n` +
       `• /bugun — bugünkü tapşırıqlar və göndərdikləriniz\n` +
       `• /tasks — aktiv tapşırıqlar\n` +
-      `• /mystatus — son göndərdiyiniz şəkillərin statusu\n` +
+      `• /mystatus — auditləriniz və nəzarətçi rəyi\n` +
       `• /start — mağazanı dəyişmək\n` +
       `• /help — bu mesaj`,
     { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard() },

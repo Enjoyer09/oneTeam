@@ -12,7 +12,7 @@
  * '@oneteam/database'` keeps working.
  */
 
-import type { TaskState } from '@oneteam/types';
+import type { ChecklistAnswer, DetectionItem, TaskState, TaskTemplate, User } from '@oneteam/types';
 
 /**
  * A retail point, as the process holds it.
@@ -79,8 +79,13 @@ export interface InMemoryShelfPosition {
   section: string;
   level: number;
   position: number;
-  /** FK to products.id, ON DELETE RESTRICT — an assigned product cannot vanish. */
-  productId?: string;
+  /**
+   * FK to products.id, ON DELETE RESTRICT — an assigned product cannot vanish.
+   *
+   * `null` is a real edit: it clears the assignment (see `updateShelfPosition`,
+   * which is why the store type has to carry it separately from `undefined`).
+   */
+  productId?: string | null;
   /**
    * The latest manual count for this slot (wave 1.4) — current state, not a
    * history. null (or undefined) = nobody has counted it, which is NOT the
@@ -116,7 +121,7 @@ export interface InMemoryEvidence {
   submittedById: string;
   photoUrl: string;
   photoType?: 'before' | 'after' | 'standard';
-  checklistAnswers?: any[];
+  checklistAnswers?: ChecklistAnswer[];
   latitude: number;
   longitude: number;
   gpsDistanceMeters: number;
@@ -150,7 +155,7 @@ export interface InMemoryEvidence {
    * type is the honest fix: the stored state really does have three cases.
    */
   aiScore?: number | null;
-  aiDetections?: any[];
+  aiDetections?: DetectionItem[];
   aiSummary?: string | null;
   reviewerFeedback?: string;
   submittedAt: Date;
@@ -166,6 +171,27 @@ export interface InMemoryAuditLog {
   fromState?: string;
   toState?: string;
   actorId?: string;
-  payload?: any;
+  payload?: Record<string, unknown> | null;
   createdAt: Date;
 }
+
+/**
+ * A user row as this repository stores one.
+ *
+ * `User` plus the one field this repository owns: `mobileDeviceId`, the mobile
+ * channel's identity key. It lives here rather than in `domain.ts` because the
+ * domain has no concept of a device enrolment — only the storage layer does.
+ * (Its twin is `telegramChatId`, which the domain does carry.)
+ */
+export interface InMemoryUser extends User {
+  mobileDeviceId?: string | null;
+}
+
+/**
+ * A task template row as this repository stores one.
+ *
+ * The domain shape already describes it exactly, so this is an alias rather than
+ * a second definition: two declarations of one row is how a mapper's return type
+ * and its column list drift apart.
+ */
+export type InMemoryTemplate = TaskTemplate;

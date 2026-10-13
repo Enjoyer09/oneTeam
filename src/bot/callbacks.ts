@@ -65,6 +65,7 @@ export const CALLBACK_ACTIONS = [
   'tasks',
   /** `open:<taskId>` — open a task and start the guided flow. */
   'open',
+  'discard',
   /** `restart:<taskId>` — throw the answers away and start this task over. */
   'restart',
   /** `chk:<questionIndex>:<value>` — answer a checklist question. */

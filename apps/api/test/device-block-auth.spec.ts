@@ -103,7 +103,6 @@ async function run(): Promise<void> {
   // Swap only the database module's surface the guard touches. Every suite in
   // this repo builds services directly against the singleton, so this is the
   // seam the guard has.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dbAny = db as any;
   const saved = {
     verifyDeviceToken: dbAny.verifyDeviceToken,

@@ -1,3 +1,4 @@
+import { log } from '@oneteam/types';
 import { InlineKeyboard } from 'grammy';
 import { AnswerCallback, BotContext, TaskRecord } from '../types';
 import { portalApi, PortalApiError } from '../../services/portalApi';
@@ -7,6 +8,12 @@ import { escapeMarkdown } from '../markdown';
 import { beginTaskFlow, resumeCurrentStep } from './taskFlow';
 
 export async function handleTasks(ctx: BotContext) {
+  return handleTasksPage(ctx, 0);
+}
+
+const TASK_PAGE_SIZE = 6;
+
+export async function handleTasksPage(ctx: BotContext, requestedPage: number) {
   if (!ctx.session.storeId) {
     await ctx.reply(
       `⚠️ *Mağaza qeydiyyatı tapılmadı!*\n\nZəhmət olmasa əvvəlcə /start əmrini göndərib mağaza kodunuzu daxil edin.`,
@@ -48,8 +55,22 @@ export async function handleTasks(ctx: BotContext) {
     },
   );
 
-  for (const task of tasks) {
+  const pageCount = Math.ceil(tasks.length / TASK_PAGE_SIZE);
+  const page = Math.min(
+    Math.max(Number.isSafeInteger(requestedPage) ? requestedPage : 0, 0),
+    pageCount - 1,
+  );
+  for (const task of tasks.slice(page * TASK_PAGE_SIZE, (page + 1) * TASK_PAGE_SIZE)) {
     await sendTaskDetails(ctx, task);
+  }
+  if (pageCount > 1) {
+    const navigation = new InlineKeyboard();
+    if (page > 0) navigation.text('← Əvvəlki', encodeCallback('tasks', `page-${page - 1}`));
+    if (page < pageCount - 1)
+      navigation.text('Növbəti →', encodeCallback('tasks', `page-${page + 1}`));
+    await ctx.reply(`Səhifə ${page + 1}/${pageCount} · ${tasks.length} tapşırıq`, {
+      reply_markup: navigation,
+    });
   }
 }
 
@@ -85,10 +106,7 @@ export async function sendTaskDetails(ctx: BotContext, task: TaskRecord) {
     checklistLine +
     `\n📝 *Təlimat:*\n${escapeMarkdown(task.description ?? '')}`;
 
-  const keyboard = new InlineKeyboard().text(
-    '📸 Rəf Şəklini Göndər',
-    encodeCallback('open', task.id),
-  );
+  const keyboard = new InlineKeyboard().text('Auditə başla', encodeCallback('open', task.id));
 
   // If task has reference planogram image, send photo with caption
   if (task.reference_image_url) {
@@ -129,6 +147,21 @@ export async function sendTaskDetails(ctx: BotContext, task: TaskRecord) {
  * still says so out loud when answers would be lost, because silently discarding
  * a merchandiser's work is the failure this bot is meant to avoid.
  */
+/**
+ * The chat this update belongs to, or a thrown error.
+ *
+ * Every handler here is routed only for a chat update, and each one addresses
+ * the chat on its first API call — so a missing chat is not a case to handle,
+ * it is a wiring mistake. Stating that once is what lets the calls below use a
+ * plain number instead of a `!` on every line.
+ */
+function requireChatId(ctx: BotContext): number {
+  if (!ctx.chat) {
+    throw new Error('Bot handler reached without a chat — the router only routes chat updates.');
+  }
+  return ctx.chat.id;
+}
+
 export async function handleOpenTask(
   ctx: BotContext,
   taskId: string,
@@ -139,6 +172,30 @@ export async function handleOpenTask(
     await resumeCurrentStep(ctx);
     return;
   }
+
+  if (
+    ctx.session.activeTaskId &&
+    ctx.session.activeTaskId !== taskId &&
+    ctx.session.step &&
+    ctx.session.step !== 'idle'
+  ) {
+    await answer();
+    await ctx.reply(
+      'Davam edən auditiniz var. Cavablarınız və foto saxlanılıb. Başqa tapşırıq açmaq üçün əvvəl bu işi tamamlayın və ya qaralamanı silin.',
+      {
+        reply_markup: new InlineKeyboard()
+          .text('Davam et', encodeCallback('open', ctx.session.activeTaskId))
+          .row()
+          .text(
+            'Qaralamanı sil və siyahıya qayıt',
+            encodeCallback('discard', ctx.session.activeTaskId),
+          ),
+      },
+    );
+    return;
+  }
+
+  const chatId = requireChatId(ctx);
 
   let task;
   try {
@@ -184,8 +241,8 @@ export async function handleOpenTask(
   // failure is non-fatal — the acknowledge below still surfaces any real block.
   if (ctx.session.storeId) {
     try {
-      const result = await portalApi.claimTask(task.id, ctx.chat!.id, ctx.session.storeId);
-      console.log(
+      const result = await portalApi.claimTask(task.id, chatId, ctx.session.storeId);
+      log.info(
         `[oneTeam Bot] Claim on open for ${task.id}: claimed=${result.claimed}` +
           (result.reason ? ` (${result.reason})` : '') +
           (result.previousAssignee ? ` was=${result.previousAssignee}` : ''),
@@ -204,9 +261,9 @@ export async function handleOpenTask(
   // A failure here is logged and the flow continues: the merchandiser can still
   // send the photo, and a supervisor can move the task on manually.
   try {
-    const ack = await portalApi.acknowledgeTask(task.id, ctx.chat!.id);
+    const ack = await portalApi.acknowledgeTask(task.id, chatId);
     if (ack.advanced) {
-      console.log(`[oneTeam Bot] Task ${task.id} -> ${ack.currentState} (acknowledged by chat)`);
+      log.info(`[oneTeam Bot] Task ${task.id} -> ${ack.currentState} (acknowledged by chat)`);
     }
   } catch (error) {
     const detail = error instanceof PortalApiError ? error.message : String(error);
@@ -236,4 +293,25 @@ export async function handleOpenTask(
   // session beforehand: the flow clears the session as it starts, and setting
   // them first would mean the clear wiped them.
   await beginTaskFlow(ctx, task.checklist_schema ?? []);
+}
+
+/** Explicit destructive choice; old buttons cannot clear a different task. */
+export async function handleDiscardTask(ctx: BotContext, taskId: string, answer: AnswerCallback) {
+  if (ctx.session.activeTaskId !== taskId || !ctx.session.step || ctx.session.step === 'idle') {
+    await answer('Bu qaralama artıq aktiv deyil.');
+    return;
+  }
+  ctx.session.step = 'idle';
+  ctx.session.activeTaskId = undefined;
+  ctx.session.activeTaskTitle = undefined;
+  ctx.session.checklistAnswers = undefined;
+  ctx.session.checklistQuestions = undefined;
+  ctx.session.checklistIndex = undefined;
+  ctx.session.pendingPhoto = undefined;
+  ctx.session.location = undefined;
+  await answer();
+  await ctx.reply('Qaralama silindi. Yeni tapşırıq seçə bilərsiniz.', {
+    reply_markup: mainMenuKeyboard(),
+  });
+  await handleTasks(ctx);
 }

@@ -1,3 +1,4 @@
+import { log } from '@oneteam/types';
 import { Bot, session } from 'grammy';
 import dotenv from 'dotenv';
 import { BotContext, SessionData } from './types';
@@ -139,7 +140,7 @@ async function startPollingWithRetry(bot: Bot<BotContext>, maxAttempts = 20): Pr
     try {
       await bot.start({
         onStart(botInfo) {
-          console.log(`✅ oneTeam Bot connected as @${botInfo.username}`);
+          log.info(`✅ oneTeam Bot connected as @${botInfo.username}`);
         },
       });
       return;
@@ -165,14 +166,14 @@ if (process.env.NODE_ENV !== 'test') {
   if (isDirectRun) {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     if (!token || token.includes('mockBotToken')) {
-      console.log('------------------------------------------------------------');
-      console.log('oneTeam Telegram Bot ready in Standby/Test mode.');
-      console.log('To connect to live Telegram servers, set a valid TELEGRAM_BOT_TOKEN in .env');
-      console.log('Run automated end-to-end tests with: npm run bot:test');
-      console.log('------------------------------------------------------------');
+      log.info('------------------------------------------------------------');
+      log.info('oneTeam Telegram Bot ready in Standby/Test mode.');
+      log.info('To connect to live Telegram servers, set a valid TELEGRAM_BOT_TOKEN in .env');
+      log.info('Run automated end-to-end tests with: npm run bot:test');
+      log.info('------------------------------------------------------------');
     } else {
       const bot = createBot(token);
-      console.log('🚀 Starting oneTeam Telegram Bot in Polling Mode...');
+      log.info('🚀 Starting oneTeam Telegram Bot in Polling Mode...');
 
       // The other half of the notification path. The API records what has to be
       // sent; this sends it. It is started here rather than inside `createBot`
@@ -202,7 +203,7 @@ if (process.env.NODE_ENV !== 'test') {
       // shutdown and the code did an abrupt one. Awaiting it is what makes the
       // word true.
       const stop = async (): Promise<void> => {
-        console.log('Stopping bot...');
+        log.info('Stopping bot...');
         drain.stop();
         // A pass in flight would otherwise claim rows the exiting process can
         // no longer deliver, holding their leases until they expire.

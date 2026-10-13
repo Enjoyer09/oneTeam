@@ -60,13 +60,17 @@ export class PortalController {
    */
   @Post('stores')
   @HttpCode(HttpStatus.CREATED)
-  async createStore(@Body() body: any, @Request() request: AuthedRequest) {
+  async createStore(@Body() body: Record<string, unknown>, @Request() request: AuthedRequest) {
     return this.portalService.createStore(body, getPrincipal(request));
   }
 
   @Patch('stores/:id')
   @HttpCode(HttpStatus.OK)
-  async updateStore(@Param('id') id: string, @Body() body: any, @Request() request: AuthedRequest) {
+  async updateStore(
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+    @Request() request: AuthedRequest,
+  ) {
     return this.portalService.updateStore(id, body, getPrincipal(request));
   }
 
@@ -91,7 +95,7 @@ export class PortalController {
 
   @Post('products')
   @HttpCode(HttpStatus.CREATED)
-  async createProduct(@Body() body: any, @Request() request: AuthedRequest) {
+  async createProduct(@Body() body: Record<string, unknown>, @Request() request: AuthedRequest) {
     return this.portalService.createProduct(body, getPrincipal(request));
   }
 
@@ -99,7 +103,7 @@ export class PortalController {
   @HttpCode(HttpStatus.OK)
   async updateProduct(
     @Param('id') id: string,
-    @Body() body: any,
+    @Body() body: Record<string, unknown>,
     @Request() request: AuthedRequest,
   ) {
     return this.portalService.updateProduct(id, body, getPrincipal(request));
@@ -121,7 +125,10 @@ export class PortalController {
 
   @Post('shelf-positions')
   @HttpCode(HttpStatus.CREATED)
-  async createShelfPosition(@Body() body: any, @Request() request: AuthedRequest) {
+  async createShelfPosition(
+    @Body() body: Record<string, unknown>,
+    @Request() request: AuthedRequest,
+  ) {
     return this.portalService.createShelfPosition(body, getPrincipal(request));
   }
 
@@ -129,7 +136,7 @@ export class PortalController {
   @HttpCode(HttpStatus.OK)
   async updateShelfPosition(
     @Param('id') id: string,
-    @Body() body: any,
+    @Body() body: Record<string, unknown>,
     @Request() request: AuthedRequest,
   ) {
     return this.portalService.updateShelfPosition(id, body, getPrincipal(request));
@@ -147,7 +154,7 @@ export class PortalController {
   @HttpCode(HttpStatus.OK)
   async countShelfPosition(
     @Param('id') id: string,
-    @Body() body: any,
+    @Body() body: Record<string, unknown>,
     @Request() request: AuthedRequest,
   ) {
     return this.portalService.recordShelfCount(id, body, getPrincipal(request));
@@ -193,7 +200,7 @@ export class PortalController {
 
   @Post('tasks')
   @HttpCode(HttpStatus.CREATED)
-  async createTask(@Body() body: any, @Request() request: AuthedRequest) {
+  async createTask(@Body() body: Record<string, unknown>, @Request() request: AuthedRequest) {
     return this.portalService.createAndDispatch(body, getPrincipal(request));
   }
 
@@ -207,7 +214,11 @@ export class PortalController {
    */
   @Patch('tasks/:id')
   @HttpCode(HttpStatus.OK)
-  async updateTask(@Param('id') id: string, @Body() body: any, @Request() request: AuthedRequest) {
+  async updateTask(
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+    @Request() request: AuthedRequest,
+  ) {
     return this.portalService.updateTask(id, body, getPrincipal(request));
   }
 

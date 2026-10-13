@@ -346,6 +346,11 @@ export default tseslint.config(
       '**/tests/**/*.ts',
       '**/*test-runner*.ts',
       '**/smoke-test.ts',
+      // The repo's own assert-based checks. `web/src/lib/*.check.ts` prints a
+      // per-check line and exits non-zero on the first failure — it is a test
+      // runner that the naming convention (not a framework) identifies, so it
+      // belongs here for the same reason `*test-runner*` does.
+      '**/*.check.ts',
     ],
     rules: {
       // Test output is the interface of a test runner.
@@ -355,6 +360,19 @@ export default tseslint.config(
       '@typescript-eslint/no-non-null-assertion': 'off',
       // An intentionally non-awaited rejection check is normal in tests.
       '@typescript-eslint/no-floating-promises': 'off',
+      // A test double must return a Promise to satisfy the interface it
+      // replaces even when it has nothing to await — `async` with no `await` is
+      // the correct shape there, so the rule reports an idiom, not a defect.
+      '@typescript-eslint/require-await': 'off',
+      // A fixture says "created just now" and means it: a frozen clock would
+      // make a freshness test assert nothing. The production rule exists so a
+      // test CAN control time; inside a test, the test is the controller. The
+      // one exception is a fixture that must pin an exact instant — those pass
+      // an explicit timestamp, which the rule does not restrict.
+      'no-restricted-syntax': 'off',
+      // An unused disable directive is rot: it claims a rule was a problem where
+      // it is not, and the next reader believes it. Reported here so a stale
+      // suppression cannot survive a test file.
     },
   },
 

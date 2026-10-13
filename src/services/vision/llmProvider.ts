@@ -19,6 +19,7 @@
  * auto-reject a submission the model never saw. So a throw yields a 0-confidence
  * `needsHumanReview` result and lets a supervisor look, rather than a verdict.
  */
+import { clock } from '@oneteam/types';
 import {
   aiVisionService,
   SKU_METADATA,
@@ -69,7 +70,7 @@ export class VisionLLMProvider implements VisionProvider {
 
   async analyze(input: VisionInput): Promise<VisionAnalysis> {
     const requirements = requirementsFor(input);
-    const analyzedAt = new Date().toISOString();
+    const analyzedAt = clock.now().toISOString();
 
     let judgement;
     try {

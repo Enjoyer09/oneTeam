@@ -42,13 +42,24 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
-import { TaskState, UserRole, NotificationDispatchSummary, StoreTask } from '@oneteam/types';
+import {
+  TaskState,
+  UserRole,
+  NotificationDispatchSummary,
+  StoreTask,
+  ChecklistQuestion,
+  ChecklistQuestionType,
+  TaskPriority,
+  clock,
+} from '@oneteam/types';
 import {
   InMemoryShelfPosition,
   db,
   InMemoryEvidence,
+  InMemoryStore,
   InMemoryStoreTask,
   InMemoryProduct,
+  InMemoryTemplate,
 } from '@oneteam/database';
 import {
   AuthenticatedPrincipal,
@@ -254,7 +265,7 @@ const iso = (value: unknown): string => {
   // The seeded records carry real Date objects, but a store hydrated from a
   // database that predates the created_at column would not. A missing
   // timestamp is not worth failing a whole dashboard render over.
-  return new Date().toISOString();
+  return clock.now().toISOString();
 };
 
 /**
@@ -292,6 +303,52 @@ function toPanelSubmissionStatus(state: TaskState | undefined): PanelSubmission[
   return 'pending_review';
 }
 
+/**
+ * The three required-field shapes `readXFields(body, { requireAll: true })`
+ * returns. They exist so the create methods read a field the reader has already
+ * proven present — the alternative was a `!` on each line, which states the same
+ * thing to the reader while removing it from the compiler's view.
+ */
+interface RequiredStoreFields extends PartialStoreFields {
+  storeCode: string;
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+}
+interface PartialStoreFields {
+  storeCode?: string;
+  name?: string;
+  chainName?: string;
+  storeFormat?: InMemoryStore['storeFormat'];
+  address?: string;
+  city?: string;
+  latitude?: number;
+  longitude?: number;
+  isActive?: boolean;
+}
+interface RequiredProductFields extends PartialProductFields {
+  barcode: string;
+  name: string;
+}
+interface PartialProductFields {
+  barcode?: string;
+  name?: string;
+  size?: string;
+  variant?: string;
+}
+interface RequiredShelfFields extends PartialShelfFields {
+  section: string;
+  level: number;
+  position: number;
+}
+interface PartialShelfFields {
+  section?: string;
+  level?: number;
+  position?: number;
+  product_id?: string | null;
+}
+
 @Injectable()
 export class PortalService {
   private readonly logger = new Logger(PortalService.name);
@@ -302,7 +359,7 @@ export class PortalService {
   // Mapping
   // -------------------------------------------------------------------------
 
-  toPanelStore(store: any): PanelStore {
+  toPanelStore(store: InMemoryStore): PanelStore {
     return {
       id: store.id,
       store_code: store.storeCode,
@@ -348,7 +405,7 @@ export class PortalService {
     // on the template. A store task stores only (template, store, assignee,
     // state, deadline) — so this lookup is not optional decoration, it is where
     // the panel's entire task display comes from.
-    const template: any = db.getTemplate(task.templateId);
+    const template = db.getTemplate(task.templateId);
 
     return {
       id: task.id,
@@ -383,7 +440,9 @@ export class PortalService {
    * client will refuse a submission with unanswered checklist items, whereas the
    * second photo is a separate evidence row.
    */
-  private static deriveTaskKind(template: any): 'CHECKLIST' | 'PHOTO' | 'AUDIT' {
+  private static deriveTaskKind(
+    template: InMemoryTemplate | null,
+  ): 'CHECKLIST' | 'PHOTO' | 'AUDIT' {
     if (Array.isArray(template?.checklistSchema) && template.checklistSchema.length > 0) {
       return 'CHECKLIST';
     }
@@ -491,8 +550,11 @@ export class PortalService {
           present: countedGroup.filter((slot) => (slot.units ?? 0) > 0).length,
           units,
           products: countedGroup
-            .map((slot) => {
-              const productId = slot.productId!;
+            .flatMap((slot) => {
+              const productId = slot.productId;
+              // An unassigned slot cannot own a product line: the guard is here
+              // because `countedGroup` filters on `units`, not on `productId`.
+              if (!productId) return [];
               const unitsHere = slot.units ?? 0;
               return {
                 product_id: productId,
@@ -575,20 +637,18 @@ export class PortalService {
    * serves both "create with everything" and "edit one field".
    */
   private readStoreFields(
-    body: Record<string, any>,
+    body: Record<string, unknown>,
+    options: { requireAll: true },
+  ): RequiredStoreFields;
+  private readStoreFields(
+    body: Record<string, unknown>,
+    options: { requireAll: false },
+  ): PartialStoreFields;
+  private readStoreFields(
+    body: Record<string, unknown>,
     options: { requireAll: boolean },
-  ): {
-    storeCode?: string;
-    name?: string;
-    chainName?: string;
-    storeFormat?: any;
-    address?: string;
-    city?: string;
-    latitude?: number;
-    longitude?: number;
-    isActive?: boolean;
-  } {
-    const fields: Record<string, any> = {};
+  ): PartialStoreFields {
+    const fields: Record<string, unknown> = {};
 
     /**
      * Reads a text field.
@@ -707,17 +767,17 @@ export class PortalService {
   }
 
   /** Creates a store. See `EnterpriseDatabase.createStore` for the write rule. */
-  async createStore(body: Record<string, any>, principal: AuthenticatedPrincipal) {
+  async createStore(body: Record<string, unknown>, principal: AuthenticatedPrincipal) {
     this.requireStoreEditor(principal);
 
     const fields = this.readStoreFields(body, { requireAll: true });
 
     const result = await db.createStore({
-      storeCode: fields.storeCode!,
-      name: fields.name!,
-      address: fields.address!,
-      latitude: fields.latitude!,
-      longitude: fields.longitude!,
+      storeCode: fields.storeCode,
+      name: fields.name,
+      address: fields.address,
+      latitude: fields.latitude,
+      longitude: fields.longitude,
       chainName: fields.chainName,
       storeFormat: fields.storeFormat,
       city: fields.city,
@@ -749,7 +809,11 @@ export class PortalService {
   }
 
   /** Applies an edit. Only the fields present in the body are touched. */
-  async updateStore(storeId: string, body: Record<string, any>, principal: AuthenticatedPrincipal) {
+  async updateStore(
+    storeId: string,
+    body: Record<string, unknown>,
+    principal: AuthenticatedPrincipal,
+  ) {
     this.requireStoreEditor(principal);
 
     const fields = this.readStoreFields(body, { requireAll: false });
@@ -882,9 +946,17 @@ export class PortalService {
    * quietly half-applied is how that gets shipped.
    */
   private readProductFields(
-    body: Record<string, any>,
+    body: Record<string, unknown>,
+    options: { requireAll: true },
+  ): RequiredProductFields;
+  private readProductFields(
+    body: Record<string, unknown>,
+    options: { requireAll: false },
+  ): PartialProductFields;
+  private readProductFields(
+    body: Record<string, unknown>,
     options: { requireAll: boolean },
-  ): { barcode?: string; name?: string; size?: string; variant?: string } {
+  ): PartialProductFields {
     const allowed = new Set(['barcode', 'name', 'size', 'variant']);
     for (const key of Object.keys(body ?? {})) {
       if (!allowed.has(key)) {
@@ -892,7 +964,7 @@ export class PortalService {
       }
     }
 
-    const fields: Record<string, any> = {};
+    const fields: Record<string, unknown> = {};
 
     const text = (key: string, label: string, required: boolean): string | undefined => {
       const raw = body?.[key];
@@ -943,9 +1015,17 @@ export class PortalService {
    * `product_id` is only syntax-checked — existence is the FK's answer.
    */
   private readShelfFields(
-    body: Record<string, any>,
+    body: Record<string, unknown>,
+    options: { requireAll: true },
+  ): RequiredShelfFields;
+  private readShelfFields(
+    body: Record<string, unknown>,
+    options: { requireAll: false },
+  ): PartialShelfFields;
+  private readShelfFields(
+    body: Record<string, unknown>,
     options: { requireAll: boolean },
-  ): { section?: string; level?: number; position?: number; product_id?: string | null } {
+  ): PartialShelfFields {
     const allowed = new Set(['section', 'level', 'position', 'product_id']);
     for (const key of Object.keys(body ?? {})) {
       if (!allowed.has(key)) {
@@ -953,7 +1033,7 @@ export class PortalService {
       }
     }
 
-    const fields: Record<string, any> = {};
+    const fields: Record<string, unknown> = {};
 
     const sectionRaw = body?.section;
     if (sectionRaw === undefined || sectionRaw === null || String(sectionRaw).trim() === '') {
@@ -1004,14 +1084,14 @@ export class PortalService {
     return fields;
   }
 
-  async createProduct(body: Record<string, any>, principal: AuthenticatedPrincipal) {
+  async createProduct(body: Record<string, unknown>, principal: AuthenticatedPrincipal) {
     this.requireProductEditor(principal);
 
     const fields = this.readProductFields(body, { requireAll: true });
 
     const result = await db.createProduct({
-      barcode: fields.barcode!,
-      name: fields.name!,
+      barcode: fields.barcode,
+      name: fields.name,
       size: fields.size,
       variant: fields.variant,
     });
@@ -1043,7 +1123,7 @@ export class PortalService {
   /** Applies an edit. Only the fields present in the body are touched. */
   async updateProduct(
     productId: string,
-    body: Record<string, any>,
+    body: Record<string, unknown>,
     principal: AuthenticatedPrincipal,
   ) {
     this.requireProductEditor(principal);
@@ -1124,15 +1204,15 @@ export class PortalService {
   // Shelf map writes (wave 1.3)
   // -------------------------------------------------------------------------
 
-  async createShelfPosition(body: Record<string, any>, principal: AuthenticatedPrincipal) {
+  async createShelfPosition(body: Record<string, unknown>, principal: AuthenticatedPrincipal) {
     this.requireShelfEditor(principal);
 
     const fields = this.readShelfFields(body, { requireAll: true });
 
     const result = await db.createShelfPosition({
-      section: fields.section!,
-      level: fields.level!,
-      position: fields.position!,
+      section: fields.section,
+      level: fields.level,
+      position: fields.position,
       productId: fields.product_id ?? undefined,
     });
 
@@ -1173,7 +1253,7 @@ export class PortalService {
   /** Applies an edit. Only the fields present in the body are touched. */
   async updateShelfPosition(
     slotId: string,
-    body: Record<string, any>,
+    body: Record<string, unknown>,
     principal: AuthenticatedPrincipal,
   ) {
     this.requireShelfEditor(principal);
@@ -1265,7 +1345,7 @@ export class PortalService {
    * exists because "4000 units on one slot" is a units/typo confusion, not a
    * measurement, and a garbage number poisons every share it feeds.
    */
-  private readCountUnits(body: Record<string, any>): number {
+  private readCountUnits(body: Record<string, unknown>): number {
     const allowed = new Set(['units']);
     for (const key of Object.keys(body ?? {})) {
       if (!allowed.has(key)) {
@@ -1308,7 +1388,7 @@ export class PortalService {
    */
   async recordShelfCount(
     slotId: string,
-    body: Record<string, any>,
+    body: Record<string, unknown>,
     principal: AuthenticatedPrincipal,
   ) {
     const units = this.readCountUnits(body);
@@ -1547,7 +1627,7 @@ export class PortalService {
       );
     }
 
-    const template: any = db.getTemplate(task.templateId);
+    const template = db.getTemplate(task.templateId);
     const reasons: string[] = [];
     let score: number;
 
@@ -1662,21 +1742,40 @@ export class PortalService {
    * tasks directly means the panel and the mobile flow share one dispatch path,
    * so notifications and audit entries happen identically for both.
    */
+  /**
+   * Reads an optional string, treating a non-string as absent.
+   *
+   * A raw request body reaches this service as `unknown` per field, so a caller
+   * sending `{"regionId": 7}` gets "no region filter" rather than the string
+   * `"7"` silently narrowing a query. Returned trimmed, because the store ids
+   * and chain names it feeds are compared for equality.
+   */
+  private readOptionalText(raw: unknown): string | undefined {
+    return typeof raw === 'string' && raw.trim() !== '' ? raw.trim() : undefined;
+  }
+
+  /** Reads a list of strings, dropping any entry that is not one. */
+  private readStringList(raw: unknown): string[] {
+    if (!Array.isArray(raw)) return [];
+    return raw.filter((entry): entry is string => typeof entry === 'string');
+  }
+
+  /**
+   * Reads a boolean flag.
+   *
+   * Accepts `true` and the string `'true'` because the panel's form posts the
+   * latter; anything else is false, which is what "the box was not ticked" and
+   * "the field was absent" both mean here.
+   */
+  private readFlag(raw: unknown): boolean {
+    return raw === true || String(raw) === 'true';
+  }
+
   async createAndDispatch(
-    payload: {
-      title: string;
-      description: string;
-      reference_image_url?: string;
-      priority?: string;
-      deadline: string;
-      assigned_stores?: string[];
-      chainName?: string;
-      storeFormat?: string;
-      regionId?: string;
-      requires_before_after_photo?: boolean;
-      checklist_schema?: unknown[];
-      assignedUserId?: string;
-    },
+    // A raw body: every field below is read through a validator, and typing the
+    // shape here would only move those checks into a declaration the caller can
+    // bypass with a cast.
+    payload: Record<string, unknown>,
     principal: AuthenticatedPrincipal,
   ) {
     // The role gate was missing here while `bulkDispatchTasks` had one, which
@@ -1690,6 +1789,8 @@ export class PortalService {
     const deadline = this.readDeadline(payload.deadline);
     const priority = this.readPriority(payload.priority);
     const checklistSchema = this.readChecklistSchema(payload.checklist_schema);
+    const assignedStores = this.readStringList(payload.assigned_stores);
+    const assignedUserId = this.readOptionalText(payload.assignedUserId);
 
     const templateId = `tmpl-panel-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const stored = await db.createTemplate({
@@ -1697,10 +1798,10 @@ export class PortalService {
       campaignId: db.campaign?.id ?? null,
       title,
       description: typeof payload.description === 'string' ? payload.description : '',
-      referenceImageUrl: payload.reference_image_url ?? '',
+      referenceImageUrl: this.readOptionalText(payload.reference_image_url) ?? '',
       priority,
       planogramRules: [],
-      requiresBeforeAfterPhoto: payload.requires_before_after_photo ?? false,
+      requiresBeforeAfterPhoto: this.readFlag(payload.requires_before_after_photo),
       checklistSchema,
     });
 
@@ -1729,12 +1830,12 @@ export class PortalService {
       // person every task — which is what stopped anyone else from submitting
       // for that store through the bot. An unassigned task is claimed by whoever
       // is at the store. See dispatchToExplicitStores.
-      if (payload.assigned_stores?.length) {
+      if (assignedStores.length > 0) {
         const result = await this.dispatchToExplicitStores(
           templateId,
           deadline,
-          payload.assigned_stores,
-          payload.assignedUserId ?? null,
+          assignedStores,
+          assignedUserId ?? null,
           principal,
         );
 
@@ -1754,7 +1855,7 @@ export class PortalService {
           success: true,
           data: {
             templateId,
-            totalStoresMatched: payload.assigned_stores.length,
+            totalStoresMatched: assignedStores.length,
             tasksCreated: result.created.length,
             taskIds: result.created.map((t) => t.id),
             notificationsDispatched: result.notifications,
@@ -1766,7 +1867,7 @@ export class PortalService {
       // Segmentation still needs an assignee: `bulkDispatchTasks` refuses to
       // create a task nobody owns, and there is no store list to claim from.
       const assigneeId =
-        payload.assignedUserId ?? db.users.find((user) => user.role === UserRole.MERCHANDISER)?.id;
+        assignedUserId ?? db.users.find((user) => user.role === UserRole.MERCHANDISER)?.id;
 
       if (!assigneeId) {
         throw new HttpException(
@@ -1780,9 +1881,9 @@ export class PortalService {
           templateId,
           deadline: deadline.toISOString(),
           assignedUserId: assigneeId,
-          regionId: payload.regionId,
-          chainName: payload.chainName,
-          storeFormat: payload.storeFormat,
+          regionId: this.readOptionalText(payload.regionId),
+          chainName: this.readOptionalText(payload.chainName),
+          storeFormat: this.readOptionalText(payload.storeFormat),
         },
         principal,
       );
@@ -1887,17 +1988,17 @@ export class PortalService {
   }
 
   /** Reads a priority, defaulting to MEDIUM and refusing anything outside the enum. */
-  private readPriority(raw: unknown): string {
-    const allowed = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
-    if (raw === undefined || raw === null || String(raw).trim() === '') return 'MEDIUM';
+  private readPriority(raw: unknown): TaskPriority {
+    const allowed = Object.values(TaskPriority);
+    if (raw === undefined || raw === null || String(raw).trim() === '') return TaskPriority.MEDIUM;
     const priority = String(raw).trim().toUpperCase();
-    if (!allowed.includes(priority)) {
+    if (!(allowed as string[]).includes(priority)) {
       throw new HttpException(
         `Prioritet bunlardan biri olmalıdır: ${allowed.join(', ')}`,
         HttpStatus.BAD_REQUEST,
       );
     }
-    return priority;
+    return priority as TaskPriority;
   }
 
   /**
@@ -1908,7 +2009,7 @@ export class PortalService {
    * then reach the field client as a checklist item with no question, which the
    * merchandiser cannot answer and the reviewer cannot read.
    */
-  private readChecklistSchema(raw: unknown): unknown[] {
+  private readChecklistSchema(raw: unknown): ChecklistQuestion[] {
     if (raw === undefined || raw === null) return [];
     if (!Array.isArray(raw)) {
       throw new HttpException('Çeklist siyahı olmalıdır', HttpStatus.BAD_REQUEST);
@@ -1928,11 +2029,15 @@ export class PortalService {
           HttpStatus.BAD_REQUEST,
         );
       }
-      const normalized: Record<string, unknown> = {
+      // `record` is `Record<string, unknown>`, so the field writes above cannot
+      // be checked; every one of them was validated on the way here (label is
+      // non-empty, type is one of four, options has two), which is what makes
+      // the assertion true rather than convenient.
+      const normalized = {
         ...record,
         id: record.id ?? `q${index + 1}`,
         label: String(label).trim(),
-      };
+      } as ChecklistQuestion;
       // Normalize the answer type so a bad value cannot reach the bot's answer-mode
       // switch and render a question with no usable buttons. An absent type stays
       // absent — the bot treats that as free text, which is the existing behaviour.
@@ -1949,7 +2054,7 @@ export class PortalService {
             HttpStatus.BAD_REQUEST,
           );
         }
-        normalized.type = type;
+        normalized.type = type as ChecklistQuestionType;
         if (type === 'single_choice') {
           const options = Array.isArray(record.options)
             ? record.options.map((o) => String(o).trim()).filter(Boolean)
@@ -2018,7 +2123,7 @@ export class PortalService {
       alreadyQueued: 0,
       withoutRecipient: 0,
     };
-    const template: any = db.getTemplate(templateId);
+    const template = db.getTemplate(templateId);
 
     // De-duplicated: the picker sends whatever was ticked, and the same id twice
     // would dispatch the briefing to the same store twice with nothing in the
@@ -2038,9 +2143,9 @@ export class PortalService {
         assignedUserId: assigneeId ?? undefined,
         status: TaskState.PUBLISHED,
         deadline,
-        publishedAt: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        publishedAt: clock.now(),
+        createdAt: clock.now(),
+        updatedAt: clock.now(),
       };
 
       const stored = await db.createStoreTask(task);
@@ -2097,7 +2202,11 @@ export class PortalService {
    * renames four others has been misled. So the response states how many rows
    * the content change reached, and the panel says so out loud.
    */
-  async updateTask(taskId: string, body: Record<string, any>, principal: AuthenticatedPrincipal) {
+  async updateTask(
+    taskId: string,
+    body: Record<string, unknown>,
+    principal: AuthenticatedPrincipal,
+  ) {
     this.requireTaskEditor(principal);
 
     const task = db.getTask(taskId);
@@ -2109,7 +2218,7 @@ export class PortalService {
     }
 
     const perTask: { deadline?: Date; assignedUserId?: string | null } = {};
-    const perTemplate: Record<string, unknown> = {};
+    const perTemplate: Partial<InMemoryTemplate> = {};
 
     if (body.deadline !== undefined) {
       perTask.deadline = this.readDeadline(body.deadline);
@@ -2189,7 +2298,7 @@ export class PortalService {
     }
 
     if (touchesTemplate) {
-      const result = await db.updateTemplate(task.templateId, perTemplate as any);
+      const result = await db.updateTemplate(task.templateId, perTemplate);
       if (result.error === 'NOT_FOUND') {
         throw new NotFoundException({
           error: 'TASK_TEMPLATE_NOT_FOUND',

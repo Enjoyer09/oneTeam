@@ -52,6 +52,7 @@
  * worker one retry and costs the audit trail nothing.
  */
 
+import { clock } from '@oneteam/types';
 import { Injectable, Logger } from '@nestjs/common';
 import {
   S3Target,
@@ -100,17 +101,24 @@ export class StorageService {
       return;
     }
 
-    const missing = ['S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'].filter(
-      (name) => !process.env[name]?.trim(),
-    );
+    const bucket = process.env.S3_BUCKET?.trim();
+    const accessKeyId = process.env.S3_ACCESS_KEY_ID?.trim();
+    const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY?.trim();
 
-    if (missing.length > 0) {
+    if (!bucket || !accessKeyId || !secretAccessKey) {
       // Refusing to guess is the point. Half-configured storage that silently
       // degrades to inline is exactly how an operator comes to believe photos
       // are in a bucket when they are in a table.
       this.driver = 'inline';
       this.target = null;
       this.publicBaseUrl = null;
+      const missing = [
+        ['S3_BUCKET', bucket],
+        ['S3_ACCESS_KEY_ID', accessKeyId],
+        ['S3_SECRET_ACCESS_KEY', secretAccessKey],
+      ]
+        .filter(([, value]) => !value)
+        .map(([name]) => name);
       this.reason =
         `STORAGE_DRIVER=s3 but ${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} ` +
         'not set — falling back to inline storage. Photos are NOT being uploaded.';
@@ -122,9 +130,9 @@ export class StorageService {
     this.target = {
       endpoint: (process.env.S3_ENDPOINT || 'https://s3.amazonaws.com').trim(),
       region: (process.env.S3_REGION || 'us-east-1').trim(),
-      bucket: process.env.S3_BUCKET!.trim(),
-      accessKeyId: process.env.S3_ACCESS_KEY_ID!.trim(),
-      secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!.trim(),
+      bucket,
+      accessKeyId,
+      secretAccessKey,
       // Path style by default: every S3-compatible provider this targets
       // accepts it, and several implement nothing else.
       forcePathStyle: process.env.S3_FORCE_PATH_STYLE !== '0',
@@ -375,7 +383,7 @@ export class StorageService {
    */
   private mintKey(scope: string | undefined, contentType: string): string {
     const clean = (scope ?? '').replace(/^\/+|\/+$/g, '');
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const stamp = clock.now().toISOString().replace(/[:.]/g, '-');
     const random = Math.random().toString(36).slice(2, 10);
     return `${clean ? clean + '/' : ''}${stamp}-${random}${extensionFor(contentType)}`;
   }

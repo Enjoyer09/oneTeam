@@ -31,16 +31,22 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Image,
 } from 'react-native';
 import type { MobileTask, MobileStore, GPSCoordinates } from '../types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ChecklistQuestion } from '@oneteam/types';
+import { priorityLabel, deadlineLabel } from '../utils/presentation';
+import { checklistDrafts } from '../services/checklistDrafts';
+import { answerError, answerValue } from '../utils/checklist';
 import { TaskDetailController } from './TaskListScreen';
+import { palette, spacing, typography } from '../theme';
 
 export type ChecklistAnswer = {
   questionId: string;
   questionText: string;
   answer: string;
+  value?: string | number | boolean;
 };
 
 export interface TaskDetailScreenProps {
@@ -72,30 +78,54 @@ export function TaskDetailScreen({
   const controller = new TaskDetailController(task, store);
   const details = controller.getPlanogramDetails();
 
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answers, setAnswers] = useState<Record<string, string>>(() =>
+    checklistDrafts.get(store.id, task.id),
+  );
 
-  const allAnswered = details.checklistQuestions.every((q) => {
-    const val = answers[q.id]?.trim();
-    return val && val.length > 0;
-  });
+  const [referenceFailed, setReferenceFailed] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const updateAnswer = (id: string, text: string) => {
+    const next = { ...answers, [id]: text };
+    setAnswers(next);
+    void checklistDrafts
+      .save(store.id, task.id, next)
+      .then(() => setDraftError(null))
+      .catch(() =>
+        setDraftError('Qaralama cihazda saxlanmadı. Tətbiqi bağlamadan yenidən cəhd edin.'),
+      );
+  };
+  const allAnswered = details.checklistQuestions.every((q) => !answerError(q, answers[q.id]));
 
   const handleOpenCamera = useCallback(() => {
     if (!allAnswered) {
       Alert.alert('Çeklist tamamlanmayıb', 'Zəhmət olmasa bütün suallara cavab verin.');
       return;
     }
-    const checklistAnswers: ChecklistAnswer[] = details.checklistQuestions.map((q) => ({
-      questionId: q.id,
-      questionText: q.question ?? q.label ?? '',
-      answer: answers[q.id]?.trim() ?? '',
-    }));
+    const checklistAnswers: ChecklistAnswer[] = details.checklistQuestions
+      .filter((q) => answers[q.id]?.trim())
+      .map((q) => ({
+        questionId: q.id,
+        questionText: q.question ?? q.label ?? '',
+        answer:
+          (q.type ?? 'boolean') === 'boolean'
+            ? answers[q.id] === 'true'
+              ? 'Bəli'
+              : 'Xeyr'
+            : answers[q.id].trim(),
+        value: answerValue(q, answers[q.id]),
+      }));
     onOpenCamera({ task, store, checklistAnswers, userGPS });
   }, [allAnswered, answers, details.checklistQuestions, task, store, userGPS, onOpenCamera]);
 
   return (
     <View style={styles.screen}>
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Tapşırıqlar siyahısına qayıt"
+          onPress={onBack}
+          style={styles.backButton}
+        >
           <Text style={styles.backButtonText}>← Geri</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
@@ -104,7 +134,12 @@ export function TaskDetailScreen({
         <View style={styles.backButton} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+        {draftError ? (
+          <Text accessibilityRole="alert" style={{ color: '#B00020' }}>
+            {draftError}
+          </Text>
+        ) : null}
         {/* Store + deadline */}
         <View style={styles.metaRow}>
           <Text style={styles.metaText}>{details.storeName}</Text>
@@ -118,10 +153,10 @@ export function TaskDetailScreen({
                   : styles.priorityNormal,
             ]}
           >
-            {details.priority.toUpperCase()}
+            {priorityLabel[details.priority]}
           </Text>
         </View>
-        <Text style={styles.deadlineText}>Son tarix: {details.deadline}</Text>
+        <Text style={styles.deadlineText}>Son tarix: {deadlineLabel(details.deadline)}</Text>
 
         {/* Instructions */}
         {details.instructions ? (
@@ -134,12 +169,12 @@ export function TaskDetailScreen({
         {/* Planogram rules */}
         {details.planogramRules.length > 0 ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Planogram qaydaları</Text>
+            <Text style={styles.sectionTitle}>Rəf düzülüşü qaydaları</Text>
             {details.planogramRules.map((rule, idx) => (
               <View key={idx} style={styles.ruleRow}>
                 <Text style={styles.ruleBullet}>•</Text>
                 <Text style={styles.ruleText}>
-                  {rule.label} ({rule.sku}): min {rule.minFacings} facing
+                  {rule.label} ({rule.sku}): ön cərgədə minimum {rule.minFacings} ədəd
                 </Text>
               </View>
             ))}
@@ -150,9 +185,19 @@ export function TaskDetailScreen({
         {details.referenceImageUrl ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Nümunə şəkil</Text>
+            {referenceFailed ? (
+              <Text style={styles.hintText}>Nümunə foto yüklənmədi. Bağlantını yoxlayın.</Text>
+            ) : (
+              <Image
+                source={{ uri: details.referenceImageUrl }}
+                accessibilityLabel="Nümunə rəf düzülüşü"
+                resizeMode="contain"
+                style={{ width: '100%', aspectRatio: 1, backgroundColor: '#F1F5F9' }}
+                onError={() => setReferenceFailed(true)}
+              />
+            )}
             <Text style={styles.hintText}>
-              Bu tapşırıq üçün referans foto mövcuddur — kamera ekranında ghost overlay ilə
-              görünəcək.
+              Kamera ekranında nümunə şəklini canlı görüntünün üzərində göstərə bilərsiniz.
             </Text>
           </View>
         ) : null}
@@ -170,7 +215,7 @@ export function TaskDetailScreen({
                 index={idx + 1}
                 question={q}
                 value={answers[q.id] ?? ''}
-                onChange={(text) => setAnswers((prev) => ({ ...prev, [q.id]: text }))}
+                onChange={(text) => updateAnswer(q.id, text)}
               />
             ))}
           </View>
@@ -189,6 +234,9 @@ export function TaskDetailScreen({
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
         <TouchableOpacity
           testID="taskDetail.openCameraButton"
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !allAnswered }}
+          disabled={!allAnswered}
           style={[styles.cameraButton, !allAnswered && styles.cameraButtonDisabled]}
           onPress={handleOpenCamera}
           activeOpacity={0.8}
@@ -213,20 +261,72 @@ function ChecklistQuestionRow({
   value: string;
   onChange: (text: string) => void;
 }) {
+  const label = question.question ?? question.label ?? 'Sual';
+  const type = question.type ?? 'boolean';
+  const choices =
+    type === 'boolean'
+      ? ['true', 'false']
+      : type === 'single_choice'
+        ? (question.options ?? [])
+        : null;
+  const error = value ? answerError(question, value) : null;
   return (
     <View style={styles.questionCard}>
       <Text style={styles.questionText}>
-        {index}. {question.question}
+        {index}. {label}
+        {question.required === false ? ' (istəyə bağlı)' : ''}
       </Text>
-      <TextInput
-        style={styles.questionInput}
-        value={value}
-        onChangeText={onChange}
-        placeholder="Cavabınızı yazın..."
-        placeholderTextColor="#999999"
-        multiline
-        textAlignVertical="top"
-      />
+      {choices ? (
+        choices.map((choice) => (
+          <TouchableOpacity
+            key={choice}
+            accessibilityRole="radio"
+            accessibilityLabel={`${label}: ${type === 'boolean' ? (choice === 'true' ? 'Bəli' : 'Xeyr') : choice}`}
+            accessibilityState={{ checked: value === choice }}
+            onPress={() => onChange(choice)}
+            style={[
+              styles.questionInput,
+              {
+                minHeight: 44,
+                marginBottom: 8,
+                borderColor: value === choice ? '#0066CC' : '#CCCCCC',
+              },
+            ]}
+          >
+            <Text style={{ color: '#111111' }}>
+              {value === choice ? '● ' : '○ '}
+              {type === 'boolean' ? (choice === 'true' ? 'Bəli' : 'Xeyr') : choice}
+            </Text>
+          </TouchableOpacity>
+        ))
+      ) : (
+        <TextInput
+          style={styles.questionInput}
+          value={value}
+          onChangeText={onChange}
+          accessibilityLabel={label}
+          placeholder={type === 'number' ? 'Rəqəm daxil edin' : 'Cavabınızı yazın...'}
+          placeholderTextColor="#666666"
+          keyboardType={type === 'number' ? 'numbers-and-punctuation' : 'default'}
+          multiline={type !== 'number'}
+          textAlignVertical="top"
+        />
+      )}
+      {question.unit ? <Text>{question.unit}</Text> : null}
+      {question.required === false && value ? (
+        <TouchableOpacity
+          accessibilityRole="button"
+          onPress={() => onChange('')}
+          style={{ minHeight: 44, justifyContent: 'center' }}
+        >
+          <Text>Cavabı təmizlə</Text>
+        </TouchableOpacity>
+      ) : null}
+      {error ? (
+        <Text accessibilityRole="alert" style={{ color: '#B00020' }}>
+          {error}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -234,7 +334,7 @@ function ChecklistQuestionRow({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.background,
   },
   header: {
     flexDirection: 'row',
@@ -243,25 +343,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: palette.border,
   },
   backButton: {
+    minHeight: 44,
+    justifyContent: 'center',
     minWidth: 60,
   },
   backButtonText: {
     fontSize: 15,
-    color: '#0066CC',
+    color: palette.focus,
   },
   headerTitle: {
     flex: 1,
     fontSize: 17,
     fontWeight: '600',
-    color: '#111111',
+    color: palette.text,
     textAlign: 'center',
     marginHorizontal: 8,
   },
   content: {
-    padding: 16,
+    padding: spacing.md,
     paddingTop: 8,
   },
   metaRow: {
@@ -272,11 +374,11 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 14,
-    color: '#666666',
+    color: palette.textSecondary,
   },
   deadlineText: {
     fontSize: 13,
-    color: '#888888',
+    color: palette.textSecondary,
     marginTop: 2,
   },
   priorityBadge: {
@@ -305,7 +407,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#888888',
+    color: palette.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 8,
@@ -332,11 +434,11 @@ const styles = StyleSheet.create({
   },
   hintText: {
     fontSize: 14,
-    color: '#888888',
+    color: '#666666',
     lineHeight: 20,
   },
   questionCard: {
-    backgroundColor: '#F8F8F8',
+    backgroundColor: palette.surface,
     borderRadius: 10,
     padding: 14,
     marginTop: 10,
@@ -379,7 +481,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#CCCCCC',
   },
   cameraButtonText: {
-    fontSize: 16,
+    fontSize: typography.body,
     fontWeight: '600',
     color: '#FFFFFF',
   },

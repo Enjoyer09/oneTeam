@@ -26,12 +26,13 @@
  * typo is cheap to find.
  */
 
+import { log } from '@oneteam/types';
 import { Bot } from 'grammy';
 import { BotContext } from './types';
 
 /** The published command menu, in the order Telegram lists it. */
 export const BOT_COMMANDS: ReadonlyArray<{ command: string; description: string }> = [
-  { command: 'bugun', description: '🗓 Bugünkü tapşırıqlar və göndərilənlər' },
+  { command: 'bugun', description: '🗓 Bugünkü tapşırıqlar və auditlər' },
   { command: 'tasks', description: '📋 Mağazanın aktiv tapşırıqları' },
   { command: 'mystatus', description: '📊 Göndərdiyiniz şəkillərin statusu' },
   { command: 'start', description: '🏪 Mağazanı dəyişmək / yenidən başlamaq' },
@@ -48,7 +49,7 @@ export const BOT_COMMANDS: ReadonlyArray<{ command: string; description: string 
 export async function publishCommandMenu(bot: Bot<BotContext>): Promise<void> {
   try {
     await bot.api.setMyCommands([...BOT_COMMANDS]);
-    console.log(`[oneTeam Bot] Published ${BOT_COMMANDS.length} commands to the Telegram menu.`);
+    log.info(`[oneTeam Bot] Published ${BOT_COMMANDS.length} commands to the Telegram menu.`);
   } catch (error) {
     console.error('[oneTeam Bot] Could not publish the command menu:', error);
   }

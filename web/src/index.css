@@ -26,6 +26,9 @@
   --ink-2: #33425e;
   --muted: #5d6c86;
   --faint: #8d9ab0;
+  --text-body: 15px;
+  --text-secondary: 14px;
+  --space-unit: 4px;
 
   /* status — həmişə rəng + nöqtə + mətn (yalnız rəngə güvənmirik) */
   --ok: #046b45;
@@ -142,7 +145,7 @@ html[data-theme='dark'] {
     background-color: #e9edf4;
     color: var(--ink);
     font-family: var(--f);
-    font-size: 13px;
+    font-size: var(--text-body);
     line-height: 1.45;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -291,7 +294,10 @@ html[data-theme='dark'] {
     background-color: var(--g-panel);
   } /* 46% */
   .glass-card {
-    background-color: var(--g-card);
+    background-color: var(--g-solid);
+    background-color: color-mix(in srgb, var(--g-solid) 88%, transparent);
+    -webkit-backdrop-filter: saturate(120%) blur(8px);
+    backdrop-filter: saturate(120%) blur(8px);
   } /* 62% ← mətn daşıyan minimum */
   .glass-side {
     background-color: var(--g-side);

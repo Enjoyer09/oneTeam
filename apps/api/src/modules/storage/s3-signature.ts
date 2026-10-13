@@ -32,6 +32,7 @@
  * left as a separator.
  */
 
+import { clock } from '@oneteam/types';
 import { createHash, createHmac } from 'crypto';
 
 export interface S3Target {
@@ -145,7 +146,7 @@ export function signS3Put(params: {
   now?: Date;
 }): SignedRequest {
   const { target, key, body, contentType, extraHeaders } = params;
-  const now = params.now ?? new Date();
+  const now = params.now ?? clock.now();
 
   const { scheme, host, prefix } = parseEndpoint(target.endpoint);
   const encodedKey = encodePath(key);
@@ -245,7 +246,7 @@ export function signS3PresignedPut(params: {
   now?: Date;
 }): PresignedUpload {
   const { target, key, expiresSeconds } = params;
-  const now = params.now ?? new Date();
+  const now = params.now ?? clock.now();
 
   const { scheme, host, prefix } = parseEndpoint(target.endpoint);
   const encodedKey = encodePath(key);

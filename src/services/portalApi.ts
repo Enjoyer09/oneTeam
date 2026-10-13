@@ -116,7 +116,6 @@ if (!CAN_AUTHENTICATE) {
         'ONETEAM_SERVICE_USER_ID. Refusing to start with an implicit admin credential.',
     );
   }
-  // eslint-disable-next-line no-console
   console.warn(
     '⚠️  oneTeam bot: no credential configured; using the dev admin fallback. ' +
       'Never deploy this — set ONETEAM_SERVICE_SIGNING_SECRET + ONETEAM_SERVICE_USER_ID.',
@@ -243,12 +242,12 @@ async function request<T>(
   }
 
   if (!response.ok) {
-    const raw = (payload as any)?.message ?? (payload as any)?.error;
+    const raw = payload.message ?? payload.error;
     const message = Array.isArray(raw) ? raw.join('; ') : raw;
     throw new PortalApiError(
       message || `API xətası (HTTP ${response.status})`,
       response.status,
-      (payload as any)?.error ?? null,
+      payload.error ?? null,
     );
   }
 
@@ -666,7 +665,6 @@ class PortalApiClient {
         // lose the audit: the API still offloads a data URL to the bucket on
         // its side. Logged so a persistently broken direct path is visible
         // instead of silently costing the body limit on every submission.
-        // eslint-disable-next-line no-console
         console.warn(
           `[oneTeam Bot] Presigned upload failed, falling back to inline: ${
             error instanceof Error ? error.message : String(error)

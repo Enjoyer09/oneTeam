@@ -9,7 +9,8 @@ import {
   Inbox,
   AlertTriangle,
 } from 'lucide-react';
-import { DashboardMetrics, Submission } from '../types';
+import { DashboardMetrics, Submission, SubmissionStatus } from '../types';
+import { TabType } from './Sidebar';
 import { LoadPhase } from '../lib/loadPhase';
 import { StatusBadge } from './ui/StatusBadge';
 
@@ -19,7 +20,7 @@ interface DashboardOverviewProps {
   recentSubmissions: Submission[];
   onRetry: () => void;
   onOpenSubmissionReview: (submission: Submission) => void;
-  onNavigateTab: (tab: any, filter?: any) => void;
+  onNavigateTab: (tab: TabType, filter?: SubmissionStatus | 'all') => void;
 }
 
 export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
@@ -47,7 +48,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       action: () => onNavigateTab('stores'),
     },
     {
-      title: 'Aktiv Planogramlar',
+      title: 'Aktiv tapşırıqlar',
       value: metrics.activeTasks,
       subtitle: 'Cari yoxlama təlimatları',
       icon: ClipboardCheck,
@@ -68,7 +69,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       action: () => onNavigateTab('review', 'pending_review'),
     },
     {
-      title: 'Planogram Uyğunluğu',
+      title: 'Rəf uyğunluğu',
       value: `${metrics.complianceRate}%`,
       subtitle: 'Təsdiqlənmiş rəf dərəcəsi',
       icon: TrendingUp,
@@ -219,7 +220,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               <thead>
                 <tr>
                   <th>Foto</th>
-                  <th>Planogram Tapşırığı</th>
+                  <th>Rəf tapşırığı</th>
                   <th>Mağaza</th>
                   <th>Təmsilçi</th>
                   <th>Vaxt</th>

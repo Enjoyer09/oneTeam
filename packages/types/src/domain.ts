@@ -98,7 +98,17 @@ export interface ChecklistQuestion {
   label?: string;
 
   type: ChecklistQuestionType;
-  required: boolean;
+
+  /**
+   * Whether the bot blocks on this question before moving on.
+   *
+   * Declared OPTIONAL for the same reason as `question`: the API never writes
+   * it, so a reader that needs it must supply its own default (the bot treats an
+   * absent value as required, which is the behaviour every authored question has
+   * had). A required field the writers never set is a type that asserts
+   * something no row satisfies.
+   */
+  required?: boolean;
   options?: string[];
   unit?: string;
   minValue?: number;
@@ -193,7 +203,7 @@ export interface AuditLog {
   fromState?: string | null;
   toState?: string | null;
   actorId?: string | null;
-  payload?: Record<string, any> | null;
+  payload?: Record<string, unknown> | null;
   createdAt: Date;
 }
 

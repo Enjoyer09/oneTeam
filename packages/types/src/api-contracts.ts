@@ -3,13 +3,13 @@
  */
 
 import { TaskState } from './state-machine';
-import { BotStep, ChecklistAnswer, ChecklistQuestion } from './domain';
+import { BotStep, ChecklistAnswer, ChecklistQuestion, DetectionItem } from './domain';
 
 export interface StateTransitionRequestDto {
   targetState: TaskState;
   actorId?: string;
   notes?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface StateTransitionResponseDto {
@@ -88,7 +88,9 @@ export interface TelegramWebhookCallbackQuery {
 export interface TelegramWebhookUpdate {
   update_id: number;
   callback_query?: TelegramWebhookCallbackQuery;
-  message?: any;
+  /** The update's message, when it is not a callback. Shape varies by update
+   *  kind (text, photo, location); the bot narrows it where it reads it. */
+  message?: Record<string, unknown>;
 }
 
 export interface SubmitEvidenceRequestDto {
@@ -142,7 +144,7 @@ export interface SubmitEvidenceRequestDto {
    *  auto-approval, and is shown to the reviewer as weaker evidence. */
   locationUnverified?: boolean;
   aiScore?: number;
-  aiDetections?: any[];
+  aiDetections?: DetectionItem[];
   aiSummary?: string;
 }
 
@@ -172,7 +174,7 @@ export interface BulkDispatchResultDto {
   failures?: Array<{ storeId: string; storeName: string; reason: string }>;
 }
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;

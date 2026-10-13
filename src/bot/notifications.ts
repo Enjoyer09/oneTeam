@@ -50,6 +50,7 @@
  * is the one from `callbacks.ts` rather than a second one.
  */
 
+import { log } from '@oneteam/types';
 import type { Bot } from 'grammy';
 import { InlineKeyboard } from 'grammy';
 import os from 'node:os';
@@ -146,7 +147,7 @@ export class NotificationDrain {
     // The bot's life is the poll loop for updates, not this timer.
     this.timer.unref?.();
 
-    console.log(
+    log.info(
       `📨 [oneTeam Bot] Notification delivery every ${Math.round(this.pollMs / 1000)}s ` +
         `(as ${this.claimedBy}).`,
     );

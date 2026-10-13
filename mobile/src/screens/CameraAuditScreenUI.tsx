@@ -69,6 +69,7 @@ import {
   photoQualityStatus,
   type PhotoQualityAssessment,
 } from '../utils/photoQuality';
+import { checklistDrafts } from '../services/checklistDrafts';
 import type { MobileTask, MobileStore, GPSCoordinates } from '../types';
 import type { ChecklistAnswer } from './TaskDetailScreen';
 
@@ -316,10 +317,18 @@ export function CameraAuditScreenUI({
     try {
       const result = await controller.processAuditSubmission({
         photoUri: captured.photoUri,
-        metadata: captured.metadata,
+        metadata: {
+          ...captured.metadata,
+          task_title: task.title,
+          checklist_answers: checklistAnswers.map((a) => ({
+            questionId: a.questionId,
+            value: a.value ?? a.answer,
+          })),
+        },
         base64: captured.base64,
         idempotencyKey: captured.idempotencyKey,
       });
+      void checklistDrafts.clear(store.id, task.id).catch(() => {});
       if (result.status === 'uploaded') {
         setSubmitResult('✅ Audit uğurla göndərildi');
       } else {
@@ -332,7 +341,7 @@ export function CameraAuditScreenUI({
     } finally {
       setSubmitting(false);
     }
-  }, [controller, captured]);
+  }, [controller, captured, checklistAnswers, store.id, task.id, task.title]);
 
   /**
    * Sends the audit, stopping to ask first when the quality gate flagged it.
@@ -428,6 +437,8 @@ export function CameraAuditScreenUI({
                 </TouchableOpacity>
                 {permission?.canAskAgain === false ? (
                   <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel="Kamera icazəsini Parametrlərdə aç"
                     style={styles.permissionLink}
                     onPress={() => {
                       void Linking.openSettings();
@@ -477,7 +488,9 @@ export function CameraAuditScreenUI({
         {state.ghostOverlayActive ? (
           <View style={styles.ghostBadge} pointerEvents="none">
             <Text style={styles.ghostBadgeText}>
-              {task.reference_image_url ? '👻 Ghost overlay aktiv' : 'Ghost: istinad şəkli yoxdur'}
+              {task.reference_image_url
+                ? 'Nümunə şəkli canlı görüntünün üzərindədir'
+                : 'Nümunə şəkli yoxdur'}
             </Text>
           </View>
         ) : null}
@@ -485,14 +498,26 @@ export function CameraAuditScreenUI({
 
       {/* Controls */}
       <View style={styles.controlsRow}>
-        <TouchableOpacity style={styles.controlButton} onPress={handleToggleGhost}>
+        <TouchableOpacity
+          accessibilityRole="switch"
+          accessibilityLabel="Nümunə şəklini canlı görüntüdə göstər"
+          accessibilityState={{ checked: state.ghostOverlayActive }}
+          style={styles.controlButton}
+          onPress={handleToggleGhost}
+        >
           <Text style={styles.controlButtonText}>
-            {state.ghostOverlayActive ? '👻 Ghost: Açıq' : 'Ghost: Bağlı'}
+            {state.ghostOverlayActive ? 'Nümunə: Açıq' : 'Nümunə: Bağlı'}
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.controlButton} onPress={handleToggleGrid}>
+        <TouchableOpacity
+          accessibilityRole="switch"
+          accessibilityLabel="Kadr torunu göstər"
+          accessibilityState={{ checked: state.gridGuideActive }}
+          style={styles.controlButton}
+          onPress={handleToggleGrid}
+        >
           <Text style={styles.controlButtonText}>
-            {state.gridGuideActive ? '⊞ Grid: Açıq' : 'Grid: Bağlı'}
+            {state.gridGuideActive ? 'Tor: Açıq' : 'Tor: Bağlı'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -503,7 +528,9 @@ export function CameraAuditScreenUI({
       <View style={styles.controlsRow}>
         <TouchableOpacity
           testID="camera.torchButton"
-          accessibilityRole="button"
+          accessibilityRole="switch"
+          accessibilityLabel="Fənəri yandır"
+          accessibilityState={{ checked: torchOn }}
           style={[styles.controlButton, torchOn && styles.controlButtonActive]}
           onPress={() => setTorchOn((on) => !on)}
           activeOpacity={0.8}
@@ -515,13 +542,14 @@ export function CameraAuditScreenUI({
         <TouchableOpacity
           testID="camera.zoomButton"
           accessibilityRole="button"
+          accessibilityLabel={`Böyütmə ${Math.round(zoom * 100)} faiz`}
           style={styles.controlButton}
           onPress={() => {
             setZoomStep((step) => (step + 1) % ZOOM_STEPS.length);
           }}
           activeOpacity={0.8}
         >
-          <Text style={styles.controlButtonText}>🔍 Zoom: {Math.round(zoom * 100)}%</Text>
+          <Text style={styles.controlButtonText}>🔍 Böyütmə: {Math.round(zoom * 100)}%</Text>
         </TouchableOpacity>
       </View>
 
@@ -775,6 +803,8 @@ const styles = StyleSheet.create({
   permissionLink: {
     marginTop: 12,
     padding: 6,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   permissionLinkText: {
     fontSize: 14,
@@ -828,6 +858,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   controlButtonText: {
     fontSize: 14,

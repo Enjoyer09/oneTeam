@@ -81,7 +81,7 @@ export async function handleStart(ctx: BotContext) {
   // template rather than something to type, and the real code comes from the
   // supervisor who assigned the store — not from the bot.
   const welcomeMessage =
-    `👋 *oneTeam — Rəf Monitorinq Sisteminə Xoş Gəlmisiniz!* (Coca-Cola FMCG)\n\n` +
+    `👋 *oneTeam — Rəf Yoxlama Sisteminə Xoş Gəlmisiniz!*\n\n` +
     `Platformadan istifadə etmək üçün zəhmət olmasa təmsil etdiyiniz *Mağaza Kodunu* göndərin.\n\n` +
     `💡 *Kodun formatı:* \`ŞƏBƏKƏ_FİLİAL_NÖMRƏ\` (məsələn şəbəkə adı, filial və sıra nömrəsi).\n` +
     `Dəqiq mağaza kodunuzu sizə mağazanı təyin edən *nəzarətçiniz* verir.`;
@@ -113,7 +113,24 @@ async function openDeepLinkedTask(ctx: BotContext, taskId: string): Promise<void
   await handleOpenTask(ctx, taskId, replyAnswer);
 }
 
+/**
+ * The chat this update belongs to, or a thrown error.
+ *
+ * Every handler here is routed only for a chat update, and each one addresses
+ * the chat on its first API call — so a missing chat is not a case to handle,
+ * it is a wiring mistake. Stating that once is what lets the calls below use a
+ * plain number instead of a `!` on every line.
+ */
+function requireChatId(ctx: BotContext): number {
+  if (!ctx.chat) {
+    throw new Error('Bot handler reached without a chat — the router only routes chat updates.');
+  }
+  return ctx.chat.id;
+}
+
 export async function handleStoreCodeInput(ctx: BotContext) {
+  const chatId = requireChatId(ctx);
+
   const text = ctx.message?.text?.trim();
   if (!text) return;
 
@@ -153,14 +170,14 @@ export async function handleStoreCodeInput(ctx: BotContext) {
   let profile;
   try {
     profile = await portalApi.bindTelegramUser({
-      telegramChatId: ctx.chat!.id,
+      telegramChatId: chatId,
       fullName,
       username: user?.username,
       storeId: store.id,
     });
   } catch (error) {
     const detail = error instanceof PortalApiError ? error.message : String(error);
-    console.error(`[oneTeam Bot] Bind failed for chat ${ctx.chat?.id}:`, detail);
+    console.error(`[oneTeam Bot] Bind failed for chat ${chatId}:`, detail);
     await ctx.reply(
       `❌ *Qeydiyyat tamamlanmadı.*\n\nMağaza tapıldı, amma hesabınız bağlana bilmədi. ` +
         `Zəhmət olmasa bir az sonra yenidən cəhd edin.`,
@@ -193,7 +210,7 @@ export async function handleStoreCodeInput(ctx: BotContext) {
     `📍 *Ünvan:* ${escapeMarkdown(store.address || store.city || '')}\n` +
     `👤 *Təmsilçi:* ${escapeMarkdown(fullName)}\n` +
     claimLine +
-    `\nPlanogram və rəf tapşırıqlarını görmək üçün aşağıdakı menyudan *📋 Tapşırıqlar* seçin və ya /tasks yazın.`;
+    `\nRəf tapşırıqlarını görmək üçün aşağıdakı menyudan *📋 Tapşırıqlar* seçin və ya /tasks yazın.`;
 
   await ctx.reply(successMessage, {
     parse_mode: 'Markdown',

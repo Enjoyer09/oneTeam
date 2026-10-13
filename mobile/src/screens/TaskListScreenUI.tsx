@@ -28,20 +28,28 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import type { MobileTask, MobileStore } from '../types';
+import { priorityLabel, deadlineLabel } from '../utils/presentation';
 import { buildSyncMessage } from '../services/syncMessage';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TaskListController } from './TaskListScreen';
 import { mobileApp } from '../App';
 import { offlineQueueService } from '../services/offlineQueue';
+import { palette, spacing, typography } from '../theme';
 
 export interface TaskListScreenProps {
   store: MobileStore;
   onSelectTask: (task: MobileTask) => void;
   onLogout: () => void;
+  onOpenHistory: () => void;
 }
 
-export function TaskListScreenUI({ store, onSelectTask, onLogout }: TaskListScreenProps) {
+export function TaskListScreenUI({
+  store,
+  onSelectTask,
+  onLogout,
+  onOpenHistory,
+}: TaskListScreenProps) {
   const insets = useSafeAreaInsets();
   const controller = new TaskListController();
   const [tasks, setTasks] = useState<MobileTask[]>([]);
@@ -51,7 +59,7 @@ export function TaskListScreenUI({ store, onSelectTask, onLogout }: TaskListScre
 
   // Offline-queue sync state. The queue is device-local, so the count and the
   // "sync now" action live on the screen rather than coming from the task API.
-  const [pendingSync, setPendingSync] = useState(0);
+  const [pendingSync, setPendingSync] = useState<number | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
@@ -63,7 +71,7 @@ export function TaskListScreenUI({ store, onSelectTask, onLogout }: TaskListScre
     try {
       setPendingSync(offlineQueueService.getPendingCount());
     } catch {
-      setPendingSync(0);
+      setPendingSync(null);
     }
   };
 
@@ -110,6 +118,8 @@ export function TaskListScreenUI({ store, onSelectTask, onLogout }: TaskListScre
     }
   };
 
+  useEffect(() => offlineQueueService.subscribe(refreshPending), []);
+
   useEffect(() => {
     void load();
   }, [store.id]);
@@ -140,15 +150,27 @@ export function TaskListScreenUI({ store, onSelectTask, onLogout }: TaskListScre
             <ActivityIndicator size="small" color="#0066CC" />
           ) : (
             <Text style={styles.syncText}>
-              Növbəni göndər{pendingSync > 0 ? ` (${pendingSync})` : ''}
+              Növbəni göndər{pendingSync !== null && pendingSync > 0 ? ` (${pendingSync})` : ''}
             </Text>
           )}
         </TouchableOpacity>
-        <TouchableOpacity onPress={onLogout} style={styles.logoutButton}>
+        <TouchableOpacity accessibilityRole="button" onPress={onLogout} style={styles.logoutButton}>
           <Text style={styles.logoutText}>Çıxış</Text>
         </TouchableOpacity>
       </View>
 
+      <TouchableOpacity
+        accessibilityRole="button"
+        onPress={onOpenHistory}
+        style={{
+          minHeight: 48,
+          justifyContent: 'center',
+          paddingHorizontal: 16,
+          backgroundColor: '#F0F6FF',
+        }}
+      >
+        <Text style={{ color: '#0055AA', fontSize: 16, fontWeight: '600' }}>Auditlərim →</Text>
+      </TouchableOpacity>
       {syncMessage ? (
         <View style={styles.syncBanner}>
           <Text style={styles.syncBannerText}>{syncMessage}</Text>
@@ -200,11 +222,13 @@ function TaskRow({ task, onPress }: { task: MobileTask; onPress: () => void }) {
         ? styles.priorityHigh
         : styles.priorityNormal;
 
-  const priorityLabel = task.priority.toUpperCase();
+  const priorityText = priorityLabel[task.priority];
 
   return (
     <TouchableOpacity
       testID="taskList.taskRow"
+      accessibilityRole="button"
+      accessibilityLabel={`${task.title}. ${priorityText}. Son tarix: ${deadlineLabel(task.deadline)}`}
       style={styles.taskCard}
       onPress={onPress}
       activeOpacity={0.7}
@@ -213,9 +237,9 @@ function TaskRow({ task, onPress }: { task: MobileTask; onPress: () => void }) {
         <Text style={styles.taskTitle} numberOfLines={2}>
           {task.title}
         </Text>
-        <Text style={[styles.priorityBadge, priorityStyle]}>{priorityLabel}</Text>
+        <Text style={[styles.priorityBadge, priorityStyle]}>{priorityText}</Text>
       </View>
-      <Text style={styles.taskDeadline}>Son tarix: {task.deadline}</Text>
+      <Text style={styles.taskDeadline}>Son tarix: {deadlineLabel(task.deadline)}</Text>
       {task.description ? (
         <Text style={styles.taskDescription} numberOfLines={2}>
           {task.description}
@@ -228,7 +252,7 @@ function TaskRow({ task, onPress }: { task: MobileTask; onPress: () => void }) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.background,
   },
   header: {
     flexDirection: 'row',
@@ -240,20 +264,24 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E0E0E0',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: typography.title,
     fontWeight: '700',
-    color: '#111111',
+    color: palette.text,
     flex: 1,
   },
   logoutButton: {
+    minHeight: 44,
+    justifyContent: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
   logoutText: {
     fontSize: 15,
-    color: '#B00020',
+    color: palette.danger,
   },
   syncButton: {
+    minHeight: 44,
+    justifyContent: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
     minWidth: 44,
@@ -261,7 +289,7 @@ const styles = StyleSheet.create({
   },
   syncText: {
     fontSize: 15,
-    color: '#0066CC',
+    color: palette.focus,
     fontWeight: '600',
   },
   syncBanner: {
@@ -306,18 +334,18 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 15,
-    color: '#888888',
+    color: '#666666',
     textAlign: 'center',
   },
   listContent: {
-    padding: 16,
+    padding: spacing.md,
   },
   taskCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.background,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E8E8E8',
-    padding: 16,
+    borderColor: palette.border,
+    padding: spacing.md,
     marginBottom: 12,
   },
   taskHeader: {
@@ -329,12 +357,12 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '600',
-    color: '#111111',
+    color: palette.text,
     lineHeight: 22,
     marginRight: 10,
   },
   priorityBadge: {
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '700',
     paddingHorizontal: 7,
     paddingVertical: 3,
@@ -351,17 +379,17 @@ const styles = StyleSheet.create({
   },
   priorityNormal: {
     backgroundColor: '#E8E8E8',
-    color: '#555555',
+    color: palette.textSecondary,
   },
   taskDeadline: {
     marginTop: 8,
     fontSize: 13,
-    color: '#888888',
+    color: palette.textSecondary,
   },
   taskDescription: {
     marginTop: 6,
     fontSize: 14,
-    color: '#666666',
+    color: palette.textSecondary,
     lineHeight: 20,
   },
 });

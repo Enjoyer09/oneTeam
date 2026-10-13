@@ -20,6 +20,7 @@
  * which scores signals that genuinely exist on the record.
  */
 
+import { clock } from '@oneteam/types';
 import { spawnSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
@@ -408,9 +409,9 @@ export class AIVisionService {
       const candidate = lines[i].trim();
       if (!candidate.startsWith('{') || !candidate.endsWith('}')) continue;
 
-      let parsed: any;
+      let parsed: Record<string, unknown>;
       try {
-        parsed = JSON.parse(candidate);
+        parsed = JSON.parse(candidate) as Record<string, unknown>;
       } catch {
         continue; // not the worker's line; keep looking
       }
@@ -761,7 +762,7 @@ export class AIVisionService {
       aiSummary,
       detections,
       engine,
-      analyzedAt: new Date().toISOString(),
+      analyzedAt: clock.now().toISOString(),
     };
   }
 
