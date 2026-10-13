@@ -11,11 +11,11 @@
   },
   "dependencies": {
     "@oneteam/types": "*",
-    "pg": "^8.13.1"
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@types/pg": "^8.11.10",
-    "tsx": "^4.19.3",
+    "tsx": "^4.23.15",
     "typescript": "^5.8.2"
   }
 }
