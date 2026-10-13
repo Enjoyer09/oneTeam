@@ -56,7 +56,7 @@ describe('portal failure states', () => {
     vi.mocked(portalService.getTasks).mockRejectedValue(new Error('offline'));
     render(<App />);
     await waitFor(() => expect(portalService.getTasks).toHaveBeenCalled());
-    fireEvent.click(screen.getByRole('button', { name: 'Planogram Tapşırıqları' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tapşırıqlar' }));
     expect(await screen.findByText('Məlumat yüklənə bilmədi')).toBeTruthy();
     expect(screen.queryByText(/Hələ planogram tapşırığı yoxdur/)).toBeNull();
   });
@@ -64,7 +64,7 @@ describe('portal failure states', () => {
     vi.mocked(portalService.getProducts).mockRejectedValue(new Error('offline'));
     render(<App />);
     await waitFor(() => expect(portalService.getTasks).toHaveBeenCalled());
-    fireEvent.click(screen.getByRole('button', { name: 'Planogram Tapşırıqları' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tapşırıqlar' }));
     expect(await screen.findByText(/Hələ planogram tapşırığı yoxdur/)).toBeTruthy();
     expect(screen.queryByText('Məlumat yüklənə bilmədi')).toBeNull();
   });

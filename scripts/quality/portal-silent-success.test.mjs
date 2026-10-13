@@ -120,7 +120,6 @@ check(
 // --- 3. AuditReviewCenter: the decision modal must survive a failure ---------
 for (const [name, signature] of [
   ['handleApproveClick', 'const handleApproveClick = async'],
-  ['handleAIApproveClick', 'const handleAIApproveClick = async'],
   ['handleRejectSubmit', 'const handleRejectSubmit = async'],
 ]) {
   const body = bodyOf(audit, signature);

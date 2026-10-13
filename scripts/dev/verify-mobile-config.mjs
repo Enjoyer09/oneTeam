@@ -19,9 +19,8 @@
  *   - the icon is square and has no alpha channel, and the splash mark is
  *     square, because iOS rejects an app icon that is either;
  *   - the permission strings that iOS shows to the user are non-empty;
- *   - every file excluded from `mobile/tsconfig.json` is one that has to be, that
- *     it still exists, and that it is the ONLY file importing the native package
- *     it is excluded for — so the exclusion cannot quietly widen;
+ *   - native storage packages are installed and no source files are excluded
+ *     from the mobile type-check;
  *   - the build-time variables Expo actually substitutes are read the only way
  *     Metro substitutes them (a direct `process.env.EXPO_PUBLIC_*` member
  *     expression), and that no credential has been given a public name;
@@ -263,72 +262,33 @@ if (typeof pkg.main === 'string') {
 // ---------------------------------------------------------------------------
 // What the type-check actually sees.
 //
-// Two files are excluded from `mobile/tsconfig.json`, each because it imports a
-// native package that cannot be installed here. An exclusion is only honest
-// while it covers exactly the files it claims to and no more, and nothing else
-// in the repo would notice if that stopped being true — a second file importing
-// the same package would simply be reported as a missing module by
-// `mobile:check`, which reads like an install problem rather than a scope
-// problem. These checks make each exclusion say what it means.
+// Native dependencies are installed in the mobile workspace. Keep the complete
+// application source in the type-check so screens and native adapters are
+// checked against the real package APIs.
 // ---------------------------------------------------------------------------
 console.log('\nType-check coverage');
 
-/**
- * Each excluded file, and the native package it is the sole importer of.
- *
- * Adding a row here without adding the exclusion to `tsconfig.json` fails the
- * check below, which is the point: the list of exceptions is written down twice
- * on purpose, so neither copy can grow unnoticed.
- */
-const NATIVE_IMPORTS = [
-  { package: 'expo-secure-store', file: 'src/services/keychain.ts' },
-  { package: '@react-native-async-storage/async-storage', file: 'src/services/queueStorage.ts' },
-];
+const NATIVE_PACKAGES = ['expo-secure-store', '@react-native-async-storage/async-storage'];
 
 const tsconfigPath = join(MOBILE, 'tsconfig.json');
 check('mobile/tsconfig.json exists', existsSync(tsconfigPath));
 if (existsSync(tsconfigPath)) {
   const tsconfig = readTsconfig(tsconfigPath);
   const excluded = tsconfig.exclude ?? [];
-  const sourceFiles = listFiles(join(MOBILE, 'src')).map((file) =>
-    relative(MOBILE, file).split(sep).join('/'),
+
+  check(
+    'no mobile source is excluded from the type-check',
+    excluded.length === 0,
+    excluded.join(', ') || 'all source files are checked',
   );
-
-  for (const { package: packageName, file } of NATIVE_IMPORTS) {
+  for (const packageName of NATIVE_PACKAGES) {
     check(
-      `${file} is excluded from the type-check (${packageName} is not installed)`,
-      excluded.includes(file),
-      excluded.join(', ') || '<nothing excluded>',
-    );
-
-    check(
-      `the excluded file ${file} still exists`,
-      existsSync(join(MOBILE, file)),
-      'an exclusion naming a file that is gone is a stale claim, not a narrower scope',
-    );
-
-    // Matched on the IMPORT STATEMENT, not on the bare name: both headers
-    // discuss their own package in prose, and a substring search would count a
-    // comment as an importer.
-    const importers = sourceFiles.filter((relativePath) =>
-      new RegExp(`from\\s+['"]${packageName}['"]`).test(
-        readFileSync(join(MOBILE, relativePath), 'utf8'),
-      ),
-    );
-
-    check(
-      `exactly one file under src/ imports ${packageName}, and it is ${file}`,
-      importers.length === 1 && importers[0] === file,
-      importers.join(', ') || '<no file imports it — remove the exclusion>',
+      `${packageName} is installed for native type checking`,
+      Boolean(pkg.dependencies?.[packageName]) &&
+        existsSync(join(MOBILE, 'node_modules', packageName)),
+      pkg.dependencies?.[packageName] ?? '<not declared>',
     );
   }
-
-  const stale = excluded.filter((entry) => !sourceFiles.includes(entry));
-  check(
-    'every exclusion names a file that still exists',
-    stale.length === 0,
-    stale.join(', ') || `${excluded.length} exclusion(s), all present`,
-  );
 }
 
 // ---------------------------------------------------------------------------

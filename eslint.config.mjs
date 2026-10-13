@@ -111,35 +111,21 @@ export default tseslint.config(
         //
         //   mobile/Root.tsx, mobile/index.ts        — outside `include`, which
         //                                             is `src/**/*`
-        //   mobile/src/services/keychain.ts         — deliberately EXCLUDED from
-        //   mobile/src/services/queueStorage.ts       mobile/tsconfig.json
         //   web/vite.config.ts                      — outside `include`, which
         //                                             is `src`
         //
-        // The two mobile services are excluded on purpose and the reason is
-        // written down in mobile/tsconfig.json: they import `expo-secure-store`
-        // and `@react-native-async-storage/async-storage`, neither of which is
-        // installed, so they cannot be type-checked. `mobile:config` guards that
-        // exclusion list. They still have to be LINTED, though, and this is the
-        // documented way to lint a file that belongs to no project.
+        // The mobile native services now belong to mobile/tsconfig.json because
+        // their packages are installed. Only the app entry files and Vite config
+        // remain outside a TypeScript project.
         //
         // WHAT THIS COSTS, STATED PLAINLY: a file listed here is parsed and
         // checked with the SYNTACTIC rules only. The type-aware rules — the
         // floating-promise and misused-promise ones — are skipped, because there
         // is no type information to run them on. So `Root.tsx` is linted, but
         // less thoroughly than `src/App.tsx`. That is strictly better than the
-        // alternative it replaces, which was not being linted at all, and it is
-        // why the list is kept to five files and commented rather than left to
-        // grow. Delete the two mobile entries the moment `cd mobile && npm
-        // install` succeeds and the exclusions in mobile/tsconfig.json go away.
+        // alternative it replaces, which was not being linted at all.
         projectService: {
-          allowDefaultProject: [
-            'mobile/index.ts',
-            'mobile/Root.tsx',
-            'mobile/src/services/keychain.ts',
-            'mobile/src/services/queueStorage.ts',
-            'web/vite.config.ts',
-          ],
+          allowDefaultProject: ['mobile/index.ts', 'mobile/Root.tsx', 'web/vite.config.ts'],
         },
         tsconfigRootDir: import.meta.dirname,
       },
