@@ -45,6 +45,7 @@ import {
   type ManagedUserRow,
   type UserBlockReason,
 } from '../lib/panelAuth';
+import { useModalA11y } from '../lib/useModalA11y';
 
 interface PanelUsersModalProps {
   onClose: () => void;
@@ -119,6 +120,9 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
 
   /** A key minted from this screen, shown once and not yet acknowledged. */
   const [freshKey, setFreshKey] = useState<{ token: string; forWhom: string } | null>(null);
+  const modalRef = useModalA11y<HTMLDivElement>(true, () => {
+    if (!freshKey) onClose();
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -141,15 +145,6 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
   useEffect(() => {
     void load();
   }, [load]);
-
-  /** Escape closes, unless a freshly minted key is still on screen. */
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !freshKey) onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClose, freshKey]);
 
   const run = async (action: () => Promise<void>, failure: string) => {
     setBusy(true);
@@ -249,8 +244,14 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[rgba(10,16,32,.34)] p-4 backdrop-blur-[2px] sm:items-center">
-      <div className="glass-pop w-full max-w-[820px] rounded-[18px] p-5 text-ink sm:p-6">
+    <div className="modal-veil fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:items-center">
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="İstifadəçilər və rollar"
+        className="glass-pop modal-admin w-full max-w-[820px] rounded-[18px] p-5 text-ink sm:p-6"
+      >
         <div className="mb-4 flex items-start gap-3">
           <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[11px] bg-[rgba(10,16,32,.06)]">
             <ShieldCheck className="h-4 w-4" strokeWidth={2} />

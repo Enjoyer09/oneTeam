@@ -55,6 +55,9 @@
   --g-pop: rgba(255, 255, 255, 0.8); /* popover, modal, menyu */
   --g-side: rgba(251, 252, 254, 0.56); /* yan panel */
   --g-solid: rgba(255, 255, 255, 0.94); /* backdrop-filter dəstəyi olmayanda */
+  --modal-surface: rgba(248, 250, 255, 0.92);
+  --modal-field: rgba(255, 255, 255, 0.84);
+  --modal-edge: rgba(255, 255, 255, 0.82);
 
   --hair: rgba(10, 16, 32, 0.085);
   --hair-2: rgba(10, 16, 32, 0.05);
@@ -113,6 +116,9 @@ html[data-theme='dark'] {
   --g-pop: rgba(34, 39, 49, 0.82);
   --g-side: rgba(20, 23, 30, 0.58);
   --g-solid: rgba(24, 27, 34, 0.96);
+  --modal-surface: rgba(28, 34, 45, 0.94);
+  --modal-field: rgba(17, 24, 35, 0.84);
+  --modal-edge: rgba(255, 255, 255, 0.18);
 
   --hair: rgba(255, 255, 255, 0.105);
   --hair-2: rgba(255, 255, 255, 0.06);
@@ -220,8 +226,8 @@ html[data-theme='dark'] {
     position: absolute;
     display: block;
     border-radius: 50%;
-    filter: blur(60px);
-    opacity: 0.55;
+    filter: blur(54px);
+    opacity: 0.68;
     transition: opacity var(--t-3) var(--e-out);
   }
   .bg-scene i:nth-child(1) {
@@ -294,10 +300,14 @@ html[data-theme='dark'] {
     background-color: var(--g-panel);
   } /* 46% */
   .glass-card {
-    background-color: var(--g-solid);
-    background-color: color-mix(in srgb, var(--g-solid) 88%, transparent);
-    -webkit-backdrop-filter: saturate(120%) blur(8px);
-    backdrop-filter: saturate(120%) blur(8px);
+    background-color: var(--g-card);
+    background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.24), transparent 48%);
+    border-color: color-mix(in srgb, var(--hair) 55%, var(--spec));
+    -webkit-backdrop-filter: saturate(160%) blur(22px);
+    backdrop-filter: saturate(160%) blur(22px);
+    box-shadow:
+      var(--sh-2),
+      inset 0 1px 0 var(--spec);
   } /* 62% ← mətn daşıyan minimum */
   .glass-side {
     background-color: var(--g-side);
@@ -310,6 +320,144 @@ html[data-theme='dark'] {
     box-shadow:
       var(--sh-3),
       inset 0 1px 0 var(--spec);
+  }
+
+  /* Modal səthi: arxa səhnənin rəngini buraxır, mətn sahəsini isə oxunaqlı saxlayır. */
+  .glass-pop[role='dialog'] {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100dvh - 40px);
+    min-height: 0;
+    border: 1px solid var(--modal-edge);
+    border-radius: 26px;
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, 0.18), transparent 42%), var(--modal-surface);
+    -webkit-backdrop-filter: saturate(190%) blur(38px);
+    backdrop-filter: saturate(190%) blur(38px);
+    box-shadow:
+      0 48px 110px -42px rgba(11, 22, 42, 0.58),
+      0 14px 36px -22px rgba(11, 22, 42, 0.32),
+      inset 0 1px 0 var(--spec);
+    animation: modal-arrive 250ms var(--e-out) both;
+  }
+  .glass-pop[role='dialog']::before {
+    content: '';
+    position: absolute;
+    z-index: 4;
+    top: 0;
+    left: 25px;
+    right: 25px;
+    height: 3px;
+    border-radius: 0 0 999px 999px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(244, 0, 9, 0.8),
+      rgba(255, 255, 255, 0.9),
+      transparent
+    );
+    pointer-events: none;
+  }
+  .glass-pop[role='dialog'] > :first-child:not(form) {
+    flex: none;
+    background: linear-gradient(
+      115deg,
+      color-mix(in srgb, var(--g-card) 82%, transparent),
+      color-mix(in srgb, var(--g-panel) 58%, transparent)
+    );
+    border-bottom-color: var(--hair);
+  }
+  .glass-pop[role='dialog'] > :first-child h3,
+  .glass-pop[role='dialog'] > :first-child h2 {
+    font-size: 18px;
+    line-height: 1.25;
+    letter-spacing: -0.025em;
+  }
+  .glass-pop[role='dialog'] > :first-child p {
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .glass-pop[role='dialog'] button[aria-label='Bağla'],
+  .glass-pop[role='dialog'] button[aria-label='Pəncərəni bağla'] {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--hair);
+    border-radius: 13px;
+    color: var(--ink-2);
+    background: var(--g-card);
+    box-shadow: inset 0 1px 0 var(--spec);
+  }
+  .glass-pop[role='dialog'] button[aria-label='Bağla']:hover,
+  .glass-pop[role='dialog'] button[aria-label='Pəncərəni bağla']:hover {
+    color: var(--ink);
+    background: var(--g-solid);
+  }
+  .glass-pop[role='dialog'] > form {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+  .glass-pop[role='dialog'] > form > :last-child {
+    position: sticky;
+    z-index: 2;
+    bottom: -20px;
+    margin: 0 -20px -20px;
+    padding: 16px 20px calc(16px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--hair);
+    background: color-mix(in srgb, var(--modal-surface) 90%, transparent);
+    -webkit-backdrop-filter: blur(22px);
+    backdrop-filter: blur(22px);
+  }
+  .glass-pop[role='dialog'] label {
+    font-size: 13px;
+  }
+  .glass-pop[role='dialog']
+    :is(input:not([type='checkbox']):not([type='radio']):not([type='file']), select, textarea) {
+    min-height: 42px;
+    border-color: var(--hair);
+    border-radius: 11px;
+    background-color: var(--modal-field);
+    color: var(--ink);
+    font-size: 14px;
+    box-shadow: inset 0 1px 2px rgba(10, 16, 32, 0.035);
+  }
+  .glass-pop[role='dialog'] :is(input, select, textarea):focus-visible {
+    border-color: var(--coke-600);
+    box-shadow: 0 0 0 3px var(--coke-soft);
+    outline: none;
+  }
+  .glass-pop[role='dialog'] form button[type='submit'] {
+    min-height: 42px;
+    padding-inline: 18px;
+    font-size: 13px;
+  }
+  .glass-pop[role='dialog'].modal-admin {
+    display: block;
+    overflow-y: auto;
+    padding: 20px;
+  }
+  .glass-pop[role='dialog'].modal-admin > :first-child {
+    margin: -20px -20px 20px;
+    padding: 20px;
+    border-bottom: 1px solid var(--hair);
+  }
+
+  @keyframes modal-arrive {
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
   }
 
   /* Hərəkətli kart — hover-də qalxır */
@@ -502,12 +650,43 @@ html[data-theme='dark'] {
 
   /* Modal pərdəsi — sərt qara yerinə yumşaq, bulanıq */
   .modal-veil {
-    background-color: rgba(10, 16, 32, 0.45);
-    -webkit-backdrop-filter: blur(6px) saturate(120%);
-    backdrop-filter: blur(6px) saturate(120%);
+    background: radial-gradient(ellipse at 50% 20%, rgba(35, 50, 76, 0.3), rgba(10, 16, 32, 0.56));
+    -webkit-backdrop-filter: blur(10px) saturate(115%);
+    backdrop-filter: blur(10px) saturate(115%);
   }
   html[data-theme='dark'] .modal-veil {
-    background-color: rgba(0, 0, 0, 0.62);
+    background: rgba(2, 5, 12, 0.7);
+  }
+
+  @media (max-width: 640px) {
+    .modal-veil.fixed {
+      align-items: flex-end;
+      padding: 0;
+    }
+    .glass-pop[role='dialog'] {
+      width: 100%;
+      max-height: 94dvh;
+      margin: 0;
+      border-radius: 24px 24px 0 0;
+      border-bottom: 0;
+      animation-name: modal-sheet-arrive;
+    }
+    .glass-pop[role='dialog'] > :first-child:not(form) {
+      padding: 20px;
+    }
+    .glass-pop[role='dialog'] > form {
+      padding-bottom: 0;
+    }
+    @keyframes modal-sheet-arrive {
+      from {
+        opacity: 0.85;
+        transform: translateY(24px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
   }
 
   /* ── Foto üzərindəki nişanlar ─────────────────────────────────────────────

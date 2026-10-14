@@ -378,7 +378,9 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                 </div>
 
                 <button
+                  type="button"
                   onClick={() => setSelectedSubmission(null)}
+                  aria-label="Bağla"
                   className="w-8 h-8 rounded-full bg-[var(--g-panel)] hover:bg-[var(--g-card)] text-ink-2 flex items-center justify-center transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" />
