@@ -38,18 +38,31 @@ describe('evidence geometry and recovery', () => {
     expect(box.style.left).toBe('10%');
     fireEvent.click(screen.getByRole('button', { name: 'Fotonu böyüt' }));
     expect(photo.parentElement?.style.width).toBe('303.75px');
-    fireEvent.click(screen.getByRole('button', { name: 'Tam foto' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tam fotonu göstər' }));
     expect(photo.parentElement?.style.width).toBe('202.5px');
+    expect(
+      screen.getByRole('button', { name: 'Yığcam görünüş' }).getAttribute('aria-expanded'),
+    ).toBe('true');
+    expect(
+      screen.getByRole('region', { name: /Audit — böyüdükdə sürüşdürün/ }).getAttribute('style'),
+    ).toContain('70vh');
   });
   it('uses an explicit missing state instead of a logo and recovers from failed sources', () => {
     const view = render(<EvidenceViewer alt="Nümunə" />);
     expect(screen.queryByRole('img')).toBeNull();
     expect(screen.getByText(/nümunə foto əlavə edilməyib/)).toBeTruthy();
     view.rerender(<EvidenceViewer alt="Nümunə" src="/failed.jpg" />);
+    expect(screen.getByRole('button', { name: 'Tam fotonu göstər' }).hasAttribute('disabled')).toBe(
+      false,
+    );
     fireEvent.error(screen.getByAltText('Nümunə'));
     expect(screen.getByRole('alert')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Fotonu yenidən yüklə' }));
+    expect(screen.getByRole('button', { name: 'Tam fotonu göstər' }).hasAttribute('disabled')).toBe(
+      false,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Tam fotonu göstər' }));
     expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Yığcam görünüş' })).toBeTruthy();
     view.rerender(<EvidenceViewer alt="Nümunə" src="/new.jpg" />);
     expect(screen.getByAltText('Nümunə').getAttribute('src')).toBe('/new.jpg');
   });

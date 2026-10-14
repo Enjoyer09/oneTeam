@@ -55,6 +55,19 @@ function EvidenceImage({
   const width = fit.width * zoom;
   const height = fit.height * zoom;
   const ready = natural.width > 0 && !failed;
+  const showFullPhoto = () => {
+    if (expanded) {
+      setExpanded(false);
+      return;
+    }
+    setZoom(1);
+    setExpanded(true);
+    if (failed) {
+      setFailed(false);
+      setNatural({ width: 0, height: 0 });
+      setAttempt((value) => value + 1);
+    }
+  };
   return (
     <section aria-label={alt} className="min-w-0 rounded-xl border border-hair overflow-hidden">
       <div className="flex flex-wrap items-center gap-2 p-2 bg-[var(--g-panel)]">
@@ -82,18 +95,10 @@ function EvidenceImage({
         <button
           type="button"
           className="btn-g min-h-[44px]"
-          disabled={!ready}
-          onClick={() => setZoom(1)}
-        >
-          Tam foto
-        </button>
-        <button
-          type="button"
-          className="btn-g min-h-[44px]"
           aria-expanded={expanded}
-          onClick={() => setExpanded((value) => !value)}
+          onClick={showFullPhoto}
         >
-          {expanded ? 'Yığcam görünüş' : 'Geniş görünüş'}
+          {expanded ? 'Yığcam görünüş' : 'Tam fotonu göstər'}
         </button>
       </div>
       {failed ? (
@@ -140,12 +145,14 @@ function EvidenceImage({
                   alt={alt}
                   className="block w-full h-full"
                   onError={() => setFailed(true)}
-                  onLoad={(event) =>
-                    setNatural({
-                      width: event.currentTarget.naturalWidth,
-                      height: event.currentTarget.naturalHeight,
-                    })
-                  }
+                  onLoad={(event) => {
+                    const { naturalWidth, naturalHeight } = event.currentTarget;
+                    if (!naturalWidth || !naturalHeight) {
+                      setFailed(true);
+                      return;
+                    }
+                    setNatural({ width: naturalWidth, height: naturalHeight });
+                  }}
                 />
                 {ready &&
                   detections.map((det) => (
@@ -171,7 +178,7 @@ function EvidenceImage({
             </div>
           </div>
           <p className="p-2 text-xs text-muted">
-            Böyüdülmüş fotonu sürüşdürərək yoxlayın. “Tam foto” ilkin görünüşü bərpa edir.
+            “Tam fotonu göstər” şəkli geniş açır. Böyüdülmüş fotonu sürüşdürərək yoxlayın.
           </p>
         </>
       )}
