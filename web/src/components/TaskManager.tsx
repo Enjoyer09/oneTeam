@@ -706,6 +706,10 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
               month: '2-digit',
               year: 'numeric',
             });
+            const assignedStoreIds = task.store_id ? [task.store_id] : (task.assigned_stores ?? []);
+            const assignedStoreNames = stores
+              .filter((store) => assignedStoreIds.includes(store.id))
+              .map((store) => store.name);
 
             return (
               <div
@@ -779,7 +783,11 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   <span className="flex min-w-0 items-center gap-1 font-medium text-[11px]">
                     <StoreIcon className="w-3.5 h-3.5 flex-shrink-0 text-muted" />
                     <span className="truncate">
-                      {task.assigned_stores?.length || 'Bütün'} Mağaza Təhkim edilib
+                      {assignedStoreNames.length
+                        ? assignedStoreNames.join(', ')
+                        : assignedStoreIds.length
+                          ? `${assignedStoreIds.length} mağaza`
+                          : 'Mağaza təyin edilməyib'}
                     </span>
                   </span>
                   <div className="flex flex-shrink-0 items-center gap-1.5">

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { TaskManager } from './TaskManager';
-import type { Store } from '../types';
+import type { Store, Task } from '../types';
 afterEach(() => {
   cleanup();
   sessionStorage.clear();
@@ -110,6 +110,31 @@ it('restores an unfinished task after the panel remounts', async () => {
   expect(screen.getByRole('button', { name: 'Mağaza A' }).getAttribute('aria-pressed')).toBe(
     'true',
   );
+});
+
+it('shows the assigned store name in the work queue', () => {
+  render(
+    <TaskManager
+      tasks={[
+        {
+          id: 'task-a',
+          title: 'Rəf yoxlaması',
+          description: 'Yoxla',
+          reference_image_url: null,
+          priority: 'high',
+          status: 'published',
+          deadline: '2026-10-21T12:00:00Z',
+          created_at: '2026-10-14T12:00:00Z',
+          store_id: 'a',
+        } as Task,
+      ]}
+      stores={stores}
+      isCreateModalOpen={false}
+      setIsCreateModalOpen={vi.fn()}
+      onCreateTask={vi.fn()}
+    />,
+  );
+  expect(screen.getAllByText('Mağaza A').some((element) => element.tagName === 'SPAN')).toBe(true);
 });
 
 it('excludes stores without a region from a regional bulk preview', () => {
