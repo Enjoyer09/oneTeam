@@ -13,7 +13,7 @@
  *     `setDescription('')` — a briefing written over several minutes was wiped
  *     because the server returned 500.
  *   - `handleBulkSubmit` closed its modal and lost every filter selection.
- *   - `AuditReviewCenter` closed the review modal on a failed approve, and on a
+ *   - `AuditReviewCenter` advanced the review modal on a failed approve, and on a
  *     failed reject it also cleared `rejectFeedback` — the rejection reason the
  *     supervisor had just typed.
  *
@@ -22,15 +22,12 @@
  *
  * WHY A SOURCE-LEVEL GUARD INSTEAD OF A COMPONENT TEST
  * ---------------------------------------------------
- * There is no React test runner in this repo (no jsdom, no testing-library, and
- * `web/` carries its own lockfile). Adding one is a real decision the owner
- * should make deliberately. What this guard does instead is narrow and honest:
- * it asserts the *contract* those three handlers depend on — that `runAction`
+ * Component tests now cover the visible behaviour. This guard additionally
+ * asserts the *contract* those three handlers depend on — that `runAction`
  * returns a boolean, and that each handler gates its destructive work on that
  * boolean being `true`.
  *
- * It is a specification test, not a substitute for behavioural coverage: it
- * cannot prove the modal really stays open. It CAN prove nobody silently
+ * It is a specification test alongside behavioural coverage. It helps ensure nobody silently
  * restores the old shape, which is the regression that matters here.
  *
  *   npm run test:portal-silent-success
@@ -125,8 +122,8 @@ for (const [name, signature] of [
   const body = bodyOf(audit, signature);
   check(`${name} exists`, body.length > 0);
   check(
-    `${name} closes the review modal only on success`,
-    /if \(ok\)[\s\S]*?setSelectedSubmission\(null\)/.test(body),
+    `${name} advances or closes the review modal only on success`,
+    /if \(ok\)[\s\S]*?setSelectedSubmission\((?:null|nextPending\(id\))\)/.test(body),
     body.slice(0, 260),
   );
 }

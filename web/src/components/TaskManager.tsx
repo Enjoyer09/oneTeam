@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ModalPortal } from './ui/ModalPortal';
 import { StatusBadge } from './ui/StatusBadge';
 import {
@@ -18,9 +18,11 @@ import {
   Trash2,
   AlertTriangle,
   Loader2,
+  Search,
 } from 'lucide-react';
 import { Task, Store, TaskPriority, ChecklistItem } from '../types';
 import { useModalA11y } from '../lib/useModalA11y';
+import { filterTaskQueue, taskIsOverdue, TaskQueueFilter } from '../lib/taskQueue';
 
 /**
  * What the edit form sends.
@@ -93,6 +95,14 @@ function toLocalInput(iso: string | undefined): string {
   );
 }
 
+function clearStoredDraft() {
+  try {
+    window.sessionStorage.removeItem('oneteam-task-draft-v1');
+  } catch {
+    // Storage can be unavailable without affecting publication.
+  }
+}
+
 interface TaskManagerProps {
   tasks: Task[];
   stores: Store[];
@@ -159,11 +169,84 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
   );
   const [selectedStores, setSelectedStores] = useState<string[]>([]);
+  const [requiresBeforeAfter, setRequiresBeforeAfter] = useState(false);
+  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
+  const [queueFilter, setQueueFilter] = useState<TaskQueueFilter>('all');
+  const [queueSearch, setQueueSearch] = useState('');
+  const [queueStore, setQueueStore] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   /* Yaratma formasının inline xətası — alert() əvəzinə, redaktə modalındakı
      `editError` ilə eyni pattern. */
   const [createError, setCreateError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = window.sessionStorage.getItem('oneteam-task-draft-v1');
+      if (!saved) return;
+      const draft = JSON.parse(saved) as Record<string, unknown>;
+      if (typeof draft.title === 'string') setTitle(draft.title);
+      if (typeof draft.description === 'string') setDescription(draft.description);
+      if (typeof draft.referenceImageUrl === 'string')
+        setReferenceImageUrl(draft.referenceImageUrl);
+      if (
+        draft.priority === 'low' ||
+        draft.priority === 'medium' ||
+        draft.priority === 'high' ||
+        draft.priority === 'urgent'
+      )
+        setPriority(draft.priority);
+      if (typeof draft.deadline === 'string') setDeadline(draft.deadline);
+      if (Array.isArray(draft.selectedStores))
+        setSelectedStores(
+          draft.selectedStores.filter((id): id is string => typeof id === 'string'),
+        );
+      if (typeof draft.requiresBeforeAfter === 'boolean')
+        setRequiresBeforeAfter(draft.requiresBeforeAfter);
+      if (Array.isArray(draft.checklist)) setChecklist(draft.checklist.map(normalizeChecklistItem));
+    } catch {
+      // Local storage can be unavailable in private browsing; the editor still works.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (
+      !title &&
+      !description &&
+      !referenceImageUrl &&
+      selectedStores.length === 0 &&
+      checklist.length === 0 &&
+      !requiresBeforeAfter
+    )
+      return;
+    try {
+      // Uploaded data URLs can exceed storage quota. Preserve the authored text instead.
+      window.sessionStorage.setItem(
+        'oneteam-task-draft-v1',
+        JSON.stringify({
+          title,
+          description,
+          referenceImageUrl: referenceImageUrl.startsWith('data:') ? '' : referenceImageUrl,
+          priority,
+          deadline,
+          selectedStores,
+          requiresBeforeAfter,
+          checklist,
+        }),
+      );
+    } catch {
+      // A quota or privacy error must never prevent task authoring.
+    }
+  }, [
+    title,
+    description,
+    referenceImageUrl,
+    priority,
+    deadline,
+    selectedStores,
+    requiresBeforeAfter,
+    checklist,
+  ]);
 
   /* ------------------------------------------------------------------------ */
   /* Redaktə və silmə                                                         */
@@ -429,6 +512,20 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
       setCreateError('Ən azı bir mağaza seçin.');
       return;
     }
+    const blankQuestion = checklist.findIndex((item) => !item.label.trim());
+    if (blankQuestion !== -1) {
+      setCreateError(`Çeklistin ${blankQuestion + 1}-ci sualını doldurun.`);
+      return;
+    }
+    const invalidChoice = checklist.findIndex(
+      (item) =>
+        item.type === 'single_choice' &&
+        (item.options ?? []).filter((option) => option.trim()).length < 2,
+    );
+    if (invalidChoice !== -1) {
+      setCreateError(`Çeklistin ${invalidChoice + 1}-ci sualına ən azı iki seçim yazın.`);
+      return;
+    }
     setCreateError(null);
 
     setIsSubmitting(true);
@@ -442,18 +539,41 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
         priority,
         deadline: new Date(deadline).toISOString(),
         assigned_stores: storeIds,
+        requires_before_after_photo: requiresBeforeAfter,
+        checklist_schema: checklist.map((item) => ({
+          id: item.id,
+          label: item.label.trim(),
+          type: item.type,
+          ...(item.type === 'single_choice'
+            ? { options: (item.options ?? []).map((option) => option.trim()).filter(Boolean) }
+            : {}),
+        })),
       });
 
       if (ok) {
         setTitle('');
         setDescription('');
         setSelectedStores([]);
+        setReferenceImageUrl('');
+        setRequiresBeforeAfter(false);
+        setChecklist([]);
+        clearStoredDraft();
         setIsCreateModalOpen(false);
       }
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const visibleTasks = filterTaskQueue(tasks, queueFilter, queueSearch, queueStore);
+  const queueFilters: Array<{ id: TaskQueueFilter; label: string }> = [
+    { id: 'all', label: `Hamısı (${tasks.length})` },
+    { id: 'overdue', label: `Gecikən (${tasks.filter((task) => taskIsOverdue(task)).length})` },
+    { id: 'today', label: 'Bu gün' },
+    { id: 'active', label: 'Aktiv' },
+    { id: 'draft', label: 'Qaralama' },
+    { id: 'closed', label: 'Bağlanmış' },
+  ];
 
   const getPriorityBadge = (p: TaskPriority) => {
     switch (p) {
@@ -518,7 +638,54 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
         </div>
       </div>
 
-      {/* Task Cards */}
+      <div className="glass-card rounded-card p-4 space-y-3" aria-label="Tapşırıq filtrləri">
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {queueFilters.map((filter) => (
+            <button
+              key={filter.id}
+              type="button"
+              onClick={() => setQueueFilter(filter.id)}
+              aria-pressed={queueFilter === filter.id}
+              className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold ${queueFilter === filter.id ? 'bg-coke text-white' : 'bg-[var(--g-panel)] text-ink-2 hover:text-ink'}`}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+        <div className="grid gap-2 sm:grid-cols-[1fr_220px]">
+          <label className="relative">
+            <span className="sr-only">Tapşırıq axtar</span>
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted" aria-hidden="true" />
+            <input
+              type="search"
+              value={queueSearch}
+              onChange={(event) => setQueueSearch(event.target.value)}
+              placeholder="Başlıq və təlimatda axtar"
+              className="w-full rounded-lg border border-hair bg-[var(--g-card)] py-2.5 pl-9 pr-3 text-sm text-ink"
+            />
+          </label>
+          <label>
+            <span className="sr-only">Mağazaya görə filtr</span>
+            <select
+              value={queueStore}
+              onChange={(event) => setQueueStore(event.target.value)}
+              className="w-full rounded-lg border border-hair bg-[var(--g-card)] px-3 py-2.5 text-sm text-ink"
+            >
+              <option value="">Bütün mağazalar</option>
+              {stores.map((store) => (
+                <option key={store.id} value={store.id}>
+                  {store.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <p role="status" className="text-xs text-muted">
+          {visibleTasks.length} tapşırıq göstərilir
+        </p>
+      </div>
+
+      {/* Compact task queue */}
       {tasks.length === 0 ? (
         <div className="glass-card rounded-card p-12 text-center">
           <p className="text-sm font-semibold text-ink-2">Hələ planogram tapşırığı yoxdur.</p>
@@ -526,9 +693,13 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
             "Yeni Təlimat Yarat" düyməsi ilə ilk təlimatı hazırlayın.
           </p>
         </div>
+      ) : visibleTasks.length === 0 ? (
+        <div className="glass-card rounded-card p-8 text-center text-sm text-ink-2">
+          Bu filtrə uyğun tapşırıq yoxdur.
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {tasks.map((task) => {
+        <div className="space-y-2">
+          {visibleTasks.map((task) => {
             const deadlineStr = new Date(task.deadline).toLocaleDateString('az-AZ', {
               timeZone: 'Asia/Baku',
               day: '2-digit',
@@ -539,11 +710,11 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
             return (
               <div
                 key={task.id}
-                className="glass-card rounded-card overflow-hidden flex flex-col justify-between hover:shadow-md transition-all"
+                className="glass-card rounded-card overflow-hidden flex flex-col sm:flex-row sm:items-center hover:shadow-md transition-all"
               >
-                <div>
+                <div className="flex min-w-0 flex-1 items-start sm:items-center">
                   {/* Planogram Image Preview */}
-                  <div className="relative aspect-[16/9] bg-[var(--g-panel)] overflow-hidden border-b border-hair-2">
+                  <div className="relative h-24 w-24 sm:h-28 sm:w-32 flex-none bg-[var(--g-panel)] overflow-hidden border-r border-hair-2">
                     {task.reference_image_url ? (
                       <img
                         src={task.reference_image_url}
@@ -551,22 +722,24 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                         className="w-full h-full object-contain"
                       />
                     ) : (
-                      <div className="flex h-full items-center justify-center gap-2 text-sm text-muted">
+                      <div
+                        className="flex h-full flex-col items-center justify-center gap-1 text-center text-xs text-muted"
+                        title="Nümunə foto əlavə edilməyib"
+                      >
                         <Camera className="h-5 w-5" aria-hidden="true" />
-                        Nümunə foto əlavə edilməyib
+                        Foto yoxdur
                       </div>
                     )}
-                    <div className="absolute top-2.5 right-2.5">
-                      {getPriorityBadge(task.priority)}
-                    </div>
-                    <div className="absolute bottom-2.5 left-2.5 bg-slate-950/75 backdrop-blur-sm text-white px-2.5 py-1 rounded-md text-[10px] font-semibold flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-muted" />
-                      Son tarix: {deadlineStr}
-                    </div>
                   </div>
 
-                  <div className="p-4 space-y-2">
+                  <div className="min-w-0 p-3 sm:p-4 space-y-1.5">
                     <div className="flex items-center gap-1.5 flex-wrap">
+                      {taskIsOverdue(task) && (
+                        <span className="rounded bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-800">
+                          Gecikir
+                        </span>
+                      )}
+                      {getPriorityBadge(task.priority)}
                       {/* The API derives `kind` from the fields below, so this
                         badge appears exactly when neither of the other two
                         does — a plain audit with no checklist and no
@@ -580,7 +753,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       {task.requires_before_after_photo && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200">
                           <Camera className="w-3 h-3 text-indigo-500" />
-                          Before & After Tələbi
+                          Əvvəl / sonra foto
                         </span>
                       )}
                       {task.checklist_schema && task.checklist_schema.length > 0 && (
@@ -593,13 +766,16 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                     <h4 className="font-bold text-xs sm:text-sm text-ink leading-snug">
                       {task.title}
                     </h4>
-                    <p className="text-xs text-ink-2 line-clamp-3 leading-relaxed">
+                    <p className="text-xs text-ink-2 line-clamp-1 leading-relaxed">
                       {task.description}
+                    </p>
+                    <p className="flex items-center gap-1 text-xs text-muted">
+                      <Calendar className="h-3.5 w-3.5" /> Son tarix: {deadlineStr}
                     </p>
                   </div>
                 </div>
 
-                <div className="p-4 pt-0 border-t border-hair-2 mt-2 flex items-center justify-between gap-2 text-xs text-muted">
+                <div className="px-3 py-2 sm:px-4 flex items-center justify-between gap-2 text-xs text-muted sm:border-l border-hair-2">
                   <span className="flex min-w-0 items-center gap-1 font-medium text-[11px]">
                     <StoreIcon className="w-3.5 h-3.5 flex-shrink-0 text-muted" />
                     <span className="truncate">
@@ -963,7 +1139,32 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
               </div>
 
               {/* Form */}
-              <form onSubmit={(e) => void handleSubmit(e)} className="p-5 space-y-3.5">
+              <form
+                onSubmit={(e) => void handleSubmit(e)}
+                className="p-5 space-y-4 max-h-[75vh] overflow-y-auto"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[var(--g-panel)] px-3 py-2 text-sm text-ink-2">
+                  <p>
+                    Məzmun və sübut tələbi → mağazalar → dərc. Qaralama bu brauzer tabında saxlanır.
+                  </p>
+                  <button
+                    type="button"
+                    className="font-semibold text-coke"
+                    onClick={() => {
+                      setTitle('');
+                      setDescription('');
+                      setReferenceImageUrl('');
+                      setPriority('medium');
+                      setSelectedStores([]);
+                      setChecklist([]);
+                      setRequiresBeforeAfter(false);
+                      setCreateError(null);
+                      clearStoredDraft();
+                    }}
+                  >
+                    Qaralamanı sil
+                  </button>
+                </div>
                 {/* Title */}
                 <div>
                   <label htmlFor="task-title" className="block text-xs font-bold text-ink-2 mb-1">
@@ -1019,10 +1220,10 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       onChange={(e) => setPriority(e.target.value as TaskPriority)}
                       className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
                     >
-                      <option value="low">🟢 Aşağı (Low)</option>
-                      <option value="medium">🟡 Orta (Medium)</option>
-                      <option value="high">🟠 Yüksək (High)</option>
-                      <option value="urgent">🔴 Təcili (Urgent)</option>
+                      <option value="low">Aşağı</option>
+                      <option value="medium">Orta</option>
+                      <option value="high">Yüksək</option>
+                      <option value="urgent">Təcili</option>
                     </select>
                   </div>
 
@@ -1098,6 +1299,126 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   </p>
                 </div>
 
+                <section
+                  className="space-y-3 rounded-xl border border-hair bg-[var(--g-panel)] p-4"
+                  aria-label="Sübut tələbləri"
+                >
+                  <h4 className="text-sm font-bold text-ink">İşçidən tələb olunacaq sübut</h4>
+                  <label className="flex items-center gap-2 text-sm text-ink-2">
+                    <input
+                      type="checkbox"
+                      checked={requiresBeforeAfter}
+                      onChange={(event) => setRequiresBeforeAfter(event.target.checked)}
+                      className="h-4 w-4 accent-[var(--coke-500)]"
+                    />
+                    Əvvəl və sonra fotosu tələb olunsun
+                  </label>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-ink">
+                      Çeklist sualları ({checklist.length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setChecklist((items) => [
+                          ...items,
+                          { id: `q${Date.now()}`, label: '', type: 'boolean' },
+                        ])
+                      }
+                      className="text-sm font-semibold text-coke"
+                    >
+                      + Sual əlavə et
+                    </button>
+                  </div>
+                  {checklist.map((item, index) => (
+                    <div
+                      key={item.id}
+                      className="space-y-2 rounded-lg border border-hair bg-[var(--g-card)] p-3"
+                    >
+                      <div className="flex flex-wrap gap-2">
+                        <label className="min-w-[180px] flex-1 text-xs text-ink-2">
+                          {index + 1}-ci sual
+                          <input
+                            value={item.label}
+                            onChange={(event) =>
+                              setChecklist((items) =>
+                                items.map((value, i) =>
+                                  i === index ? { ...value, label: event.target.value } : value,
+                                ),
+                              )
+                            }
+                            placeholder="Məsələn: Rəf tam doludurmu?"
+                            className="mt-1 w-full rounded-lg border border-hair bg-[var(--g-card)] px-3 py-2 text-sm text-ink"
+                          />
+                        </label>
+                        <label className="text-xs text-ink-2">
+                          Cavab tipi
+                          <select
+                            value={item.type}
+                            onChange={(event) =>
+                              setChecklist((items) =>
+                                items.map((value, i) =>
+                                  i === index
+                                    ? {
+                                        ...value,
+                                        type: event.target.value as ChecklistItem['type'],
+                                        options:
+                                          event.target.value === 'single_choice'
+                                            ? (value.options ?? [])
+                                            : undefined,
+                                      }
+                                    : value,
+                                ),
+                              )
+                            }
+                            className="mt-1 block rounded-lg border border-hair bg-[var(--g-card)] px-2 py-2 text-sm text-ink"
+                          >
+                            {CHECKLIST_TYPES.map((type) => (
+                              <option key={type.value} value={type.value}>
+                                {type.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <button
+                          type="button"
+                          aria-label={`${index + 1}-ci sualı sil`}
+                          onClick={() =>
+                            setChecklist((items) => items.filter((_, i) => i !== index))
+                          }
+                          className="self-end rounded-lg p-2 text-muted hover:text-rose-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                      {item.type === 'single_choice' && (
+                        <label className="block text-xs text-ink-2">
+                          Seçimlər (vergüllə ayırın)
+                          <input
+                            value={(item.options ?? []).join(', ')}
+                            onChange={(event) =>
+                              setChecklist((items) =>
+                                items.map((value, i) =>
+                                  i === index
+                                    ? {
+                                        ...value,
+                                        options: event.target.value
+                                          .split(',')
+                                          .map((option) => option.trim()),
+                                      }
+                                    : value,
+                                ),
+                              )
+                            }
+                            placeholder="Var, Yoxdur"
+                            className="mt-1 w-full rounded-lg border border-hair bg-[var(--g-card)] px-3 py-2 text-sm text-ink"
+                          />
+                        </label>
+                      )}
+                    </div>
+                  ))}
+                </section>
+
                 {/* Store Assignment (Multi-select) */}
                 <div>
                   <span className="block text-xs font-bold text-ink-2 mb-1.5">
@@ -1145,6 +1466,35 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                     ? 'Heç bir mağaza seçilməyib.'
                     : `Seçilən mağaza sayı: ${selectedStoreIds.length}. Təlimat yalnız bu mağazalara göndəriləcək.`}
                 </p>
+                <div
+                  className="rounded-xl border border-hair bg-[var(--g-panel)] p-3 text-sm text-ink-2"
+                  aria-label="Dərc önizləməsi"
+                >
+                  <b className="text-ink">Dərc önizləməsi</b>
+                  <p className="mt-1 font-semibold text-ink">
+                    {title.trim() || 'Başlıq yazılmayıb'}
+                  </p>
+                  <p>{description.trim() || 'Təlimat yazılmayıb'}</p>
+                  <p>
+                    {selectedStoreIds.length} mağaza · {checklist.length} çeklist sualı ·{' '}
+                    {requiresBeforeAfter ? 'Əvvəl/sonra fotosu tələb olunur' : 'Adi rəf fotosu'}
+                  </p>
+                  <p>Son tarix: {deadline || 'seçilməyib'}</p>
+                  {checklist.length > 0 && (
+                    <p>
+                      Suallar:{' '}
+                      {checklist.map((item) => item.label.trim() || 'Boş sual').join(' · ')}
+                    </p>
+                  )}
+                  {selectedStoreIds.length > 0 && (
+                    <p className="mt-1">
+                      {stores
+                        .filter((store) => selectedStoreIds.includes(store.id))
+                        .map((store) => store.name)
+                        .join(', ')}
+                    </p>
+                  )}
+                </div>
                 {createError && (
                   <div className="flex items-start gap-2.5 rounded-xl border border-[rgba(200,60,60,.28)] bg-[rgba(200,60,60,.08)] px-3.5 py-2.5">
                     <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[#b23b3b] mt-[1px]" />

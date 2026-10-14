@@ -39,3 +39,9 @@ Canlı yoxlamada Məhsullar və Rəf planı boş idi. Bu, özlüyündə backend 
 4. **Sahə yoxlaması:** supervisorun 10 auditlik növbəni işləmə vaxtı, tapşırıq dərcində səhv alıcı sayı, istifadəçinin köməksiz tamamlanma faizi.
 
 Qəbul üçün ölçüləcək əsas ssenarilər: “gözləyən auditi tap → sübutu oxu → qərar ver → növbəti”, “çeklistli tapşırıq yarat → iki mağazaya dərc et”, “gecikən işi və ona bağlı mağazanı tap”.
+
+## 14 oktyabr 2026 — icra vəziyyəti
+
+Gündəlik iş axınlarının ilk işlək versiyası hazırlandı: tapşırıqlar sıx siyahıda gecikmə, bu gün, status, axtarış və mağaza üzrə filtrlənir; yaratma forması çeklist, cavab tipi, əvvəl/sonra foto tələbi və dərc önizləməsi göndərir. Qaralama eyni brauzer tabında səhifə yenilənməsindən sonra bərpa olunur və çıxış zamanı silinir. Auditlər risk və vaxt üzrə qərar növbəsində görünür; uğurlu qərardan sonra növbəti gözləyən audit açılır. İcmal gecikən işləri, audit sayının məxrəcini və məlumatın yüklənmə vaxtını göstərir.
+
+Bu, P1 axınlarının ilkin tətbiqidir; sahə istifadəsi ilə tamamlanma vaxtı və səhv dərc faizi hələ ölçülməyib. 200% zoom, ekran oxuyucu və real cihaz testləri, tipografiya və naviqasiya sisteminin bütöv yenilənməsi açıq qalır. Kütləvi göndərmə forması da fərdi yaratma forması ilə eyni çeklist redaktoruna gətirilməlidir.

@@ -7,13 +7,11 @@ import {
   Search,
   Store as StoreIcon,
   Sparkles,
-  Layers,
   X,
   Calendar,
   Eye,
   EyeOff,
   Bot,
-  Camera,
   CheckSquare,
 } from 'lucide-react';
 import { Submission, SubmissionStatus } from '../types';
@@ -52,7 +50,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
     ) {
       return routeStatus;
     }
-    return initialFilter || 'all';
+    return initialFilter && initialFilter !== 'all' ? initialFilter : 'pending_review';
   });
   const [searchQuery, setSearchQuery] = useState(
     () => new URLSearchParams(window.location.search).get('q') ?? '',
@@ -146,17 +144,41 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
     return null;
   };
 
+  const reviewRisk = (sub: Submission) =>
+    sub.location_mocked ||
+    sub.location_unverified ||
+    (sub.ai_score !== undefined && sub.ai_score !== null && sub.ai_score < 60);
+  const nextPending = (currentId: string) =>
+    submissions
+      .filter((sub) => sub.status === 'pending_review' && sub.id !== currentId)
+      .sort(
+        (a, b) =>
+          Number(reviewRisk(b)) - Number(reviewRisk(a)) ||
+          new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime(),
+      )[0] ?? null;
+
   // Filter submissions
-  const filteredSubmissions = submissions.filter((sub) => {
-    const matchesStatus = filterStatus === 'all' || sub.status === filterStatus;
-    const query = searchQuery.toLowerCase();
-    const matchesSearch =
-      !query ||
-      sub.task?.title.toLowerCase().includes(query) ||
-      sub.store?.name.toLowerCase().includes(query) ||
-      sub.store?.store_code.toLowerCase().includes(query);
-    return matchesStatus && matchesSearch;
-  });
+  const filteredSubmissions = submissions
+    .filter((sub) => {
+      const matchesStatus = filterStatus === 'all' || sub.status === filterStatus;
+      const query = searchQuery.toLowerCase();
+      const matchesSearch =
+        !query ||
+        sub.task?.title.toLowerCase().includes(query) ||
+        sub.store?.name.toLowerCase().includes(query) ||
+        sub.store?.store_code.toLowerCase().includes(query);
+      return matchesStatus && matchesSearch;
+    })
+    .sort((a, b) => {
+      const pendingRank =
+        Number(b.status === 'pending_review') - Number(a.status === 'pending_review');
+      return (
+        pendingRank ||
+        Number(reviewRisk(b)) - Number(reviewRisk(a)) ||
+        (a.status === 'pending_review' ? 1 : -1) *
+          (new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime())
+      );
+    });
 
   /**
    * Qərar handler-ləri YALNIZ uğurluqda modalı bağlayır.
@@ -172,7 +194,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
     setIsProcessing(true);
     try {
       const ok = await onApprove(id);
-      if (ok) setSelectedSubmission(null);
+      if (ok) setSelectedSubmission(nextPending(id));
     } finally {
       setIsProcessing(false);
     }
@@ -193,7 +215,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
       if (ok) {
         setRejectFeedback('');
         setShowRejectInput(false);
-        setSelectedSubmission(null);
+        setSelectedSubmission(nextPending(id));
       }
     } finally {
       setIsProcessing(false);
@@ -207,7 +229,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
         {/* Status Filter Tabs */}
         <div className="flex items-center space-x-1.5 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
           {[
-            { id: 'all', label: 'Bütün Fotolar' },
+            { id: 'all', label: 'Bütün auditlər' },
             { id: 'pending_review', label: '⏳ Gözləyən' },
             { id: 'approved', label: '✅ Təsdiqlənmiş' },
             { id: 'rejected', label: '❌ İmtina Edilmiş' },
@@ -239,129 +261,80 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
         </div>
       </div>
 
-      {/* Gallery Grid of Submitted Audits */}
+      <div className="glass-card rounded-card p-4 flex flex-wrap items-center gap-3 text-sm text-ink-2">
+        <b className="text-ink">Yoxlama növbəsi</b>
+        <span>
+          {submissions.filter((sub) => sub.status === 'pending_review').length} qərar gözləyir
+        </span>
+        <span className="text-muted">Riskli və köhnə auditlər əvvəl göstərilir.</span>
+      </div>
+
       {filteredSubmissions.length === 0 ? (
-        <div className="glass-card rounded-card p-12 text-center">
-          <p className="text-sm font-semibold text-ink-2">Axtarışa uyğun rəf fotosu tapılmadı.</p>
-          <p className="text-xs text-muted mt-1">Filtrləri təmizləyərək yenidən yoxlayın.</p>
+        <div className="glass-card rounded-card p-8 text-center">
+          <p className="text-sm font-semibold text-ink-2">Bu filtrə uyğun audit yoxdur.</p>
+          <button
+            type="button"
+            onClick={() => {
+              setFilterStatus('all');
+              setSearchQuery('');
+            }}
+            className="mt-2 text-sm font-bold text-coke"
+          >
+            Filtrləri təmizlə
+          </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {filteredSubmissions.map((sub) => {
-            const dateStr = new Date(sub.submitted_at).toLocaleDateString('az-AZ', {
-              timeZone: 'Asia/Baku',
-              day: '2-digit',
-              month: '2-digit',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            });
-
-            return (
-              <div
-                key={sub.id}
-                className="group glass-card rounded-card overflow-hidden hover:shadow-md transition-all flex flex-col"
-              >
-                {/* Image Container with Badges */}
-                <div className="relative aspect-[4/3] bg-[var(--g-panel)] overflow-hidden">
-                  <img
-                    src={sub.photo_url}
-                    alt={sub.task?.title || 'Shelf'}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                  <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap">
-                    {sub.status === 'pending_review' && (
-                      <span className="pill-photo p-warn">
-                        <span className="dot" />
-                        Gözləyir
-                      </span>
-                    )}
-                    {sub.status === 'approved' && (
-                      <span className="pill-photo p-ok">
-                        <span className="dot" />
-                        Təsdiqləndi
-                      </span>
-                    )}
-                    {sub.status === 'rejected' && (
-                      <span className="pill-photo p-bad">
-                        <span className="dot" />
-                        İmtina edildi
-                      </span>
-                    )}
-                    {sub.ai_score !== undefined && sub.ai_score !== null && (
-                      <span className="pill-photo p-info">Uyğunluq təxmini: {sub.ai_score}%</span>
-                    )}
-                    {sub.before_photo_url && (
-                      <span className="pill-photo p-info">
-                        <Camera className="w-2.5 h-2.5" />
-                        Əvvəl / Sonra
-                      </span>
-                    )}
-                    {sub.location_mocked && (
-                      <span
-                        className="pill-photo p-bad"
-                        title="Cihaz mövqeyi saxta/simulyasiya kimi işarələdi — təsdiq əl ilə override sayılır"
-                      >
-                        <span className="dot" />
-                        🚩 Saxta GPS
-                      </span>
-                    )}
-                    {/* Weaker evidence, NOT a fraud finding. Deliberately a
-                        different pill: "Saxta GPS" says the device lied, this
-                        says nobody captured a location at all (the bot's skip
-                        button). Both block auto-approval, but a reviewer should
-                        not read an honest merch who declined location sharing as
-                        a cheater. */}
-                    {sub.location_unverified && !sub.location_mocked && (
-                      <span
-                        className="pill-photo p-warn"
-                        title="Lokasiya götürülmədi — audit zəif sübut kimi qeydə alınır"
-                      >
-                        <span className="dot" />
-                        📍 Lokasiya yoxdur
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Card Content */}
-                <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                  <div>
-                    {getScenarioBadge(sub) && <div className="mb-1.5">{getScenarioBadge(sub)}</div>}
-                    <h4 className="font-bold text-xs text-ink line-clamp-1">
-                      {sub.task?.title || 'Rəf auditi'}
-                    </h4>
-                    <p className="text-[11px] text-ink-2 flex items-center gap-1 mt-1 font-medium">
-                      <StoreIcon className="w-3.5 h-3.5 text-muted" />
-                      {sub.store?.name || 'Mağaza'}
-                    </p>
-                    <p className="text-[11px] text-muted font-mono mt-0.5">
-                      {sub.store?.store_code} • {dateStr}
-                    </p>
-
-                    {sub.reviewer_feedback && (
-                      <div className="mt-2 p-2 rounded-lg bg-rose-50 border border-rose-100 text-[11px] text-rose-800">
-                        <span className="font-bold">Supervayzer rəyi:</span> {sub.reviewer_feedback}
-                      </div>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      setSelectedSubmission(sub);
-                      setShowRejectInput(false);
-                      setRejectFeedback('');
-                      setRejectError(null);
-                    }}
-                    className="w-full py-2 px-3 rounded-lg bg-[var(--g-panel)] hover:bg-[var(--coke-soft)] hover:text-coke text-ink font-bold text-xs transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+        <div className="space-y-2" aria-label="Audit siyahısı">
+          {filteredSubmissions.map((sub) => (
+            <button
+              key={sub.id}
+              type="button"
+              onClick={() => setSelectedSubmission(sub)}
+              className="glass-card flex w-full items-center gap-3 rounded-card p-3 text-left transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)]"
+            >
+              <img
+                src={sub.photo_url}
+                alt=""
+                loading="lazy"
+                className="h-16 w-16 flex-none rounded-lg object-cover sm:h-20 sm:w-20"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <strong className="text-sm text-ink">{sub.task?.title || 'Rəf auditi'}</strong>
+                  <span
+                    className={`rounded px-2 py-0.5 text-xs font-bold ${sub.status === 'pending_review' ? 'bg-amber-100 text-amber-900' : sub.status === 'approved' ? 'bg-emerald-100 text-emerald-900' : 'bg-rose-100 text-rose-900'}`}
                   >
-                    <Layers className="w-3.5 h-3.5" />
-                    <span>Sübutları yoxla</span>
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+                    {sub.status === 'pending_review'
+                      ? 'Gözləyir'
+                      : sub.status === 'approved'
+                        ? 'Təsdiqlənib'
+                        : 'İmtina edilib'}
+                  </span>
+                  {(sub.location_mocked ||
+                    sub.location_unverified ||
+                    (sub.ai_score !== null && sub.ai_score !== undefined && sub.ai_score < 60)) && (
+                    <span className="rounded bg-rose-50 px-2 py-0.5 text-xs font-bold text-rose-800">
+                      Əlavə yoxlama
+                    </span>
+                  )}
+                </span>
+                <span className="mt-1 block text-xs text-ink-2">
+                  {sub.store?.name || 'Mağaza'} · {sub.store?.store_code || 'Kod yoxdur'}
+                </span>
+                <span className="mt-1 block text-xs text-muted">
+                  {new Date(sub.submitted_at).toLocaleString('az-AZ', {
+                    timeZone: 'Asia/Baku',
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </span>
+              <span className="hidden text-sm font-bold text-coke sm:inline">Sübutu aç →</span>
+            </button>
+          ))}
         </div>
       )}
 

@@ -4,20 +4,23 @@ import {
   ClipboardCheck,
   Clock,
   TrendingUp,
-  Camera,
   ArrowUpRight,
   Inbox,
   AlertTriangle,
 } from 'lucide-react';
-import { DashboardMetrics, Submission, SubmissionStatus } from '../types';
+import { DashboardMetrics, Submission, SubmissionStatus, Task } from '../types';
 import { TabType } from './Sidebar';
 import { LoadPhase } from '../lib/loadPhase';
 import { StatusBadge } from './ui/StatusBadge';
+import { taskIsOverdue } from '../lib/taskQueue';
 
 interface DashboardOverviewProps {
   phase: LoadPhase;
   metrics: DashboardMetrics;
   recentSubmissions: Submission[];
+  tasks: Task[];
+  submissionCount: number;
+  loadedAt: Date | null;
   onRetry: () => void;
   onOpenSubmissionReview: (submission: Submission) => void;
   onNavigateTab: (tab: TabType, filter?: SubmissionStatus | 'all') => void;
@@ -27,6 +30,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   phase,
   metrics,
   recentSubmissions,
+  tasks,
+  submissionCount,
+  loadedAt,
   onRetry,
   onOpenSubmissionReview,
   onNavigateTab,
@@ -35,6 +41,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   // yüklənənə qədər YALAN rəqəmdir. Yüklənmə → skelet, uğursuzluq → xəta.
   if (phase === 'loading') return <DashboardSkeleton />;
   if (phase === 'error') return <DashboardLoadError onRetry={onRetry} />;
+
+  const overdueTasks = tasks.filter((task) => taskIsOverdue(task));
 
   const kpiCards = [
     {
@@ -70,8 +78,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     },
     {
       title: 'Rəf uyğunluğu',
-      value: `${metrics.complianceRate}%`,
-      subtitle: 'Təsdiqlənmiş rəf dərəcəsi',
+      value: submissionCount === 0 ? '—' : `${metrics.complianceRate}%`,
+      subtitle:
+        submissionCount === 0
+          ? 'Hələ audit yoxdur'
+          : `${submissionCount} göndərişdən təsdiqlənən pay`,
       icon: TrendingUp,
       tint: 'var(--ok-bg)',
       ink: 'var(--ok)',
@@ -87,6 +98,19 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
   return (
     <div className="stagger-g flex flex-col gap-4 sm:gap-5">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+        <p>İdarəetmə icmalı · Gözləyən qərarlar və gecikən işlər</p>
+        {loadedAt && (
+          <p role="status">
+            Məlumat yeniləndi:{' '}
+            {loadedAt.toLocaleString('az-AZ', {
+              timeZone: 'Asia/Baku',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </p>
+        )}
+      </div>
       {/* ── Əsas göstəricilər ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-3.5">
         {kpiCards.map((kpi, idx) => {
@@ -140,42 +164,40 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         })}
       </div>
 
-      {/* ── Diqqət tələb edən banner ──────────────────────────────────────── */}
-      {metrics.pendingReviews > 0 && (
-        <div
-          className="glass-card flex flex-col gap-3 rounded-card p-3.5 sm:flex-row sm:items-center sm:justify-between sm:p-4"
-          style={{
-            backgroundImage: 'linear-gradient(100deg, var(--warn-bg), rgba(255,255,255,.30))',
-            borderColor: 'var(--warn-bd)',
-          }}
+      <section className="grid gap-3 md:grid-cols-2" aria-label="İndi görüləcək işlər">
+        <button
+          type="button"
+          onClick={() => onNavigateTab('review', 'pending_review')}
+          className="glass-card rounded-card p-4 text-left hover:border-amber-400 focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)]"
         >
-          <div className="flex items-center gap-3">
-            <span
-              className="grid h-[34px] w-[34px] flex-none place-items-center rounded-[10px] text-white"
-              style={{ background: 'linear-gradient(140deg,#f0a020,#e08b06)' }}
-            >
-              <Camera className="w-[18px] h-[18px]" strokeWidth={2} />
-            </span>
-            <div className="min-w-0">
-              <h3 className="text-[12.5px] font-extrabold tracking-[-.015em] text-ink">
-                Supervayzer diqqətinə: {metrics.pendingReviews} yeni rəf auditi təsdiq gözləyir
-              </h3>
-              <p className="mt-0.5 text-[11px] text-ink-2">
-                Sahə heyətinin göndərdiyi fotoları planogramla yanaşı müqayisə edərək təsdiqləyin və
-                ya rəy yazın.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => onNavigateTab('review', 'pending_review')}
-            className="btn-g flex-none self-start sm:self-auto"
-          >
-            Yoxlama Mərkəzinə keç
-            <ArrowUpRight className="w-3.5 h-3.5" strokeWidth={2.2} />
-          </button>
-        </div>
-      )}
+          <span className="text-xs font-bold uppercase tracking-wide text-muted">
+            Audit qərarları
+          </span>
+          <span className="mt-1 block text-2xl font-extrabold text-ink">
+            {metrics.pendingReviews}
+          </span>
+          <span className="text-sm text-ink-2">
+            {metrics.pendingReviews
+              ? 'Sübutları yoxla və qərar ver →'
+              : 'Hazırda gözləyən audit yoxdur'}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => onNavigateTab('tasks')}
+          className="glass-card rounded-card p-4 text-left hover:border-rose-400 focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)]"
+        >
+          <span className="text-xs font-bold uppercase tracking-wide text-muted">
+            Gecikən tapşırıqlar
+          </span>
+          <span className="mt-1 block text-2xl font-extrabold text-ink">{overdueTasks.length}</span>
+          <span className="text-sm text-ink-2">
+            {overdueTasks.length
+              ? `${overdueTasks[0].title} və digərləri →`
+              : 'Gecikən aktiv tapşırıq yoxdur'}
+          </span>
+        </button>
+      </section>
 
       {/* ── Son göndərişlər ───────────────────────────────────────────────── */}
       <div className="glass-card overflow-hidden rounded-card">

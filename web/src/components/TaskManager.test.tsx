@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { TaskManager } from './TaskManager';
 import type { Store } from '../types';
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  sessionStorage.clear();
+});
 const stores = [
   { id: 'a', name: 'Mağaza A' },
   { id: 'b', name: 'Mağaza B' },
@@ -61,6 +64,52 @@ describe('explicit task recipients', () => {
       expect(create).toHaveBeenCalledWith(expect.objectContaining({ assigned_stores: ['b'] })),
     );
   });
+});
+
+it('publishes checklist and before/after requirement with the selected recipients', async () => {
+  const { create, submit } = setup();
+  fireEvent.click(screen.getByRole('button', { name: 'Mağaza A' }));
+  fireEvent.click(screen.getByLabelText('Əvvəl və sonra fotosu tələb olunsun'));
+  fireEvent.click(screen.getByRole('button', { name: '+ Sual əlavə et' }));
+  fireEvent.change(screen.getByPlaceholderText('Məsələn: Rəf tam doludurmu?'), {
+    target: { value: 'Rəf tam doludurmu?' },
+  });
+  submit();
+  await waitFor(() =>
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assigned_stores: ['a'],
+        requires_before_after_photo: true,
+        checklist_schema: [
+          { id: expect.any(String), label: 'Rəf tam doludurmu?', type: 'boolean' },
+        ],
+      }),
+    ),
+  );
+});
+
+it('restores an unfinished task after the panel remounts', async () => {
+  setup();
+  fireEvent.click(screen.getByRole('button', { name: 'Mağaza A' }));
+  await waitFor(() => expect(sessionStorage.getItem('oneteam-task-draft-v1')).toContain('Yoxlama'));
+  cleanup();
+  render(
+    <TaskManager
+      tasks={[]}
+      stores={stores}
+      isCreateModalOpen
+      setIsCreateModalOpen={vi.fn()}
+      onCreateTask={vi.fn()}
+    />,
+  );
+  await waitFor(() =>
+    expect((screen.getByLabelText('Tapşırığın Başlığı *') as HTMLInputElement).value).toBe(
+      'Yoxlama',
+    ),
+  );
+  expect(screen.getByRole('button', { name: 'Mağaza A' }).getAttribute('aria-pressed')).toBe(
+    'true',
+  );
 });
 
 it('excludes stores without a region from a regional bulk preview', () => {

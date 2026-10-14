@@ -92,6 +92,7 @@ export function App() {
   const [shelfMetrics, setShelfMetrics] = useState<ShelfMetrics | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [lastLoadedAt, setLastLoadedAt] = useState<Date | null>(null);
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [reviewInitialFilter, setReviewInitialFilter] = useState<
@@ -100,7 +101,7 @@ export function App() {
     const status = new URLSearchParams(window.location.search).get('status');
     return status === 'pending_review' || status === 'approved' || status === 'rejected'
       ? status
-      : 'all';
+      : 'pending_review';
   });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -200,7 +201,7 @@ export function App() {
       const state = (...indices: number[]): LoadPhase =>
         indices.every((i) => results[i].status === 'fulfilled') ? 'ready' : 'error';
       const next = {
-        dashboard: state(0, 3),
+        dashboard: state(0, 2, 3),
         review: state(3),
         tasks: state(1, 2),
         stores: state(1, 3),
@@ -208,6 +209,7 @@ export function App() {
         shelfmap: state(4, 5, 6),
       };
       setTabPhases(next);
+      if (next.dashboard === 'ready') setLastLoadedAt(new Date());
       dispatchPhase({ type: next.dashboard === 'ready' ? 'loaded' : 'failed' });
     } catch (error) {
       setTabPhases({
@@ -396,6 +398,11 @@ export function App() {
   }, [submissions]);
 
   const handleSignOut = async () => {
+    try {
+      window.sessionStorage.removeItem('oneteam-task-draft-v1');
+    } catch {
+      // Private browsing may disable storage; sign-out still proceeds.
+    }
     try {
       await signOutPanel();
     } catch (error) {
@@ -769,6 +776,9 @@ export function App() {
                   phase={activePhase}
                   metrics={metrics}
                   recentSubmissions={submissions.slice(0, 6)}
+                  tasks={tasks}
+                  submissionCount={submissions.length}
+                  loadedAt={lastLoadedAt}
                   onRetry={() => {
                     dispatchPhase({ type: 'retry' });
                     setTabPhases((prev) => ({ ...prev, [activeTab]: 'loading' }));
