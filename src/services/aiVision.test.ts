@@ -6,7 +6,7 @@
  * needs two things this repository does not track:
  *
  *   .venv/          gitignored (see .gitignore), and
- *   yolov8n.pt      model weights in the project root, also untracked.
+ *   yolo11n.pt      model weights in the project root, also untracked.
  *
  * So on a clean checkout the three worker checks cannot run. They are SKIPPED
  * there, and the command to build the environment is printed as the reason.
@@ -205,8 +205,9 @@ function runTestSuite() {
   // asserted. Only the second call is under test, so a cold start can no longer
   // be mistaken for a model that found nothing.
   // ---------------------------------------------------------------------------
-  const warmUp = aiVisionService.runUltralyticsInferenceDetailed('logo.jpg');
-  const workerRun = aiVisionService.runUltralyticsInferenceDetailed('logo.jpg');
+  const fixture = 'vision-worker/fixtures/shelf-01.jpg';
+  const warmUp = aiVisionService.runUltralyticsInferenceDetailed(fixture);
+  const workerRun = aiVisionService.runUltralyticsInferenceDetailed(fixture);
 
   // The three checks below need the Python worker. When this machine has no
   // environment for it they are SKIPPED, loudly and with the reason — and only
@@ -219,10 +220,7 @@ function runTestSuite() {
       'Test 7: Ultralytics YOLO inference worker runs successfully and returns detection boxes',
       reason,
     );
-    skip(
-      'Test 7.1: A run that drew its boxes instead of detecting them reports synthetic_fallback',
-      reason,
-    );
+    skip('Test 7.1: A logo produces no invented shelf detections', reason);
     skip(
       'Test 7.2: A worker that is killed for exceeding its time budget is reported as a timeout',
       reason,
@@ -236,19 +234,12 @@ function runTestSuite() {
         : `${workerRun.reason} — ${workerRun.detail}`,
     );
 
-    // TEST 7.1: the drawn-layout flag survives the trip from Python to TypeScript.
-    //
-    // `logo.jpg` is a company logo, not a shelf, and the model detects nothing in
-    // it, so the worker draws a shelf layout and flags it. Asserting the flag is
-    // here means the suite can never quietly present drawn boxes as detections.
-    // If this fails because the model started finding objects in a logo, the
-    // fixture needs replacing — not this check removing.
+    // A logo is not a shelf; the worker must not manufacture product boxes.
+    const logo = aiVisionService.runUltralyticsInferenceDetailed('logo.jpg');
     assert(
-      workerRun.ok && workerRun.synthetic === true,
-      'Test 7.1: A run that drew its boxes instead of detecting them reports synthetic_fallback',
-      workerRun.ok
-        ? `synthetic=${workerRun.synthetic}; expected true because the model detects nothing in logo.jpg`
-        : `the worker did not run: ${workerRun.reason}`,
+      !logo.ok && logo.reason === 'no-detections',
+      'Test 7.1: A logo produces no invented shelf detections',
+      logo.ok ? `unexpected boxes=${logo.detections.length}` : `reason=${logo.reason}`,
     );
 
     // TEST 7.2: a run that is cut short says so.
@@ -269,49 +260,22 @@ function runTestSuite() {
     );
   }
 
-  // TEST 8: The pipeline produces a scored, summarised evaluation.
-  //
-  // This used to be named "...using real Ultralytics engine" and passed even
-  // when the worker failed, because `analyzeShelfPhoto` falls back to the
-  // simulation and nothing recorded which engine ran. The name now matches what
-  // it actually checks; the engine is pinned by 8.1 below.
+  // A photo without shelf products stays empty and names the real engine.
   const yoloAnalysis = aiVisionService.analyzeShelfPhoto({
     photoUrl: 'logo.jpg',
     useUltralytics: true,
   });
   assert(
-    yoloAnalysis.detections.length > 0 &&
-      yoloAnalysis.complianceScore >= 0 &&
-      yoloAnalysis.complianceScore <= 100 &&
-      (yoloAnalysis.autoStatus === 'approved' ||
-        yoloAnalysis.autoStatus === 'needs_manual_review') &&
-      typeof yoloAnalysis.aiSummary === 'string',
-    'Test 8: End-to-end planogram analysis produces a scored, summarised evaluation',
-    `detections=${yoloAnalysis.detections.length} score=${yoloAnalysis.complianceScore} ` +
-      `status=${yoloAnalysis.autoStatus} summary=${typeof yoloAnalysis.aiSummary}`,
+    yoloAnalysis.detections.length === 0 && yoloAnalysis.autoStatus === 'needs_manual_review',
+    'Test 8: A logo never becomes a simulated compliant shelf',
+    `detections=${yoloAnalysis.detections.length} status=${yoloAnalysis.autoStatus}`,
   );
-
-  // TEST 8.1: the evaluation names the engine that really produced its boxes.
-  //
-  // A cross-check between two independent observations: the worker was called
-  // directly for test 7, and the pipeline called it again. If the pipeline ever
-  // silently substitutes the simulation, these two disagree and this fails —
-  // which is the whole point, because that substitution is exactly how the
-  // previous version of test 8 came to pass without the detector.
-  const expectedEngine = workerRun.ok ? 'ultralytics-yolo' : 'simulation';
   assert(
-    yoloAnalysis.engine === expectedEngine,
-    'Test 8.1: The evaluation names the engine that actually produced the detections',
-    `engine=${yoloAnalysis.engine}, but the worker call ${workerRun.ok ? 'succeeded' : `failed (${workerRun.reason})`}`,
+    yoloAnalysis.engine === 'ultralytics-yolo',
+    'Test 8.1: A failed or empty detector run is never relabelled simulation',
+    `engine=${yoloAnalysis.engine}`,
   );
 
-  if (workerRun.ok && workerRun.synthetic) {
-    console.log(
-      '  ℹ️  Note: the worker detected nothing in logo.jpg and drew a shelf layout instead.\n' +
-        '      Test 7 therefore proves the worker runs and reports honestly — not that it\n' +
-        '      recognises shelf products. A real shelf photo is needed for that.',
-    );
-  }
   if (!warmUp.ok) {
     console.log(`  ℹ️  Note: the unasserted warm-up call ended as ${warmUp.reason}.`);
   }

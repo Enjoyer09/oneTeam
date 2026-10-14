@@ -74,7 +74,9 @@ export class VisionLLMProvider implements VisionProvider {
 
     let judgement;
     try {
-      judgement = await this.client.judge(input);
+      // The caller often supplies only a task title. Send the same derived
+      // requirements used for our breakdown to the actual model prompt.
+      judgement = await this.client.judge({ ...input, requirements });
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       return {
@@ -100,15 +102,18 @@ export class VisionLLMProvider implements VisionProvider {
       confidence,
       // A model that is unsure of its own read escalates even when the score is
       // high — an uncertain 80% is exactly the case the hybrid exists to catch.
-      needsHumanReview: confidence < 0.5,
+      needsHumanReview: confidence < 0.5 || judgement.isBeverageShelf !== true,
       detectedCounts: judgement.detectedCounts,
       skuBreakdown: breakdownFromCounts(judgement.detectedCounts, requirements),
       detections: [],
       summary:
-        judgement.summary ||
-        (judgement.missingItems.length > 0
-          ? `Çatışmayanlar: ${judgement.missingItems.join('; ')}`
-          : `Planogram uyğunluğu: ${complianceScore}%`),
+        (judgement.isBeverageShelf !== true
+          ? 'İçki rəfi olduğu təsdiqlənmədi — insan yoxlaması tələb olunur. '
+          : '') +
+        (judgement.summary ||
+          (judgement.missingItems.length > 0
+            ? `Çatışmayanlar: ${judgement.missingItems.join('; ')}`
+            : `Planogram uyğunluğu: ${complianceScore}%`)),
       engine: 'vision-llm',
       provider: this.name,
       model: this.client.model,

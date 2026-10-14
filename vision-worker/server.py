@@ -22,7 +22,7 @@ difference between this and the spawned worker — which is the point: one
 contract, two transports.
 
     GET  /health          -> {"ok": true, ...}
-    POST /detect {"image": "<path or URL>"} -> the worker's own JSON
+    POST /detect {"image": "data:image/...;base64,..."} -> worker JSON
 
 Stdlib server, on purpose. FastAPI would add a framework, an ASGI runtime and a
 second process manager to a service whose whole job is to hold one model in
@@ -39,6 +39,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 # constructs the model on every call — one at a time keeps the cache warm instead
 # of racing it.
 INFERENCE_LOCK = threading.Lock()
+MAX_REQUEST_BYTES = 8 * 1024 * 1024
 
 _inference = None
 
@@ -80,8 +81,7 @@ def get_inference():
 def detect(image: str, model: str | None = None, conf: float = 0.25) -> dict:
     """Run one inference. Returns the worker's dict, never raises for a bad image."""
     if model is None:
-        # Same knob /health reports: env default, payload override, then the
-        # stock weights.
+        # Same knob /health reports: environment setting or stock weights.
         model = os.environ.get("ONETEAM_YOLO_MODEL", "yolo11n.pt")
     with INFERENCE_LOCK:
         return get_inference()(image, model, conf)
@@ -121,6 +121,10 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             length = int(self.headers.get("content-length") or 0)
+            if length > MAX_REQUEST_BYTES:
+                self.close_connection = True
+                self._send({"success": False, "error": "Image request is too large."}, 413)
+                return
             raw = self.rfile.read(length) if length > 0 else b""
             payload = json.loads(raw.decode("utf-8") or "{}")
         except (ValueError, UnicodeDecodeError) as error:
@@ -134,13 +138,23 @@ class Handler(BaseHTTPRequestHandler):
                 400,
             )
             return
+        # The HTTP worker only needs the bytes sent by the bot. Accepting a
+        # caller-supplied URL here lets a public endpoint probe internal hosts.
+        if not image.startswith("data:image/"):
+            self._send({"success": False, "error": "Only inline image data is accepted."}, 400)
+            return
 
         try:
+            conf = float(payload.get("conf", os.environ.get("ONETEAM_YOLO_CONF", 0.25)))
+            if not 0.1 <= conf <= 0.9:
+                raise ValueError("Confidence threshold must be between 0.1 and 0.9.")
             result = detect(
                 image,
-                model=(str(payload["model"]) if payload.get("model") else None),
-                conf=float(payload.get("conf", os.environ.get("ONETEAM_YOLO_CONF", 0.25))),
+                conf=conf,
             )
+        except ValueError as error:
+            self._send({"success": False, "error": str(error)}, 400)
+            return
         except Exception as error:  # the worker's own failures are JSON, not 500s
             self._send({"success": False, "error": f"{type(error).__name__}: {error}"}, 500)
             return

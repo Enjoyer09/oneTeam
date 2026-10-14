@@ -61,6 +61,7 @@ const GOOD_BODY = {
         content: JSON.stringify({
           complianceScore: 82,
           confidence: 0.71,
+          isBeverageShelf: true,
           detectedCounts: { coca_cola_classic: 6, fanta: 2, bogus_sku: 9 },
           missingItems: ['Sprite çatışmır'],
           summary: 'Rəf planogram ilə qismən uyğundur',
@@ -164,7 +165,7 @@ async function main(): Promise<void> {
     const j = await c.judge(INPUT);
     check(
       'a well-formed reply becomes a judgement',
-      j.complianceScore === 82 && j.confidence === 0.71,
+      j.complianceScore === 82 && j.confidence === 0.71 && j.isBeverageShelf === true,
     );
     check(
       'an unknown SKU in the reply is dropped, not trusted',

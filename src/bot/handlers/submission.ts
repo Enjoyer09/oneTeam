@@ -423,17 +423,20 @@ async function filePhoto(
     // with a location fail as stale.
     locatedAt: location?.locatedAt,
     checklistAnswers,
-    ai: ai
-      ? {
-          score: ai.complianceScore,
-          summary: ai.summary,
-          detections: ai.detections,
-          confidence: ai.confidence,
-          needsHumanReview: ai.needsHumanReview,
-          engine: ai.engine,
-          model: ai.model,
-        }
-      : undefined,
+    // An uncertain model or generic COCO bottle detector has not graded the
+    // planogram. Do not turn its placeholder 0 into a displayed AI score.
+    ai:
+      ai && !ai.needsHumanReview
+        ? {
+            score: ai.complianceScore,
+            summary: ai.summary,
+            detections: ai.detections,
+            confidence: ai.confidence,
+            needsHumanReview: ai.needsHumanReview,
+            engine: ai.engine,
+            model: ai.model,
+          }
+        : undefined,
     metadata: {
       telegram_user_id: ctx.from?.id,
       telegram_chat_id: ctx.chat?.id,
@@ -500,21 +503,18 @@ async function filePhoto(
       ? `📋 *Çeklist:* ✅ ${checklistAnswers.length} sual cavablandırıldı\n`
       : `📋 *Çeklist:* ⚠️ Cavabsız qeydə alındı\n`;
 
-  // The AI read, shown only when an engine actually ran. `submission.ai_score`
-  // is the API's persisted value (authoritative), so it is preferred over the
-  // local `ai`; the local object is the fallback and the flag for "vision was
-  // attempted". When vision is off there is no line at all — the same message a
-  // pre-vision submission produced.
-  const aiScore = submission.ai_score ?? ai?.complianceScore;
-  const aiSummary = submission.ai_summary ?? ai?.summary;
+  // Only the score persisted by the API is a verdict. A local result requiring
+  // human review may carry a placeholder 0; never show that as a shelf grade.
+  const aiScore = submission.ai_score;
+  const aiSummary = submission.ai_summary;
   let aiLine = '';
   if (typeof aiScore === 'number') {
     const summaryText = aiSummary ? `\n_${escapeMarkdown(aiSummary)}_` : '';
     aiLine = `🤖 *AI qiyməti:* ${Math.round(aiScore)}/100${summaryText}\n`;
   } else if (visionProvider) {
-    // An engine was configured but returned nothing (failure / rate limit).
-    // Said plainly rather than hidden: the audit is safe, a human will look.
-    aiLine = `🤖 *AI yoxlanışı:* ⚠️ tamamlanmadı — nəzarətçi yoxlayacaq\n`;
+    aiLine = ai?.needsHumanReview
+      ? `🤖 *AI yoxlanışı:* ⚠️ nəticə qeyri-müəyyəndir — nəzarətçi fotonu yoxlayacaq\n`
+      : `🤖 *AI yoxlanışı:* ⚠️ tamamlanmadı — nəzarətçi yoxlayacaq\n`;
   }
 
   // The verdict comes from the API, not from the bot: the auto-approve decision

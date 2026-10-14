@@ -2,22 +2,16 @@
  * oneTeam — Hybrid vision orchestrator
  * ============================================================================
  *
- * The reason the seam exists. A deterministic detector (YOLO) is cheap, fast and
- * offline, but it counts bottles — it does not judge whether the shelf *reads*
- * as the planogram demands (right brand block, no competitor product in the
- * cooler, facings actually forward). A vision-LLM judges exactly that, but it
- * costs money, adds latency, and can be wrong with confidence.
+ * Stock YOLO detects generic bottles but cannot verify brands or planograms.
+ * The vision-LLM attempts a planogram judgement, but may be confidently wrong.
  *
- * So the hybrid spends the expensive engine only when the cheap one is unsure:
+ * The hybrid uses this escalation path:
  *
- *   1. Run YOLO. If it is confident (real boxes, mean confidence over the floor)
- *      AND its rule verdict is decisive, trust it — no LLM call is made.
- *   2. Otherwise escalate to the vision-LLM for a planogram-compliance judgement.
- *      If the LLM is confident, its verdict wins (YOLO's boxes are kept for the
- *      card).
- *   3. If neither layer will stand behind an answer — YOLO unsure and the LLM
- *      absent or also unsure — the result is `needsHumanReview`. A supervisor
- *      looks, which is the safe default this whole platform is built around.
+ *   1. Run YOLO. The current COCO provider is never verdict-confident.
+ *   2. Ask the LLM about the shelf and planogram. Retain generic YOLO boxes.
+ *   3. Require a confirmed beverage shelf and at least three YOLO bottle boxes
+ *      before an LLM verdict can bypass human review. This is a temporary
+ *      safeguard until a SKU-trained model has been evaluated.
  *
  * `combineHybrid` is a pure function so the escalation logic is tested without a
  * worker or a network. The provider does only the I/O around it.
@@ -50,13 +44,18 @@ export function combineHybrid(
   analyzedAt: string,
 ): VisionAnalysis {
   const authoritative = path === 'llm-confident' && llm ? llm : yolo;
-  const needsHumanReview = path === 'llm-unsure-human-review' || path === 'no-llm-human-review';
+  // A vision model alone may confidently misread a room as a beverage shelf.
+  // Until a SKU-trained detector exists, require at least three generic bottle
+  // boxes before an LLM verdict can auto-approve. Fewer is a human-review hold.
+  const sceneUnverified = path === 'llm-confident' && yolo.detections.length < 3;
+  const needsHumanReview =
+    sceneUnverified || path === 'llm-unsure-human-review' || path === 'no-llm-human-review';
 
   const summary =
     path === 'yolo-confident'
       ? `Hibrid: YOLO əmin (${yolo.confidence}). ${yolo.summary}`
       : path === 'llm-confident'
-        ? `Hibrid: YOLO qərarsız → vision-LLM əmin (${llm?.confidence}). ${llm?.summary}`
+        ? `Hibrid: YOLO qərarsız → vision-LLM əmin (${llm?.confidence}).${sceneUnverified ? ' Foto üzrə ən azı 3 butulka təsdiqlənmədiyi üçün insan yoxlaması tələb olunur.' : ''} ${llm?.summary}`
         : path === 'llm-unsure-human-review'
           ? `Hibrid: hər iki qat qərarsız (YOLO ${yolo.confidence}, LLM ${llm?.confidence}) → insan yoxlaması. ${llm?.summary ?? yolo.summary}`
           : `Hibrid: YOLO qərarsız və vision-LLM konfiqurasiya edilməyib → insan yoxlaması. ${yolo.summary}`;

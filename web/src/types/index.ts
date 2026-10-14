@@ -144,13 +144,14 @@ export interface BoundingBox {
 
 export interface DetectionItem {
   id: string;
-  sku: CocaColaSKU;
+  sku: CocaColaSKU | 'unverified_bottle';
   label: string;
   confidence: number;
   box: BoundingBox;
   color: string;
   shelfRow: number;
   facingIndex: number;
+  objectClass?: string;
 }
 
 export interface Submission {

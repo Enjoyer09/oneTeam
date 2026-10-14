@@ -69,3 +69,32 @@ it('puts risky audits first and opens the next pending audit after approval', as
   await waitFor(() => expect(approve).toHaveBeenCalledWith('risk'));
   await waitFor(() => expect(screen.getByRole('dialog').textContent).toContain('ordinary'));
 });
+
+it('hides historical brand guesses from the audit photo', () => {
+  const old = submission('old', '2026-10-13T10:00:00Z');
+  old.ai_score = 91;
+  old.ai_detections = [
+    {
+      id: 'legacy-1',
+      sku: 'sprite',
+      label: 'Sprite 0.5L',
+      confidence: 0.9,
+      box: { x: 10, y: 10, width: 20, height: 20 },
+      color: '#008B47',
+      shelfRow: 1,
+      facingIndex: 1,
+    },
+  ];
+  render(
+    <AuditReviewCenter
+      submissions={[old]}
+      selectedSubmission={old}
+      setSelectedSubmission={vi.fn()}
+      onApprove={vi.fn()}
+      onReject={vi.fn()}
+    />,
+  );
+  expect(screen.getByText(/köhnə SKU işarəsi gizlədildi/)).toBeTruthy();
+  expect(screen.getByText(/Köhnə balı qərar üçün sübut saymayın/)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: /AI Qutuları/ })).toBeNull();
+});

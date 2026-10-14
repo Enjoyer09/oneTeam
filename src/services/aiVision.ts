@@ -1,11 +1,11 @@
 /**
- * ⚠️ THIS IS A SIMULATION. IT DOES NOT LOOK AT ANY PHOTO.
+ * Simulation fixtures and generic YOLO object detection.
  * ============================================================================
  *
- * `detectShelfProducts` never reads the image. It picks one of four hardcoded
- * sets of bounding boxes by searching the *photo URL string* for words like
- * "gap", "missing" or "reject" (`inferScenario`), and generates a compliance
- * score from those fixed boxes.
+ * Explicit `mockScenario` inputs use hardcoded fixtures. Production inputs run
+ * the YOLO worker; stock COCO weights can locate bottles but cannot identify
+ * Coca-Cola SKUs or grade a planogram. A generic bottle must not be scored as
+ * a branded product.
  *
  * It was wired into the bot's submission path until recently, which meant every
  * merchandiser saw a confident-looking "AI Uyğunluq Balı" that had been produced
@@ -13,11 +13,8 @@
  * (`audits/<store>/<task>_<timestamp>.jpg`), none of the keywords ever matched,
  * so every photo scored the same flattering result.
  *
- * It is kept because `aiVision.test.ts` exercises it and because a real detector
- * is a plausible future feature. It is NOT used anywhere in production, and it
- * must not be re-wired into the submission path as if it were an analyser. The
- * score a supervisor acts on comes from `PortalService.autoApproveSubmission`,
- * which scores signals that genuinely exist on the record.
+ * Simulation is kept for explicit development scenarios only. Never use its
+ * scores as evidence for production approval.
  */
 
 import { clock } from '@oneteam/types';
@@ -41,13 +38,15 @@ export interface BoundingBox {
 
 export interface DetectionItem {
   id: string;
-  sku: CocaColaSKU;
+  sku: CocaColaSKU | 'unverified_bottle';
   label: string;
   confidence: number;
   box: BoundingBox;
   color: string;
   shelfRow: number;
   facingIndex: number;
+  /** COCO object class, not a product brand. Required for trusted YOLO boxes. */
+  objectClass?: string;
 }
 
 /**
@@ -68,8 +67,7 @@ export type YoloRunOutcome =
       ok: true;
       detections: DetectionItem[];
       /**
-       * True when the worker drew the boxes itself instead of detecting them.
-       * See the `len(raw_boxes) == 0` branch in `scripts/yolo_inference.py`.
+       * Legacy worker compatibility. The current worker never draws boxes.
        */
       synthetic: boolean;
     }
@@ -563,18 +561,16 @@ export class AIVisionService {
         return { detections: outcome.detections, engine: 'ultralytics-yolo' };
       }
 
-      // Asking for the real detector and silently receiving the simulation is
-      // how a demo comes to look like a working analyser — and it is why the
-      // test that requested the real engine could pass without it. The fallback
-      // stays, because it is this module's documented behaviour, but it now
-      // says out loud that it happened and why.
+      // A real-detector failure must never turn into plausible demo boxes.
       console.warn(
-        `⚠️ [oneTeam vision] Ultralytics worker unavailable (${outcome.reason}): ` +
-          `${outcome.detail} Falling back to the simulated engine.`,
+        `⚠️ [oneTeam vision] Ultralytics worker unavailable (${outcome.reason}): ${outcome.detail}`,
       );
+      return { detections: [], engine: 'ultralytics-yolo' };
     }
 
-    // 2. Fallback to heuristic / simulated computer vision engine
+    if (!input.mockScenario) return { detections: [], engine: 'ultralytics-yolo' };
+
+    // 2. Explicit demo scenario only — never a production fallback.
     const detections: DetectionItem[] = [];
     const scenario = input.mockScenario || this.inferScenario(input);
 
@@ -681,6 +677,7 @@ export class AIVisionService {
     };
 
     detections.forEach((d) => {
+      if (d.sku === 'unverified_bottle') return;
       counts[d.sku] = (counts[d.sku] || 0) + 1;
     });
 

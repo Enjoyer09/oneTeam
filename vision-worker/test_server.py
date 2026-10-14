@@ -41,9 +41,10 @@ def check(label, condition, detail=""):
 
 DETECTION = {
     "id": "det-1",
-    "sku": "coca_cola_classic",
-    "label": "Coca-Cola Classic 0.5L",
+    "sku": "unverified_bottle",
+    "label": "Butulka — marka təsdiqlənməyib",
     "confidence": 0.91,
+    "objectClass": "bottle",
     "box": {"x": 10, "y": 20, "width": 8, "height": 40},
     "color": "#F40009",
     "shelfRow": 1,
@@ -101,20 +102,34 @@ def main():
         status, body = call(port, "/health")
         check("GET /health is 200 and ok", status == 200 and body.get("ok") is True, str(body))
 
-        status, body = call(port, "/detect", {"image": "https://cdn.test/shelf.jpg"})
+        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA"})
         check(
             "POST /detect forwards the image and returns the worker payload",
             status == 200
             and body.get("success") is True
-            and body["received"]["image"] == "https://cdn.test/shelf.jpg"
-            and body["detections"][0]["sku"] == "coca_cola_classic",
+            and body["received"]["image"] == "data:image/jpeg;base64,AAAA"
+            and body["detections"][0]["sku"] == "unverified_bottle",
             json.dumps(body)[:300],
         )
 
-        status, body = call(port, "/detect", {"image": "x", "conf": 0.5})
+        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA", "conf": 0.5})
         check(
             "an optional conf threshold reaches the worker",
             status == 200 and body["received"]["conf"] == 0.5,
+            json.dumps(body)[:300],
+        )
+
+        status, body = call(port, "/detect", {"image": "https://internal.example/photo.jpg"})
+        check(
+            "remote URLs are rejected before inference",
+            status == 400 and body.get("success") is False,
+            json.dumps(body)[:300],
+        )
+
+        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA", "conf": 0.01})
+        check(
+            "unsafe confidence override is rejected",
+            status == 400 and body.get("success") is False,
             json.dumps(body)[:300],
         )
 
@@ -152,7 +167,7 @@ def main():
             json.dumps(body)[:300],
         )
 
-        status, body = call(port, "/other", {"image": "x"})
+        status, body = call(port, "/other", {"image": "data:image/jpeg;base64,AAAA"})
         check(
             "an unknown path is 404",
             status == 404,
@@ -169,7 +184,7 @@ def main():
                 status == 200 and body.get("model") == "yolo11n.pt",
                 json.dumps(body)[:300],
             )
-            status, body = call(port, "/detect", {"image": "x"})
+            status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA"})
             check(
                 "inference runs the configured model when the payload has none",
                 status == 200 and body["received"].get("model") == "yolo11n.pt",
@@ -182,7 +197,7 @@ def main():
         # when the payload has no conf of its own.
         os.environ["ONETEAM_YOLO_CONF"] = "0.55"
         try:
-            status, body = call(port, "/detect", {"image": "x"})
+            status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA"})
             check(
                 "inference uses ONETEAM_YOLO_CONF when the payload has none",
                 status == 200 and body["received"].get("conf") == 0.55,
@@ -209,7 +224,7 @@ def main():
     # and lose the reason entirely.
     httpd, port = start_server(stub_raises)
     try:
-        status, body = call(port, "/detect", {"image": "x"})
+        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA"})
         check(
             "a worker exception is 500 with success:false and the message",
             status == 500

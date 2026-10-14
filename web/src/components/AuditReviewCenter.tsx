@@ -62,6 +62,13 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
   const [activePhotoView, setActivePhotoView] = useState<'after' | 'before'>('after');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isReevaluating, setIsReevaluating] = useState(false);
+  // Historical YOLO results mapped arbitrary COCO objects to brand names by
+  // color and position. Keep those records, but never draw their false labels.
+  const bottleDetections = (selectedSubmission?.ai_detections ?? []).filter(
+    (item) => item.objectClass === 'bottle' && item.sku === 'unverified_bottle',
+  );
+  const hiddenLegacyBoxes =
+    (selectedSubmission?.ai_detections?.length ?? 0) - bottleDetections.length;
 
   React.useEffect(() => {
     if (initialFilter) {
@@ -455,14 +462,20 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                           Bu rəqəm uyğunluq balıdır, modelin əminlik faizi deyil. Yekun status
                           ayrıca göstərilir. Yoxlama gözləyirsə, foto və lokasiya sübutlarını
                           yoxlayıb qərar verin.
-                          {selectedSubmission.ai_detections?.length
-                            ? ` Təhlildə ${selectedSubmission.ai_detections.length} obyekt işarələnib.`
+                          {bottleDetections.length
+                            ? ` Təhlildə ${bottleDetections.length} marka təsdiqlənməmiş butulka işarələnib.`
                             : ''}
                         </p>
                       </div>
                     </div>
                   </div>
                 )}
+              {hiddenLegacyBoxes > 0 && (
+                <p className="mx-5 mt-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+                  Bu auditin əvvəlki AI qutuları markanı etibarlı tanımırdı. Köhnə balı qərar üçün
+                  sübut saymayın; fotonu özünüz yoxlayın.
+                </p>
+              )}
 
               {/* Modal Body: Side-by-Side View */}
               <div className="p-5 overflow-y-auto flex-1 grid grid-cols-1 md:grid-cols-2 gap-5 bg-[var(--g-panel)]">
@@ -533,27 +546,25 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                       )}
 
                       {/* Bounding Boxes Toggle Button (active only on After view) */}
-                      {activePhotoView === 'after' &&
-                        selectedSubmission.ai_detections &&
-                        selectedSubmission.ai_detections.length > 0 && (
-                          <button
-                            onClick={() => setShowBoundingBoxes(!showBoundingBoxes)}
-                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
-                              showBoundingBoxes
-                                ? 'bg-coke-50 text-coke-600 border border-coke-200'
-                                : 'bg-[var(--g-panel)] text-muted hover:bg-[var(--g-card)]'
-                            }`}
-                          >
-                            {showBoundingBoxes ? (
-                              <Eye className="w-3.5 h-3.5 text-coke-500" />
-                            ) : (
-                              <EyeOff className="w-3.5 h-3.5" />
-                            )}
-                            <span>
-                              {showBoundingBoxes ? 'AI Qutuları: AÇIQ' : 'AI Qutuları: BAĞLI'}
-                            </span>
-                          </button>
-                        )}
+                      {activePhotoView === 'after' && bottleDetections.length > 0 && (
+                        <button
+                          onClick={() => setShowBoundingBoxes(!showBoundingBoxes)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                            showBoundingBoxes
+                              ? 'bg-coke-50 text-coke-600 border border-coke-200'
+                              : 'bg-[var(--g-panel)] text-muted hover:bg-[var(--g-card)]'
+                          }`}
+                        >
+                          {showBoundingBoxes ? (
+                            <Eye className="w-3.5 h-3.5 text-coke-500" />
+                          ) : (
+                            <EyeOff className="w-3.5 h-3.5" />
+                          )}
+                          <span>
+                            {showBoundingBoxes ? 'AI Qutuları: AÇIQ' : 'AI Qutuları: BAĞLI'}
+                          </span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -569,37 +580,22 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                         : 'Göndərilən rəf fotosu'
                     }
                     detections={
-                      activePhotoView === 'after' && showBoundingBoxes
-                        ? (selectedSubmission.ai_detections ?? [])
-                        : []
+                      activePhotoView === 'after' && showBoundingBoxes ? bottleDetections : []
                     }
                   />
 
-                  {/* Detected Products Color Legend */}
-                  {selectedSubmission.ai_detections &&
-                    selectedSubmission.ai_detections.length > 0 && (
-                      <div className="mt-2.5 pt-2 border-t border-hair-2 flex items-center justify-between flex-wrap gap-2 text-[11px] text-ink-2">
-                        <span className="font-bold text-ink-2">Aşkarlanan SKU-lar:</span>
-                        <div className="flex items-center gap-2.5 flex-wrap">
-                          <span className="flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full bg-[#F40009]"></span> Classic
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full bg-[#111827]"></span> Zero Sugar
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full bg-[#FF7300]"></span> Fanta
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full bg-[#008B47]"></span> Sprite
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full border border-dashed border-[#EF4444] bg-rose-100"></span>{' '}
-                            Boşluq
-                          </span>
-                        </div>
-                      </div>
-                    )}
+                  {bottleDetections.length > 0 && (
+                    <div className="mt-2.5 pt-2 border-t border-hair-2 flex items-center justify-between flex-wrap gap-2 text-[11px] text-ink-2">
+                      <span className="font-bold text-ink-2">Modelin gördüyü:</span>
+                      <span>Butulka ({bottleDetections.length}) · marka təsdiqlənməyib</span>
+                    </div>
+                  )}
+                  {hiddenLegacyBoxes > 0 && (
+                    <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+                      {hiddenLegacyBoxes} köhnə SKU işarəsi gizlədildi: həmin marka etiketləri model
+                      tərəfindən təsdiqlənməmişdi.
+                    </p>
+                  )}
 
                   <div className="mt-2.5 p-2.5 bg-[var(--g-panel)] rounded-lg border border-hair-2 text-[11px] text-ink-2 flex items-center justify-between">
                     <div>

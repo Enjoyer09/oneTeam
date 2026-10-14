@@ -7,6 +7,7 @@
  * logic — they translate `aiVisionService`'s existing output into the seam's
  * `VisionAnalysis` shape and, for YOLO, decide how much to trust it.
  */
+import { clock } from '@oneteam/types';
 import { aiVisionService, type DetectionItem, type PlanogramRequirement } from '../aiVision';
 import type { VisionAnalysis, VisionInput, VisionProvider } from './types';
 
@@ -17,13 +18,6 @@ function requirementsFor(input: VisionInput): PlanogramRequirement[] {
     input.taskDescription,
     input.requirements,
   );
-}
-
-/** Mean per-box detector confidence, or 0 when there is nothing to average. */
-function meanConfidence(detections: DetectionItem[]): number {
-  if (detections.length === 0) return 0;
-  const sum = detections.reduce((acc, d) => acc + (d.confidence ?? 0), 0);
-  return Number((sum / detections.length).toFixed(2));
 }
 
 /**
@@ -77,11 +71,9 @@ export class SimulationVisionProvider implements VisionProvider {
 /**
  * The local Ultralytics YOLO worker, as a provider.
  *
- * Confidence is the mean per-box detector confidence, and a run that could not
- * produce real boxes — the worker was unavailable, timed out, failed, found
- * nothing, or drew its own synthetic boxes — yields confidence 0 and
- * `needsHumanReview`. This is what lets the hybrid know when YOLO alone is not
- * enough to decide.
+ * Stock COCO weights can detect a generic bottle, not its beverage brand or
+ * planogram compliance. Object confidence must never become verdict confidence.
+ * Even a successful detection therefore needs the LLM or a human reviewer.
  */
 export class YoloVisionProvider implements VisionProvider {
   readonly name = 'yolo';
@@ -105,41 +97,31 @@ export class YoloVisionProvider implements VisionProvider {
           workerUrl: this.workerUrl,
         })
       : aiVisionService.runUltralyticsInferenceDetailed(imageSource);
-    const trustworthy = outcome.ok && !outcome.synthetic;
-    const detections = outcome.ok ? outcome.detections : [];
-    const evalResult = aiVisionService.evaluateCompliance(
-      detections,
-      requirementsFor(input),
-      'ultralytics-yolo',
-    );
-
-    if (!trustworthy) {
-      const reason = outcome.ok ? 'synthetic-fallback' : outcome.reason;
-      return {
-        complianceScore: evalResult.complianceScore,
-        confidence: 0,
-        needsHumanReview: true,
-        detectedCounts: evalResult.detectedCounts,
-        skuBreakdown: evalResult.skuBreakdown,
-        detections: evalResult.detections,
-        summary: `YOLO nəticəsi etibarsız (${reason}): insan yoxlaması tələb olunur. ${evalResult.aiSummary}`,
-        engine: 'ultralytics-yolo',
-        provider: this.name,
-        analyzedAt: evalResult.analyzedAt,
-      };
-    }
+    // Discard old worker payloads that painted arbitrary COCO objects as SKUs.
+    // A rolling deploy may briefly run this bot against the previous worker.
+    const detections: DetectionItem[] =
+      outcome.ok && !outcome.synthetic
+        ? outcome.detections.filter(
+            (d) => d.objectClass === 'bottle' && d.sku === 'unverified_bottle',
+          )
+        : [];
+    const reason = outcome.ok
+      ? outcome.synthetic
+        ? 'synthetic-fallback'
+        : 'brand-unverified'
+      : outcome.reason;
 
     return {
-      complianceScore: evalResult.complianceScore,
-      confidence: meanConfidence(detections),
-      needsHumanReview: evalResult.autoStatus === 'needs_manual_review',
-      detectedCounts: evalResult.detectedCounts,
-      skuBreakdown: evalResult.skuBreakdown,
-      detections: evalResult.detections,
-      summary: evalResult.aiSummary,
+      complianceScore: 0,
+      confidence: 0,
+      needsHumanReview: true,
+      detectedCounts: {},
+      skuBreakdown: [],
+      detections,
+      summary: `YOLO (${reason}): ${detections.length} mümkün butulka tapıldı; marka və planogram uyğunluğu müəyyən edilmədi. İnsan yoxlaması tələb olunur.`,
       engine: 'ultralytics-yolo',
       provider: this.name,
-      analyzedAt: evalResult.analyzedAt,
+      analyzedAt: clock.now().toISOString(),
     };
   }
 }

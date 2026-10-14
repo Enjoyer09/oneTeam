@@ -161,11 +161,12 @@ class HttpVisionLLMClient implements VisionLLMClient {
       '{\n' +
       '  "complianceScore": number (0-100, how well the shelf meets the planogram),\n' +
       '  "confidence": number (0-1, how sure YOU are of your own reading of this photo),\n' +
+      '  "isBeverageShelf": boolean (true only for a visible retail beverage shelf with beverage products; false for rooms, plants, electronics, fire extinguishers or uncertainty),\n' +
       `  "detectedCounts": object mapping any of [${skuList}] to integer counts,\n` +
       '  "missingItems": string[] (short human-readable shortfalls),\n' +
       '  "summary": string (one sentence, Azerbaijani preferred)\n' +
       '}\n' +
-      'If the photo is too blurry, dark, or does not show a shelf, set confidence low.'
+      'If this is not clearly a beverage shelf, set isBeverageShelf false, confidence low, and do not invent SKU counts.'
     );
   }
 }
@@ -194,6 +195,7 @@ function parseJudgement(raw: string): VisionLLMJudgement {
   return {
     complianceScore: Number(parsed?.complianceScore) || 0,
     confidence: Number(parsed?.confidence) || 0,
+    isBeverageShelf: parsed?.isBeverageShelf === true,
     detectedCounts,
     missingItems: Array.isArray(parsed?.missingItems) ? parsed.missingItems.map(String) : [],
     summary: typeof parsed?.summary === 'string' ? parsed.summary : '',

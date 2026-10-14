@@ -92,7 +92,7 @@ async function main(): Promise<void> {
     const yolo = analysis({
       complianceScore: 40,
       confidence: 0.3,
-      detections: [{ id: 'd1' } as any],
+      detections: [{ id: 'd1' }, { id: 'd2' }, { id: 'd3' }] as any,
     });
     const llm = analysis({
       complianceScore: 91,
@@ -103,7 +103,7 @@ async function main(): Promise<void> {
     });
     const out = combineHybrid(yolo, llm, 'llm-confident', 'T');
     check('llm-confident takes LLM score', out.complianceScore === 91);
-    check('llm-confident keeps YOLO boxes', out.detections.length === 1);
+    check('llm-confident keeps YOLO boxes', out.detections.length === 3);
     check('llm-confident carries the model', out.model === 'test-model');
     check('llm-confident is not human review', out.needsHumanReview === false);
     check('confidence is the max of both layers', out.confidence === 0.9);
@@ -113,6 +113,12 @@ async function main(): Promise<void> {
     const llm = analysis({ confidence: 0.4, engine: 'vision-llm' });
     const out = combineHybrid(yolo, llm, 'llm-unsure-human-review', 'T');
     check('both-unsure escalates to human', out.needsHumanReview === true);
+  }
+  {
+    const yolo = analysis({ confidence: 0, detections: [] });
+    const llm = analysis({ confidence: 0.99, complianceScore: 99, engine: 'vision-llm' });
+    const out = combineHybrid(yolo, llm, 'llm-confident', 'T');
+    check('a room without detected bottles cannot auto-approve', out.needsHumanReview);
   }
   {
     const out = combineHybrid(analysis({ confidence: 0.2 }), null, 'no-llm-human-review', 'T');
@@ -128,7 +134,14 @@ async function main(): Promise<void> {
     check('confident YOLO produces a decisive result', out.needsHumanReview === false);
   }
   {
-    const yolo = new StubProvider('yolo', analysis({ confidence: 0.2, needsHumanReview: true }));
+    const yolo = new StubProvider(
+      'yolo',
+      analysis({
+        confidence: 0.2,
+        needsHumanReview: true,
+        detections: [{ id: 'd1' }, { id: 'd2' }, { id: 'd3' }] as any,
+      }),
+    );
     const llm = new StubProvider(
       'llm',
       analysis({ confidence: 0.9, complianceScore: 77, engine: 'vision-llm' }),
@@ -157,13 +170,16 @@ async function main(): Promise<void> {
 
   // --- VisionLLMProvider: mapping and failure -------------------------------
   {
+    let seenRequirements = 0;
     const client: VisionLLMClient = {
       label: 'vision-llm:fake',
       model: 'fake-1',
-      async judge() {
+      async judge(input) {
+        seenRequirements = input.requirements?.length ?? 0;
         return {
           complianceScore: 82,
           confidence: 0.85,
+          isBeverageShelf: true,
           detectedCounts: { coca_cola_classic: 3 },
           missingItems: [],
           summary: 'ok',
@@ -175,6 +191,7 @@ async function main(): Promise<void> {
     check('LLM provider is labelled vision-llm', out.engine === 'vision-llm');
     check('confident LLM does not force human review', out.needsHumanReview === false);
     check('LLM provider builds a breakdown from counts', out.skuBreakdown.length > 0);
+    check('derived planogram reaches the model prompt', seenRequirements > 0);
   }
   {
     const client: VisionLLMClient = {
@@ -192,6 +209,24 @@ async function main(): Promise<void> {
     };
     const out = await new VisionLLMProvider(client).analyze(INPUT);
     check('low LLM self-confidence forces human review', out.needsHumanReview === true);
+  }
+  {
+    const client: VisionLLMClient = {
+      label: 'vision-llm:off-shelf',
+      model: 'fake-1',
+      async judge() {
+        return {
+          complianceScore: 96,
+          confidence: 0.99,
+          isBeverageShelf: false,
+          detectedCounts: { sprite: 5 },
+          missingItems: [],
+          summary: 'wrong scene',
+        };
+      },
+    };
+    const out = await new VisionLLMProvider(client).analyze(INPUT);
+    check('a confident off-shelf claim still requires human review', out.needsHumanReview);
   }
   {
     const client: VisionLLMClient = {
@@ -289,9 +324,10 @@ async function main(): Promise<void> {
 
     const box = {
       id: 'det-1',
-      sku: 'coca_cola_classic',
-      label: 'Coca-Cola Classic 0.5L',
+      sku: 'unverified_bottle',
+      label: 'Butulka — marka təsdiqlənməyib',
       confidence: 0.91,
+      objectClass: 'bottle',
       box: { x: 10, y: 20, width: 8, height: 40 },
       color: '#F40009',
       shelfRow: 1,
@@ -387,17 +423,33 @@ async function main(): Promise<void> {
       hits === 2 && analysis.provider === 'yolo' && analysis.engine === 'ultralytics-yolo',
       `hits=${hits} provider=${analysis.provider} engine=${analysis.engine}`,
     );
-    // Not `needsHumanReview === false`: one bottle against a planogram that
-    // demands three facings SHOULD land on human review, and asserting the
-    // opposite would pin the test to a wrong rule. What the remote path must
-    // preserve is that the run counts as *trustworthy* — the hybrid turns on
-    // confidence, and an untrustworthy run reports 0 no matter how good the
-    // boxes were.
     check(
-      'a trustworthy remote result carries the detector’s confidence',
-      analysis.confidence > 0 && !analysis.summary.includes('etibarsız'),
-      JSON.stringify({ confidence: analysis.confidence, summary: analysis.summary }),
+      'generic bottle confidence never becomes SKU verdict confidence',
+      analysis.confidence === 0 &&
+        analysis.needsHumanReview &&
+        analysis.detections.length === 1 &&
+        analysis.detectedCounts.coca_cola_classic === undefined,
+      JSON.stringify(analysis),
     );
+
+    // Old workers may be live during a rolling deploy. Their brand guesses
+    // carry no object-class proof, so discard them rather than display them.
+    stub = {
+      body: JSON.stringify({
+        success: true,
+        detections: [{ ...box, sku: 'sprite', objectClass: undefined }],
+        synthetic_fallback: false,
+      }),
+    };
+    const legacy = await provider.analyze(INPUT);
+    check(
+      'old brand-labelled worker boxes are discarded',
+      legacy.detections.length === 0 && legacy.needsHumanReview,
+      JSON.stringify(legacy),
+    );
+    stub = {
+      body: JSON.stringify({ success: true, detections: [box], synthetic_fallback: false }),
+    };
 
     // The conf knob must reach the worker on the HTTP transport too, or the
     // deployed threshold would silently stay the script default.

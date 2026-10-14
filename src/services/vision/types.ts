@@ -110,6 +110,8 @@ export interface VisionLLMClient {
 export interface VisionLLMJudgement {
   complianceScore: number; // 0 - 100
   confidence: VisionConfidence; // 0 - 1
+  /** Absent or false cannot authorize a shelf verdict. */
+  isBeverageShelf?: boolean;
   detectedCounts: Partial<Record<CocaColaSKU, number>>;
   missingItems: string[];
   summary: string;
