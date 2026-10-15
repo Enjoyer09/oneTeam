@@ -66,7 +66,14 @@ def _manifest_for(checkpoint: str) -> tuple[dict, Path]:
     if manifest.get("architecture") != MODEL_NAME:
         raise ValueError("Unsupported architecture in custom detector manifest.")
     classes = manifest.get("classes")
-    supported_classes = {"bottle", "coca_cola_classic", "coca_cola_zero", "fanta", "sprite"}
+    supported_classes = {
+        "bottle",
+        "coca_cola_classic",
+        "coca_cola_zero",
+        "fanta",
+        "other_product",
+        "sprite",
+    }
     if (
         not isinstance(classes, list)
         or len(classes) < 2
