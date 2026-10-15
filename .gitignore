@@ -93,13 +93,11 @@ __pycache__/
 *.h5
 *.safetensors
 *.ckpt
-yolov8*.pt
 
-# Ultralytics writes this directory on its first run, including a per-machine
-# uuid. It is generated state, not source. It was tracked until 2026-09-14,
-# which meant every machine that ran the vision worker produced a diff.
+# Local TorchVision cache and training artifacts.
+.torchvision_cache/
 .yolo_config/
-# Ultralytics training output (scripts/train_yolo.py)
+artifacts/
 runs/
 # Training datasets never enter the repo (only the README documenting them)
 datasets/*

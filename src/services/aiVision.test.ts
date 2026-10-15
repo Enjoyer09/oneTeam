@@ -2,11 +2,7 @@
  * Automated Unit Test Suite for AI Vision & Planogram Compliance Engine
  *
  * Tests 1–6 and 8 exercise pure TypeScript and run anywhere. Tests 7 and 7.x
- * additionally spawn the Python worker in `scripts/yolo_inference.py`, which
- * needs two things this repository does not track:
- *
- *   .venv/          gitignored (see .gitignore), and
- *   yolo11n.pt      model weights in the project root, also untracked.
+ * The detector test stays fail-closed unless a reviewed custom checkpoint is configured.
  *
  * So on a clean checkout the three worker checks cannot run. They are SKIPPED
  * there, and the command to build the environment is printed as the reason.
@@ -34,7 +30,7 @@
  * Build the environment with:
  *
  *   python3.12 -m venv .venv
- *   .venv/bin/pip install ultralytics opencv-python numpy
+ *   .venv/bin/pip install torch torchvision numpy Pillow
  *
  * To exercise these three on every push instead, CI can build that venv. It
  * costs a torch download per run, or a cached venv to maintain, which is why it
@@ -42,7 +38,7 @@
  *
  * Note that the first call to the worker in a session pays a cold start
  * (measured 47s against 3.3s warm), which is why test 7 warms up first and why
- * `DEFAULT_YOLO_TIMEOUT_MS` is measured in minutes rather than seconds.
+ * `DEFAULT_DETECTOR_TIMEOUT_MS` is measured in minutes rather than seconds.
  */
 
 import { aiVisionService } from './aiVision';
@@ -54,7 +50,6 @@ function runTestSuite() {
 
   let passedTests = 0;
   let totalTests = 0;
-  let skippedTests = 0;
 
   function assert(condition: boolean, testName: string, details?: string) {
     totalTests++;
@@ -67,21 +62,6 @@ function runTestSuite() {
         console.error(`     Details: ${details}`);
       }
     }
-  }
-
-  /**
-   * Records a check this machine could not run, and says why, loudly.
-   *
-   * This is not a silent pass and it is not a `continue`. A skipped check is
-   * counted in the total, printed with the same prominence as a failure, and
-   * carries the reason — so "3 skipped" can never be mistaken for "19 passed".
-   * See the file header for why these three are skipped rather than failed.
-   */
-  function skip(testName: string, reason: string) {
-    totalTests++;
-    skippedTests++;
-    console.log(`  ⏭️  [SKIP] ${testName}`);
-    console.log(`     Reason: ${reason}`);
   }
 
   // TEST 1: Extraction of Default Planogram Requirements
@@ -197,99 +177,40 @@ function runTestSuite() {
   );
 
   // ---------------------------------------------------------------------------
-  // TEST 7: The Ultralytics worker
-  //
-  // The worker is a separate Python process with a cold start of its own, so it
-  // is run twice on purpose. The first call pays for loading torch, OpenCV and
-  // the model — measured at 47s cold against 3.3s warm — and its result is not
-  // asserted. Only the second call is under test, so a cold start can no longer
-  // be mistaken for a model that found nothing.
-  // ---------------------------------------------------------------------------
-  const fixture = 'vision-worker/fixtures/shelf-01.jpg';
-  const warmUp = aiVisionService.runUltralyticsInferenceDetailed(fixture);
-  const workerRun = aiVisionService.runUltralyticsInferenceDetailed(fixture);
-
-  // The three checks below need the Python worker. When this machine has no
-  // environment for it they are SKIPPED, loudly and with the reason — and only
-  // then. Every other outcome stays fatal. See the file header for why.
-  const workerMissing = !workerRun.ok && workerRun.reason === 'worker-unavailable';
-
-  if (workerMissing) {
-    const reason = `${workerRun.reason} — ${workerRun.detail}`;
-    skip(
-      'Test 7: Ultralytics YOLO inference worker runs successfully and returns detection boxes',
-      reason,
-    );
-    skip('Test 7.1: A logo produces no invented shelf detections', reason);
-    skip(
-      'Test 7.2: A worker that is killed for exceeding its time budget is reported as a timeout',
-      reason,
-    );
-  } else {
-    assert(
-      workerRun.ok && workerRun.detections.length > 0,
-      'Test 7: Ultralytics YOLO inference worker runs successfully and returns detection boxes',
-      workerRun.ok
-        ? 'the worker ran but returned an empty detection list'
-        : `${workerRun.reason} — ${workerRun.detail}`,
-    );
-
-    // A logo is not a shelf; the worker must not manufacture product boxes.
-    const logo = aiVisionService.runUltralyticsInferenceDetailed('logo.jpg');
-    assert(
-      !logo.ok && logo.reason === 'no-detections',
-      'Test 7.1: A logo produces no invented shelf detections',
-      logo.ok ? `unexpected boxes=${logo.detections.length}` : `reason=${logo.reason}`,
-    );
-
-    // TEST 7.2: a run that is cut short says so.
-    //
-    // Deterministic and immediate: no process can start, import torch and load a
-    // model inside 1ms. This is the regression guard for the defect that made
-    // this suite flaky — a killed worker used to be reported as `null`, which the
-    // test read as "found nothing" instead of "never finished".
-    const impossible = aiVisionService.runUltralyticsInferenceDetailed('logo.jpg', {
-      timeoutMs: 1,
-    });
-    assert(
-      !impossible.ok && impossible.reason === 'timeout',
-      'Test 7.2: A worker that is killed for exceeding its time budget is reported as a timeout',
-      impossible.ok
-        ? 'the worker finished inside 1ms, which should be impossible'
-        : `reason=${impossible.reason}`,
-    );
-  }
+  // TEST 7: Without an explicitly approved custom checkpoint, local detection fails closed.
+  const workerRun = aiVisionService.runTorchVisionInferenceDetailed(
+    'vision-worker/fixtures/shelf-01.jpg',
+  );
+  assert(
+    !workerRun.ok && workerRun.reason === 'worker-unavailable',
+    'Test 7: Local TorchVision inference does not run without configured weights',
+    workerRun.ok ? `unexpected detections=${workerRun.detections.length}` : workerRun.detail,
+  );
 
   // A photo without shelf products stays empty and names the real engine.
-  const yoloAnalysis = aiVisionService.analyzeShelfPhoto({
+  const detectorAnalysis = aiVisionService.analyzeShelfPhoto({
     photoUrl: 'logo.jpg',
-    useUltralytics: true,
+    useTorchVision: true,
   });
   assert(
-    yoloAnalysis.detections.length === 0 && yoloAnalysis.autoStatus === 'needs_manual_review',
+    detectorAnalysis.detections.length === 0 &&
+      detectorAnalysis.autoStatus === 'needs_manual_review',
     'Test 8: A logo never becomes a simulated compliant shelf',
-    `detections=${yoloAnalysis.detections.length} status=${yoloAnalysis.autoStatus}`,
+    `detections=${detectorAnalysis.detections.length} status=${detectorAnalysis.autoStatus}`,
   );
   assert(
-    yoloAnalysis.engine === 'ultralytics-yolo',
+    detectorAnalysis.engine === 'torchvision-detection',
     'Test 8.1: A failed or empty detector run is never relabelled simulation',
-    `engine=${yoloAnalysis.engine}`,
+    `engine=${detectorAnalysis.engine}`,
   );
-
-  if (!warmUp.ok) {
-    console.log(`  ℹ️  Note: the unasserted warm-up call ended as ${warmUp.reason}.`);
-  }
 
   console.log('\n------------------------------------------------------------------------');
   console.log(
-    `  📊 TEST RESULTS: ${passedTests}/${totalTests} TESTS PASSED (${Math.round((passedTests / totalTests) * 100)}%)` +
-      (skippedTests ? `, ${skippedTests} SKIPPED` : ''),
+    `  📊 TEST RESULTS: ${passedTests}/${totalTests} TESTS PASSED (${Math.round((passedTests / totalTests) * 100)}%)`,
   );
   console.log('------------------------------------------------------------------------\n');
 
-  // A skip is not a pass, but it is also not a failure: every check that
-  // actually ran must have passed, and a skip is accounted for separately.
-  if (passedTests + skippedTests !== totalTests) {
+  if (passedTests !== totalTests) {
     process.exit(1);
   }
 }

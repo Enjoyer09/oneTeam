@@ -3,13 +3,13 @@
  * Hybrid vision seam — hermetic tests
  * ============================================================================
  *
- * Nothing here touches the YOLO worker or the network. The deterministic engines
+ * Nothing here touches the detector worker or the network. The deterministic engines
  * are stubbed by feeding controlled `VisionAnalysis` objects through the pure
  * `combineHybrid`, and the LLM is a fake `VisionLLMClient`. What these guard:
  *
- *   - the escalation ladder: YOLO-confident short-circuits the LLM; an unsure
- *     YOLO escalates; an absent or unsure LLM lands on human review;
- *   - `combineHybrid` picks the authoritative layer and keeps YOLO's boxes;
+ *   - the escalation ladder: detector-confident short-circuits the LLM; an unsure
+ *     detector escalates; an absent or unsure LLM lands on human review;
+ *   - `combineHybrid` picks the authoritative layer and keeps detector's boxes;
  *   - the LLM provider maps a judgement, escalates on low self-confidence, and
  *     turns a thrown client into human review rather than a fabricated 0;
  *   - `resolveVisionProvider` returns null for "off"/unknown and never starts
@@ -20,8 +20,8 @@
 import type { VisionAnalysis, VisionInput, VisionLLMClient, VisionProvider } from './types';
 import { combineHybrid, HybridVisionProvider } from './hybridProvider';
 import { VisionLLMProvider } from './llmProvider';
-import { resolveVisionProvider, SimulationVisionProvider, YoloVisionProvider } from './index';
-import { aiVisionService, yoloCliArgs } from '../aiVision';
+import { resolveVisionProvider, SimulationVisionProvider, TorchVisionProvider } from './index';
+import { aiVisionService, torchvisionCliArgs } from '../aiVision';
 
 let passed = 0;
 let failed = 0;
@@ -52,8 +52,8 @@ function analysis(over: Partial<VisionAnalysis>): VisionAnalysis {
     skuBreakdown: [],
     detections: [],
     summary: 'x',
-    engine: 'ultralytics-yolo',
-    provider: 'yolo',
+    engine: 'torchvision-detection',
+    provider: 'torchvision',
     analyzedAt: new Date().toISOString(),
     ...over,
   };
@@ -82,11 +82,11 @@ async function main(): Promise<void> {
       confidence: 0.8,
       detections: [{ id: 'd1' } as any],
     });
-    const out = combineHybrid(yolo, null, 'yolo-confident', 'T');
-    check('yolo-confident keeps YOLO score', out.complianceScore === 88);
-    check('yolo-confident is not human review', out.needsHumanReview === false);
+    const out = combineHybrid(yolo, null, 'detector-confident', 'T');
+    check('detector-confident keeps detector score', out.complianceScore === 88);
+    check('detector-confident is not human review', out.needsHumanReview === false);
     check('hybrid result is labelled hybrid', out.engine === 'hybrid' && out.provider === 'hybrid');
-    check('hybrid keeps YOLO detections', out.detections.length === 1);
+    check('hybrid keeps detector detections', out.detections.length === 1);
   }
   {
     const yolo = analysis({
@@ -103,9 +103,12 @@ async function main(): Promise<void> {
     });
     const out = combineHybrid(yolo, llm, 'llm-confident', 'T');
     check('llm-confident takes LLM score', out.complianceScore === 91);
-    check('llm-confident keeps YOLO boxes', out.detections.length === 3);
+    check('llm-confident keeps detector boxes', out.detections.length === 3);
     check('llm-confident carries the model', out.model === 'test-model');
-    check('llm-confident is not human review', out.needsHumanReview === false);
+    check(
+      'LLM confidence still requires human review before model qualification',
+      out.needsHumanReview === true,
+    );
     check('confidence is the max of both layers', out.confidence === 0.9);
   }
   {
@@ -130,8 +133,11 @@ async function main(): Promise<void> {
     const yolo = new StubProvider('yolo', analysis({ confidence: 0.8, needsHumanReview: false }));
     const llm = new StubProvider('llm', analysis({ confidence: 0.9, engine: 'vision-llm' }));
     const out = await new HybridVisionProvider(yolo, llm).analyze(INPUT);
-    check('confident YOLO short-circuits the LLM', llm.calls === 0, `llm.calls=${llm.calls}`);
-    check('confident YOLO produces a decisive result', out.needsHumanReview === false);
+    check('confident detector short-circuits the LLM', llm.calls === 0, `llm.calls=${llm.calls}`);
+    check(
+      'only a separately trusted detector can short-circuit review',
+      out.needsHumanReview === false,
+    );
   }
   {
     const yolo = new StubProvider(
@@ -147,16 +153,16 @@ async function main(): Promise<void> {
       analysis({ confidence: 0.9, complianceScore: 77, engine: 'vision-llm' }),
     );
     const out = await new HybridVisionProvider(yolo, llm).analyze(INPUT);
-    check('unsure YOLO escalates to the LLM', llm.calls === 1, `llm.calls=${llm.calls}`);
+    check('unsure detector escalates to the LLM', llm.calls === 1, `llm.calls=${llm.calls}`);
     check(
-      'confident LLM verdict wins',
-      out.complianceScore === 77 && out.needsHumanReview === false,
+      'LLM score is retained but held for human review',
+      out.complianceScore === 77 && out.needsHumanReview === true,
     );
   }
   {
     const yolo = new StubProvider('yolo', analysis({ confidence: 0.2, needsHumanReview: true }));
     const out = await new HybridVisionProvider(yolo, null).analyze(INPUT);
-    check('unsure YOLO with no LLM lands on human review', out.needsHumanReview === true);
+    check('unsure detector with no LLM lands on human review', out.needsHumanReview === true);
   }
   {
     const yolo = new StubProvider('yolo', analysis({ confidence: 0.2, needsHumanReview: true }));
@@ -165,7 +171,7 @@ async function main(): Promise<void> {
       analysis({ confidence: 0.3, needsHumanReview: true, engine: 'vision-llm' }),
     );
     const out = await new HybridVisionProvider(yolo, llm).analyze(INPUT);
-    check('unsure YOLO + unsure LLM lands on human review', out.needsHumanReview === true);
+    check('unsure detector + unsure LLM lands on human review', out.needsHumanReview === true);
   }
 
   // --- VisionLLMProvider: mapping and failure -------------------------------
@@ -257,9 +263,9 @@ async function main(): Promise<void> {
         SimulationVisionProvider,
     );
     check(
-      'yolo resolves to the YOLO provider',
-      resolveVisionProvider({ ONETEAM_VISION_PROVIDER: 'yolo' } as any) instanceof
-        YoloVisionProvider,
+      'torchvision resolves to the TorchVision provider',
+      resolveVisionProvider({ ONETEAM_VISION_PROVIDER: 'torchvision' } as any) instanceof
+        TorchVisionProvider,
     );
     check(
       'vision-llm with no client config is null (not a broken provider)',
@@ -285,7 +291,7 @@ async function main(): Promise<void> {
     );
   }
 
-  // --- The remote YOLO worker (HTTP) ---------------------------------------
+  // --- The remote detector worker (HTTP) ---------------------------------------
   //
   // The worker was reachable only through `spawnSync`, which freezes the event
   // loop for the whole run — a cold start measured 47s, and that cost was paid
@@ -337,7 +343,7 @@ async function main(): Promise<void> {
     stub = {
       body: JSON.stringify({ success: true, detections: [box], synthetic_fallback: false }),
     };
-    let out = await aiVisionService.runUltralyticsInferenceRemote(INPUT.photoUrl, {
+    let out = await aiVisionService.runTorchVisionInferenceRemote(INPUT.photoUrl, {
       workerUrl: url,
     });
     check(
@@ -347,7 +353,7 @@ async function main(): Promise<void> {
     );
 
     stub = { body: JSON.stringify({ success: true, detections: [box], synthetic_fallback: true }) };
-    out = await aiVisionService.runUltralyticsInferenceRemote(INPUT.photoUrl, { workerUrl: url });
+    out = await aiVisionService.runTorchVisionInferenceRemote(INPUT.photoUrl, { workerUrl: url });
     check(
       'remote worker: the synthetic flag survives the round-trip',
       out.ok === true && out.synthetic === true,
@@ -355,7 +361,7 @@ async function main(): Promise<void> {
     );
 
     stub = { body: JSON.stringify({ success: true, detections: [], synthetic_fallback: false }) };
-    out = await aiVisionService.runUltralyticsInferenceRemote(INPUT.photoUrl, { workerUrl: url });
+    out = await aiVisionService.runTorchVisionInferenceRemote(INPUT.photoUrl, { workerUrl: url });
     check(
       'remote worker: an empty detection list is no-detections, not ok',
       out.ok === false && out.reason === 'no-detections',
@@ -363,7 +369,7 @@ async function main(): Promise<void> {
     );
 
     stub = { body: JSON.stringify({ success: false, error: 'Import error: cv2' }) };
-    out = await aiVisionService.runUltralyticsInferenceRemote(INPUT.photoUrl, { workerUrl: url });
+    out = await aiVisionService.runTorchVisionInferenceRemote(INPUT.photoUrl, { workerUrl: url });
     check(
       'remote worker: the worker’s own error is surfaced with its text',
       out.ok === false &&
@@ -372,8 +378,22 @@ async function main(): Promise<void> {
       JSON.stringify(out),
     );
 
+    stub = {
+      body: JSON.stringify({
+        success: false,
+        error: 'TorchVision detector is disabled pending an approved checkpoint.',
+      }),
+      status: 503,
+    };
+    out = await aiVisionService.runTorchVisionInferenceRemote(INPUT.photoUrl, { workerUrl: url });
+    check(
+      'remote worker: a deliberately disabled model is reported as unavailable',
+      out.ok === false && out.reason === 'worker-unavailable',
+      JSON.stringify(out),
+    );
+
     stub = { body: '<html>500</html>', status: 500 };
-    out = await aiVisionService.runUltralyticsInferenceRemote(INPUT.photoUrl, { workerUrl: url });
+    out = await aiVisionService.runTorchVisionInferenceRemote(INPUT.photoUrl, { workerUrl: url });
     check(
       'remote worker: a non-JSON failure is worker-failed, never detections',
       out.ok === false && out.reason === 'worker-failed',
@@ -382,7 +402,7 @@ async function main(): Promise<void> {
 
     // Nothing is listening on this port: the connection is refused outright.
     const dead = 'http://127.0.0.1:9';
-    out = await aiVisionService.runUltralyticsInferenceRemote(INPUT.photoUrl, { workerUrl: dead });
+    out = await aiVisionService.runTorchVisionInferenceRemote(INPUT.photoUrl, { workerUrl: dead });
     check(
       'remote worker: an unreachable worker is worker-unavailable and names the URL',
       out.ok === false && out.reason === 'worker-unavailable' && out.detail.includes(dead),
@@ -402,7 +422,7 @@ async function main(): Promise<void> {
       body: JSON.stringify({ success: true, detections: [box], synthetic_fallback: false }),
     };
     lastRequest = {};
-    const providerBuf = new YoloVisionProvider(url);
+    const providerBuf = new TorchVisionProvider(url);
     await providerBuf.analyze({
       ...INPUT,
       imageBuffer: Buffer.from('fake-jpeg-bytes'),
@@ -416,11 +436,13 @@ async function main(): Promise<void> {
 
     // Two analyze calls happened by this point (the imageBuffer one above and
     // this one) — asserting exactly one would pin the test to its own ordering.
-    const provider = new YoloVisionProvider(url);
+    const provider = new TorchVisionProvider(url);
     const analysis = await provider.analyze(INPUT);
     check(
-      'YoloVisionProvider with a worker URL talks to the worker, not to spawnSync',
-      hits === 2 && analysis.provider === 'yolo' && analysis.engine === 'ultralytics-yolo',
+      'TorchVisionProvider with a worker URL talks to the worker, not to spawnSync',
+      hits === 2 &&
+        analysis.provider === 'torchvision' &&
+        analysis.engine === 'torchvision-detection',
       `hits=${hits} provider=${analysis.provider} engine=${analysis.engine}`,
     );
     check(
@@ -454,40 +476,48 @@ async function main(): Promise<void> {
     // The conf knob must reach the worker on the HTTP transport too, or the
     // deployed threshold would silently stay the script default.
     lastRequest = {};
-    process.env.ONETEAM_YOLO_CONF = '0.55';
+    process.env.ONETEAM_TORCHVISION_CONF = '0.55';
     try {
-      const providerConf = new YoloVisionProvider(url);
+      const providerConf = new TorchVisionProvider(url);
       await providerConf.analyze(INPUT);
       check(
-        'remote payload carries ONETEAM_YOLO_CONF when set',
+        'remote payload carries ONETEAM_TORCHVISION_CONF when set',
         lastRequest.conf === 0.55,
         JSON.stringify(lastRequest).slice(0, 200),
       );
     } finally {
-      delete process.env.ONETEAM_YOLO_CONF;
+      delete process.env.ONETEAM_TORCHVISION_CONF;
     }
 
     await new Promise<void>((resolve) => server.close(() => resolve()));
   })();
 
-  // The model is the worker's to own: the local spawn path must read the same
-  // ONETEAM_YOLO_MODEL the worker's /health reports, or the two transports
-  // silently run different detectors.
+  // Local invocation is disabled unless an explicitly configured custom checkpoint exists.
   {
-    const saved = process.env.ONETEAM_YOLO_MODEL;
-    delete process.env.ONETEAM_YOLO_MODEL;
-    delete process.env.ONETEAM_YOLO_CONF;
-    const defaults = yoloCliArgs('/x/yolo_inference.py', 'IMG');
-    process.env.ONETEAM_YOLO_MODEL = 'yolo11n.pt';
-    process.env.ONETEAM_YOLO_CONF = '0.55';
-    const configured = yoloCliArgs('/x/yolo_inference.py', 'IMG');
-    if (saved === undefined) delete process.env.ONETEAM_YOLO_MODEL;
-    else process.env.ONETEAM_YOLO_MODEL = saved;
-    delete process.env.ONETEAM_YOLO_CONF;
+    const savedMode = process.env.ONETEAM_TORCHVISION_MODE;
+    const savedCheckpoint = process.env.ONETEAM_TORCHVISION_CHECKPOINT;
+    const savedConf = process.env.ONETEAM_TORCHVISION_CONF;
+    delete process.env.ONETEAM_TORCHVISION_MODE;
+    delete process.env.ONETEAM_TORCHVISION_CHECKPOINT;
+    delete process.env.ONETEAM_TORCHVISION_CONF;
+    const defaults = torchvisionCliArgs('/x/torchvision_inference.py', 'IMG');
+    process.env.ONETEAM_TORCHVISION_MODE = 'custom';
+    process.env.ONETEAM_TORCHVISION_CHECKPOINT = '/models/reviewed.pth';
+    process.env.ONETEAM_TORCHVISION_CONF = '0.55';
+    const configured = torchvisionCliArgs('/x/torchvision_inference.py', 'IMG');
+    for (const [key, value] of Object.entries({
+      ONETEAM_TORCHVISION_MODE: savedMode,
+      ONETEAM_TORCHVISION_CHECKPOINT: savedCheckpoint,
+      ONETEAM_TORCHVISION_CONF: savedConf,
+    })) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
     check(
-      'local spawn args default to yolo11n and honor ONETEAM_YOLO_MODEL',
-      defaults.join(' ') === '/x/yolo_inference.py --image IMG --model yolo11n.pt' &&
-        configured.join(' ') === '/x/yolo_inference.py --image IMG --model yolo11n.pt --conf 0.55',
+      'local args default to disabled and honor reviewed custom checkpoint settings',
+      defaults.join(' ') === '/x/torchvision_inference.py --image IMG --mode disabled' &&
+        configured.join(' ') ===
+          '/x/torchvision_inference.py --image IMG --mode custom --checkpoint /models/reviewed.pth --conf 0.55',
       JSON.stringify({ defaults, configured }),
     );
   }

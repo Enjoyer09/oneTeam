@@ -1,9 +1,9 @@
 /**
- * Simulation fixtures and generic YOLO object detection.
+ * Simulation fixtures and generic TorchVision object detection.
  * ============================================================================
  *
  * Explicit `mockScenario` inputs use hardcoded fixtures. Production inputs run
- * the YOLO worker; stock COCO weights can locate bottles but cannot identify
+ * the TorchVision worker; stock COCO weights can locate bottles but cannot identify
  * Coca-Cola SKUs or grade a planogram. A generic bottle must not be scored as
  * a branded product.
  *
@@ -45,7 +45,7 @@ export interface DetectionItem {
   color: string;
   shelfRow: number;
   facingIndex: number;
-  /** COCO object class, not a product brand. Required for trusted YOLO boxes. */
+  /** COCO object class, not a product brand. Required for trusted detector boxes. */
   objectClass?: string;
 }
 
@@ -60,9 +60,10 @@ export interface DetectionItem {
  * looked and found no bottles", so the test that consumed it could only report
  * `null` and the reason was lost at the boundary.
  */
-export type YoloRunFailure = 'worker-unavailable' | 'timeout' | 'worker-failed' | 'no-detections';
+export type DetectorRunFailure =
+  'worker-unavailable' | 'timeout' | 'worker-failed' | 'no-detections';
 
-export type YoloRunOutcome =
+export type DetectorRunOutcome =
   | {
       ok: true;
       detections: DetectionItem[];
@@ -71,10 +72,10 @@ export type YoloRunOutcome =
        */
       synthetic: boolean;
     }
-  | { ok: false; reason: YoloRunFailure; detail: string };
+  | { ok: false; reason: DetectorRunFailure; detail: string };
 
-export interface YoloRunOptions {
-  /** Wall-clock cap for the worker process. See `DEFAULT_YOLO_TIMEOUT_MS`. */
+export interface DetectorRunOptions {
+  /** Wall-clock cap for the worker process. See `DEFAULT_DETECTOR_TIMEOUT_MS`. */
   timeoutMs?: number;
 }
 
@@ -89,7 +90,7 @@ export interface YoloRunOptions {
  * an empty shelf. Widened so that a cold start on a busy machine is not
  * mistaken for a model that found nothing.
  */
-export const DEFAULT_YOLO_TIMEOUT_MS = 180_000;
+export const DEFAULT_DETECTOR_TIMEOUT_MS = 180_000;
 
 /**
  * Which engine produced a set of detections.
@@ -99,12 +100,12 @@ export const DEFAULT_YOLO_TIMEOUT_MS = 180_000;
  *
  * `vision-llm` and `hybrid` are produced by the provider seam in `./vision`, not
  * by this file: `vision-llm` is a vision model's own judgement, and `hybrid` is
- * the YOLO-then-LLM orchestrator's verdict. They live in this union so that a
+ * the detector-then-LLM orchestrator's verdict. They live in this union so that a
  * `VisionAnalysis.engine` can never be a value the record's audit trail cannot
  * name — the whole point of carrying the engine is that no layer masquerades as
  * another.
  */
-export type AnalysisEngine = 'ultralytics-yolo' | 'simulation' | 'vision-llm' | 'hybrid';
+export type AnalysisEngine = 'torchvision-detection' | 'simulation' | 'vision-llm' | 'hybrid';
 
 export interface PlanogramRequirement {
   sku: CocaColaSKU;
@@ -147,7 +148,7 @@ export interface AnalysisInput {
   taskDescription?: string;
   customRequirements?: PlanogramRequirement[];
   mockScenario?: 'compliant' | 'minor_gap' | 'missing_sku' | 'severe_issues';
-  useUltralytics?: boolean;
+  useTorchVision?: boolean;
 }
 
 export const SKU_METADATA: Record<
@@ -203,10 +204,10 @@ interface SpawnResult {
  * whether a shelf is empty or the detector never looked.
  *
  * Returns null for anything that is not that payload, so a caller reading a
- * stream of stdout lines (the `spawnSync` path prints ultralytics noise around
+ * stream of stdout lines (the `spawnSync` path prints dependency noise around
  * the worker's line) can keep scanning instead of treating noise as an answer.
  */
-function outcomeFromDetectionPayload(parsed: unknown): YoloRunOutcome | null {
+function outcomeFromDetectionPayload(parsed: unknown): DetectorRunOutcome | null {
   if (!parsed || typeof parsed !== 'object') return null;
   const payload = parsed as { detections?: unknown; synthetic_fallback?: unknown };
 
@@ -226,25 +227,25 @@ function outcomeFromDetectionPayload(parsed: unknown): YoloRunOutcome | null {
   };
 }
 
-/** Validated ONETEAM_YOLO_CONF (0 exclusive .. 1 inclusive), or undefined
+/** Validated TorchVision confidence setting (0 exclusive .. 1 inclusive), or undefined
  *  when unset/invalid — an absent knob must keep the worker's own default. */
 function envConf(): number | undefined {
-  const conf = Number(process.env.ONETEAM_YOLO_CONF);
+  const conf = Number(process.env.ONETEAM_TORCHVISION_CONF);
   return Number.isFinite(conf) && conf > 0 && conf <= 1 ? conf : undefined;
 }
 
-/** CLI argv for the spawned worker. The model is the worker's to own:
- *  ONETEAM_YOLO_MODEL is the same knob the deployed worker's /health reads, so
- *  both transports can never run different detectors. */
-export function yoloCliArgs(scriptPath: string, imageSource: string): string[] {
-  const model = process.env.ONETEAM_YOLO_MODEL || 'yolo11n.pt';
+/** CLI args for the prototype/custom TorchVision worker. */
+export function torchvisionCliArgs(scriptPath: string, imageSource: string): string[] {
+  const mode = process.env.ONETEAM_TORCHVISION_MODE || 'disabled';
+  const checkpoint = process.env.ONETEAM_TORCHVISION_CHECKPOINT;
   const conf = envConf();
   return [
     scriptPath,
     '--image',
     imageSource,
-    '--model',
-    model,
+    '--mode',
+    mode,
+    ...(mode === 'custom' && checkpoint ? ['--checkpoint', checkpoint] : []),
     ...(conf !== undefined ? ['--conf', String(conf)] : []),
   ];
 }
@@ -290,7 +291,7 @@ export class AIVisionService {
   }
 
   /**
-   * Run official Ultralytics YOLO inference via the local Python worker, and
+   * Run TorchVision inference via the local Python worker, and
    * report *why* it produced nothing when it does.
    *
    * The worker is a separate process with its own interpreter, a model file and
@@ -300,10 +301,10 @@ export class AIVisionService {
    * null` collapsed seven distinct conditions into one value, and a killed
    * worker became indistinguishable from an empty shelf.
    */
-  public runUltralyticsInferenceDetailed(
+  public runTorchVisionInferenceDetailed(
     imageSource: string | Buffer,
-    options: YoloRunOptions = {},
-  ): YoloRunOutcome {
+    options: DetectorRunOptions = {},
+  ): DetectorRunOutcome {
     // A Buffer is the bot's decoded Telegram bytes. The worker understands a
     // data: URL (it decodes the base64 itself), so the same string that the
     // HTTP path sends works here too — keep both transports on one payload.
@@ -312,7 +313,7 @@ export class AIVisionService {
         ? imageSource
         : `data:image/jpeg;base64,${imageSource.toString('base64')}`;
     const venvPython = path.resolve(process.cwd(), '.venv/bin/python');
-    const scriptPath = path.resolve(process.cwd(), 'scripts/yolo_inference.py');
+    const scriptPath = path.resolve(process.cwd(), 'scripts/torchvision_inference.py');
 
     if (!fs.existsSync(venvPython)) {
       return {
@@ -321,7 +322,7 @@ export class AIVisionService {
         detail:
           `No Python environment at ${venvPython}, so the worker cannot run. ` +
           'Build it with: python3.12 -m venv .venv && ' +
-          '.venv/bin/pip install ultralytics opencv-python numpy',
+          '.venv/bin/pip install torch==2.14.0 torchvision==0.29.0 numpy==2.4.6 Pillow==12.3.0',
       };
     }
 
@@ -333,25 +334,19 @@ export class AIVisionService {
       };
     }
 
-    const configDir = path.resolve(process.cwd(), '.yolo_config');
-    if (!fs.existsSync(configDir)) {
-      fs.mkdirSync(configDir, { recursive: true });
-    }
-
     const timeoutMs =
-      options.timeoutMs ?? (Number(process.env.ONETEAM_YOLO_TIMEOUT_MS) || DEFAULT_YOLO_TIMEOUT_MS);
+      options.timeoutMs ??
+      (Number(process.env.ONETEAM_TORCHVISION_TIMEOUT_MS) || DEFAULT_DETECTOR_TIMEOUT_MS);
 
     let res: SpawnResult;
     try {
-      res = spawnSync(venvPython, yoloCliArgs(scriptPath, source), {
+      res = spawnSync(venvPython, torchvisionCliArgs(scriptPath, source), {
         encoding: 'utf-8',
         timeout: timeoutMs,
         maxBuffer: 10 * 1024 * 1024,
         env: {
           ...process.env,
-          YOLO_CONFIG_DIR: configDir,
-          ULTRALYTICS_CONFIG_DIR: configDir,
-          YOLO_VERBOSE: 'False',
+          TORCH_HOME: path.resolve(process.cwd(), '.torchvision_cache'),
         },
       });
     } catch (err) {
@@ -374,7 +369,7 @@ export class AIVisionService {
         detail:
           `The worker was still running after ${timeoutMs}ms and was killed ` +
           `(signal ${res.signal ?? 'none'}). A cold start measured 47s; raise ` +
-          'ONETEAM_YOLO_TIMEOUT_MS if this machine is slower.',
+          'ONETEAM_TORCHVISION_TIMEOUT_MS if this machine is slower.',
       };
     }
 
@@ -388,6 +383,22 @@ export class AIVisionService {
 
     if (res.status !== 0) {
       const stderr = (res.stderr ?? '').trim().slice(0, 500);
+      const outputLines = (res.stdout ?? '').trim().split('\n');
+      for (let index = outputLines.length - 1; index >= 0; index--) {
+        try {
+          const payload = JSON.parse(outputLines[index]) as Record<string, unknown>;
+          if (payload.success === false && typeof payload.error === 'string') {
+            const unavailable = /disabled|checkpoint/i.test(payload.error);
+            return {
+              ok: false,
+              reason: unavailable ? 'worker-unavailable' : 'worker-failed',
+              detail: payload.error,
+            };
+          }
+        } catch {
+          // Keep scanning worker output for its final JSON result.
+        }
+      }
       return {
         ok: false,
         reason: 'worker-failed',
@@ -398,8 +409,7 @@ export class AIVisionService {
       };
     }
 
-    // The worker prints one JSON line, but ultralytics can print its own output
-    // around it, so scan from the end for the last line that parses.
+    // Model downloads can print progress around the JSON line, so scan backward.
     const lines = (res.stdout ?? '').trim().split('\n');
     let reportedError: string | null = null;
 
@@ -454,7 +464,7 @@ export class AIVisionService {
    * `spawnSync` cap had to be 180s to survive a cold start, which is no longer a
    * meaningful guard for a request that should take milliseconds once warm.
    *
-   * Failure shapes match the local path deliberately, so `YoloVisionProvider`
+   * Failure shapes match the local path deliberately, so `TorchVisionProvider`
    * and the hybrid's confidence rules read either transport identically: an
    * unreachable worker is `worker-unavailable` (the hybrid then escalates to the
    * LLM), a worker that answered with its own error is `worker-failed`, and an
@@ -462,14 +472,14 @@ export class AIVisionService {
    * looked and found nothing" and "the model was never asked" are different
    * answers.
    */
-  public async runUltralyticsInferenceRemote(
+  public async runTorchVisionInferenceRemote(
     imageSource: string | Buffer,
     options: { workerUrl: string; timeoutMs?: number },
-  ): Promise<YoloRunOutcome> {
+  ): Promise<DetectorRunOutcome> {
     const base = options.workerUrl.replace(/\/+$/, '');
     const timeoutMs =
       options.timeoutMs ??
-      (Number(process.env.ONETEAM_YOLO_WORKER_TIMEOUT_MS) || DEFAULT_YOLO_TIMEOUT_MS);
+      (Number(process.env.ONETEAM_TORCHVISION_WORKER_TIMEOUT_MS) || DEFAULT_DETECTOR_TIMEOUT_MS);
 
     let response: Response;
     try {
@@ -504,9 +514,10 @@ export class AIVisionService {
 
     if (!response.ok) {
       const body = (await response.text()).trim().slice(0, 300);
+      const unavailable = /disabled|checkpoint/i.test(body);
       return {
         ok: false,
-        reason: 'worker-failed',
+        reason: unavailable ? 'worker-unavailable' : 'worker-failed',
         detail: `The vision worker at ${base} answered HTTP ${response.status}: ${body || '(empty body)'}`,
       };
     }
@@ -548,27 +559,27 @@ export class AIVisionService {
 
   /**
    * Run Computer Vision inference on shelf photo.
-   * Generates realistic YOLO-style bounding boxes with confidence scores.
+   * Generates realistic detector-style bounding boxes with confidence scores.
    */
   public detectShelfProducts(input: AnalysisInput): {
     detections: DetectionItem[];
     engine: AnalysisEngine;
   } {
-    // 1. Try real Ultralytics YOLO if explicitly requested or if no mockScenario override
-    if (input.useUltralytics || (!input.mockScenario && input.photoUrl)) {
-      const outcome = this.runUltralyticsInferenceDetailed(input.photoUrl);
+    // 1. Try real TorchVision detector if explicitly requested or if no mockScenario override
+    if (input.useTorchVision || (!input.mockScenario && input.photoUrl)) {
+      const outcome = this.runTorchVisionInferenceDetailed(input.photoUrl);
       if (outcome.ok) {
-        return { detections: outcome.detections, engine: 'ultralytics-yolo' };
+        return { detections: outcome.detections, engine: 'torchvision-detection' };
       }
 
       // A real-detector failure must never turn into plausible demo boxes.
       console.warn(
-        `⚠️ [oneTeam vision] Ultralytics worker unavailable (${outcome.reason}): ${outcome.detail}`,
+        `⚠️ [oneTeam vision] TorchVision worker unavailable (${outcome.reason}): ${outcome.detail}`,
       );
-      return { detections: [], engine: 'ultralytics-yolo' };
+      return { detections: [], engine: 'torchvision-detection' };
     }
 
-    if (!input.mockScenario) return { detections: [], engine: 'ultralytics-yolo' };
+    if (!input.mockScenario) return { detections: [], engine: 'torchvision-detection' };
 
     // 2. Explicit demo scenario only — never a production fallback.
     const detections: DetectionItem[] = [];

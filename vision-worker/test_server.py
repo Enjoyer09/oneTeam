@@ -3,7 +3,7 @@
 oneTeam — vision worker HTTP contract
 ======================================
 
-Runs without torch, ultralytics or a model: `server._inference` is replaced with
+Runs without a real model: `server._inference` is replaced with
 a stub before anything is imported, so this checks routing, status codes and the
 JSON the Node client parses — the parts that break when someone edits the
 handler. It deliberately does NOT check detection quality, which needs a real
@@ -52,20 +52,24 @@ DETECTION = {
 }
 
 
-def stub_ok(image, model="yolov8n.pt", conf=0.25):
+def stub_ok(image, conf=0.25, mode="coco", checkpoint=None):
     return {
         "success": True,
-        "engine": "ultralytics-yolo",
-        "model": model,
+        "engine": "torchvision-detection",
+        "model": "test-model",
         "detected_count": 1,
         "synthetic_fallback": False,
         "detections": [DETECTION],
-        "received": {"image": image, "conf": conf, "model": model},
+        "received": {"image": image, "conf": conf, "mode": mode, "checkpoint": checkpoint},
     }
 
 
-def stub_raises(image, model="yolov8n.pt", conf=0.25):
+def stub_raises(image, conf=0.25, mode="disabled", checkpoint=None):
     raise RuntimeError("Import error: cv2")
+
+
+def stub_disabled(image, conf=0.25, mode="disabled", checkpoint=None):
+    return {"success": False, "error": "TorchVision detector is disabled pending an approved checkpoint."}
 
 
 def call(port, path, body=None, method=None) -> tuple[int, dict]:
@@ -89,6 +93,8 @@ def call(port, path, body=None, method=None) -> tuple[int, dict]:
 
 def start_server(inference):
     server._inference = inference
+    server._load_model = None
+    server._model_status = None
     httpd = server.ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
     port = httpd.server_address[1]
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
@@ -97,6 +103,7 @@ def start_server(inference):
 
 
 def main():
+    os.environ["ONETEAM_TORCHVISION_MODE"] = "coco"
     httpd, port = start_server(stub_ok)
     try:
         status, body = call(port, "/health")
@@ -126,7 +133,7 @@ def main():
             json.dumps(body)[:300],
         )
 
-        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA", "conf": 0.01})
+        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA", "conf": 0})
         check(
             "unsafe confidence override is rejected",
             status == 400 and body.get("success") is False,
@@ -174,49 +181,35 @@ def main():
             str(body)[:200],
         )
 
-        # The model is the worker's to own: ONETEAM_YOLO_MODEL must drive both
-        # what /health claims and what /detect actually runs.
-        os.environ["ONETEAM_YOLO_MODEL"] = "yolo11n.pt"
-        try:
-            status, body = call(port, "/health")
-            check(
-                "health reports the configured model",
-                status == 200 and body.get("model") == "yolo11n.pt",
-                json.dumps(body)[:300],
-            )
-            status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA"})
-            check(
-                "inference runs the configured model when the payload has none",
-                status == 200 and body["received"].get("model") == "yolo11n.pt",
-                json.dumps(body)[:300],
-            )
-        finally:
-            os.environ.pop("ONETEAM_YOLO_MODEL", None)
+        status, body = call(port, "/health")
+        check(
+            "health reports the TorchVision backend and configured mode",
+            status == 200 and body.get("backend") == "torchvision" and body.get("mode") == "coco",
+            json.dumps(body)[:300],
+        )
+        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA"})
+        check(
+            "worker mode is selected by server configuration, not the request",
+            status == 200 and body["received"].get("mode") == "coco",
+            json.dumps(body)[:300],
+        )
 
-        # Part 4: the conf knob must reach inference on the HTTP transport
-        # when the payload has no conf of its own.
-        os.environ["ONETEAM_YOLO_CONF"] = "0.55"
+        # The confidence setting reaches inference when the request omits it.
+        os.environ["ONETEAM_TORCHVISION_CONF"] = "0.55"
         try:
             status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA"})
             check(
-                "inference uses ONETEAM_YOLO_CONF when the payload has none",
+                "inference uses ONETEAM_TORCHVISION_CONF when the payload has none",
                 status == 200 and body["received"].get("conf") == 0.55,
                 json.dumps(body)[:300],
             )
         finally:
-            os.environ.pop("ONETEAM_YOLO_CONF", None)
+            os.environ.pop("ONETEAM_TORCHVISION_CONF", None)
 
-        # Pre-registered upgrade gate passed (2026-10-06): yolo11n is the
-        # default on both transports. Pin it so a silent revert fails here.
-        status, body = call(port, "/health")
-        check(
-            "the default model is yolo11n",
-            status == 200 and body.get("model") == "yolo11n.pt",
-            json.dumps(body)[:300],
-        )
     finally:
         httpd.shutdown()
         httpd.server_close()
+        os.environ.pop("ONETEAM_TORCHVISION_MODE", None)
 
     # The failure path: the worker raising must become JSON with the error text,
     # because the Node client reads `success:false` and turns it into
@@ -236,13 +229,28 @@ def main():
         httpd.shutdown()
         httpd.server_close()
 
-    # _worker_scripts_dir must find the real worker from wherever this file sits.
+    # The deployment default must remain unavailable until a reviewed model exists.
+    os.environ["ONETEAM_TORCHVISION_MODE"] = "disabled"
+    httpd, port = start_server(stub_disabled)
+    try:
+        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA"})
+        check(
+            "disabled mode returns 503 and never emits detections",
+            status == 503 and body.get("success") is False and "disabled" in body.get("error", ""),
+            json.dumps(body)[:300],
+        )
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        os.environ.pop("ONETEAM_TORCHVISION_MODE", None)
+
+    # _worker_scripts_dir must find the TorchVision adapter from this layout.
     server._inference = None
     try:
         found = server._worker_scripts_dir()
         check(
             "the real worker script is discoverable from this layout",
-            os.path.isfile(os.path.join(found, "yolo_inference.py")),
+            os.path.isfile(os.path.join(found, "torchvision_inference.py")),
             found,
         )
     except FileNotFoundError as error:

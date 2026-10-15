@@ -85,6 +85,10 @@ docs
 .gemini
 .codex
 .yolo_config
+.torchvision_cache
+artifacts
+datasets/*
+!datasets/README.md
 **/*.bak
 **/*.log
 **/*.orig

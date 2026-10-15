@@ -17,7 +17,7 @@
  * needs to reach into the review logic.
  *
  * This file defines the boundary every engine plugs into: one `analyze` call,
- * one `VisionAnalysis` out. A deterministic detector (YOLO), a vision-LLM
+ * one `VisionAnalysis` out. A deterministic detector (TorchVision), a vision-LLM
  * (OpenRouter / Anthropic), the existing simulation, and the hybrid that
  * combines them are all just `VisionProvider`s. Which one runs is chosen by env
  * at the edge (`resolveVisionProvider`), so swapping OpenRouter for a paid model
@@ -81,7 +81,7 @@ export interface VisionAnalysis {
 
 /** The one method every engine implements. */
 export interface VisionProvider {
-  /** Stable identifier, e.g. `yolo`, `openrouter`, `hybrid`. Logged and audited. */
+  /** Stable identifier, e.g. `torchvision`, `openrouter`, `hybrid`. Logged and audited. */
   readonly name: string;
   analyze(input: VisionInput): Promise<VisionAnalysis>;
 }

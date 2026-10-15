@@ -354,7 +354,8 @@ things about how it was tested made that simulation look like a working detector
 > asserting (a cold start measured **47s** against **3.3s** warm, and the old 60s
 > cap had no margin on a loaded machine), asserts that a killed worker is reported
 > as a timeout, and cross-checks the engine the evaluation names against the
-> worker it called directly.
+> worker it called directly. That historical runtime was Ultralytics; the current
+> worker uses TorchVision and defaults to disabled until a reviewed checkpoint exists.
 
 The general rule: **if a system substitutes a fallback for a failure, the caller
 must be able to tell.** A fallback that reports itself as success is worse than no

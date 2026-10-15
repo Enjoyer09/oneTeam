@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-oneTeam — YOLO inference over HTTP
+oneTeam — TorchVision inference over HTTP
 ==================================
 
 WHY THIS EXISTS
 ---------------
-`scripts/yolo_inference.py` was reachable only by spawning a fresh Python
+`scripts/torchvision_inference.py` was reachable only by spawning a fresh Python
 process per photo. That process pays for the interpreter, the torch and OpenCV
 imports and the model load every single time: 47s cold, 3.3s warm, measured on
 the machine this was written on. It ran under `spawnSync`, so the caller's event
 loop was frozen for all of it — in the bot that is a Telegram handler that has
 not answered for a minute.
 
-This server imports that worker once and serves it. The import happens before
-the socket starts listening, so "the port is open" and "the model is loaded" are
-the same statement, and a request never sees the cold start.
+This server imports the worker before the socket starts listening. A model is
+loaded only when a reviewed mode/checkpoint is configured; otherwise the HTTP
+service remains healthy and detections fail closed for human review.
 
 It adds no inference logic of its own. `run_inference` is imported as-is and its
 JSON contract is passed through untouched, so the Node client cannot tell the
@@ -35,56 +35,66 @@ import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-# Torch is not safe to load from two threads at once, and `run_inference`
-# constructs the model on every call — one at a time keeps the cache warm instead
-# of racing it.
+# Serialize inference through the shared model instance.
 INFERENCE_LOCK = threading.Lock()
 MAX_REQUEST_BYTES = 8 * 1024 * 1024
 
 _inference = None
+_load_model = None
+_model_status = None
+
+
+def configured_mode() -> str:
+    return os.environ.get("ONETEAM_TORCHVISION_MODE", "disabled").lower()
+
+
+def configured_checkpoint() -> str | None:
+    return os.environ.get("ONETEAM_TORCHVISION_CHECKPOINT") or None
 
 
 def _worker_scripts_dir() -> str:
-    """Where `yolo_inference.py` lives, in the repo and inside the image."""
+    """Where `torchvision_inference.py` lives, in the repo and image."""
     here = os.path.dirname(os.path.abspath(__file__))
     # In the repository: <root>/vision-worker -> <root>/scripts
     # In the image:      /app/server.py        -> /app/scripts
     for candidate in (os.path.dirname(here), here):
         scripts = os.path.join(candidate, "scripts")
-        if os.path.isfile(os.path.join(scripts, "yolo_inference.py")):
+        if os.path.isfile(os.path.join(scripts, "torchvision_inference.py")):
             return scripts
     raise FileNotFoundError(
-        "yolo_inference.py not found next to this server or one level up. "
+        "torchvision_inference.py not found next to this server or one level up. "
         f"Searched from {here}."
     )
 
 
 def get_inference():
     """
-    Import the worker once and cache the function.
+    Import the worker once and retain its inference and model-cache functions.
 
-    The expensive part is the import, not the call — that is where cv2 and
-    ultralytics are loaded — so warming this at startup is what makes the first
-    request cost what every later request costs.
+    Startup separately loads the configured model before opening the socket.
     """
-    global _inference
+    global _inference, _load_model, _model_status
     if _inference is None:
         scripts = _worker_scripts_dir()
         if scripts not in sys.path:
             sys.path.insert(0, scripts)
-        import yolo_inference  # pyright: ignore[reportMissingImports] -- resolved via sys.path above
+        import torchvision_inference  # pyright: ignore[reportMissingImports] -- resolved via sys.path above
 
-        _inference = yolo_inference.run_inference
+        _inference = torchvision_inference.run_inference
+        _load_model = torchvision_inference.load_model
+        _model_status = torchvision_inference.model_status
     return _inference
 
 
-def detect(image: str, model: str | None = None, conf: float = 0.25) -> dict:
+def detect(image: str, conf: float = 0.25) -> dict:
     """Run one inference. Returns the worker's dict, never raises for a bad image."""
-    if model is None:
-        # Same knob /health reports: environment setting or stock weights.
-        model = os.environ.get("ONETEAM_YOLO_MODEL", "yolo11n.pt")
     with INFERENCE_LOCK:
-        return get_inference()(image, model, conf)
+        return get_inference()(
+            image,
+            conf,
+            mode=configured_mode(),
+            checkpoint=configured_checkpoint(),
+        )
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -100,15 +110,28 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):  # noqa: N802 (http.server naming)
         if self.path.rstrip("/") in ("", "/health"):
+            status = (
+                _model_status(configured_mode(), configured_checkpoint())
+                if _model_status
+                else None
+            )
             self._send(
                 {
                     "ok": True,
                     "service": "oneTeam-vision-worker",
-                    "model": os.environ.get("ONETEAM_YOLO_MODEL", "yolo11n.pt"),
-                    # True once the worker module has been imported. The socket
-                    # only opens after that, so this is a belt-and-braces signal
-                    # for a probe that arrives during a restart.
-                    "ready": _inference is not None,
+                    "backend": "torchvision",
+                    "mode": configured_mode(),
+                    "model": status["model"] if status else None,
+                    "ready": bool(status and status["loaded"]),
+                    "torch_version": status["torch_version"] if status else None,
+                    "torchvision_version": status["torchvision_version"] if status else None,
+                    "classes": status["classes"] if status else None,
+                    "checkpoint_sha256": status["checkpoint_sha256"] if status else None,
+                    "class_map_version": status["class_map_version"] if status else None,
+                    "dataset_source": status["dataset_source"] if status else None,
+                    "dataset_license": status["dataset_license"] if status else None,
+                    "production_approved": status["production_approved"] if status else False,
+                    "checkpoint_error": status["checkpoint_error"] if status else None,
                 }
             )
             return
@@ -145,13 +168,10 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         try:
-            conf = float(payload.get("conf", os.environ.get("ONETEAM_YOLO_CONF", 0.25)))
-            if not 0.1 <= conf <= 0.9:
-                raise ValueError("Confidence threshold must be between 0.1 and 0.9.")
-            result = detect(
-                image,
-                conf=conf,
-            )
+            conf = float(payload.get("conf", os.environ.get("ONETEAM_TORCHVISION_CONF", 0.25)))
+            if not 0.0 < conf <= 1.0:
+                raise ValueError("Confidence threshold must be greater than 0 and at most 1.")
+            result = detect(image, conf=conf)
         except ValueError as error:
             self._send({"success": False, "error": str(error)}, 400)
             return
@@ -159,6 +179,11 @@ class Handler(BaseHTTPRequestHandler):
             self._send({"success": False, "error": f"{type(error).__name__}: {error}"}, 500)
             return
 
+        if result.get("success") is not True:
+            error = result.get("error", "Detector is not ready.")
+            status = 503 if "disabled" in str(error).lower() or "checkpoint" in str(error).lower() else 422
+            self._send(result, status)
+            return
         self._send(result, 200)
 
     def log_message(self, format, *args):  # keep the access log one line per request
@@ -178,13 +203,27 @@ class Handler(BaseHTTPRequestHandler):
 def main() -> None:
     port = int(os.environ.get("PORT", "8080"))
 
-    # Warm before listening: a probe that succeeds is a model that is loaded.
+    # Keep the API available when no approved weights are configured.
     print(
         json.dumps({"ts": "startup", "msg": "loading worker", "port": port}),
         flush=True,
     )
     get_inference()
-    print(json.dumps({"ts": "startup", "msg": "ready"}), flush=True)
+    status = _model_status(configured_mode(), configured_checkpoint())
+    if configured_mode() != "disabled":
+        try:
+            with INFERENCE_LOCK:
+                _load_model(configured_mode(), configured_checkpoint())
+            status = _model_status(configured_mode(), configured_checkpoint())
+        except Exception as error:
+            print(json.dumps({"ts": "startup", "msg": "model unavailable", "error": str(error)}), flush=True)
+    print(json.dumps({
+        "ts": "startup",
+        "msg": "ready" if status["loaded"] else "degraded-no-model",
+        "backend": "torchvision",
+        "mode": configured_mode(),
+        "model": status["model"],
+    }), flush=True)
 
     server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
     server.serve_forever()

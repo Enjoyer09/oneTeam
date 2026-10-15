@@ -2,16 +2,16 @@
  * oneTeam — Hybrid vision orchestrator
  * ============================================================================
  *
- * Stock YOLO detects generic bottles but cannot verify brands or planograms.
+ * The generic detector cannot verify brands or planograms until trained on
+ * reviewed product data.
  * The vision-LLM attempts a planogram judgement, but may be confidently wrong.
  *
  * The hybrid uses this escalation path:
  *
- *   1. Run YOLO. The current COCO provider is never verdict-confident.
- *   2. Ask the LLM about the shelf and planogram. Retain generic YOLO boxes.
- *   3. Require a confirmed beverage shelf and at least three YOLO bottle boxes
- *      before an LLM verdict can bypass human review. This is a temporary
- *      safeguard until a SKU-trained model has been evaluated.
+ *   1. Run TorchVision. The current detector is never verdict-confident.
+ *   2. Ask the LLM about the shelf and planogram. Retain generic detector boxes.
+ *   3. Keep every result in human review until a SKU model is validated and
+ *      explicitly approved for automatic decisions.
  *
  * `combineHybrid` is a pure function so the escalation logic is tested without a
  * worker or a network. The provider does only the I/O around it.
@@ -19,56 +19,54 @@
 import { clock } from '@oneteam/types';
 import type { VisionAnalysis, VisionInput, VisionProvider } from './types';
 
-/** How confident YOLO must be, on its own, to skip the LLM. */
-export const DEFAULT_YOLO_CONFIDENCE_FLOOR = 0.55;
+/** Confidence floor reserved for a future approved detector. */
+export const DEFAULT_DETECTOR_CONFIDENCE_FLOOR = 0.55;
 
 export interface HybridThresholds {
-  yoloConfidenceFloor: number;
+  detectorConfidenceFloor: number;
 }
 
 /** Why the hybrid reached its verdict — carried into the summary and audit. */
 export type HybridPath =
-  'yolo-confident' | 'llm-confident' | 'llm-unsure-human-review' | 'no-llm-human-review';
+  'detector-confident' | 'llm-confident' | 'llm-unsure-human-review' | 'no-llm-human-review';
 
 /**
  * Merge the layers into one verdict. Pure: no I/O, no clock.
  *
- * `llm` is null when the LLM was never consulted (YOLO was confident) or is not
- * configured. The YOLO analysis always supplies the on-shelf `detections`/boxes,
+ * `llm` is null when the LLM was never consulted (detector was confident) or is not
+ * configured. The detector analysis always supplies the on-shelf `detections`/boxes,
  * because the LLM produces none.
  */
 export function combineHybrid(
-  yolo: VisionAnalysis,
+  detector: VisionAnalysis,
   llm: VisionAnalysis | null,
   path: HybridPath,
   analyzedAt: string,
 ): VisionAnalysis {
-  const authoritative = path === 'llm-confident' && llm ? llm : yolo;
-  // A vision model alone may confidently misread a room as a beverage shelf.
-  // Until a SKU-trained detector exists, require at least three generic bottle
-  // boxes before an LLM verdict can auto-approve. Fewer is a human-review hold.
-  const sceneUnverified = path === 'llm-confident' && yolo.detections.length < 3;
-  const needsHumanReview =
-    sceneUnverified || path === 'llm-unsure-human-review' || path === 'no-llm-human-review';
+  const authoritative = path === 'llm-confident' && llm ? llm : detector;
+  // Neither the generic COCO detector nor an unvalidated LLM can approve a
+  // shelf. Keep the result reviewable until a separately qualified model exists.
+  const sceneUnverified = path === 'llm-confident';
+  const needsHumanReview = path !== 'detector-confident' || detector.needsHumanReview;
 
   const summary =
-    path === 'yolo-confident'
-      ? `Hibrid: YOLO əmin (${yolo.confidence}). ${yolo.summary}`
+    path === 'detector-confident'
+      ? `Hibrid: detektor əmin (${detector.confidence}). ${detector.summary}`
       : path === 'llm-confident'
-        ? `Hibrid: YOLO qərarsız → vision-LLM əmin (${llm?.confidence}).${sceneUnverified ? ' Foto üzrə ən azı 3 butulka təsdiqlənmədiyi üçün insan yoxlaması tələb olunur.' : ''} ${llm?.summary}`
+        ? `Hibrid: detektor → vision-LLM əmin (${llm?.confidence}).${sceneUnverified ? ' Model istehsal qərarı üçün təsdiqlənmədiyi üçün insan yoxlaması tələb olunur.' : ''} ${llm?.summary}`
         : path === 'llm-unsure-human-review'
-          ? `Hibrid: hər iki qat qərarsız (YOLO ${yolo.confidence}, LLM ${llm?.confidence}) → insan yoxlaması. ${llm?.summary ?? yolo.summary}`
-          : `Hibrid: YOLO qərarsız və vision-LLM konfiqurasiya edilməyib → insan yoxlaması. ${yolo.summary}`;
+          ? `Hibrid: hər iki qat qərarsız (detektor ${detector.confidence}, LLM ${llm?.confidence}) → insan yoxlaması. ${llm?.summary ?? detector.summary}`
+          : `Hibrid: detektor qərarsız və vision-LLM konfiqurasiya edilməyib → insan yoxlaması. ${detector.summary}`;
 
   return {
     complianceScore: authoritative.complianceScore,
-    confidence: Math.max(yolo.confidence, llm?.confidence ?? 0),
+    confidence: Math.max(detector.confidence, llm?.confidence ?? 0),
     needsHumanReview,
     detectedCounts: authoritative.detectedCounts,
     skuBreakdown: authoritative.skuBreakdown,
-    // YOLO owns the boxes; fall back to whatever the authoritative layer has if
-    // YOLO produced none.
-    detections: yolo.detections.length > 0 ? yolo.detections : authoritative.detections,
+    // The detector owns the boxes; fall back to whatever the authoritative layer has if
+    // the detector produced none.
+    detections: detector.detections.length > 0 ? detector.detections : authoritative.detections,
     summary,
     engine: 'hybrid',
     provider: 'hybrid',
@@ -81,29 +79,29 @@ export class HybridVisionProvider implements VisionProvider {
   readonly name = 'hybrid';
 
   constructor(
-    private readonly yolo: VisionProvider,
+    private readonly detector: VisionProvider,
     private readonly llm: VisionProvider | null,
     private readonly thresholds: HybridThresholds = {
-      yoloConfidenceFloor: DEFAULT_YOLO_CONFIDENCE_FLOOR,
+      detectorConfidenceFloor: DEFAULT_DETECTOR_CONFIDENCE_FLOOR,
     },
   ) {}
 
   async analyze(input: VisionInput): Promise<VisionAnalysis> {
     const analyzedAt = clock.now().toISOString();
-    const yolo = await this.yolo.analyze(input);
+    const detector = await this.detector.analyze(input);
 
-    const yoloConfident =
-      !yolo.needsHumanReview && yolo.confidence >= this.thresholds.yoloConfidenceFloor;
-    if (yoloConfident) {
-      return combineHybrid(yolo, null, 'yolo-confident', analyzedAt);
+    const detectorConfident =
+      !detector.needsHumanReview && detector.confidence >= this.thresholds.detectorConfidenceFloor;
+    if (detectorConfident) {
+      return combineHybrid(detector, null, 'detector-confident', analyzedAt);
     }
 
     if (!this.llm) {
-      return combineHybrid(yolo, null, 'no-llm-human-review', analyzedAt);
+      return combineHybrid(detector, null, 'no-llm-human-review', analyzedAt);
     }
 
     const llm = await this.llm.analyze(input);
     const path: HybridPath = llm.needsHumanReview ? 'llm-unsure-human-review' : 'llm-confident';
-    return combineHybrid(yolo, llm, path, analyzedAt);
+    return combineHybrid(detector, llm, path, analyzedAt);
   }
 }

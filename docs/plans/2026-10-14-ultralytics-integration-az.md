@@ -4,6 +4,13 @@
 
 YOLO26-nı istehsala dərhal keçirməyək. Əvvəlcə Ultralytics lisenziyasını və kommersiya istifadəsini hüquqi cəhətdən dəqiqləşdirək, öz SKU şəkillərimizi hüquqları aydın olan datasetdə toplayıb etiketləyək, sonra YOLO11n və YOLO26n-i eyni ayrılmış test dəstində müqayisə edək. Model adı dəyişmək öz-özünə Coca-Cola/Sprite tanıma yaratmır.
 
+## Cari irəliləyiş
+
+- Worker modeli proses yaddaşında saxlayır və startup zamanı əvvəlcədən yükləyir; `/health` çəkilərin yükləndiyini və Ultralytics versiyasını bildirir.
+- Ultralytics paketi mövcud lokal mühitin `8.4.165` versiyasına pin edilib.
+- Benchmark CLI `yolo11n.pt` və `yolo26n.pt` üçün model load vaxtını və warm inference p50/p95 göstərə bilir. Annotasiyasız fixture-larda SKU dəqiqliyi iddiası vermir; müqayisə hələ işlədilməyib.
+- Fine-tune skriptinin namizəd modeli YOLO26n-dir. İstehsalın `ONETEAM_YOLO_MODEL` konfiqurasiyası dəyişməyib.
+
 ## Mövcud vəziyyət
 
 - İstehsalda `yolo11n.pt` işləyir. Bu COCO modelində marka sinifləri yoxdur; birbaşa marka/planogram nəticəsi verə bilməz.

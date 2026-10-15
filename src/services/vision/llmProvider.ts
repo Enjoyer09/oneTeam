@@ -42,7 +42,7 @@ function requirementsFor(input: VisionInput): PlanogramRequirement[] {
  *
  * The LLM's own `complianceScore` is kept as the verdict; this only produces the
  * required/detected/met rows for display, mirroring `evaluateCompliance`'s shape
- * so a card rendered from an LLM result looks like one rendered from YOLO.
+ * so a card rendered from an LLM result looks like one rendered from TorchVision.
  */
 function breakdownFromCounts(
   counts: Partial<Record<CocaColaSKU, number>>,

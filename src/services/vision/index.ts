@@ -11,16 +11,16 @@
  * quietly starts judging photos.
  *
  * ENV (values referenced by name; keys must never be logged)
- *   ONETEAM_VISION_PROVIDER   off | simulation | yolo | vision-llm | hybrid  (default: off)
+ *   ONETEAM_VISION_PROVIDER   off | simulation | torchvision | vision-llm | hybrid  (default: off)
  *   ONETEAM_VISION_LLM_URL    OpenAI-compatible chat-completions endpoint
  *   ONETEAM_VISION_LLM_MODEL  e.g. google/gemini-flash-1.5, anthropic/claude-3.5-sonnet
  *   ONETEAM_VISION_LLM_KEY    bearer key for that endpoint
  *   ONETEAM_VISION_LLM_LABEL  optional provider label for the audit trail
- *   ONETEAM_YOLO_WORKER_URL         base URL of a long-lived YOLO worker; unset
+ *   ONETEAM_TORCHVISION_WORKER_URL  base URL of a long-lived TorchVision worker; unset
  *                                   means the local spawnSync worker (see
- *                                   runUltralyticsInferenceRemote for why that
+ *                                   runTorchVisionInferenceRemote for why that
  *                                   is only right on a developer's machine)
- *   ONETEAM_YOLO_CONFIDENCE_FLOOR  optional 0-1 override for the hybrid hinge
+ *   ONETEAM_DETECTOR_CONFIDENCE_FLOOR  optional 0-1 override for the hybrid hinge
  *
  * EXTERNAL-CALL WARNING
  * ---------------------
@@ -34,12 +34,13 @@
  */
 import { aiVisionService, SKU_METADATA, type CocaColaSKU } from '../aiVision';
 import type { VisionInput, VisionLLMClient, VisionLLMJudgement, VisionProvider } from './types';
-import { SimulationVisionProvider, YoloVisionProvider } from './engineProviders';
+import { SimulationVisionProvider, TorchVisionProvider } from './engineProviders';
 import { VisionLLMProvider } from './llmProvider';
 import { openRouterClientFromEnv } from './openrouterClient';
 import { HybridVisionProvider, type HybridThresholds } from './hybridProvider';
 
-export type VisionProviderKind = 'off' | 'simulation' | 'yolo' | 'vision-llm' | 'hybrid';
+export type VisionProviderKind =
+  'off' | 'simulation' | 'torchvision' | 'yolo' | 'vision-llm' | 'hybrid';
 
 const COUNTED_SKUS: CocaColaSKU[] = [
   'coca_cola_classic',
@@ -227,9 +228,9 @@ function buildLLMClientFromEnv(env: NodeJS.ProcessEnv): VisionLLMClient | null {
 }
 
 function hybridThresholdsFromEnv(env: NodeJS.ProcessEnv): HybridThresholds | undefined {
-  const floor = Number(env.ONETEAM_YOLO_CONFIDENCE_FLOOR);
+  const floor = Number(env.ONETEAM_DETECTOR_CONFIDENCE_FLOOR);
   if (!Number.isFinite(floor) || floor <= 0 || floor > 1) return undefined;
-  return { yoloConfidenceFloor: floor };
+  return { detectorConfidenceFloor: floor };
 }
 
 /**
@@ -249,8 +250,11 @@ export function resolveVisionProvider(env: NodeJS.ProcessEnv = process.env): Vis
       return null;
     case 'simulation':
       return new SimulationVisionProvider();
-    case 'yolo':
-      return new YoloVisionProvider(env.ONETEAM_YOLO_WORKER_URL);
+    case 'torchvision':
+    case 'yolo': // legacy environment compatibility
+      return new TorchVisionProvider(
+        env.ONETEAM_TORCHVISION_WORKER_URL ?? env.ONETEAM_YOLO_WORKER_URL,
+      );
     case 'vision-llm': {
       const client = buildLLMClientFromEnv(env);
       return client ? new VisionLLMProvider(client) : null;
@@ -259,7 +263,7 @@ export function resolveVisionProvider(env: NodeJS.ProcessEnv = process.env): Vis
       const client = buildLLMClientFromEnv(env);
       const llm = client ? new VisionLLMProvider(client) : null;
       return new HybridVisionProvider(
-        new YoloVisionProvider(env.ONETEAM_YOLO_WORKER_URL),
+        new TorchVisionProvider(env.ONETEAM_TORCHVISION_WORKER_URL ?? env.ONETEAM_YOLO_WORKER_URL),
         llm,
         hybridThresholdsFromEnv(env),
       );
@@ -274,8 +278,8 @@ export function resolveVisionProvider(env: NodeJS.ProcessEnv = process.env): Vis
   }
 }
 
-export { SimulationVisionProvider, YoloVisionProvider, VisionLLMProvider, HybridVisionProvider };
-export { combineHybrid, DEFAULT_YOLO_CONFIDENCE_FLOOR } from './hybridProvider';
+export { SimulationVisionProvider, TorchVisionProvider, VisionLLMProvider, HybridVisionProvider };
+export { combineHybrid, DEFAULT_DETECTOR_CONFIDENCE_FLOOR } from './hybridProvider';
 export type { VisionAnalysis, VisionInput, VisionProvider, VisionLLMClient } from './types';
 export { SKU_METADATA };
 export {

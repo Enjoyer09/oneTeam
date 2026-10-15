@@ -1,39 +1,17 @@
-# Shelf datasets — acquisition status (2026-10-06)
+# TorchVision detector dataset
 
-The fine-tune pipeline (`scripts/train_yolo.py`) is proven end-to-end
-(synthetic 4-image smoke → `runs/detect/shelf/weights/best.pt`, 1 epoch, 7 s).
-It needs a **real labelled shelf dataset** to produce a model that beats the
-COCO baseline (see `../vision-worker/fixtures/REPORT.md`: COCO detects bottles
-but nothing on canned goods).
+The local training prototype is `scripts/train_torchvision_detector.py`. It trains a Faster R-CNN MobileNetV3 FPN detector from random initialization on COCO JSON annotations and does not download pretrained weights. That avoids importing an unclear pretrained-weight license into the model.
 
-Nothing meeting all three constraints (permissive license, ≤200 MB, product
-bounding boxes) was found in one package. Searched: HuggingFace, Wikimedia,
-Kaggle (no credentials on this machine).
+Expected layout:
 
-| Dataset                                              | License                          | Size                                                       | Verdict                                                                                                                 |
-| ---------------------------------------------------- | -------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `valiantlynxz/norwegian-grocery` (HF)                | **CC-BY-NC-4.0**                 | 965 MB (248 shelf imgs, 356 classes, YOLO config included) | Best data quality, but NC blocks shipping a model trained on it in a commercial product. OK for local experiments only. |
-| `shelfwise-by-form/SKUs_on_shelves_PL` (HF)          | CC-BY-4.0                        | **11.4 GB**                                                | Permissive but far over budget.                                                                                         |
-| Kaggle `humansintheloop/supermarket-shelves-dataset` | "academic + commercial" (custom) | 45 images, 2 classes (Product, Price)                      | Right license, tiny, but download needs Kaggle credentials (absent here).                                               |
-| `Basket-AEye/ai_shelf10` (HF)                        | **none declared**                | 389 MB                                                     | Unclear rights — do not use.                                                                                            |
-
-## Decision needed (owner)
-
-1. **Own photos (recommended):** shoot 50–200 shelf photos, label with
-   Roboflow/labelimg in YOLO format → highest-value data, clean rights.
-2. **Experiment now:** accept NC locally for a non-shipping proof
-   (`huggingface-cli download valiantlynxz/norwegian-grocery --repo-type dataset`,
-   then convert COCO → YOLO layout).
-3. **Kaggle route:** supply `~/.kaggle/kaggle.json`, then the 45-image
-   commercial-friendly set is a fast smoke dataset.
-
-## Expected layout (what `--check` validates)
-
-```
-datasets/shelf/
-  data.yaml              train/val paths + names
-  images/{train,val}/*.jpg
-  labels/{train,val}/*.txt   class cx cy w h (normalized)
+```text
+datasets/<dataset>/
+  images/train/
+  images/val/
+  annotations/instances_train.json
+  annotations/instances_val.json
 ```
 
-`datasets/` is gitignored — datasets never enter the repo.
+Use only photos and labels that OneTeam has permission to use. Record the real source and license when invoking training; the script writes them into the checkpoint manifest. Split train and validation by store and capture session, and keep identical image files out of both splits. Review every class-wise validation result and false positive before enabling a checkpoint. A model trained from scratch on an empty or tiny dataset is not production-ready.
+
+Run training with: `.venv/bin/python scripts/train_torchvision_detector.py --dataset datasets/<dataset> --dataset-source <source> --dataset-license <license> --output artifacts/<model>`. The output checkpoint and JSON manifest must be deployed together. Training writes `deployment_approval.approved=false`; do not deploy it as-is. A reviewer may set approval only after reviewing the rights, holdout metrics and false-positive report, and must record reviewer, date and report reference. The worker rejects unapproved checkpoints. Keep datasets and model artifacts out of Git.

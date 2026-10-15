@@ -1,11 +1,11 @@
 /**
- * oneTeam — Simulation & YOLO vision providers
+ * oneTeam — Simulation & TorchVision vision providers
  * ============================================================================
  *
  * The two engines that already exist in `aiVision.ts`, dressed as `VisionProvider`s
  * so the hybrid and the registry can treat them uniformly. Neither adds analysis
  * logic — they translate `aiVisionService`'s existing output into the seam's
- * `VisionAnalysis` shape and, for YOLO, decide how much to trust it.
+ * `VisionAnalysis` shape and decide how much to trust it.
  */
 import { clock } from '@oneteam/types';
 import { aiVisionService, type DetectionItem, type PlanogramRequirement } from '../aiVision';
@@ -69,17 +69,17 @@ export class SimulationVisionProvider implements VisionProvider {
 }
 
 /**
- * The local Ultralytics YOLO worker, as a provider.
+ * The TorchVision worker, as a provider.
  *
  * Stock COCO weights can detect a generic bottle, not its beverage brand or
  * planogram compliance. Object confidence must never become verdict confidence.
  * Even a successful detection therefore needs the LLM or a human reviewer.
  */
-export class YoloVisionProvider implements VisionProvider {
-  readonly name = 'yolo';
+export class TorchVisionProvider implements VisionProvider {
+  readonly name = 'torchvision';
 
   /**
-   * @param workerUrl Base URL of a long-lived YOLO worker, when there is one.
+   * @param workerUrl Base URL of a long-lived TorchVision worker, when there is one.
    *   Set, the call is one HTTP round-trip to a process that already loaded the
    *   model; unset, the local `spawnSync` worker is used, which is right for a
    *   developer's machine and wrong for anything that has to answer Telegram.
@@ -93,16 +93,24 @@ export class YoloVisionProvider implements VisionProvider {
     // image is already in memory here.
     const imageSource = input.imageBuffer ?? input.photoUrl;
     const outcome = this.workerUrl
-      ? await aiVisionService.runUltralyticsInferenceRemote(imageSource, {
+      ? await aiVisionService.runTorchVisionInferenceRemote(imageSource, {
           workerUrl: this.workerUrl,
         })
-      : aiVisionService.runUltralyticsInferenceDetailed(imageSource);
+      : aiVisionService.runTorchVisionInferenceDetailed(imageSource);
     // Discard old worker payloads that painted arbitrary COCO objects as SKUs.
     // A rolling deploy may briefly run this bot against the previous worker.
     const detections: DetectionItem[] =
       outcome.ok && !outcome.synthetic
         ? outcome.detections.filter(
-            (d) => d.objectClass === 'bottle' && d.sku === 'unverified_bottle',
+            (d) =>
+              d.objectClass === 'bottle' &&
+              [
+                'unverified_bottle',
+                'coca_cola_classic',
+                'coca_cola_zero',
+                'fanta',
+                'sprite',
+              ].includes(d.sku),
           )
         : [];
     const reason = outcome.ok
@@ -118,8 +126,8 @@ export class YoloVisionProvider implements VisionProvider {
       detectedCounts: {},
       skuBreakdown: [],
       detections,
-      summary: `YOLO (${reason}): ${detections.length} mümkün butulka tapıldı; marka və planogram uyğunluğu müəyyən edilmədi. İnsan yoxlaması tələb olunur.`,
-      engine: 'ultralytics-yolo',
+      summary: `TorchVision (${reason}): ${detections.length} mümkün butulka tapıldı; marka və planogram uyğunluğu müəyyən edilmədi. İnsan yoxlaması tələb olunur.`,
+      engine: 'torchvision-detection',
       provider: this.name,
       analyzedAt: clock.now().toISOString(),
     };

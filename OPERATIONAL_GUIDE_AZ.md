@@ -40,7 +40,7 @@ Arxa fonda avtomatik işə düşən modullar:
 - 🌐 **Veb İdarəetmə Paneli (React & Tailwind):** Menecerlər və supervayzerlər üçün analitik idarəetmə masası (`http://localhost:5173`).
 - 🤖 **Telegram Bot Xidməti:** Merçendayzerlərin smartfondan tapşırıq qəbul etməsi və foto yükləməsi üçün canlı qovşaq.
 
-> ⚠️ **Qeyd:** Sistemdə şəkli avtomatik tanıyan kompüter görməsi (YOLOv8 və s.) **yoxdur**. Əvvəlki versiyada bot hər foto üçün "uyğunluq balı" göstərirdi, lakin həmin bal fotoşəkilə ümumiyyətlə baxmırdı — fayl adındaki sözlərə əsasən uydurulurdu. Bu, tamamilə silinib. Bal indi yalnız supervayzerin rəyindən və ya qayda əsaslı avtomatik yoxlamadan gəlir (aşağıda bax: Bölmə 4).
+> ⚠️ **Qeyd:** TorchVision worker inteqrasiya olunub, lakin lisenziyası ayrıca yoxlanmış hazır COCO çəkisi də, OneTeam-a məxsus etiketli SKU datası da yoxdur. Buna görə worker `disabled` rejimində saxlanılır və planogram nəticələri insan yoxlaması tələb edir. Əvvəlki YOLO rəng təxminləri və uydurma qutular çıxarılıb. API balı şəkil tanıma nəticəsi deyil; supervayzer yoxlaması əsas qərardır (Bölmə 4).
 
 ---
 
@@ -201,7 +201,7 @@ Bu əmr 4 dəst icra edir:
 
 1. ✅ **Core API & Status Maşını:** 25/25 test keçir.
 2. ✅ **Kütləvi Paylanma & Əvvəl/Sonra Fotolar:** 14/14 test keçir.
-3. ⚠️ **Rəf Şəkli Analizi (simulyasiya):** 15/16. Bir test Ultralytics/Python tələb edir; kompüterdə quraşdırılmayıbsa uğursuz olur. Bu, məlum məhdudiyyətdir — ətraflı: `.env.production.example` Bölmə 6.
+3. ✅ **Rəf detectoru:** TorchVision worker müqavilə testləri işləyir. Real SKU modeli və hüquqları aydın dataset olmadığından worker default olaraq `disabled` rejimindədir; nəticələr avtomatik təsdiqlənmir. `.env.production.example` Bölmə 6.
 4. ✅ **iOS Mobil Klient:** 4/4 test keçir.
 
 ### B) Canlı API tələb edən testlər:
