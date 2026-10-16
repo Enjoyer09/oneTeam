@@ -19,7 +19,7 @@ import torchvision_inference as detector  # noqa: E402
 
 
 class FakeWeights:
-    meta = {"categories": ["__background__", "bottle", "cup"]}
+    meta = {"categories": ["__background__", "bottle", "cup", "unknown"]}
 
     @staticmethod
     def transforms():
@@ -30,9 +30,12 @@ class FakeModel:
     def __call__(self, _images):
         return [
             {
-                "boxes": torch.tensor([[1, 2, 9, 18], [2, 3, 8, 9], [1, 1, 4, 4]], dtype=torch.float32),
-                "scores": torch.tensor([0.91, 0.20, 0.99]),
-                "labels": torch.tensor([1, 1, 2]),
+                "boxes": torch.tensor(
+                    [[1, 2, 9, 18], [2, 3, 8, 9], [1, 1, 4, 4], [4, 4, 9, 19]],
+                    dtype=torch.float32,
+                ),
+                "scores": torch.tensor([0.91, 0.20, 0.99, 0.98]),
+                "labels": torch.tensor([1, 1, 2, 3]),
             }
         ]
 

@@ -39,6 +39,7 @@ SUPPORTED_CLASSES = {
     "fanta",
     "other_product",
     "sprite",
+    "unknown",
 }
 
 
@@ -48,8 +49,14 @@ class COCODetectionDataset(Dataset):
         data = json.loads(annotation_file.read_text(encoding="utf-8"))
         categories = sorted(data.get("categories", []), key=lambda item: item["id"])
         names = [str(category["name"]) for category in categories]
-        if not categories or len(set(names)) != len(names):
-            raise ValueError(f"{annotation_file}: categories must be non-empty and uniquely named")
+        category_ids = [category["id"] for category in categories]
+        if (
+            not categories
+            or len(set(names)) != len(names)
+            or len(set(category_ids)) != len(category_ids)
+            or any(not isinstance(category_id, int) or category_id < 1 for category_id in category_ids)
+        ):
+            raise ValueError(f"{annotation_file}: categories must have unique names and positive integer IDs")
         unsupported = sorted(set(names) - SUPPORTED_CLASSES)
         if unsupported:
             raise ValueError(f"Unsupported classes in {annotation_file}: {', '.join(unsupported)}")
@@ -61,8 +68,16 @@ class COCODetectionDataset(Dataset):
         self.images = sorted(data.get("images", []), key=lambda item: item["id"])
         if not self.images:
             raise ValueError(f"{annotation_file}: no images")
+        image_ids = [item.get("id") for item in self.images]
+        if any(not isinstance(image_id, int) or image_id < 0 for image_id in image_ids) or len(set(image_ids)) != len(image_ids):
+            raise ValueError(f"{annotation_file}: image IDs must be unique non-negative integers")
         self.annotations: dict[int, list[dict]] = {int(item["id"]): [] for item in self.images}
+        annotation_ids = set()
         for annotation in data.get("annotations", []):
+            annotation_id = annotation.get("id")
+            if not isinstance(annotation_id, int) or annotation_id < 0 or annotation_id in annotation_ids:
+                raise ValueError(f"{annotation_file}: annotation IDs must be unique non-negative integers")
+            annotation_ids.add(annotation_id)
             image_id = int(annotation["image_id"])
             if image_id not in self.annotations:
                 raise ValueError(f"{annotation_file}: annotation refers to unknown image {image_id}")
@@ -88,10 +103,18 @@ class COCODetectionDataset(Dataset):
         boxes, labels, areas, crowds = [], [], [], []
         for annotation in self.annotations[int(item["id"])]:
             x, y, box_width, box_height = map(float, annotation["bbox"])
-            x1, y1 = max(0.0, x), max(0.0, y)
-            x2, y2 = min(float(width), x + box_width), min(float(height), y + box_height)
-            if x2 <= x1 or y2 <= y1:
-                continue
+            if (
+                not all(np.isfinite(value) for value in (x, y, box_width, box_height))
+                or x < 0
+                or y < 0
+                or box_width <= 0
+                or box_height <= 0
+                or x + box_width > width
+                or y + box_height > height
+            ):
+                raise ValueError(f"Invalid or out-of-image bbox in annotation {annotation['id']} ({item['file_name']})")
+            x1, y1 = x, y
+            x2, y2 = x + box_width, y + box_height
             boxes.append([x1, y1, x2, y2])
             labels.append(self.category_to_label[annotation["category_id"]])
             areas.append((x2 - x1) * (y2 - y1))

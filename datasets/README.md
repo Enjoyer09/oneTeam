@@ -18,7 +18,7 @@ Annotation policy:
 
 - Label `coca_cola_classic`, `coca_cola_zero`, `sprite`, or `fanta` only when the package branding is visually readable. Do not infer a brand from color, shelf position, or neighboring products.
 - Label competing or out-of-scope products as `other_product`. These detections are intentionally excluded from the product results shown by the inference adapter, while helping training distinguish target products from confusing objects.
-- Leave an unreadable, heavily occluded, or ambiguous object unlabeled; do not guess its brand. Images with no target products may have an empty annotation list and teach the detector background examples.
+- Label an unreadable, heavily occluded, or ambiguous product as `unknown` with a tight box; do not guess its brand. This prevents it from being silently treated as background. Images with no relevant objects may have an empty annotation list and teach the detector background examples.
 - Draw a tight box around each individual package. Do not box a whole shelf, grouped row, price tag, or reflection as a product.
 - Review labels with a second person where possible, especially hard negatives such as red cans, green bottles, logos, and partial packages.
 

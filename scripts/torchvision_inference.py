@@ -73,6 +73,7 @@ def _manifest_for(checkpoint: str) -> tuple[dict, Path]:
         "fanta",
         "other_product",
         "sprite",
+        "unknown",
     }
     if (
         not isinstance(classes, list)
