@@ -2,6 +2,8 @@
 
 The local training prototype is `scripts/train_torchvision_detector.py`. It trains a Faster R-CNN MobileNetV3 FPN detector from random initialization on COCO JSON annotations and does not download pretrained weights. That avoids importing an unclear pretrained-weight license into the model.
 
+For a generic shelf-detection experiment, Humans in the Loop publishes a 45-image [Supermarket Shelves dataset](https://humansintheloop.org/resources/datasets/supermarket-shelves-dataset/) under CC0 1.0. It has 11,743 boxes but only the generic `Product` and `Price` classes. The page currently requires a form to access the archive. If obtained, convert its annotations into the COCO layout below, use category names `product` and `price`, and keep this experiment separate from SKU evaluation. It can test generic product localization in dense shelves; it cannot teach or validate Sprite/Coca-Cola recognition. Do not bypass the publisher's form or infer SKU labels from these images.
+
 Expected layout:
 
 ```text

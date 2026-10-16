@@ -38,6 +38,8 @@ SUPPORTED_CLASSES = {
     "coca_cola_zero",
     "fanta",
     "other_product",
+    "price",
+    "product",
     "sprite",
     "unknown",
 }

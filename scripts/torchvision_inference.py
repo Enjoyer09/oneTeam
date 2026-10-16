@@ -72,6 +72,8 @@ def _manifest_for(checkpoint: str) -> tuple[dict, Path]:
         "coca_cola_zero",
         "fanta",
         "other_product",
+        "price",
+        "product",
         "sprite",
         "unknown",
     }
