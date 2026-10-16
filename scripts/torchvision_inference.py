@@ -126,6 +126,9 @@ def load_model(mode: str = "coco", checkpoint: str | None = None):
                     num_classes=len(classes),
                     min_size=320,
                     max_size=640,
+                    box_detections_per_img=int(
+                        manifest.get("training", {}).get("max_detections_per_image", 100)
+                    ),
                 )
                 checkpoint_data = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
                 state_dict = checkpoint_data.get("model_state_dict", checkpoint_data)

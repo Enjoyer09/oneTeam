@@ -32,6 +32,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision.models.detection import fasterrcnn_mobilenet_v3_large_fpn
 
 ARCHITECTURE = "fasterrcnn_mobilenet_v3_large_fpn"
+MAX_DETECTIONS_PER_IMAGE = 500
 SUPPORTED_CLASSES = {
     "bottle",
     "coca_cola_classic",
@@ -184,7 +185,11 @@ def validate(model, dataset, classes: list[str], confidence: float = 0.5, iou_th
     for name, counts in stats.items():
         precision = counts["tp"] / max(counts["tp"] + counts["fp"], 1)
         recall = counts["tp"] / max(counts["tp"] + counts["fn"], 1)
-        output[name] = {**counts, "precision@0.5": round(precision, 4), "recall@0.5": round(recall, 4)}
+        output[name] = {
+            **counts,
+            f"precision@{confidence}": round(precision, 4),
+            f"recall@{confidence}": round(recall, 4),
+        }
     return output
 
 
@@ -198,6 +203,7 @@ def main() -> int:
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--learning-rate", type=float, default=0.005)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--resume-from", type=Path, help="Continue from a prior local state dict with the same class map")
     args = parser.parse_args()
     if args.epochs < 1 or args.batch_size < 1 or args.learning_rate <= 0:
         parser.error("epochs and batch-size must be positive; learning-rate must be greater than zero")
@@ -223,7 +229,23 @@ def main() -> int:
         num_classes=len(train_data.classes),
         min_size=320,
         max_size=640,
+        box_detections_per_img=MAX_DETECTIONS_PER_IMAGE,
     ).to(torch.device("cpu"))
+    resume_digest = None
+    if args.resume_from:
+        resume_path = args.resume_from.resolve()
+        resume_manifest_path = resume_path.with_suffix(resume_path.suffix + ".json")
+        if not resume_manifest_path.is_file():
+            raise ValueError("--resume-from requires the adjacent checkpoint manifest")
+        resume_manifest = json.loads(resume_manifest_path.read_text(encoding="utf-8"))
+        if resume_manifest.get("architecture") != ARCHITECTURE or resume_manifest.get("classes") != train_data.classes:
+            raise ValueError("Resume checkpoint architecture or class map does not match the dataset")
+        if hashlib.sha256(resume_path.read_bytes()).hexdigest() != resume_manifest.get("sha256"):
+            raise ValueError("Resume checkpoint SHA-256 does not match its manifest")
+        resume_data = torch.load(resume_path, map_location="cpu", weights_only=True)
+        resume_state = resume_data.get("model_state_dict", resume_data)
+        model.load_state_dict(resume_state, strict=True)
+        resume_digest = hashlib.sha256(resume_path.read_bytes()).hexdigest()
     optimizer = torch.optim.SGD(
         [parameter for parameter in model.parameters() if parameter.requires_grad],
         lr=args.learning_rate,
@@ -256,7 +278,8 @@ def main() -> int:
             json.dumps(train_data.classes, separators=(",", ":")).encode()
         ).hexdigest(),
         "sha256": digest,
-        "initialization": "random-no-pretrained-weights",
+        "initialization": "resumed-local-checkpoint" if resume_digest else "random-no-pretrained-weights",
+        "initialization_checkpoint_sha256": resume_digest,
         "dataset": {
             "source": args.dataset_source,
             "license": args.dataset_license,
@@ -268,6 +291,8 @@ def main() -> int:
             "validation_annotations_sha256": hashlib.sha256(
                 (dataset_root / "annotations/instances_val.json").read_bytes()
             ).hexdigest(),
+            "train_image_sha256": sorted(train_data.file_hashes),
+            "validation_image_sha256": sorted(val_data.file_hashes),
         },
         "deployment_approval": {
             "approved": False,
@@ -280,6 +305,7 @@ def main() -> int:
             "batch_size": args.batch_size,
             "learning_rate": args.learning_rate,
             "seed": args.seed,
+            "max_detections_per_image": MAX_DETECTIONS_PER_IMAGE,
             "validation_iou_threshold": 0.5,
             "validation_confidence_threshold": 0.5,
             "validation_metrics": metrics,
