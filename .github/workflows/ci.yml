@@ -151,6 +151,12 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
+      # `test:all` includes `test:web`, and `web` is not a workspace member —
+      # the root install never creates web/node_modules. Same trap as the build
+      # job below; measured 2026-11-08: `vitest: not found`, exit 127.
+      - name: Install web portal dependencies
+        run: cd web && npm ci --no-audit --no-fund
+
       - name: Run test suite
         run: npm run test:all
 
