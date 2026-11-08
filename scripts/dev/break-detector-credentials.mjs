@@ -92,7 +92,7 @@ const FILES = {
   tsconfig: 'mobile/tsconfig.json',
 };
 
-/** A second importer of the native module, to prove the exclusion cannot widen. */
+/** A new source file, to prove credential scanning covers new files too. */
 const WIDEN_FILE = 'mobile/src/services/zz-break-widen.ts';
 
 /**
@@ -263,37 +263,22 @@ const CASES = [
     id: 'L',
     target: 'config',
     file: 'tsconfig',
-    why: 'keychain.ts is put back under the type-check',
-    // The exclusion list has TWO entries — `queueStorage.ts` must stay excluded,
-    // because only `keychain.ts` is the break. An earlier version of this case
-    // expected the whole array to hold one entry and silently did not apply
-    // after item 3.3 added the second.
-    //
-    // The marker is a WHOLE-LINE `//` comment, and that is not cosmetic. A
-    // tsconfig is JSON, and the config verifier strips whole-line `//` comments
-    // and then calls `JSON.parse` — so a trailing `/*BREAK-L*/` on the same line
-    // as the value made the file unparseable, the verifier died before printing
-    // a single check, and the case reported TARGET-DID-NOT-RUN. The marker must
-    // be something the target can still read.
-    // This `find` has now been rewritten three times, each because the exclude
-    // array was reformatted. That is the hazard the case exists to catch, but it
-    // is also a warning: a `find` that mirrors a whole multi-line literal is
-    // brittle. The array is two entries again and stable, so this matches that.
-    find: `  "exclude": ["src/services/keychain.ts", "src/services/queueStorage.ts"]`,
-    replace: `  // BREAK-L: keychain.ts is back under the type-check
-  "exclude": ["src/services/queueStorage.ts"]`,
-    expect: 'src/services/keychain.ts is excluded from the type-check',
+    why: 'keychain.ts is silently excluded from the type-check',
+    find: `  "include": ["src/**/*"]`,
+    replace: `  // BREAK-L: hide native credential adapter errors
+  "include": ["src/**/*"],
+  "exclude": ["src/services/keychain.ts"]`,
+    expect: 'no mobile source is excluded from the type-check',
   },
   {
     id: 'M',
     target: 'config',
     file: 'widen',
-    why: 'a second file under src/ starts importing the native module',
-    create: `/*BREAK-M: a second native importer, so the exclusion no longer covers them all.*/
-import * as SecureStore from 'expo-secure-store';
-export const unused = SecureStore;
+    why: 'a new file exposes a credential through a public build variable',
+    create: `/*BREAK-M: credentials in a new file must still be caught.*/
+export const leaked = process.env.EXPO_PUBLIC_ONETEAM_DEVICE_TOKEN;
 `,
-    expect: 'exactly one file under src/ imports expo-secure-store',
+    expect: 'no credential has a public (EXPO_PUBLIC_) name',
   },
 ];
 

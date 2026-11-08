@@ -70,6 +70,30 @@ it('puts risky audits first and opens the next pending audit after approval', as
   await waitFor(() => expect(screen.getByRole('dialog').textContent).toContain('ordinary'));
 });
 
+it('shows number and choice checklist answers as values, never a fabricated verdict', () => {
+  const withAnswers = submission('answers', '2026-10-13T10:00:00Z');
+  withAnswers.checklist_answers = [
+    { questionId: 'q1', question: 'Rəf tam doludurmu?', value: true },
+    { questionId: 'q2', question: 'Rəf tam doludurmu?', value: false },
+    { questionId: 'q3', question: 'Coca-Cola facing sayı', value: 12, unit: 'ədəd' },
+    { questionId: 'q4', question: 'Qiymət etiketi', value: 'Var, oxunaqlıdır' },
+  ];
+  render(
+    <AuditReviewCenter
+      submissions={[withAnswers]}
+      selectedSubmission={withAnswers}
+      setSelectedSubmission={vi.fn()}
+      onApprove={vi.fn()}
+      onReject={vi.fn()}
+    />,
+  );
+  expect(screen.getByText('✅ Bəli (Təsdiqləndi)')).toBeTruthy();
+  expect(screen.getByText('❌ Xeyr (Çatışmır)')).toBeTruthy();
+  expect(screen.getByText('12 ədəd')).toBeTruthy();
+  expect(screen.getByText('Var, oxunaqlıdır')).toBeTruthy();
+  expect(screen.queryByText(/Normada/)).toBeNull();
+});
+
 it('hides historical brand guesses from the audit photo', () => {
   const old = submission('old', '2026-10-13T10:00:00Z');
   old.ai_score = 91;

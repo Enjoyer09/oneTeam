@@ -338,6 +338,14 @@ export class StorageService {
     }
 
     const contentType = params.contentType?.trim() || 'image/jpeg';
+    // A presigned PUT stores whatever type it is asked for; refusing everything
+    // but images keeps the bucket from hosting pages on our origin. See
+    // IMAGE_MEDIA_TYPES.
+    if (!isAllowedImageMediaType(contentType)) {
+      throw new Error(
+        `Refusing to presign an upload of type ${contentType.slice(0, 60)} — only image media types are accepted.`,
+      );
+    }
     const key = this.mintKey(params.scope, contentType);
     const { url, expiresAt } = signS3PresignedPut({
       target: this.target,
@@ -380,13 +388,46 @@ export class StorageService {
    * photos of the same task are submitted in the same millisecond, and S3
    * overwrites silently — so the second submission would replace the first with
    * no error and no trace.
+   *
+   * The scope is CLIENT-SUPPLIED (the mobile client passes the upload directory),
+   * so each segment is validated rather than interpolated: `../` would escape
+   * the intended namespace, and characters like `?`, `#` or a backslash would
+   * change the meaning of the public URL built from the key. A segment that is
+   * not a plain filename-shaped token is dropped, not encoded — encoding would
+   * still leave a key nobody asked for.
    */
   private mintKey(scope: string | undefined, contentType: string): string {
-    const clean = (scope ?? '').replace(/^\/+|\/+$/g, '');
+    const clean = (scope ?? '')
+      .split('/')
+      .map((segment) => segment.trim())
+      .filter((segment) => /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(segment))
+      .join('/');
     const stamp = clock.now().toISOString().replace(/[:.]/g, '-');
     const random = Math.random().toString(36).slice(2, 10);
     return `${clean ? clean + '/' : ''}${stamp}-${random}${extensionFor(contentType)}`;
   }
+}
+
+/**
+ * Media types this service is allowed to store.
+ *
+ * An allowlist, not a check on the extension: `/photos/presign` signs a PUT for
+ * whatever type the caller names, and the bucket serves it with that type. A
+ * caller who presigns `text/html` gets a page hosted on OUR bucket origin —
+ * stored XSS with our domain. Only image types are presignable, full stop.
+ */
+const IMAGE_MEDIA_TYPES = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/gif',
+]);
+
+/** True when the media type is one this service may presign or store. */
+export function isAllowedImageMediaType(contentType: string): boolean {
+  return IMAGE_MEDIA_TYPES.has(contentType.trim().toLowerCase());
 }
 
 /**

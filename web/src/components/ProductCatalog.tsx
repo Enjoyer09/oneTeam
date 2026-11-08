@@ -104,8 +104,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     setSaving(true);
     setFormError(null);
 
-    // Create formasında boş mətn saxlanır; PATCH-də boş opsional sahələr
-    // göndərilmir, ona görə mövcud dəyər təsadüfən silinmir.
+    // Forma mövcud dəyərlərlə dolu açılır (toFormValues), ona görə dəyişməyən
+    // sahə öz cari dəyərini göndərir. Boş opsional sahə isə operatorun şüurlu
+    // silməsidir — API ''-ni "təmizlə" kimi qəbul edir, köhnə dəyər qayıtmır.
     const payload = {
       barcode: form.barcode.trim(),
       name: form.name.trim(),
@@ -117,11 +118,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       if (editing === 'new') {
         await onCreate(payload);
       } else if (editing) {
-        await onUpdate(editing.id, {
-          ...payload,
-          size: payload.size || undefined,
-          variant: payload.variant || undefined,
-        });
+        await onUpdate(editing.id, payload);
       }
       closeForm();
     } catch (error) {

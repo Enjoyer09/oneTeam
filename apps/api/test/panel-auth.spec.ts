@@ -50,12 +50,13 @@
 
 import { createHash } from 'node:crypto';
 import { Client } from 'pg';
+import { serviceToken } from './helpers/service-token';
 
 const API_BASE = (process.env.ONETEAM_API_URL || 'http://localhost:3001').replace(/\/+$/, '');
 const DATABASE_URL = process.env.DATABASE_URL || '';
 
 /** An administrator service credential — needed to mint the very first key. */
-const ADMIN_TOKEN = process.env.ONETEAM_TEST_ADMIN_TOKEN || 'oneteam-user:usr-admin-001';
+const ADMIN_TOKEN = process.env.ONETEAM_TEST_ADMIN_TOKEN || serviceToken('usr-admin-001');
 /** A supervisor, to prove that reading the panel is not the same as running it. */
 const SUPERVISOR_USER = process.env.ONETEAM_TEST_SUPERVISOR_USER || 'usr-super-002';
 

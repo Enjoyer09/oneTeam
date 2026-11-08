@@ -103,7 +103,8 @@ export function App() {
       ? status
       : 'pending_review';
   });
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; kind: 'success' | 'error' } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* Mobil çekmece + toolbar kölgəsi */
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -111,9 +112,12 @@ export function App() {
 
   const mainRef = useRef<HTMLElement | null>(null);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
+  const showToast = (msg: string, kind: 'success' | 'error' = 'success') => {
+    // Əvvəlki toast-ın taymeri yenisini vaxtından əvvəl silməsin.
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ msg, kind });
+    // Xəta oxunmalıdır, nəzərdən qaçmamalıdır — uğurdan uzun qalır.
+    toastTimer.current = setTimeout(() => setToast(null), kind === 'error' ? 6000 : 3500);
   };
 
   /**
@@ -245,7 +249,7 @@ export function App() {
       // "işləyirdi", sadəcə yanlış məlumatla.
       const message = error instanceof Error ? error.message : String(error);
       console.error('⛔ [oneTeam Portal] Məlumat yüklənə bilmədi:', message);
-      showToast(`Məlumat yüklənə bilmədi — ${message}`);
+      showToast(`Məlumat yüklənə bilmədi — ${message}`, 'error');
       dispatchPhase({ type: 'failed' });
     }
   }, [checkAuth]);
@@ -310,7 +314,7 @@ export function App() {
       }
       const message = error instanceof Error ? error.message : String(error);
       console.error('⛔ [oneTeam Portal] Əməliyyat alınmadı:', message);
-      showToast(`Əməliyyat alınmadı — ${message}`);
+      showToast(`Əməliyyat alınmadı — ${message}`, 'error');
       return false;
     }
   };
@@ -695,17 +699,20 @@ export function App() {
         />
       )}
 
-      {/* Bildiriş — şüşə popover */}
-      {toastMessage && (
+      {/* Bildiriş — şüşə popover. Xəta qırmızı nöqtə + role="alert" ilə gəlir:
+          yaşıl "ok" nöqtəsi ilə uğur kimi görünmür. */}
+      {toast && (
         <div
-          role="status"
-          aria-live="polite"
+          role={toast.kind === 'error' ? 'alert' : 'status'}
+          aria-live={toast.kind === 'error' ? 'assertive' : 'polite'}
           className="glass-pop fixed bottom-4 right-4 z-[60] flex items-center gap-2.5
                      max-w-[calc(100vw-2rem)] rounded-[14px] px-4 py-3
                      text-[12px] font-bold text-ink animate-toastIn"
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-ok flex-shrink-0" />
-          <span>{toastMessage}</span>
+          <span
+            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${toast.kind === 'error' ? 'bg-bad' : 'bg-ok'}`}
+          />
+          <span>{toast.msg}</span>
         </div>
       )}
 

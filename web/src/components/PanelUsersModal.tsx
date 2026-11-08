@@ -120,9 +120,26 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
 
   /** A key minted from this screen, shown once and not yet acknowledged. */
   const [freshKey, setFreshKey] = useState<{ token: string; forWhom: string } | null>(null);
-  const modalRef = useModalA11y<HTMLDivElement>(true, () => {
+
+  /** Silmə təsdiqi: hesab + bütün açarlar bir kliklə yox, təsdiqlə silinir. */
+  const [pendingDelete, setPendingDelete] = useState<ManagedUserRow | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Təsdiq açıq olanda əsas modalın fokus/Escape handler-i sönür — əks halda
+  // hər iki handler işləyib Escape-də həm təsdiqi, həm bütün pəncərəni bağlayardı.
+  const modalRef = useModalA11y<HTMLDivElement>(pendingDelete === null, () => {
     if (!freshKey) onClose();
   });
+  const confirmRef = useModalA11y<HTMLDivElement>(pendingDelete !== null, () =>
+    closeDeleteConfirm(),
+  );
+
+  function closeDeleteConfirm() {
+    setPendingDelete(null);
+    setDeleteError(null);
+    setDeleting(false);
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -205,13 +222,26 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
       onChanged();
     }, 'Dəyişiklik yazıla bilmədi.');
 
-  const handleDelete = (user: ManagedUserRow) =>
-    run(async () => {
-      await deleteUser(user.id);
-      setNotice(`${user.fullName} silindi.`);
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete || deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteUser(pendingDelete.id);
+      setNotice(`${pendingDelete.fullName} silindi.`);
+      closeDeleteConfirm();
       await load();
       onChanged();
-    }, 'İstifadəçi silinə bilmədi.');
+    } catch (caught) {
+      setDeleteError(
+        caught instanceof PanelAuthError
+          ? caught.message
+          : `İstifadəçi silinə bilmədi. ${String(caught)}`,
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const handleMint = (user: ManagedUserRow) =>
     run(async () => {
@@ -244,363 +274,431 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
   };
 
   return (
-    <div className="modal-veil fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:items-center">
-      <div
-        ref={modalRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="İstifadəçilər və rollar"
-        className="glass-pop modal-admin w-full max-w-[820px] rounded-[18px] p-5 text-ink sm:p-6"
-      >
-        <div className="mb-4 flex items-start gap-3">
-          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[11px] bg-[rgba(10,16,32,.06)]">
-            <ShieldCheck className="h-4 w-4" strokeWidth={2} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <h2 className="text-[15px] font-extrabold tracking-[-.03em]">
-              İstifadəçilər və rollar
-            </h2>
-            <p className="mt-0.5 text-[11px] text-muted">
-              Kim sistemdədir, nə edə bilər, və kimə açar verilə bilər.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Bağla"
-            className="iconbtn-g"
-            disabled={Boolean(freshKey)}
-            title={freshKey ? 'Əvvəlcə yeni açarı köçürün' : 'Bağla'}
-          >
-            <X className="h-[17px] w-[17px]" strokeWidth={2} />
-          </button>
-        </div>
-
-        {error && (
-          <div className="mb-4 flex gap-2.5 rounded-[12px] border border-[rgba(200,60,60,.28)] bg-[rgba(200,60,60,.07)] p-3">
-            <AlertTriangle className="mt-px h-4 w-4 flex-shrink-0 text-[#b23b3b]" strokeWidth={2} />
-            <p className="text-[11.5px] leading-relaxed text-ink">{error}</p>
-          </div>
-        )}
-
-        {notice && !error && (
-          <div className="mb-4 flex gap-2.5 rounded-[12px] border border-[rgba(30,140,90,.28)] bg-[rgba(30,140,90,.07)] p-3">
-            <Check className="mt-px h-4 w-4 flex-shrink-0 text-[#1c7a4f]" strokeWidth={2.2} />
-            <p className="text-[11.5px] leading-relaxed text-ink">{notice}</p>
-          </div>
-        )}
-
-        {/* The one and only sighting of a key minted from this screen. */}
-        {freshKey && (
-          <div className="mb-4 rounded-[14px] border border-[rgba(30,140,90,.32)] bg-[rgba(30,140,90,.07)] p-3.5">
-            <b className="block text-[12px] font-extrabold text-[#1c7a4f]">
-              {freshKey.forWhom} üçün açar yaradıldı — indi köçürün
-            </b>
-            <p className="mt-1 text-[11.5px] leading-relaxed text-ink">
-              Bu açar <b className="font-bold">bir daha göstərilməyəcək</b>. Verilənlər bazasında
-              yalnız onun barmaq izi saxlanılır. Açarı həmin adama ötürün.
-            </p>
-            <div className="mt-2.5 flex items-center gap-2">
-              <code className="min-w-0 flex-1 truncate rounded-[10px] bg-[rgba(255,255,255,.8)] px-3 py-2 font-mono text-[12px]">
-                {freshKey.token}
-              </code>
-              <button
-                type="button"
-                onClick={() => void copyFreshKey()}
-                className="btn-g flex-shrink-0"
-              >
-                <KeyRound className="h-4 w-4" strokeWidth={2.1} />
-                Kopyala
-              </button>
+    <>
+      <div className="modal-veil fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:items-center">
+        <div
+          ref={modalRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="İstifadəçilər və rollar"
+          className="glass-pop modal-admin w-full max-w-[820px] rounded-[18px] p-5 text-ink sm:p-6"
+        >
+          <div className="mb-4 flex items-start gap-3">
+            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[11px] bg-[rgba(10,16,32,.06)]">
+              <ShieldCheck className="h-4 w-4" strokeWidth={2} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-[15px] font-extrabold tracking-[-.03em]">
+                İstifadəçilər və rollar
+              </h2>
+              <p className="mt-0.5 text-[11px] text-muted">
+                Kim sistemdədir, nə edə bilər, və kimə açar verilə bilər.
+              </p>
             </div>
-            <button type="button" onClick={() => setFreshKey(null)} className="btn-g mt-2.5">
-              <Check className="h-4 w-4" strokeWidth={2.2} />
-              Açarı köçürdüm, bağla
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Bağla"
+              className="iconbtn-g"
+              disabled={Boolean(freshKey)}
+              title={freshKey ? 'Əvvəlcə yeni açarı köçürün' : 'Bağla'}
+            >
+              <X className="h-[17px] w-[17px]" strokeWidth={2} />
             </button>
           </div>
-        )}
 
-        {/* Add a person */}
-        <div className="mb-4 rounded-[14px] bg-[rgba(10,16,32,.04)] p-3.5">
-          {!adding ? (
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="min-w-0">
-                <b className="block text-[12px] font-extrabold">Yeni adam əlavə et</b>
-                <p className="mt-0.5 text-[11px] text-muted">
-                  Sahə işçiləri bot və ya telefondan özləri qeydiyyatdan keçir — onları burada
-                  yaratmaq lazım deyil. Bu forma supervayzer və administrator üçündür.
-                </p>
-              </div>
-              <button type="button" onClick={() => setAdding(true)} className="btn-g btn-g-primary">
-                <UserPlus className="h-4 w-4" strokeWidth={2.1} />
-                Əlavə et
-              </button>
-            </div>
-          ) : (
-            <div>
-              <b className="mb-2 block text-[12px] font-extrabold">Yeni adam</b>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <label className="block">
-                  <span className="mb-1 block text-xs font-bold uppercase tracking-[.06em] text-muted">
-                    Ad və soyad *
-                  </span>
-                  <input
-                    value={draft.fullName}
-                    onChange={(event) => setDraft({ ...draft, fullName: event.target.value })}
-                    placeholder="Məsələn: Aysel Hüseynova"
-                    className="w-full rounded-[11px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.72)] px-3 py-2 text-[12.5px] text-ink outline-none"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs font-bold uppercase tracking-[.06em] text-muted">
-                    E-poçt (vacib deyil)
-                  </span>
-                  <input
-                    value={draft.email}
-                    onChange={(event) => setDraft({ ...draft, email: event.target.value })}
-                    placeholder="aysel@coke.oneteam.az"
-                    className="w-full rounded-[11px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.72)] px-3 py-2 text-[12.5px] text-ink outline-none"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs font-bold uppercase tracking-[.06em] text-muted">
-                    Telefon (vacib deyil)
-                  </span>
-                  <input
-                    value={draft.phone}
-                    onChange={(event) => setDraft({ ...draft, phone: event.target.value })}
-                    placeholder="+99450..."
-                    className="w-full rounded-[11px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.72)] px-3 py-2 text-[12.5px] text-ink outline-none"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs font-bold uppercase tracking-[.06em] text-muted">
-                    Rol
-                  </span>
-                  <select
-                    value={draft.role}
-                    onChange={(event) => setDraft({ ...draft, role: event.target.value })}
-                    className="w-full rounded-[11px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.72)] px-3 py-2 text-[12.5px] text-ink outline-none"
-                  >
-                    {roles.map((role) => (
-                      <option key={role} value={role}>
-                        {ROLE_LABEL[role] ?? role}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              {ROLE_HELP[draft.role] && (
-                <p className="mt-2 text-[11px] text-muted">{ROLE_HELP[draft.role]}</p>
-              )}
-              <div className="mt-2.5 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => void handleCreate()}
-                  disabled={busy}
-                  className="btn-g btn-g-primary disabled:opacity-60"
-                >
-                  {busy ? (
-                    <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.1} />
-                  ) : (
-                    <UserPlus className="h-4 w-4" strokeWidth={2.1} />
-                  )}
-                  Yarat
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAdding(false);
-                    setDraft(EMPTY_DRAFT);
-                  }}
-                  className="btn-g"
-                >
-                  İmtina
-                </button>
-              </div>
+          {error && (
+            <div className="mb-4 flex gap-2.5 rounded-[12px] border border-[rgba(200,60,60,.28)] bg-[rgba(200,60,60,.07)] p-3">
+              <AlertTriangle
+                className="mt-px h-4 w-4 flex-shrink-0 text-[#b23b3b]"
+                strokeWidth={2}
+              />
+              <p className="text-[11.5px] leading-relaxed text-ink">{error}</p>
             </div>
           )}
-        </div>
 
-        {/* The list */}
-        <div className="mb-1.5 flex items-center justify-between">
-          <h3 className="text-[12px] font-extrabold tracking-[-.02em]">
-            İstifadəçilər ({users.length})
-          </h3>
-          <button type="button" onClick={() => void load()} className="btn-g" disabled={loading}>
-            {loading ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2.1} />
+          {notice && !error && (
+            <div className="mb-4 flex gap-2.5 rounded-[12px] border border-[rgba(30,140,90,.28)] bg-[rgba(30,140,90,.07)] p-3">
+              <Check className="mt-px h-4 w-4 flex-shrink-0 text-[#1c7a4f]" strokeWidth={2.2} />
+              <p className="text-[11.5px] leading-relaxed text-ink">{notice}</p>
+            </div>
+          )}
+
+          {/* The one and only sighting of a key minted from this screen. */}
+          {freshKey && (
+            <div className="mb-4 rounded-[14px] border border-[rgba(30,140,90,.32)] bg-[rgba(30,140,90,.07)] p-3.5">
+              <b className="block text-[12px] font-extrabold text-[#1c7a4f]">
+                {freshKey.forWhom} üçün açar yaradıldı — indi köçürün
+              </b>
+              <p className="mt-1 text-[11.5px] leading-relaxed text-ink">
+                Bu açar <b className="font-bold">bir daha göstərilməyəcək</b>. Verilənlər bazasında
+                yalnız onun barmaq izi saxlanılır. Açarı həmin adama ötürün.
+              </p>
+              <div className="mt-2.5 flex items-center gap-2">
+                <code className="min-w-0 flex-1 truncate rounded-[10px] bg-[rgba(255,255,255,.8)] px-3 py-2 font-mono text-[12px]">
+                  {freshKey.token}
+                </code>
+                <button
+                  type="button"
+                  onClick={() => void copyFreshKey()}
+                  className="btn-g flex-shrink-0"
+                >
+                  <KeyRound className="h-4 w-4" strokeWidth={2.1} />
+                  Kopyala
+                </button>
+              </div>
+              <button type="button" onClick={() => setFreshKey(null)} className="btn-g mt-2.5">
+                <Check className="h-4 w-4" strokeWidth={2.2} />
+                Açarı köçürdüm, bağla
+              </button>
+            </div>
+          )}
+
+          {/* Add a person */}
+          <div className="mb-4 rounded-[14px] bg-[rgba(10,16,32,.04)] p-3.5">
+            {!adding ? (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <b className="block text-[12px] font-extrabold">Yeni adam əlavə et</b>
+                  <p className="mt-0.5 text-[11px] text-muted">
+                    Sahə işçiləri bot və ya telefondan özləri qeydiyyatdan keçir — onları burada
+                    yaratmaq lazım deyil. Bu forma supervayzer və administrator üçündür.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAdding(true)}
+                  className="btn-g btn-g-primary"
+                >
+                  <UserPlus className="h-4 w-4" strokeWidth={2.1} />
+                  Əlavə et
+                </button>
+              </div>
             ) : (
-              <RefreshCw className="h-3.5 w-3.5" strokeWidth={2.1} />
-            )}
-            Yenilə
-          </button>
-        </div>
-
-        {loading && users.length === 0 ? (
-          <p className="rounded-[12px] bg-[rgba(10,16,32,.04)] p-3 text-[11.5px] text-muted">
-            Yüklənir…
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {users.map((user) => (
-              <div
-                key={user.id}
-                className="rounded-[12px] border border-[rgba(10,16,32,.08)] bg-[rgba(255,255,255,.5)] p-3"
-              >
-                {editing === user.id ? (
-                  <div>
-                    <div className="grid gap-2 sm:grid-cols-3">
-                      <input
-                        value={editDraft.fullName}
-                        onChange={(event) =>
-                          setEditDraft({ ...editDraft, fullName: event.target.value })
-                        }
-                        className="rounded-[10px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.8)] px-2.5 py-1.5 text-[12px] text-ink outline-none"
-                      />
-                      <select
-                        value={editDraft.role}
-                        onChange={(event) =>
-                          setEditDraft({ ...editDraft, role: event.target.value })
-                        }
-                        disabled={user.isSelf}
-                        title={user.isSelf ? 'Öz rolunuzu özünüz dəyişə bilməzsiniz' : 'Rolu dəyiş'}
-                        className="rounded-[10px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.8)] px-2.5 py-1.5 text-[12px] text-ink outline-none disabled:opacity-50"
-                      >
-                        {roles.map((role) => (
-                          <option key={role} value={role}>
-                            {ROLE_LABEL[role] ?? role}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        value={editDraft.phone}
-                        onChange={(event) =>
-                          setEditDraft({ ...editDraft, phone: event.target.value })
-                        }
-                        placeholder="Telefon"
-                        className="rounded-[10px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.8)] px-2.5 py-1.5 text-[12px] text-ink outline-none"
-                      />
-                    </div>
-                    {ROLE_HELP[editDraft.role] && (
-                      <p className="mt-1.5 text-[11px] text-muted">{ROLE_HELP[editDraft.role]}</p>
+              <div>
+                <b className="mb-2 block text-[12px] font-extrabold">Yeni adam</b>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold uppercase tracking-[.06em] text-muted">
+                      Ad və soyad *
+                    </span>
+                    <input
+                      value={draft.fullName}
+                      onChange={(event) => setDraft({ ...draft, fullName: event.target.value })}
+                      placeholder="Məsələn: Aysel Hüseynova"
+                      className="w-full rounded-[11px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.72)] px-3 py-2 text-[12.5px] text-ink outline-none"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold uppercase tracking-[.06em] text-muted">
+                      E-poçt (vacib deyil)
+                    </span>
+                    <input
+                      value={draft.email}
+                      onChange={(event) => setDraft({ ...draft, email: event.target.value })}
+                      placeholder="aysel@coke.oneteam.az"
+                      className="w-full rounded-[11px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.72)] px-3 py-2 text-[12.5px] text-ink outline-none"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold uppercase tracking-[.06em] text-muted">
+                      Telefon (vacib deyil)
+                    </span>
+                    <input
+                      value={draft.phone}
+                      onChange={(event) => setDraft({ ...draft, phone: event.target.value })}
+                      placeholder="+99450..."
+                      className="w-full rounded-[11px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.72)] px-3 py-2 text-[12.5px] text-ink outline-none"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold uppercase tracking-[.06em] text-muted">
+                      Rol
+                    </span>
+                    <select
+                      value={draft.role}
+                      onChange={(event) => setDraft({ ...draft, role: event.target.value })}
+                      className="w-full rounded-[11px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.72)] px-3 py-2 text-[12.5px] text-ink outline-none"
+                    >
+                      {roles.map((role) => (
+                        <option key={role} value={role}>
+                          {ROLE_LABEL[role] ?? role}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                {ROLE_HELP[draft.role] && (
+                  <p className="mt-2 text-[11px] text-muted">{ROLE_HELP[draft.role]}</p>
+                )}
+                <div className="mt-2.5 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleCreate()}
+                    disabled={busy}
+                    className="btn-g btn-g-primary disabled:opacity-60"
+                  >
+                    {busy ? (
+                      <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.1} />
+                    ) : (
+                      <UserPlus className="h-4 w-4" strokeWidth={2.1} />
                     )}
-                    <div className="mt-2 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void handleSaveEdit(user)}
-                        disabled={busy}
-                        className="btn-g btn-g-primary disabled:opacity-60"
-                      >
-                        <Check className="h-3.5 w-3.5" strokeWidth={2.2} />
-                        Yadda saxla
-                      </button>
-                      <button type="button" onClick={() => setEditing(null)} className="btn-g">
-                        İmtina
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <b className="text-[12.5px] font-extrabold">{user.fullName}</b>
-                        <span className="rounded-full bg-[rgba(10,16,32,.07)] px-2 py-0.5 text-[10px] font-bold text-ink">
-                          {ROLE_LABEL[user.role] ?? user.role}
-                        </span>
-                        {user.isSelf && (
-                          <span className="rounded-full bg-[rgba(30,140,90,.14)] px-2 py-0.5 text-[10px] font-bold text-[#1c7a4f]">
-                            siz
-                          </span>
-                        )}
-                        {user.joinedVia && (
-                          <span className="rounded-full bg-[rgba(10,16,32,.05)] px-2 py-0.5 text-[10px] text-muted">
-                            {user.joinedVia === 'telegram'
-                              ? 'Telegram ilə qoşulub'
-                              : 'Telefon ilə qoşulub'}
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-0.5 text-[11px] text-muted">
-                        {user.email ?? 'E-poçt yoxdur'}
-                        {user.phone ? ` · ${user.phone}` : ''}
-                        {` · ${user.liveKeys} aktiv açar`}
-                        {user.submissions !== null ? ` · ${user.submissions} təqdimat` : ''}
-                      </p>
-                      {!user.deletable && user.blockedBy && (
-                        <p className="mt-0.5 text-[11px] text-[#b23b3b]">
-                          {BLOCK_REASON[user.blockedBy]}
-                        </p>
-                      )}
-                    </div>
+                    Yarat
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAdding(false);
+                      setDraft(EMPTY_DRAFT);
+                    }}
+                    className="btn-g"
+                  >
+                    İmtina
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
-                    <div className="flex flex-shrink-0 flex-wrap gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => void handleMint(user)}
-                        disabled={busy}
-                        className="btn-g disabled:opacity-50"
-                        title="Bu adam üçün yeni panel girişi açarı yarat"
-                      >
-                        <KeyRound className="h-3.5 w-3.5" strokeWidth={2.1} />
-                        Açar yarat
-                      </button>
-                      {user.liveKeys > 0 && (
+          {/* The list */}
+          <div className="mb-1.5 flex items-center justify-between">
+            <h3 className="text-[12px] font-extrabold tracking-[-.02em]">
+              İstifadəçilər ({users.length})
+            </h3>
+            <button type="button" onClick={() => void load()} className="btn-g" disabled={loading}>
+              {loading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2.1} />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" strokeWidth={2.1} />
+              )}
+              Yenilə
+            </button>
+          </div>
+
+          {loading && users.length === 0 ? (
+            <p className="rounded-[12px] bg-[rgba(10,16,32,.04)] p-3 text-[11.5px] text-muted">
+              Yüklənir…
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {users.map((user) => (
+                <div
+                  key={user.id}
+                  className="rounded-[12px] border border-[rgba(10,16,32,.08)] bg-[rgba(255,255,255,.5)] p-3"
+                >
+                  {editing === user.id ? (
+                    <div>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <input
+                          value={editDraft.fullName}
+                          onChange={(event) =>
+                            setEditDraft({ ...editDraft, fullName: event.target.value })
+                          }
+                          className="rounded-[10px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.8)] px-2.5 py-1.5 text-[12px] text-ink outline-none"
+                        />
+                        <select
+                          value={editDraft.role}
+                          onChange={(event) =>
+                            setEditDraft({ ...editDraft, role: event.target.value })
+                          }
+                          disabled={user.isSelf}
+                          title={
+                            user.isSelf ? 'Öz rolunuzu özünüz dəyişə bilməzsiniz' : 'Rolu dəyiş'
+                          }
+                          className="rounded-[10px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.8)] px-2.5 py-1.5 text-[12px] text-ink outline-none disabled:opacity-50"
+                        >
+                          {roles.map((role) => (
+                            <option key={role} value={role}>
+                              {ROLE_LABEL[role] ?? role}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          value={editDraft.phone}
+                          onChange={(event) =>
+                            setEditDraft({ ...editDraft, phone: event.target.value })
+                          }
+                          placeholder="Telefon"
+                          className="rounded-[10px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.8)] px-2.5 py-1.5 text-[12px] text-ink outline-none"
+                        />
+                      </div>
+                      {ROLE_HELP[editDraft.role] && (
+                        <p className="mt-1.5 text-[11px] text-muted">{ROLE_HELP[editDraft.role]}</p>
+                      )}
+                      <div className="mt-2 flex gap-2">
                         <button
                           type="button"
-                          onClick={() => void handleRevokeKeys(user)}
-                          disabled={busy || user.isSelf}
+                          onClick={() => void handleSaveEdit(user)}
+                          disabled={busy}
+                          className="btn-g btn-g-primary disabled:opacity-60"
+                        >
+                          <Check className="h-3.5 w-3.5" strokeWidth={2.2} />
+                          Yadda saxla
+                        </button>
+                        <button type="button" onClick={() => setEditing(null)} className="btn-g">
+                          İmtina
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <b className="text-[12.5px] font-extrabold">{user.fullName}</b>
+                          <span className="rounded-full bg-[rgba(10,16,32,.07)] px-2 py-0.5 text-[10px] font-bold text-ink">
+                            {ROLE_LABEL[user.role] ?? user.role}
+                          </span>
+                          {user.isSelf && (
+                            <span className="rounded-full bg-[rgba(30,140,90,.14)] px-2 py-0.5 text-[10px] font-bold text-[#1c7a4f]">
+                              siz
+                            </span>
+                          )}
+                          {user.joinedVia && (
+                            <span className="rounded-full bg-[rgba(10,16,32,.05)] px-2 py-0.5 text-[10px] text-muted">
+                              {user.joinedVia === 'telegram'
+                                ? 'Telegram ilə qoşulub'
+                                : 'Telefon ilə qoşulub'}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-0.5 text-[11px] text-muted">
+                          {user.email ?? 'E-poçt yoxdur'}
+                          {user.phone ? ` · ${user.phone}` : ''}
+                          {` · ${user.liveKeys} aktiv açar`}
+                          {user.submissions !== null ? ` · ${user.submissions} təqdimat` : ''}
+                        </p>
+                        {!user.deletable && user.blockedBy && (
+                          <p className="mt-0.5 text-[11px] text-[#b23b3b]">
+                            {BLOCK_REASON[user.blockedBy]}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex flex-shrink-0 flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => void handleMint(user)}
+                          disabled={busy}
+                          className="btn-g disabled:opacity-50"
+                          title="Bu adam üçün yeni panel girişi açarı yarat"
+                        >
+                          <KeyRound className="h-3.5 w-3.5" strokeWidth={2.1} />
+                          Açar yarat
+                        </button>
+                        {user.liveKeys > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => void handleRevokeKeys(user)}
+                            disabled={busy || user.isSelf}
+                            className="btn-g disabled:opacity-40"
+                            title={
+                              user.isSelf
+                                ? 'Öz açarlarınızı buradan ləğv edə bilməzsiniz'
+                                : 'Bütün açarlarını ləğv et'
+                            }
+                          >
+                            <Trash2 className="h-3.5 w-3.5" strokeWidth={2.1} />
+                            Açarları kəs
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => startEditing(user)}
+                          disabled={busy}
+                          className="btn-g disabled:opacity-50"
+                          title="Adı, rolu və ya telefonu dəyiş"
+                        >
+                          <Pencil className="h-3.5 w-3.5" strokeWidth={2.1} />
+                          Düzəlt
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPendingDelete(user);
+                            setDeleteError(null);
+                          }}
+                          disabled={busy || !user.deletable}
                           className="btn-g disabled:opacity-40"
                           title={
-                            user.isSelf
-                              ? 'Öz açarlarınızı buradan ləğv edə bilməzsiniz'
-                              : 'Bütün açarlarını ləğv et'
+                            user.deletable
+                              ? 'Hesabı sil'
+                              : user.blockedBy
+                                ? BLOCK_REASON[user.blockedBy]
+                                : ''
                           }
                         >
                           <Trash2 className="h-3.5 w-3.5" strokeWidth={2.1} />
-                          Açarları kəs
+                          Sil
                         </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => startEditing(user)}
-                        disabled={busy}
-                        className="btn-g disabled:opacity-50"
-                        title="Adı, rolu və ya telefonu dəyiş"
-                      >
-                        <Pencil className="h-3.5 w-3.5" strokeWidth={2.1} />
-                        Düzəlt
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleDelete(user)}
-                        disabled={busy || !user.deletable}
-                        className="btn-g disabled:opacity-40"
-                        title={
-                          user.deletable
-                            ? 'Hesabı sil'
-                            : user.blockedBy
-                              ? BLOCK_REASON[user.blockedBy]
-                              : ''
-                        }
-                      >
-                        <Trash2 className="h-3.5 w-3.5" strokeWidth={2.1} />
-                        Sil
-                      </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <p className="mt-3 text-[11px] leading-relaxed text-muted">
+            Hesab silindikdə onun bütün açarları da silinir və keçmiş əməliyyatları audit jurnalında
+            adsız qalır. Audit təqdimatı olan şəxs silinmir — ona görə də silmək əvəzinə açarlarını
+            kəsmək tövsiyə olunur.
+          </p>
+        </div>
+      </div>
+
+      {/* Silmə təsdiqi — ProductCatalog/StoreDirectory ilə eyni nümunə. */}
+      {pendingDelete && (
+        <div className="modal-veil fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto p-4">
+          <div
+            ref={confirmRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="İstifadəçini silməyi təsdiqlə"
+            className="glass-pop my-auto w-full max-w-md overflow-hidden rounded-[18px]"
+          >
+            <div className="flex items-start gap-3 p-5">
+              <span className="grid h-9 w-9 flex-none place-items-center rounded-[11px] bg-[rgba(200,60,60,.09)] text-[#b23b3b]">
+                <AlertTriangle className="h-4 w-4" strokeWidth={2} />
+              </span>
+              <div className="min-w-0">
+                <h3 className="text-[13px] font-extrabold text-ink">
+                  "{pendingDelete.fullName}" silinsin?
+                </h3>
+                <p className="mt-1 text-[11.5px] leading-relaxed text-muted">
+                  Hesab və onun bütün aktiv açarları silinir; keçmiş əməliyyatları audit jurnalında
+                  adsız qalır. Bu əməliyyat geri qaytarılmır.
+                </p>
+                {deleteError && (
+                  <p
+                    role="alert"
+                    className="mt-3 rounded-lg border border-[rgba(200,60,60,.28)] bg-[rgba(200,60,60,.07)] px-3 py-2 text-[11.5px] font-bold text-[#b23b3b]"
+                  >
+                    {deleteError}
+                  </p>
                 )}
               </div>
-            ))}
+            </div>
+            <div className="flex items-center justify-end gap-2.5 border-t border-[rgba(10,16,32,.08)] p-4">
+              <button
+                type="button"
+                onClick={closeDeleteConfirm}
+                className="btn-g"
+                disabled={deleting}
+              >
+                Ləğv et
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleConfirmDelete()}
+                disabled={deleting}
+                className="rounded-[11px] bg-[#b23b3b] px-4 py-2 text-xs font-extrabold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {deleting ? 'Silinir…' : 'Bəli, sil'}
+              </button>
+            </div>
           </div>
-        )}
-
-        <p className="mt-3 text-[11px] leading-relaxed text-muted">
-          Hesab silindikdə onun bütün açarları da silinir və keçmiş əməliyyatları audit jurnalında
-          adsız qalır. Audit təqdimatı olan şəxs silinmir — ona görə də silmək əvəzinə açarlarını
-          kəsmək tövsiyə olunur.
-        </p>
-      </div>
-    </div>
+        </div>
+      )}
+    </>
   );
 };

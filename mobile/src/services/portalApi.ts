@@ -428,6 +428,16 @@ const REQUEST_TIMEOUT_MS = 20_000;
 const MAX_PHOTO_BYTES = 1_500_000;
 
 /**
+ * How old a GPS fix may be and still be sent as a located audit.
+ *
+ * Mirrors `MAX_FIX_AGE_MS` in the API's `gps-freshness.ts`: the server refuses
+ * an older fix with LOCATION_STALE, so a client that sends one is choosing a
+ * guaranteed rejection. Older fixes are downgraded to `locationUnverified` at
+ * send time instead — see `submitAudit`.
+ */
+const FIX_MAX_AGE_MS = 4 * 60 * 1000;
+
+/**
  * A 1x1 JPEG, used only when the caller explicitly says it has no real capture.
  *
  * See `uploadPhoto`. It is a valid image rather than a string of zeros so
@@ -1024,9 +1034,12 @@ class MobilePortalApi {
    *
    * Unlike the Telegram channel, this one has a real GPS fix from the device, so
    * the geofence check genuinely runs — which is the point of having the mobile
-   * client at all. `locationUnverified` is only sent when the caller has no fix,
-   * and the API records that as weaker evidence rather than substituting the
-   * store's own coordinates.
+   * client at all. `locationUnverified` is sent when the caller has no fix OR when
+   * the fix has aged past the server's freshness window (a queued audit drained
+   * later, a sign-in fallback fix): a stale fix is dropped rather than sent,
+   * because the server's answer to one is a guaranteed 400 that strands the
+   * audit in the retry queue. The API records the unverified submission as
+   * weaker evidence rather than substituting the store's own coordinates.
    */
   async submitAudit(params: {
     taskId: string;
@@ -1041,6 +1054,30 @@ class MobilePortalApi {
   }): Promise<MobileSubmission> {
     const gps = params.gps;
     const hasFix = typeof gps?.latitude === 'number' && typeof gps?.longitude === 'number';
+
+    // Send-time freshness, mirroring the server's `MAX_FIX_AGE_MS` (4 minutes).
+    //
+    // The server refuses a fix older than its window with LOCATION_STALE —
+    // deliberately, and that policy is not being argued with here. But the two
+    // normal paths that run into it are not replays: an audit queued offline
+    // and drained minutes or hours later, and the sign-in fallback fix when
+    // the capture-time fix could not be obtained. Both carried real
+    // coordinates that were guaranteed to be refused, retried five times, and
+    // sat in the queue forever — a worker's audit stranded by a rule aimed at
+    // someone else.
+    //
+    // So the client downgrades BEFORE sending: a stale (or undated) fix has its
+    // coordinates dropped and the submission is declared `locationUnverified`,
+    // the same explicit assertion the Telegram skip path makes. The audit
+    // lands as weaker evidence a human reviews — it can never manufacture a
+    // geofence pass, because the server files it against the store's own
+    // coordinates only because no coordinates were sent.
+    const fixIsFresh =
+      hasFix &&
+      typeof gps?.timestamp === 'number' &&
+      gps.timestamp > 0 &&
+      Date.now() - gps.timestamp <= FIX_MAX_AGE_MS;
+    const sendFix = hasFix && fixIsFresh;
 
     // Anti-fraud location quality, sent alongside the fix rather than instead of
     // it. These are ADDED fields — the server reads them when present and older
@@ -1061,9 +1098,9 @@ class MobilePortalApi {
     // measurement, and `JSON.stringify` would turn it into a literal `null` on
     // the wire — the server would store "precision unknown" under a key that
     // claims to hold a number.
-    const accuracyMeters = hasFix && Number.isFinite(gps?.accuracy) ? gps?.accuracy : undefined;
-    const locationLowConfidence = hasFix && gps ? isLowConfidenceFix(gps) : undefined;
-    const locationMocked = hasFix && typeof gps?.mocked === 'boolean' ? gps.mocked : undefined;
+    //
+    // The quality fields are computed inside the payload below, gated on
+    // `sendFix`: they describe a fix, and a downgraded submission sends none.
 
     // The retry guard, and the reason this function has a key parameter at all.
     //
@@ -1087,17 +1124,20 @@ class MobilePortalApi {
         storeTaskId: params.taskId,
         photoUrl: params.photoUrl,
         photoType: 'standard',
-        latitude: hasFix && gps ? gps.latitude : undefined,
-        longitude: hasFix && gps ? gps.longitude : undefined,
-        locationUnverified: !hasFix,
-        locationAccuracy: accuracyMeters,
-        locationLowConfidence,
-        locationMocked,
+        latitude: sendFix && gps ? gps.latitude : undefined,
+        longitude: sendFix && gps ? gps.longitude : undefined,
+        locationUnverified: !sendFix,
+        locationAccuracy: sendFix && Number.isFinite(gps?.accuracy) ? gps?.accuracy : undefined,
+        locationLowConfidence: sendFix && gps ? isLowConfidenceFix(gps) : undefined,
+        locationMocked: sendFix && typeof gps?.mocked === 'boolean' ? gps.mocked : undefined,
         // `expo-location` reports the fix time as epoch milliseconds; the API
         // takes an ISO-8601 instant. Without it the fix is undated and the
-        // server refuses the submission as stale.
+        // server refuses the submission as stale. A fix that failed
+        // `fixIsFresh` above sends neither the timestamp nor the coordinates:
+        // an undated fix is exactly the "cannot prove this is current" case,
+        // and the server's 400 would otherwise be the only outcome.
         locatedAt:
-          hasFix && typeof gps?.timestamp === 'number'
+          sendFix && typeof gps?.timestamp === 'number'
             ? new Date(gps.timestamp).toISOString()
             : undefined,
         idempotencyKey,

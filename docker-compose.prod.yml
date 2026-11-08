@@ -120,10 +120,20 @@ services:
       API_PORT: 3001
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required - it must point at the postgres service}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN is required}
+      # Signs the service credential. Without it the API accepts unsigned
+      # `oneteam-user:<id>` tokens, which anyone who reads the seeded ids can
+      # forge — that is an impersonation hole, not a convenience default.
+      ONETEAM_SERVICE_SIGNING_SECRET: ${ONETEAM_SERVICE_SIGNING_SECRET:?ONETEAM_SERVICE_SIGNING_SECRET is required - generate one with openssl rand -hex 32}
       # Verifies that an incoming webhook really came from Telegram. The API
       # returns 503 rather than accepting unverified callers when this is unset,
       # so it is required here too.
       TELEGRAM_WEBHOOK_SECRET: "${TELEGRAM_WEBHOOK_SECRET:?TELEGRAM_WEBHOOK_SECRET is required - generate one with openssl rand -hex 32}"
+      # The web nginx is the only intended entry point, and it sets
+      # X-Forwarded-For. Without trust, every caller arrives from the proxy's
+      # address and the per-address enrolment limiter would treat the whole
+      # deployment as one source. Note the 3001 port is also published below —
+      # keep it firewalled, or a direct client could forge X-Forwarded-For.
+      ONETEAM_TRUST_PROXY: "1"
       # Comma-separated allow-list. An empty value blocks every browser origin.
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost,http://localhost:5173}
       # ------------------------------------------------------------------
@@ -155,10 +165,10 @@ services:
       #
       # A store code is semi-public — printed on briefings and shared between
       # colleagues — so someone who learns one can enrol a device for that store.
-      # Setting this turns the store code into a username and this into the
-      # password. Left unset, a store code alone is enough.
-      #
-      # ONETEAM_ENROLLMENT_SECRET: ${ONETEAM_ENROLLMENT_SECRET:-}
+      # This turns the store code into a username and this into the password.
+      # Production refuses to start without it: a semi-public string is not a
+      # credential, and a pilot that cannot set one has not finished setup.
+      ONETEAM_ENROLLMENT_SECRET: ${ONETEAM_ENROLLMENT_SECRET:?ONETEAM_ENROLLMENT_SECRET is required - generate one with openssl rand -hex 32}
       # Wrong guesses allowed per address per 15 minutes before enrolment is
       # refused. Only failures count, so a shop full of colleagues signing in
       # behind one address is unaffected. Default 20.
@@ -251,6 +261,12 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN is required}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required - it must point at the postgres service}
       API_BASE_URL: http://api:3001
+      # Same secret as the API, so the bot can mint the signed, expiring service
+      # credential the API now requires (see apps/api service above).
+      ONETEAM_SERVICE_SIGNING_SECRET: ${ONETEAM_SERVICE_SIGNING_SECRET:?ONETEAM_SERVICE_SIGNING_SECRET is required}
+      # The user the bot acts as. A dedicated service user is better than an
+      # admin id; the bot derives the acting person per chat anyway.
+      ONETEAM_SERVICE_USER_ID: ${ONETEAM_SERVICE_USER_ID:-usr-admin-001}
     networks:
       - oneteam-network
 

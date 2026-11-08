@@ -644,12 +644,11 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                                 <span className="text-rose-700 font-bold">❌ Xeyr (Çatışmır)</span>
                               )
                             ) : (
+                              // Cavabda norm/keçid məlumatı yoxdur — dəyərin özünü
+                              // göstəririk, uydurma "✅ Normada" verdicti yox.
                               <span className="text-ink">
                                 {ans.value}
-                                {ans.unit ? ` ${ans.unit}` : ''}{' '}
-                                <span className="text-emerald-600 text-[11px] font-bold">
-                                  ✅ Normada
-                                </span>
+                                {ans.unit ? ` ${ans.unit}` : ''}
                               </span>
                             )}
                           </span>

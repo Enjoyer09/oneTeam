@@ -83,6 +83,22 @@ function actorKeyFromQuery(chatId?: string, deviceId?: string): FieldActorKey {
   return { chatId, deviceId };
 }
 
+/** The vision-engine fields that drive auto-approval; service-credential only. */
+const AI_VERDICT_FIELDS = [
+  'aiScore',
+  'aiSummary',
+  'aiDetections',
+  'aiConfidence',
+  'aiNeedsHumanReview',
+  'aiEngine',
+  'aiModel',
+] as const;
+
+function carriesAiVerdict(body: unknown): boolean {
+  if (!body || typeof body !== 'object') return false;
+  return AI_VERDICT_FIELDS.some((field) => (body as Record<string, unknown>)[field] !== undefined);
+}
+
 /**
  * Both endpoints need this, and both must reject the same malformed input.
  */
@@ -316,7 +332,18 @@ export class FieldController {
   async submitSubmission(@Request() request: AuthedRequest, @Body() body: SubmissionBody) {
     // The scope check is the point of this line; the key itself already came
     // from the body, so nothing needs merging back into it.
-    enforceActorScope(getPrincipal(request), requireActorKey(actorKeyFrom(body)));
+    const principal = getPrincipal(request);
+    enforceActorScope(principal, requireActorKey(actorKeyFrom(body)));
+    // The AI verdict drives auto-approval, so it must come from our own vision
+    // engine (the bot, a service credential) — never from the device or person
+    // being judged. A device token that could set `aiScore` would approve its
+    // own work past the human-review gate. Only the bot sends these fields.
+    if (!mayActAsAnotherUser(principal) && carriesAiVerdict(body)) {
+      throw new ForbiddenException({
+        error: 'ACTOR_SCOPE_VIOLATION',
+        message: 'AI verdict sahələri yalnız botun servis kredensialı ilə göndərilə bilər.',
+      });
+    }
     if (!body?.storeTaskId) {
       throw new BadRequestException('storeTaskId tələb olunur');
     }

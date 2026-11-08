@@ -19,6 +19,7 @@ import { NotificationDispatcherService } from '../src/modules/notifications/noti
 import { TaskStateService } from '../src/modules/tasks/task-state.service';
 import { WebhookController } from '../src/modules/notifications/webhook.controller';
 import { EvidenceService } from '../src/modules/evidences/evidence.service';
+import { StorageService } from '../src/modules/storage/storage.service';
 import { PortalService } from '../src/modules/portal/portal.service';
 import { AuthenticatedPrincipal } from '../src/common/auth/authenticated-principal';
 import { FRESH_FIX_AT } from './helpers/fresh-fix';
@@ -109,7 +110,7 @@ async function runTestSuite() {
   const notificationService = new NotificationDispatcherService();
   const taskStateService = new TaskStateService(notificationService);
   const webhookController = new WebhookController(taskStateService);
-  const evidenceService = new EvidenceService(taskStateService);
+  const evidenceService = new EvidenceService(taskStateService, new StorageService());
   const portalService = new PortalService(taskStateService);
 
   // --------------------------------------------------------------------------
@@ -483,7 +484,7 @@ async function runTestSuite() {
   const validInsideRes = await evidenceService.submitEvidence(
     {
       storeTaskId: yasamalTask,
-      photoUrl: 'https://images.unsplash.com/photo-coke-shelf-perfect.jpg',
+      photoUrl: 'data:image/png;base64,iVBORw0KGgo=',
       latitude: 40.38505,
       longitude: 49.8106,
       locatedAt: FRESH_FIX_AT(),
@@ -526,7 +527,7 @@ async function runTestSuite() {
     await evidenceService.submitEvidence(
       {
         storeTaskId: outTask,
-        photoUrl: 'https://images.unsplash.com/photo-fake-audit.jpg',
+        photoUrl: 'data:image/png;base64,iVBORw0KGgo=',
         latitude: 40.375,
         longitude: 49.825, // ~1.6km away
         locatedAt: FRESH_FIX_AT(),
@@ -732,7 +733,7 @@ async function runTestSuite() {
       id: opts.id,
       storeTaskId: opts.taskId,
       submittedById: 'usr-merch-003',
-      photoUrl: 'https://images.unsplash.com/photo-audit.jpg',
+      photoUrl: 'data:image/png;base64,iVBORw0KGgo=',
       photoType: 'standard',
       checklistAnswers: opts.answers ?? [{ questionId: 'q-eye-clean', value: true }],
       latitude: 40.385012,

@@ -68,6 +68,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { Client } from 'pg';
 import { FRESH_FIX_AT } from './helpers/fresh-fix';
+import { serviceToken } from './helpers/service-token';
 
 // `fetch` honours HTTP_PROXY and this suite talks to 127.0.0.1. Set before the
 // first request so undici builds its agent without a proxy.
@@ -89,7 +90,7 @@ const DATABASE_URL =
  * database the suite would start failing with 403s on routes that have nothing
  * to do with the failure.
  */
-const SERVICE_TOKEN = process.env.ONETEAM_TEST_ADMIN_TOKEN || 'oneteam-user:usr-admin-001';
+const SERVICE_TOKEN = process.env.ONETEAM_TEST_ADMIN_TOKEN || serviceToken('usr-admin-001');
 
 const REPO_ROOT = process.cwd();
 const API_ENTRY = path.join(REPO_ROOT, 'apps/api/dist/main.js');

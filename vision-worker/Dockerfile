@@ -22,7 +22,12 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY scripts/torchvision_inference.py /app/scripts/torchvision_inference.py
 COPY vision-worker/server.py /app/server.py
 
+# Containers reach each other over the bridge network, never over loopback,
+# so exposure is explicit here. The inference endpoint stays fail-closed: the
+# worker answers 503 until ONETEAM_VISION_TOKEN is set (and the bot holds the
+# same value).
 ENV PORT=8080
+ENV ONETEAM_VISION_HOST=0.0.0.0
 ENV ONETEAM_TORCHVISION_MODE=disabled
 EXPOSE 8080
 

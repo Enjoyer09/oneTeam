@@ -485,7 +485,12 @@ export class AIVisionService {
     try {
       response = await fetch(`${base}/detect`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          // The worker answers 503 without it: inference is fail-closed behind
+          // this shared token, not behind network reachability alone.
+          Authorization: `Bearer ${process.env.ONETEAM_VISION_TOKEN ?? ''}`,
+        },
         body: JSON.stringify({
           image:
             typeof imageSource === 'string'

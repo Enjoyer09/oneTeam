@@ -234,7 +234,16 @@ async function runMobileTests() {
   // --------------------------------------------------------------------------
   logStep(1, 'Anti-Fraud GPS Geofencing Verification (100m Perimeter)');
 
-  const insideGPS: GPSCoordinates = { latitude: USER_LAT, longitude: USER_LON, accuracy: 3.5 };
+  // Dated fixes, because the server refuses undated coordinates (LOCATION_STALE)
+  // and the client downgrades them to `locationUnverified` before sending. A fix
+  // `timestamp: Date.now()` is what a real capture produces, so the geofence
+  // controls below judge COORDINATES, not timestamps.
+  const insideGPS: GPSCoordinates = {
+    latitude: USER_LAT,
+    longitude: USER_LON,
+    accuracy: 3.5,
+    timestamp: Date.now(),
+  };
   const insideResult = verifyStoreGeofence(insideGPS, {
     latitude: STORE_LAT,
     longitude: STORE_LON,
@@ -556,7 +565,7 @@ async function runMobileTests() {
           taskId: claimed.id,
           storeId: store.id,
           photoUrl: farPhotoUrl,
-          gps: { latitude: FAR_LAT, longitude: FAR_LON, accuracy: 10 },
+          gps: { latitude: FAR_LAT, longitude: FAR_LON, accuracy: 10, timestamp: Date.now() },
           metadata: capture.metadata,
         }),
       'A submission from outside the geofence',

@@ -101,7 +101,9 @@ function questionText(question: ChecklistQuestion): string {
 
 /** Human-readable bounds for a number question, when the template sets them. */
 function numberHint(question: ChecklistQuestion): string {
-  const unit = question.unit ? ` ${question.unit}` : '';
+  // The unit comes from a checklist template, not from code — escape it or a
+  // template author's `*` breaks the whole step message.
+  const unit = question.unit ? ` ${escapeMarkdown(question.unit)}` : '';
   if (question.minValue !== undefined && question.maxValue !== undefined) {
     return `\n\nℹ️ Qəbul olunan aralıq: *${question.minValue}${unit}* — *${question.maxValue}${unit}*`;
   }
@@ -483,7 +485,7 @@ export async function handleChecklistText(ctx: BotContext): Promise<boolean> {
     return true;
   }
 
-  const unit = question.unit ? ` ${question.unit}` : '';
+  const unit = question.unit ? ` ${escapeMarkdown(question.unit)}` : '';
 
   if (question.minValue !== undefined && value < question.minValue) {
     await ctx.reply(

@@ -39,6 +39,7 @@
  */
 
 import { Client } from 'pg';
+import { serviceToken } from './helpers/service-token';
 
 const API_BASE = (process.env.ONETEAM_API_URL || 'http://localhost:3001').replace(/\/+$/, '');
 const DATABASE_URL = process.env.DATABASE_URL || '';
@@ -46,9 +47,9 @@ const DATABASE_URL = process.env.DATABASE_URL || '';
 /** A panel login key, when the panel is locked. */
 const PANEL_KEY = process.env.ONETEAM_TEST_PANEL_KEY || '';
 /** The service credential, usable only while the panel has no keys at all. */
-const ADMIN_TOKEN = process.env.ONETEAM_TEST_ADMIN_TOKEN || 'oneteam-user:usr-admin-001';
+const ADMIN_TOKEN = process.env.ONETEAM_TEST_ADMIN_TOKEN || serviceToken('usr-admin-001');
 /** A merchandiser — the role that must not change master data. */
-const MERCH_TOKEN = process.env.ONETEAM_TEST_MERCH_TOKEN || 'oneteam-user:usr-merch-003';
+const MERCH_TOKEN = process.env.ONETEAM_TEST_MERCH_TOKEN || serviceToken('usr-merch-003');
 
 /** Unique per run, so two runs against one database do not collide. */
 const RUN = Date.now().toString(36).toUpperCase();
@@ -302,6 +303,44 @@ async function main(): Promise<void> {
         row && { name: row.name, size: row.size },
       );
     }
+
+    // An explicit empty optional field CLEARS it. The edit form pre-fills the
+    // current values, so '' only arrives when the operator deliberately erased
+    // the field — it used to be swallowed as "absent" and the old value came
+    // back on the next load.
+    const cleared = await call('PATCH', `/api/portal/products/${productId}`, {
+      token,
+      body: { size: '', variant: '' },
+    });
+    check('PATCH with empty size/variant answers 200', cleared.status === 200, cleared.body);
+    check(
+      'and the cleared fields come back as null',
+      cleared.body?.data?.size === null && cleared.body?.data?.variant === null,
+      cleared.body?.data,
+    );
+    if (db) {
+      const row = await rowInDatabase(barcode);
+      check(
+        'and THE ROW IN POSTGRESQL stores NULL, not the old value',
+        row !== null && row.size === null && row.variant === null,
+        row && { size: row.size, variant: row.variant },
+      );
+    }
+
+    // Absence still means "leave alone": a name-only edit must not resurrect
+    // the cleared fields.
+    const nameOnly = await call('PATCH', `/api/portal/products/${productId}`, {
+      token,
+      body: { name: 'Test Cola Zero' },
+    });
+    check(
+      'a later name-only PATCH leaves the cleared fields null',
+      nameOnly.status === 200 &&
+        nameOnly.body?.data?.name === 'Test Cola Zero' &&
+        nameOnly.body?.data?.size === null &&
+        nameOnly.body?.data?.variant === null,
+      nameOnly.body?.data,
+    );
 
     const conflict = await call('PATCH', `/api/portal/products/${productId}`, {
       token,

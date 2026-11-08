@@ -7,6 +7,7 @@ import {
 } from '@oneteam/types';
 import { db, InMemoryEvidence } from '@oneteam/database';
 import { TaskStateService } from '../tasks/task-state.service';
+import { StorageService } from '../storage/storage.service';
 import { isFixFresh, MAX_FIX_AGE_MS } from '../portal/gps-freshness';
 import { AuthenticatedPrincipal } from '../../common/auth/authenticated-principal';
 
@@ -31,6 +32,11 @@ export class EvidenceService {
    * deployment this runs on. A shared store would be needed to dedup across
    * replicas; that is a follow-up tied to the same infra as distributed rate
    * limiting.
+   *
+   * KEYED BY PRINCIPAL TOO: the key is client-supplied, so two different
+   * principals choosing (or guessing) the same key would otherwise have the
+   * second one handed the first one's evidence. The principal's user id makes
+   * the cache per-sender without changing the client contract.
    */
   private readonly idempotencyCache = new Map<
     string,
@@ -39,7 +45,15 @@ export class EvidenceService {
   private static readonly IDEMPOTENCY_TTL_MS = 10 * 60 * 1000;
   private static readonly IDEMPOTENCY_MAX_ENTRIES = 5000;
 
-  constructor(private readonly taskStateService: TaskStateService) {}
+  constructor(
+    private readonly taskStateService: TaskStateService,
+    private readonly storage: StorageService,
+  ) {}
+
+  /** The cache key for a submission: whose retry it was, and their key for it. */
+  private idempotencyCacheKey(principal: AuthenticatedPrincipal, key: string): string {
+    return `${principal.userId}:${key}`;
+  }
 
   private idempotencyGet(key: string): SubmitEvidenceResult | null {
     const hit = this.idempotencyCache.get(key);
@@ -74,7 +88,7 @@ export class EvidenceService {
   ): Promise<SubmitEvidenceResult> {
     const idempotencyKey = dto.idempotencyKey?.trim();
     if (idempotencyKey) {
-      const cached = this.idempotencyGet(idempotencyKey);
+      const cached = this.idempotencyGet(this.idempotencyCacheKey(principal, idempotencyKey));
       if (cached) {
         this.logger.log(
           `↩️ [IDEMPOTENT] Reusing evidence ${cached.evidence.id} for a repeated submission.`,
@@ -319,6 +333,34 @@ export class EvidenceService {
       }
     }
 
+    // The photo goes through the same storage gate as the field path, before
+    // any state change or record write: a client-supplied URL must be one we
+    // minted, and a data: URL is offloaded when a bucket is configured. Without
+    // this, POST /api/evidences accepted https://cdn.example/x.png as shelf
+    // evidence — the substitution `ownsPublicUrl` was written to stop, on the
+    // one write path that never called it. Placed after the local validation so
+    // a submission that will be refused never uploads bytes first.
+    const storedPhoto = await this.storage
+      .persistPhoto({
+        value: dto.photoUrl,
+        scope: `tasks/${dto.storeTaskId}`,
+      })
+      .catch((error: unknown) => {
+        const reason = error instanceof Error ? error.message : String(error);
+        this.logger.error(`⛔ [EVIDENCE] Photo rejected for task ${dto.storeTaskId}: ${reason}`);
+        throw new HttpException(
+          {
+            success: false,
+            error: 'PHOTO_UPLOAD_FAILED',
+            message:
+              'Şəkil qəbul edilmədi: URL bizim anbara aid deyil və ya yükləmə ' +
+              'alınmadı. Şəkli presign yükləməsi və ya data: URL kimi yenidən ' +
+              'göndərin — hesabat hələ qeydə alınmayıb.',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      });
+
     // Advance Task State
     if (task.status === TaskState.ACKNOWLEDGED) {
       await this.taskStateService.transitionTask(
@@ -352,7 +394,7 @@ export class EvidenceService {
       id: `evd-${now}-${Math.random().toString(36).substr(2, 6)}`,
       storeTaskId: dto.storeTaskId,
       submittedById: principal.userId,
-      photoUrl: dto.photoUrl,
+      photoUrl: storedPhoto.url,
       photoType,
       checklistAnswers: dto.checklistAnswers || [],
       latitude: dto.latitude,
@@ -373,7 +415,7 @@ export class EvidenceService {
       updatedAt: new Date(now),
     };
 
-    db.createEvidence(evidenceRecord);
+    await db.createEvidence(evidenceRecord);
 
     // 5. Record Evidence Submission in Audit Log
     db.logAuditEvent({
@@ -383,7 +425,7 @@ export class EvidenceService {
       toState: task.status,
       actorId: principal.userId,
       payload: {
-        photoUrl: dto.photoUrl,
+        photoUrl: storedPhoto.url,
         photoType,
         checklistCount: dto.checklistAnswers?.length || 0,
         distanceMeters: geofence.distanceMeters,
@@ -401,7 +443,8 @@ export class EvidenceService {
       taskState: task.status,
     };
 
-    if (idempotencyKey) this.idempotencyPut(idempotencyKey, result);
+    if (idempotencyKey)
+      this.idempotencyPut(this.idempotencyCacheKey(principal, idempotencyKey), result);
 
     return result;
   }

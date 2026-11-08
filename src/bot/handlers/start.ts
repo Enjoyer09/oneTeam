@@ -21,6 +21,48 @@ import { handleOpenTask } from './tasks';
 const DEEP_LINK_TASK_PREFIX = 'task_';
 
 /**
+ * Store-code guess throttling.
+ *
+ * A store code is the whole claim here: presenting a valid one binds the chat
+ * to that store's open work (see `FieldService.bind`). The API-side enrolment
+ * limiter counts *successful* enrolments per address; wrong guesses are the
+ * bot's to police, and unbounded guessing against the lookup endpoint is how a
+ * code is found without ever tripping the API's limiter.
+ *
+ * In-memory on purpose: one polling process serves all chats, and a restart
+ * merely forgets the counter — the cost of a wrong trade-off here is a
+ * merchandiser being briefly told to wait, not a lost audit.
+ */
+const STORE_CODE_MAX_GUESSES = 5;
+const STORE_CODE_WINDOW_MS = 10 * 60 * 1000;
+const STORE_CODE_BLOCK_MS = 10 * 60 * 1000;
+const storeCodeFailures = new Map<number, { at: number[]; blockedUntil: number }>();
+
+function storeCodeGuessesBlocked(chatId: number): number {
+  const entry = storeCodeFailures.get(chatId);
+  if (!entry) return 0;
+  const now = Date.now();
+  if (entry.blockedUntil > now) return entry.blockedUntil - now;
+  // A window that has fully expired is a fresh start, so the map cannot grow
+  // one stale entry per chat that ever typed a wrong code.
+  if (entry.at.every((at) => now - at > STORE_CODE_WINDOW_MS)) {
+    storeCodeFailures.delete(chatId);
+  }
+  return 0;
+}
+
+function recordStoreCodeMiss(chatId: number): void {
+  const now = Date.now();
+  const entry = storeCodeFailures.get(chatId) ?? { at: [], blockedUntil: 0 };
+  entry.at = entry.at.filter((at) => now - at <= STORE_CODE_WINDOW_MS);
+  entry.at.push(now);
+  if (entry.at.length >= STORE_CODE_MAX_GUESSES) {
+    entry.blockedUntil = now + STORE_CODE_BLOCK_MS;
+  }
+  storeCodeFailures.set(chatId, entry);
+}
+
+/**
  * `/start` — enrolment, the home screen, or a deep-linked task.
  *
  * `/start` IS NOT ALWAYS A NEW USER
@@ -131,6 +173,16 @@ function requireChatId(ctx: BotContext): number {
 export async function handleStoreCodeInput(ctx: BotContext) {
   const chatId = requireChatId(ctx);
 
+  const blockedFor = storeCodeGuessesBlocked(chatId);
+  if (blockedFor > 0) {
+    await ctx.reply(
+      `⏳ Çoxlu yanlış mağaza kodu daxil etmisiniz. Təxminən *${Math.ceil(blockedFor / 60000)}* dəqiqə ` +
+        `gözləyin və sonra yenidən cəhd edin, və ya kodu nəzarətçinizdən dəqiqləşdirin.`,
+      { parse_mode: 'Markdown' },
+    );
+    return;
+  }
+
   const text = ctx.message?.text?.trim();
   if (!text) return;
 
@@ -153,8 +205,13 @@ export async function handleStoreCodeInput(ctx: BotContext) {
   }
 
   if (!store) {
+    recordStoreCodeMiss(chatId);
+    // `text` is whatever the chat typed, not a code the router pre-filtered —
+    // the `awaiting_store_code` branch of `handleTextRoute` forwards every text.
+    // Inside a code span an escaping backslash would render literally, so the
+    // raw text is escaped as plain Markdown instead.
     await ctx.reply(
-      `❌ *Mağaza kodu tapılmadı:* \`${text}\`\n\n` +
+      `❌ *Mağaza kodu tapılmadı:* ${escapeMarkdown(text)}\n\n` +
         `Zəhmət olmasa, mağaza kodunun düzgünlüyünü yoxlayın və yenidən daxil edin. ` +
         `Kodu bilmirsinizsə, sizə mağazanı təyin edən nəzarətçinizlə əlaqə saxlayın.`,
       { parse_mode: 'Markdown' },
@@ -192,6 +249,7 @@ export async function handleStoreCodeInput(ctx: BotContext) {
   ctx.session.storeName = store.name;
   ctx.session.profileId = profile.id;
   ctx.session.step = 'idle';
+  storeCodeFailures.delete(chatId);
 
   const keyboard = mainMenuKeyboard();
 

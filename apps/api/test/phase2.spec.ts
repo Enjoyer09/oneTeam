@@ -13,6 +13,7 @@ import { db } from '@oneteam/database';
 import { NotificationDispatcherService } from '../src/modules/notifications/notification-dispatcher.service';
 import { TaskStateService } from '../src/modules/tasks/task-state.service';
 import { EvidenceService } from '../src/modules/evidences/evidence.service';
+import { StorageService } from '../src/modules/storage/storage.service';
 import { PortalService } from '../src/modules/portal/portal.service';
 import { isAiAutoApproveEligible } from '../src/modules/portal/field.service';
 import { AuthenticatedPrincipal } from '../src/common/auth/authenticated-principal';
@@ -59,7 +60,7 @@ async function runPhase2TestSuite() {
 
   const notificationService = new NotificationDispatcherService();
   const taskStateService = new TaskStateService(notificationService);
-  const evidenceService = new EvidenceService(taskStateService);
+  const evidenceService = new EvidenceService(taskStateService, new StorageService());
 
   // --------------------------------------------------------------------------
   // SUITE 1: STORE SEGMENTATION & BULK TASK DISPATCHER
@@ -191,7 +192,7 @@ async function runPhase2TestSuite() {
     await evidenceService.submitEvidence(
       {
         storeTaskId: checklistTaskId,
-        photoUrl: 'https://images.unsplash.com/photo-coke-shelf-1.jpg',
+        photoUrl: 'data:image/png;base64,iVBORw0KGgo=',
         latitude: 40.38505,
         longitude: 49.8106,
         locatedAt: FRESH_FIX_AT(),
@@ -218,7 +219,7 @@ async function runPhase2TestSuite() {
     await evidenceService.submitEvidence(
       {
         storeTaskId: checklistTaskId,
-        photoUrl: 'https://images.unsplash.com/photo-coke-shelf-1.jpg',
+        photoUrl: 'data:image/png;base64,iVBORw0KGgo=',
         latitude: 40.38505,
         longitude: 49.8106,
         locatedAt: FRESH_FIX_AT(),
@@ -245,7 +246,7 @@ async function runPhase2TestSuite() {
     await evidenceService.submitEvidence(
       {
         storeTaskId: checklistTaskId,
-        photoUrl: 'https://images.unsplash.com/photo-coke-shelf-1.jpg',
+        photoUrl: 'data:image/png;base64,iVBORw0KGgo=',
         latitude: 40.38505,
         longitude: 49.8106,
         locatedAt: FRESH_FIX_AT(),
@@ -272,7 +273,7 @@ async function runPhase2TestSuite() {
     await evidenceService.submitEvidence(
       {
         storeTaskId: checklistTaskId,
-        photoUrl: 'https://images.unsplash.com/photo-coke-shelf-1.jpg',
+        photoUrl: 'data:image/png;base64,iVBORw0KGgo=',
         latitude: 40.38505,
         longitude: 49.8106,
         locatedAt: FRESH_FIX_AT(),
@@ -303,7 +304,7 @@ async function runPhase2TestSuite() {
   const validChkRes = await evidenceService.submitEvidence(
     {
       storeTaskId: checklistTaskId,
-      photoUrl: 'https://images.unsplash.com/photo-coke-shelf-before.jpg',
+      photoUrl: 'data:image/png;base64,iVBORw0KGgo=',
       latitude: 40.38505,
       longitude: 49.8106,
       locatedAt: FRESH_FIX_AT(),
@@ -343,7 +344,7 @@ async function runPhase2TestSuite() {
     await evidenceService.submitEvidence(
       {
         storeTaskId: dualPhotoTaskId,
-        photoUrl: 'https://images.unsplash.com/photo-coke-after-jump.jpg',
+        photoUrl: 'data:image/png;base64,iVBORw0KGgo=',
         photoType: 'after',
         latitude: 40.38505,
         longitude: 49.8106,
@@ -364,7 +365,7 @@ async function runPhase2TestSuite() {
   const beforeRes = await evidenceService.submitEvidence(
     {
       storeTaskId: dualPhotoTaskId,
-      photoUrl: 'https://images.unsplash.com/photo-coke-before-real.jpg',
+      photoUrl: 'data:image/png;base64,iVBORw0KGgo=',
       photoType: 'before',
       latitude: 40.38505,
       longitude: 49.8106,
@@ -386,7 +387,7 @@ async function runPhase2TestSuite() {
   const afterRes = await evidenceService.submitEvidence(
     {
       storeTaskId: dualPhotoTaskId,
-      photoUrl: 'https://images.unsplash.com/photo-coke-after-real.jpg',
+      photoUrl: 'data:image/png;base64,iVBORw0KGgo=',
       photoType: 'after',
       latitude: 40.38505,
       longitude: 49.8106,
@@ -496,7 +497,7 @@ async function runPhase2TestSuite() {
   const mockRes = await evidenceService.submitEvidence(
     {
       storeTaskId: mockTaskId,
-      photoUrl: 'https://images.unsplash.com/photo-coke-spoofed.jpg',
+      photoUrl: 'data:image/png;base64,iVBORw0KGgo=',
       photoType: 'standard',
       latitude: 40.38505,
       longitude: 49.8106,
@@ -530,7 +531,7 @@ async function runPhase2TestSuite() {
   const cleanRes = await evidenceService.submitEvidence(
     {
       storeTaskId: cleanTaskId,
-      photoUrl: 'https://images.unsplash.com/photo-coke-honest.jpg',
+      photoUrl: 'data:image/png;base64,iVBORw0KGgo=',
       photoType: 'standard',
       latitude: 40.38505,
       longitude: 49.8106,
@@ -594,7 +595,7 @@ async function runPhase2TestSuite() {
     await evidenceService.submitEvidence(
       {
         storeTaskId: geoTaskId,
-        photoUrl: 'https://images.unsplash.com/photo-coke-far-away.jpg',
+        photoUrl: 'data:image/png;base64,iVBORw0KGgo=',
         photoType: 'standard',
         latitude: 40.4,
         longitude: 49.85,
@@ -633,7 +634,7 @@ async function runPhase2TestSuite() {
   const withinGeoRes = await evidenceService.submitEvidence(
     {
       storeTaskId: geoTaskId,
-      photoUrl: 'https://images.unsplash.com/photo-coke-on-site.jpg',
+      photoUrl: 'data:image/png;base64,iVBORw0KGgo=',
       photoType: 'standard',
       latitude: 40.38505,
       longitude: 49.8106,
@@ -648,6 +649,79 @@ async function runPhase2TestSuite() {
       withinGeoRes.distanceMeters <= GEOFENCE_MAX_DISTANCE_METERS &&
       geoTaskAfterAccept?.status === TaskState.SUBMITTED,
     'Test 5.3: A within-perimeter submission to the same task is accepted and advances to SUBMITTED',
+  );
+
+  // --------------------------------------------------------------------------
+  // SUITE 6: PHOTO OWNERSHIP — A CLIENT-SUPPLIED URL MUST BE ONE WE MINTED
+  // --------------------------------------------------------------------------
+  //
+  // POST /api/evidences used to write `dto.photoUrl` into the record unchecked,
+  // so a caller could submit https://cdn.example/x.png as shelf-compliance
+  // evidence. The field path guards this with `ownsPublicUrl`; this suite proves
+  // the direct evidence path now applies the same gate, before any state change.
+  console.log('\n--- [PHASE 2 - SUITE 6] Photo ownership on the direct evidence path ---');
+
+  const photoTaskId = `task-photo-${Date.now()}`;
+  db.storeTasks.push({
+    id: photoTaskId,
+    templateId: 'tmpl-eye-level',
+    storeId: 'str-bravo-yasamal',
+    assignedUserId: 'usr-merch-003',
+    status: TaskState.ACKNOWLEDGED,
+    deadline: new Date(Date.now() + 3 * 24 * 3600 * 1000),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  // 6.1 An external URL is refused with 400 PHOTO_UPLOAD_FAILED — no evidence
+  //     row, and the task has not advanced.
+  let foreignPhotoBlocked = false;
+  let foreignPhotoErrorType = '';
+  try {
+    await evidenceService.submitEvidence(
+      {
+        storeTaskId: photoTaskId,
+        photoUrl: 'https://cdn.example.com/not-our-shelf.png',
+        photoType: 'standard',
+        latitude: 40.38505,
+        longitude: 49.8106,
+        locatedAt: FRESH_FIX_AT(),
+        checklistAnswers: [{ questionId: 'q-eye-clean', value: true }],
+      },
+      PRINCIPALS.merchandiser,
+    );
+  } catch (err: any) {
+    foreignPhotoBlocked = err?.status === 400 || err?.statusCode === 400;
+    foreignPhotoErrorType = err?.response?.error;
+  }
+  const noEvidenceForPhotoTask = db.evidences.every((e) => e.storeTaskId !== photoTaskId);
+  const photoTaskAfterReject = db.getTask(photoTaskId);
+  assert(
+    foreignPhotoBlocked &&
+      foreignPhotoErrorType === 'PHOTO_UPLOAD_FAILED' &&
+      noEvidenceForPhotoTask &&
+      photoTaskAfterReject?.status === TaskState.ACKNOWLEDGED,
+    'Test 6.1: A foreign photo URL is refused with 400, creates no evidence, and does not move the task',
+  );
+
+  // 6.2 The same task with an inline data: URL is accepted — the guard blocks
+  //     substitution without breaking the supported no-bucket channel.
+  const inlinePhotoRes = await evidenceService.submitEvidence(
+    {
+      storeTaskId: photoTaskId,
+      photoUrl: 'data:image/png;base64,iVBORw0KGgo=',
+      photoType: 'standard',
+      latitude: 40.38505,
+      longitude: 49.8106,
+      locatedAt: FRESH_FIX_AT(),
+      checklistAnswers: [{ questionId: 'q-eye-clean', value: true }],
+    },
+    PRINCIPALS.merchandiser,
+  );
+  assert(
+    inlinePhotoRes.success === true &&
+      inlinePhotoRes.evidence.photoUrl === 'data:image/png;base64,iVBORw0KGgo=',
+    'Test 6.2: An inline data: URL submission to the same task is accepted and stored unchanged',
   );
 
   // --------------------------------------------------------------------------

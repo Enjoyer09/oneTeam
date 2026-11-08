@@ -36,11 +36,12 @@
  */
 
 import { Client } from 'pg';
+import { serviceToken } from './helpers/service-token';
 import { randomUUID } from 'node:crypto';
 
 const API_BASE = (process.env.ONETEAM_API_URL || 'http://localhost:3001').replace(/\/+$/, '');
 const DATABASE_URL = process.env.DATABASE_URL || '';
-const SERVICE_TOKEN = process.env.ONETEAM_TEST_SERVICE_TOKEN || 'oneteam-user:usr-merch-003';
+const SERVICE_TOKEN = process.env.ONETEAM_TEST_SERVICE_TOKEN || serviceToken('usr-merch-003');
 const STORE_ID = process.env.ONETEAM_TEST_STORE_ID || 'str-bravo-yasamal';
 
 let pass = 0;

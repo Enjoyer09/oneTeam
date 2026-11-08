@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { Task, Store, TaskPriority, ChecklistItem } from '../types';
 import { useModalA11y } from '../lib/useModalA11y';
-import { filterTaskQueue, taskIsOverdue, TaskQueueFilter } from '../lib/taskQueue';
+import { bakuDay, filterTaskQueue, taskIsOverdue, TaskQueueFilter } from '../lib/taskQueue';
 
 /**
  * What the edit form sends.
@@ -80,19 +80,52 @@ function normalizeChecklistItem(item: unknown, index: number): ChecklistItem {
 /**
  * An ISO timestamp as the value a `datetime-local` input expects.
  *
- * The input reads and writes local wall-clock time and has no timezone field,
- * so slicing the ISO string would show UTC — two hours behind Baku — and the
- * supervisor would "fix" a deadline that was already correct.
+ * The input reads and writes BAKU wall-clock time — the timezone the stores
+ * are in — not the browser's. Rendering in the browser's zone would show a
+ * remote admin UTC time and then save it back as Baku, shifting the deadline
+ * by the offset between the two zones.
  */
 function toLocalInput(iso: string | undefined): string {
   if (!iso) return '';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
-    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
-  );
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Baku',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? '';
+  return `${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}`;
+}
+
+/**
+ * Azerbaijan is UTC+4 year-round (no DST since 2016), so the offset is a
+ * constant, not something to compute per date.
+ */
+const BAKU_OFFSET = '+04:00';
+
+/**
+ * A date-only input ("2026-11-15") means "through that day", so the deadline
+ * is the END of that day in Baku. `new Date('2026-11-15')` parses as UTC
+ * midnight — 04:00 Baku — which expired the task before the business day
+ * began and fired the reminder sweep at 03:45 local.
+ */
+function dateOnlyToBakuIso(day: string): string {
+  return new Date(`${day}T23:59:00${BAKU_OFFSET}`).toISOString();
+}
+
+/**
+ * A `datetime-local` value ("2026-11-15T18:00") is Baku wall-clock. Sent raw,
+ * the API parsed it in the SERVER's zone — on a UTC host 18:00 became 22:00
+ * Baku. The explicit offset makes the instant unambiguous on every host.
+ */
+function wallClockToBakuIso(local: string): string {
+  const withSeconds = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(local) ? `${local}:00` : local;
+  return new Date(`${withSeconds}${BAKU_OFFSET}`).toISOString();
 }
 
 function clearStoredDraft() {
@@ -165,9 +198,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
   const [description, setDescription] = useState('');
   const [referenceImageUrl, setReferenceImageUrl] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
-  const [deadline, setDeadline] = useState(
-    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-  );
+  const [deadline, setDeadline] = useState(bakuDay(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)));
   const [selectedStores, setSelectedStores] = useState<string[]>([]);
   const [requiresBeforeAfter, setRequiresBeforeAfter] = useState(false);
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
@@ -343,6 +374,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
       await onUpdateTask(editingTask.id, {
         ...editValues,
         title: editValues.title.trim(),
+        deadline: wallClockToBakuIso(editValues.deadline),
         checklist_schema,
       });
       closeEdit();
@@ -404,7 +436,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
   const [bulkRequiresBeforeAfter, setBulkRequiresBeforeAfter] = useState(false);
   const [bulkPriority, setBulkPriority] = useState<TaskPriority>('high');
   const [bulkDeadline, setBulkDeadline] = useState(
-    new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    bakuDay(new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)),
   );
   const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
@@ -464,7 +496,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
         description: bulkDescription.trim(),
         reference_image_url: referenceImageUrl,
         priority: bulkPriority,
-        deadline: new Date(bulkDeadline).toISOString(),
+        deadline: dateOnlyToBakuIso(bulkDeadline),
         chainName: bulkChain,
         storeFormat: bulkFormat,
         regionId: bulkRegion,
@@ -537,7 +569,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
         description: description.trim(),
         reference_image_url: referenceImageUrl,
         priority,
-        deadline: new Date(deadline).toISOString(),
+        deadline: dateOnlyToBakuIso(deadline),
         assigned_stores: storeIds,
         requires_before_after_photo: requiresBeforeAfter,
         checklist_schema: checklist.map((item) => ({

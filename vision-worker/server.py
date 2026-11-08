@@ -29,6 +29,7 @@ second process manager to a service whose whole job is to hold one model in
 memory and answer JSON.
 """
 
+import hmac
 import json
 import os
 import sys
@@ -46,6 +47,26 @@ _model_status = None
 
 def configured_mode() -> str:
     return os.environ.get("ONETEAM_TORCHVISION_MODE", "disabled").lower()
+
+
+def configured_token() -> str:
+    """The shared bearer token the Node client must present on /detect."""
+    return os.environ.get("ONETEAM_VISION_TOKEN", "")
+
+
+def _bearer_authorized(headers) -> bool:
+    """
+    Constant-time check of the Authorization header against ONETEAM_VISION_TOKEN.
+
+    Inference is CPU-heavy and serialized behind INFERENCE_LOCK, so one
+    unauthenticated caller can starve the bot's vision path for everyone —
+    the token is what makes network reachability not be the only gate.
+    """
+    token = configured_token()
+    if not token:
+        return False
+    supplied = headers.get("Authorization", "")
+    return hmac.compare_digest(supplied.encode("utf-8"), f"Bearer {token}".encode("utf-8"))
 
 
 def configured_checkpoint() -> str | None:
@@ -99,6 +120,11 @@ def detect(image: str, conf: float = 0.25) -> dict:
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
+    # A read deadline, not a request deadline: a client that opens a
+    # connection and trickles its bytes (Slowloris) would otherwise hold a
+    # thread forever — ThreadingHTTPServer spawns one per connection and
+    # never reaps them. Past this the socket read raises and the thread ends.
+    timeout = 30
 
     def _send(self, payload: dict, status: int = 200) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -115,31 +141,57 @@ class Handler(BaseHTTPRequestHandler):
                 if _model_status
                 else None
             )
-            self._send(
-                {
-                    "ok": True,
-                    "service": "oneTeam-vision-worker",
-                    "backend": "torchvision",
-                    "mode": configured_mode(),
-                    "model": status["model"] if status else None,
-                    "ready": bool(status and status["loaded"]),
-                    "torch_version": status["torch_version"] if status else None,
-                    "torchvision_version": status["torchvision_version"] if status else None,
-                    "classes": status["classes"] if status else None,
-                    "checkpoint_sha256": status["checkpoint_sha256"] if status else None,
-                    "class_map_version": status["class_map_version"] if status else None,
-                    "dataset_source": status["dataset_source"] if status else None,
-                    "dataset_license": status["dataset_license"] if status else None,
-                    "production_approved": status["production_approved"] if status else False,
-                    "checkpoint_error": status["checkpoint_error"] if status else None,
+            detail = {
+                "ok": True,
+                "service": "oneTeam-vision-worker",
+                "backend": "torchvision",
+                "mode": configured_mode(),
+                "model": status["model"] if status else None,
+                "ready": bool(status and status["loaded"]),
+                "torch_version": status["torch_version"] if status else None,
+                "torchvision_version": status["torchvision_version"] if status else None,
+                "classes": status["classes"] if status else None,
+                "checkpoint_sha256": status["checkpoint_sha256"] if status else None,
+                "class_map_version": status["class_map_version"] if status else None,
+                "dataset_source": status["dataset_source"] if status else None,
+                "dataset_license": status["dataset_license"] if status else None,
+                "production_approved": status["production_approved"] if status else False,
+                "checkpoint_error": status["checkpoint_error"] if status else None,
+            }
+            # Checkpoint provenance, versions and dataset licensing are
+            # deployment details, not a public status page: only an
+            # authenticated caller (the Node client) gets the full payload.
+            if not _bearer_authorized(self.headers):
+                detail = {
+                    "ok": detail["ok"],
+                    "service": detail["service"],
+                    "backend": detail["backend"],
+                    "mode": detail["mode"],
+                    "ready": detail["ready"],
                 }
-            )
+            self._send(detail)
             return
         self._send({"success": False, "error": f"Unknown path: {self.path}"}, 404)
 
     def do_POST(self):  # noqa: N802
         if self.path.rstrip("/") != "/detect":
             self._send({"success": False, "error": f"Unknown path: {self.path}"}, 404)
+            return
+
+        # Fail closed, like the API's webhook secret: a deployment that has
+        # not configured ONETEAM_VISION_TOKEN serves no inference at all
+        # rather than serving it to whoever can reach the port.
+        if not configured_token():
+            self._send(
+                {
+                    "success": False,
+                    "error": "Not configured: set ONETEAM_VISION_TOKEN on the worker and the bot.",
+                },
+                503,
+            )
+            return
+        if not _bearer_authorized(self.headers):
+            self._send({"success": False, "error": "Unauthorized."}, 401)
             return
 
         try:
@@ -225,7 +277,25 @@ def main() -> None:
         "model": status["model"],
     }), flush=True)
 
-    server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
+    # Bind loopback by default. A worker that listens on 0.0.0.0 relies on
+    # network isolation for a service whose only caller is the bot on the same
+    # host or a private network — make exposure an explicit choice via
+    # ONETEAM_VISION_HOST (the Docker image sets it, because inside a container
+    # loopback is unreachable from other services).
+    host = os.environ.get("ONETEAM_VISION_HOST", "127.0.0.1")
+    if host in ("0.0.0.0", "::"):
+        print(
+            json.dumps(
+                {
+                    "ts": "startup",
+                    "msg": "listening on all interfaces; ONETEAM_VISION_TOKEN is the only gate",
+                    "token_configured": bool(configured_token()),
+                }
+            ),
+            flush=True,
+        )
+
+    server = ThreadingHTTPServer((host, port), Handler)
     server.serve_forever()
 
 

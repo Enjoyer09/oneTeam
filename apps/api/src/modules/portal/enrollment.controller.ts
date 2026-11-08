@@ -65,9 +65,32 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
+import { createHash, timingSafeEqual } from 'crypto';
 import { Request } from 'express';
 import { db } from '@oneteam/database';
 import { FieldService } from './field.service';
+
+/**
+ * Compares a supplied enrolment secret against the configured one in constant
+ * time. The comparison is on SHA-256 digests so both buffers are always the
+ * same length — `timingSafeEqual` throws on a length mismatch, and hashing also
+ * keeps the check's cost independent of the supplied value's length.
+ */
+function secretsMatch(supplied: string | undefined, required: string): boolean {
+  if (typeof supplied !== 'string') return false;
+  const a = createHash('sha256').update(supplied).digest();
+  const b = createHash('sha256').update(required).digest();
+  return timingSafeEqual(a, b);
+}
+
+/**
+ * Bounds on caller-supplied identifiers, so an enrolment body cannot park an
+ * unbounded string in a user row or the audit log. Generous by design: they
+ * exist to refuse abuse, never to police real names.
+ */
+const MAX_DEVICE_ID_LENGTH = 128;
+const MAX_FULL_NAME_LENGTH = 120;
+const MAX_STORE_CODE_LENGTH = 64;
 
 /**
  * Failed enrolment attempts allowed per address per window.
@@ -188,6 +211,18 @@ const NEW_DEVICE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 const newDevices = new Map<string, number[]>();
 
+/**
+ * The store a device most recently enrolled at, per replica.
+ *
+ * A user row carries no store association — the link lives in task assignments —
+ * so this map is the enrolment's own memory of where a device belongs. It is
+ * in-memory like the limiters above and shares their per-replica limitation,
+ * which is stated rather than hidden: ONETEAM_ENROLLMENT_SECRET remains the
+ * durable control, and this map narrows the window in which a leaked device id
+ * can move a worker's identity to another store while no secret is set.
+ */
+const enrolledStoreByDevice = new Map<string, string>();
+
 /** Whether this store has already taken as many new installations as it may. */
 function newDeviceGate(storeId: string): {
   allowed: boolean;
@@ -306,7 +341,7 @@ export class EnrollmentController {
     }
 
     const requiredSecret = process.env.ONETEAM_ENROLLMENT_SECRET?.trim();
-    if (requiredSecret && suppliedSecret?.trim() !== requiredSecret) {
+    if (requiredSecret && !secretsMatch(suppliedSecret?.trim(), requiredSecret)) {
       recordFailure(source);
       this.logger.warn(`⛔ Store lookup refused for ${source}: bad or missing enrolment secret.`);
       throw new HttpException(
@@ -362,15 +397,33 @@ export class EnrollmentController {
         HttpStatus.BAD_REQUEST,
       );
     }
+    if (storeCode.length > MAX_STORE_CODE_LENGTH) {
+      throw new HttpException(
+        { error: 'STORE_CODE_TOO_LONG', message: 'Mağaza kodu çox uzundur.' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
     if (!deviceId) {
       throw new HttpException(
         { error: 'DEVICE_ID_REQUIRED', message: 'Cihaz identifikatoru tələb olunur.' },
         HttpStatus.BAD_REQUEST,
       );
     }
+    if (deviceId.length > MAX_DEVICE_ID_LENGTH) {
+      throw new HttpException(
+        { error: 'DEVICE_ID_TOO_LONG', message: 'Cihaz identifikatoru çox uzundur.' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
     if (!fullName) {
       throw new HttpException(
         { error: 'FULL_NAME_REQUIRED', message: 'Ad və soyad tələb olunur.' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    if (fullName.length > MAX_FULL_NAME_LENGTH) {
+      throw new HttpException(
+        { error: 'FULL_NAME_TOO_LONG', message: 'Ad və soyad çox uzundur.' },
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -390,9 +443,10 @@ export class EnrollmentController {
     }
 
     // The optional second factor. Absent, the store code stands alone — which is
-    // stated in the file header rather than presented as equivalent.
+    // stated in the file header rather than presented as equivalent. Compared
+    // in constant time so the secret cannot be probed byte-by-byte.
     const requiredSecret = process.env.ONETEAM_ENROLLMENT_SECRET?.trim();
-    if (requiredSecret && body?.enrollmentSecret !== requiredSecret) {
+    if (requiredSecret && !secretsMatch(body?.enrollmentSecret, requiredSecret)) {
       recordFailure(source);
       this.logger.warn(`⛔ Enrolment refused for ${source}: bad or missing enrolment secret.`);
       throw new HttpException(
@@ -470,6 +524,43 @@ export class EnrollmentController {
     // `MAX_NEW_DEVICES_PER_STORE`.
     const knownDevice = db.getUserByMobileDeviceId(deviceId);
 
+    // A KNOWN device re-enrolling at a DIFFERENT store is the account-takeover
+    // shape: a device id is not an authentication factor (it leaks through
+    // support tickets and panel rows), so "deviceId + that other store's code"
+    // must not move a worker's identity and claim another store's open work.
+    // Re-enrolment at the worker's own store remains open — the mobile client
+    // does it on every process start — and a genuine transfer is an operator
+    // action: either set ONETEAM_ENROLLMENT_SECRET (the presented secret then
+    // authorises the move) or rebind the user from the panel first.
+    const lastEnrolledStore = knownDevice ? enrolledStoreByDevice.get(deviceId) : undefined;
+    if (knownDevice && lastEnrolledStore && lastEnrolledStore !== store.id && !requiredSecret) {
+      db.logAuditEvent({
+        entityType: 'user',
+        entityId: knownDevice.id,
+        action: 'DEVICE_ENROLMENT_STORE_MISMATCH',
+        payload: {
+          deviceId,
+          lastEnrolledStoreId: lastEnrolledStore,
+          presentedStoreId: store.id,
+          presentedStoreCode: store.storeCode,
+          source,
+        },
+      });
+      this.logger.warn(
+        `⛔ Enrolment refused for ${source}: device ${deviceId} last enrolled at store ` +
+          `${lastEnrolledStore} but presented ${store.storeCode} with no enrolment secret.`,
+      );
+      throw new HttpException(
+        {
+          error: 'ENROLMENT_STORE_MISMATCH',
+          message:
+            'Bu cihaz başqa mağazaya bağlıdır. Mağaza dəyişikliyi üçün ' +
+            'administratorla əlaqə saxlayın.',
+        },
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
     if (!knownDevice) {
       const gate = newDeviceGate(store.id);
       if (!gate.allowed) {
@@ -519,6 +610,8 @@ export class EnrollmentController {
     // Counted only once the identity actually exists, so a failure further down
     // does not spend the store's budget on an installation that never joined.
     if (!knownDevice) recordNewDevice(store.id);
+    // Remembered for the store-mismatch guard above, on every enrolment.
+    enrolledStoreByDevice.set(deviceId, store.id);
 
     const issued = await db.issueDeviceToken({
       userId,

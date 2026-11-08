@@ -381,8 +381,9 @@ export class PortalService {
       id: product.id,
       barcode: product.barcode,
       name: product.name,
-      size: product.size ?? null,
-      variant: product.variant ?? null,
+      // '' is the cleared representation in memory; the wire says null.
+      size: product.size || null,
+      variant: product.variant || null,
       created_at: iso(product.createdAt),
     };
   }
@@ -968,13 +969,24 @@ export class PortalService {
 
     const text = (key: string, label: string, required: boolean): string | undefined => {
       const raw = body?.[key];
-      if (raw === undefined || raw === null || String(raw).trim() === '') {
+      if (raw === undefined) {
         if (required) {
           throw new HttpException(`${label} tələb olunur`, HttpStatus.BAD_REQUEST);
         }
         return undefined;
       }
-      return String(raw).trim();
+      const trimmed = raw === null ? '' : String(raw).trim();
+      if (trimmed === '') {
+        if (required) {
+          throw new HttpException(`${label} tələb olunur`, HttpStatus.BAD_REQUEST);
+        }
+        // An explicit empty optional field is a CLEAR, not an absence: the edit
+        // form pre-fills every current value, so '' only arrives when the
+        // operator deliberately erased it. Treating it as "skip" made clearing
+        // size/variant a silent no-op — the old value came back on next load.
+        return '';
+      }
+      return trimmed;
     };
 
     const barcode = text('barcode', 'Barkod', options.requireAll);
@@ -1554,7 +1566,7 @@ export class PortalService {
       { evidenceId, feedback: decision.feedback },
     );
 
-    db.updateEvidence(evidenceId, {
+    await db.updateEvidence(evidenceId, {
       reviewerFeedback: decision.feedback ?? evidence.reviewerFeedback ?? '',
     });
 
@@ -1717,7 +1729,7 @@ export class PortalService {
       principal,
     );
 
-    db.updateEvidence(evidenceId, {
+    await db.updateEvidence(evidenceId, {
       aiScore: score,
       aiSummary: summary,
       aiDetections: evidence.aiDetections ?? [],

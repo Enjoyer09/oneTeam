@@ -50,11 +50,12 @@
 
 import { createHash } from 'node:crypto';
 import { Client } from 'pg';
+import { serviceToken } from './helpers/service-token';
 
 const API_BASE = (process.env.ONETEAM_API_URL || 'http://localhost:3001').replace(/\/+$/, '');
 const DATABASE_URL = process.env.DATABASE_URL || '';
 const STORE_CODE = process.env.ONETEAM_TEST_STORE_CODE || 'BRAVO_YASAMAL_01';
-const SERVICE_TOKEN = process.env.ONETEAM_TEST_SERVICE_TOKEN || 'oneteam-user:usr-merch-003';
+const SERVICE_TOKEN = process.env.ONETEAM_TEST_SERVICE_TOKEN || serviceToken('usr-merch-003');
 
 /** The enrolment second factor, when the API under test requires one. */
 const ENROLLMENT_SECRET = process.env.ONETEAM_ENROLLMENT_SECRET || '';

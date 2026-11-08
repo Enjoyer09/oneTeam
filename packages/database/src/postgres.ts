@@ -746,8 +746,9 @@ export async function insertProduct(pool: Pool, product: InMemoryProduct): Promi
       product.id,
       product.barcode,
       product.name,
-      product.size ?? null,
-      product.variant ?? null,
+      // '' is a cleared optional field in memory; the column stores NULL.
+      product.size || null,
+      product.variant || null,
       product.createdAt ?? clock.now(),
       product.updatedAt ?? clock.now(),
     ],
@@ -768,8 +769,9 @@ export async function updateProductRow(pool: Pool, product: InMemoryProduct): Pr
     [
       product.barcode,
       product.name,
-      product.size ?? null,
-      product.variant ?? null,
+      // '' is a cleared optional field in memory; the column stores NULL.
+      product.size || null,
+      product.variant || null,
       product.updatedAt ?? clock.now(),
       product.id,
     ],

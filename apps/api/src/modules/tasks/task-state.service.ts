@@ -350,7 +350,7 @@ export class TaskStateService {
     }
 
     // 2. Perform State Update
-    const updatedTask = db.updateTaskState(taskId, targetState);
+    const updatedTask = await db.updateTaskState(taskId, targetState);
     if (!updatedTask) {
       throw new HttpException(
         'Tapşırığın statusunu yeniləmək mümkün olmadı',

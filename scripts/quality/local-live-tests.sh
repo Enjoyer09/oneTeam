@@ -31,7 +31,11 @@ export VITE_API_BASE_URL="http://localhost:${API_PORT}"
 # keeps a moved port from splitting the run: on 2026-10-10 a run on :3911 had
 # every DB-backed suite pass and only the portal smoke fail, pointed at a
 # hardcoded :3001 by the script's own body.
-export ONETEAM_API_TOKEN="oneteam-user:usr-admin-001"
+# The API accepts unsigned service tokens only while no signing secret exists.
+# Pin a throwaway secret here so the local run exercises the signed path even
+# when the developer's .env configures one (dotenv never overrides exports).
+export ONETEAM_SERVICE_SIGNING_SECRET="${ONETEAM_SERVICE_SIGNING_SECRET:-ci-live-tests-signing-secret}"
+export ONETEAM_SERVICE_USER_ID="usr-admin-001"
 export TELEGRAM_BOT_TOKEN="ci-not-a-real-bot-token"
 export TELEGRAM_WEBHOOK_SECRET="ci-not-a-real-webhook-secret"
 export CORS_ALLOWED_ORIGINS="http://localhost,http://localhost:5173"
@@ -46,6 +50,11 @@ rc=$?; [ $rc -ne 0 ] && { echo "build:packages FAILED ($rc)"; tail -25 /tmp/lt_b
 npm run api:build >>/tmp/lt_build.log 2>&1
 rc=$?; [ $rc -ne 0 ] && { echo "api:build FAILED ($rc)"; tail -25 /tmp/lt_build.log; exit $rc; }
 echo "ok"
+
+# Mint the signed edge credential the portal smoke test and bot suites send.
+# Requires the packages build above; one hour outlives the whole run.
+ONETEAM_API_TOKEN="$(node -e "const {signServiceCredential}=require('./packages/types/dist/index.js'); console.log(signServiceCredential('usr-admin-001', process.env.ONETEAM_SERVICE_SIGNING_SECRET, 3600))")"
+export ONETEAM_API_TOKEN
 
 say "Postgres container"
 # Create it if it is missing. This script used to only `docker exec` into a

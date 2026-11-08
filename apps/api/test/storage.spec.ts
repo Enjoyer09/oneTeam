@@ -428,6 +428,66 @@ function testOwnsPublicUrl() {
   check(!inline.ownsPublicUrl('https://cdn.oneteam.az/a.jpg'), 'inline storage owns no URL');
 }
 
+/** Tier 1: presign hardening — image-only types, filename-shaped scope. */
+function testPresignGuards() {
+  console.log('\n🛡️  presign guards — media-type allowlist and scope sanitisation\n');
+
+  process.env.STORAGE_DRIVER = 's3';
+  process.env.S3_ENDPOINT = 'https://s3.example.com';
+  process.env.S3_REGION = 'eu-central-1';
+  process.env.S3_BUCKET = 'photos';
+  process.env.S3_ACCESS_KEY_ID = 'k';
+  process.env.S3_SECRET_ACCESS_KEY = 's';
+  const storage = new StorageService();
+
+  const presign = (contentType: string, scope?: string) =>
+    storage.createPresignedUpload({ contentType, scope });
+
+  let threw = false;
+  try {
+    presign('text/html');
+  } catch {
+    threw = true;
+  }
+  check(threw, 'refuses to presign text/html — no pages hosted on our origin');
+
+  threw = false;
+  try {
+    presign('application/javascript');
+  } catch {
+    threw = true;
+  }
+  check(threw, 'refuses to presign application/javascript');
+
+  threw = false;
+  try {
+    presign('image/svg+xml');
+  } catch {
+    threw = true;
+  }
+  check(threw, 'refuses to presign SVG — it can carry script');
+
+  const ok = presign('image/jpeg');
+  check(ok.key.endsWith('.jpg'), 'presigns image/jpeg');
+
+  const traversed = presign('image/png', '../../other-task');
+  check(
+    !traversed.key.includes('..') && traversed.key.startsWith('other-task/'),
+    'a traversal scope cannot escape its namespace',
+    traversed.key,
+  );
+
+  const hostile = presign('image/png', 'a?x=1/b#c');
+  check(
+    !hostile.key.includes('?') && !hostile.key.includes('#'),
+    'query/fragment characters are stripped from the scope',
+    hostile.key,
+  );
+
+  const clean = presign('image/png', 'tasks/task-12');
+  check(clean.key.startsWith('tasks/task-12/'), 'a filename-shaped scope is kept as-is', clean.key);
+}
+
 async function run() {
   console.log('========================================================================');
   console.log('  🗄️  ONETEAM PHOTO STORAGE TESTS');
@@ -437,6 +497,7 @@ async function run() {
   testPresigner();
   testDataUrlHelpers();
   testOwnsPublicUrl();
+  testPresignGuards();
   await testAgainstRealBucket();
 
   console.log('\n------------------------------------------------------------------------');

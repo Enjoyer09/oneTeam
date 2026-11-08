@@ -2,7 +2,8 @@ import type { Task } from '../types';
 
 export type TaskQueueFilter = 'all' | 'overdue' | 'today' | 'active' | 'draft' | 'closed';
 
-const bakuDay = (date: Date) => {
+/** The calendar day an instant falls on in Baku — the timezone the shelves are in. */
+export const bakuDay = (date: Date) => {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Baku',
     year: 'numeric',

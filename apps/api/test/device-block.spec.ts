@@ -54,6 +54,7 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 import { Client } from 'pg';
+import { serviceToken } from './helpers/service-token';
 
 const API_BASE = (process.env.ONETEAM_API_URL || 'http://localhost:3001').replace(/\/+$/, '');
 const DATABASE_URL = process.env.DATABASE_URL || '';
@@ -63,7 +64,7 @@ const DATABASE_URL = process.env.DATABASE_URL || '';
  * panel is still open; once a key exists `mayUseRoute` refuses it on
  * `/api/panel/*`, which is why `ONETEAM_PANEL_KEY` exists below.
  */
-const ADMIN_SERVICE_TOKEN = process.env.ONETEAM_TEST_SERVICE_TOKEN || 'oneteam-user:usr-admin-001';
+const ADMIN_SERVICE_TOKEN = process.env.ONETEAM_TEST_SERVICE_TOKEN || serviceToken('usr-admin-001');
 
 /** An administrator's panel key, for a deployment whose panel is already locked. */
 const SUPPLIED_PANEL_KEY = process.env.ONETEAM_PANEL_KEY || '';

@@ -80,20 +80,21 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # `$remote_addr` and `$request_uri` would each be replaced by the empty string,
 # silently breaking the proxy headers with no error anywhere.
 #
-# PORTAL_TOKEN is the PRE-SETUP fallback credential, not the panel's identity.
+# PORTAL_TOKEN — the OPTIONAL pre-setup fallback credential.
 #
-# Before any panel key has been issued the browser has nothing of its own to
-# send, and this is what keeps the panel working exactly as it did before logins
-# existed. The API honours it only while the panel is unconfigured, so the moment
-# the first key is minted it stops being a way in and the login screen becomes
-# the only door (see `mayUseRoute` in apps/api/src/common/auth/auth.guard.ts).
+# No default is baked in any more. The image used to ship
+# `ENV PORTAL_TOKEN=oneteam-user:usr-admin-001`, a credential anyone who reads
+# this repository can replay, valid until the first panel key is minted. With
+# ONETEAM_SERVICE_SIGNING_SECRET now required, the unsigned shape is rejected
+# by the API anyway — the baked value is dead weight and a trap.
 #
-# The default is the seeded administrator because that is what it takes to mint
-# the first key. It is worth replacing with a supervisor once keys are in use,
-# and it can be removed altogether once every person who needs the panel has
-# their own key — at which point the bootstrap key is the recovery path.
+# First login now goes through the API's bootstrap key instead: set
+# ONETEAM_PANEL_BOOTSTRAP_KEY on the api service, sign in with it once, mint
+# personal keys, then remove it. A deployment that still wants the edge
+# fallback can set PORTAL_TOKEN at runtime (a SIGNED, freshly minted token);
+# the nginx map leaves the Authorization header absent when it is unset, which
+# is the normal, fully configured state.
 ENV API_UPSTREAM=http://api:3001
-ENV PORTAL_TOKEN=oneteam-user:usr-admin-001
 ENV NGINX_ENVSUBST_FILTER=^(API_UPSTREAM|PORTAL_TOKEN)$
 
 COPY nginx.conf /etc/nginx/templates/default.conf.template

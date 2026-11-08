@@ -95,6 +95,27 @@ async function bootstrap() {
     bodyParser: false,
   });
 
+  // Honour the reverse proxy's X-Forwarded-For, when one is configured.
+  //
+  // WHY THIS IS OPT-IN RATHER THAN ALWAYS ON
+  // ----------------------------------------
+  // The per-address enrolment limiter keys on `request.ip`. Behind the web
+  // nginx every caller arrives from the proxy's address, so without trust the
+  // whole deployment shares ONE bucket and one abusive origin locks out every
+  // honest sign-in (measured as a real DoS, not a hypothetical). But enabling
+  // trust while the API port is DIRECTLY reachable would let a client forge
+  // X-Forwarded-For and rotate the limiter for free. So the operator declares
+  // the topology: "1" (or "true") for one proxy hop, "loopback" for a local
+  // proxy, or a number of hops. Unset means the API is reached directly and
+  // `request.ip` is the socket address — spoof-proof but NAT-shared.
+  const trustProxy = process.env.ONETEAM_TRUST_PROXY?.trim();
+  if (trustProxy) {
+    app.set(
+      'trust proxy',
+      trustProxy === 'true' ? true : /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy,
+    );
+  }
+
   // 5mb comfortably covers the bot's own MAX_PHOTO_BYTES cap (~1.5mb for the
   // data URL) plus the checklist answers, metadata and AI verdict sent
   // alongside it, while still bounding the body so an oversized payload is

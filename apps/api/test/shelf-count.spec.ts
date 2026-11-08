@@ -52,6 +52,7 @@
  */
 
 import { Client } from 'pg';
+import { serviceToken } from './helpers/service-token';
 
 const API_BASE = (process.env.ONETEAM_API_URL || 'http://localhost:3001').replace(/\/+$/, '');
 const DATABASE_URL = process.env.DATABASE_URL || '';
@@ -59,9 +60,9 @@ const DATABASE_URL = process.env.DATABASE_URL || '';
 /** A panel login key, when the panel is locked. */
 const PANEL_KEY = process.env.ONETEAM_TEST_PANEL_KEY || '';
 /** The service credential, usable only while the panel has no keys at all. */
-const ADMIN_TOKEN = process.env.ONETEAM_TEST_ADMIN_TOKEN || 'oneteam-user:usr-admin-001';
+const ADMIN_TOKEN = process.env.ONETEAM_TEST_ADMIN_TOKEN || serviceToken('usr-admin-001');
 /** A merchandiser — cannot edit the map, but must be able to COUNT. */
-const MERCH_TOKEN = process.env.ONETEAM_TEST_MERCH_TOKEN || 'oneteam-user:usr-merch-003';
+const MERCH_TOKEN = process.env.ONETEAM_TEST_MERCH_TOKEN || serviceToken('usr-merch-003');
 
 /** Unique per run, so two runs against one database do not collide. */
 const RUN = Date.now().toString(36).toUpperCase();

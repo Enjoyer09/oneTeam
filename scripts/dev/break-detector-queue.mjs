@@ -288,11 +288,12 @@ const CASES = [
     id: 'C1',
     target: 'config',
     file: 'tsconfig',
-    why: 'the queue adapter is left in the type-check, where it cannot resolve',
-    find: `  "exclude": ["src/services/keychain.ts", "src/services/queueStorage.ts"]`,
+    why: 'the queue adapter is silently excluded from the type-check',
+    find: `  "include": ["src/**/*"]`,
     replace: `  // BREAK-C1
-  "exclude": ["src/services/keychain.ts"]`,
-    expect: 'src/services/queueStorage.ts is excluded from the type-check',
+  "include": ["src/**/*"],
+  "exclude": ["src/services/queueStorage.ts"]`,
+    expect: 'no mobile source is excluded from the type-check',
   },
   {
     id: 'C2',

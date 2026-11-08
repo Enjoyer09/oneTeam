@@ -297,9 +297,12 @@ export async function handleConfirmPhoto(
     // `pendingPhoto` is deliberately left where it was, so the confirm button
     // still works. Making the merchandiser re-shoot a photo the bot already has
     // would be a cost invented by the bot.
+    // `detail` can carry Telegram/API wording (paths, quoted input) with a
+    // backtick in it — inside a code span the escape would render literally, so
+    // it is escaped as plain Markdown.
     await ctx.reply(
       `❌ *Şəkil qeydə alına bilmədi.*\n\n` +
-        `\`${detail}\`\n\n` +
+        `${escapeMarkdown(detail || 'Bilinməyən xəta')}\n\n` +
         `Şəkil hələ də sizinlədir — bir az sonra yenidən *✅ Təsdiqlə və göndər* düyməsinə basın.`,
       { parse_mode: 'Markdown' },
     );

@@ -52,6 +52,9 @@ DETECTION = {
 }
 
 
+TOKEN = "test-vision-token"
+
+
 def stub_ok(image, conf=0.25, mode="coco", checkpoint=None):
     return {
         "success": True,
@@ -72,7 +75,7 @@ def stub_disabled(image, conf=0.25, mode="disabled", checkpoint=None):
     return {"success": False, "error": "TorchVision detector is disabled pending an approved checkpoint."}
 
 
-def call(port, path, body=None, method=None) -> tuple[int, dict]:
+def call(port, path, body=None, method=None, token=None) -> tuple[int, dict]:
     url = f"http://127.0.0.1:{port}{path}"
     data = None
     if body is not None:
@@ -80,6 +83,8 @@ def call(port, path, body=None, method=None) -> tuple[int, dict]:
     # `body is not None`, not truthiness: an empty `{}` is still a POST with a
     # body, and defaulting it to GET would test nothing but the helper itself.
     req = urllib.request.Request(url, data=data, method=method or ("POST" if body is not None else "GET"))
+    if token is not None:
+        req.add_header("Authorization", f"Bearer {token}")
     try:
         with urllib.request.urlopen(req, timeout=5) as res:
             return res.status, json.loads(res.read().decode("utf-8"))
@@ -104,12 +109,41 @@ def start_server(inference):
 
 def main():
     os.environ["ONETEAM_TORCHVISION_MODE"] = "coco"
+    os.environ["ONETEAM_VISION_TOKEN"] = TOKEN
     httpd, port = start_server(stub_ok)
     try:
         status, body = call(port, "/health")
         check("GET /health is 200 and ok", status == 200 and body.get("ok") is True, str(body))
 
+        # The worker fails closed: reachability alone must never be enough to
+        # spend a model inference, and /health must not double as a deployment
+        # detail page for whoever can ping the port.
         status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA"})
+        check(
+            "/detect without a token is 401 and never reaches inference",
+            status == 401 and body.get("success") is False,
+            json.dumps(body)[:300],
+        )
+        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA"}, token="wrong-token")
+        check(
+            "/detect with a wrong token is 401",
+            status == 401 and body.get("success") is False,
+            json.dumps(body)[:300],
+        )
+        status, body = call(port, "/health")
+        check(
+            "/health hides checkpoint provenance from unauthenticated callers",
+            status == 200 and "checkpoint_sha256" not in body and "torch_version" not in body,
+            json.dumps(body)[:300],
+        )
+        status, body = call(port, "/health", token=TOKEN)
+        check(
+            "/health shows checkpoint provenance to authenticated callers",
+            status == 200 and "checkpoint_sha256" in body,
+            json.dumps(body)[:300],
+        )
+
+        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA"}, token=TOKEN)
         check(
             "POST /detect forwards the image and returns the worker payload",
             status == 200
@@ -119,42 +153,42 @@ def main():
             json.dumps(body)[:300],
         )
 
-        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA", "conf": 0.5})
+        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA", "conf": 0.5}, token=TOKEN)
         check(
             "an optional conf threshold reaches the worker",
             status == 200 and body["received"]["conf"] == 0.5,
             json.dumps(body)[:300],
         )
 
-        status, body = call(port, "/detect", {"image": "https://internal.example/photo.jpg"})
+        status, body = call(port, "/detect", {"image": "https://internal.example/photo.jpg"}, token=TOKEN)
         check(
             "remote URLs are rejected before inference",
             status == 400 and body.get("success") is False,
             json.dumps(body)[:300],
         )
 
-        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA", "conf": 0})
+        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA", "conf": 0}, token=TOKEN)
         check(
             "unsafe confidence override is rejected",
             status == 400 and body.get("success") is False,
             json.dumps(body)[:300],
         )
 
-        status, body = call(port, "/detect", {})
+        status, body = call(port, "/detect", {}, token=TOKEN)
         check(
             "a body with no image is 400 with success:false",
             status == 400 and body.get("success") is False,
             json.dumps(body)[:300],
         )
 
-        status, body = call(port, "/detect", {"image": "   "})
+        status, body = call(port, "/detect", {"image": "   "}, token=TOKEN)
         check(
             "a blank image is rejected rather than inferred on",
             status == 400 and body.get("success") is False,
             json.dumps(body)[:300],
         )
 
-        status, body = call(port, "/detect", method="POST")
+        status, body = call(port, "/detect", method="POST", token=TOKEN)
         check(
             "an empty body is a 400, not a traceback",
             status == 400 and body.get("success") is False,
@@ -165,6 +199,7 @@ def main():
             port,
             "/detect",
             {"image": "data:image/jpeg;base64,AAAA", "conf": 0.4},
+            token=TOKEN,
         )
         check(
             "a data: URL body is accepted and forwarded as-is",
@@ -187,7 +222,7 @@ def main():
             status == 200 and body.get("backend") == "torchvision" and body.get("mode") == "coco",
             json.dumps(body)[:300],
         )
-        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA"})
+        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA"}, token=TOKEN)
         check(
             "worker mode is selected by server configuration, not the request",
             status == 200 and body["received"].get("mode") == "coco",
@@ -197,7 +232,7 @@ def main():
         # The confidence setting reaches inference when the request omits it.
         os.environ["ONETEAM_TORCHVISION_CONF"] = "0.55"
         try:
-            status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA"})
+            status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA"}, token=TOKEN)
             check(
                 "inference uses ONETEAM_TORCHVISION_CONF when the payload has none",
                 status == 200 and body["received"].get("conf") == 0.55,
@@ -217,7 +252,7 @@ def main():
     # and lose the reason entirely.
     httpd, port = start_server(stub_raises)
     try:
-        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA"})
+        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA"}, token=TOKEN)
         check(
             "a worker exception is 500 with success:false and the message",
             status == 500
@@ -233,7 +268,7 @@ def main():
     os.environ["ONETEAM_TORCHVISION_MODE"] = "disabled"
     httpd, port = start_server(stub_disabled)
     try:
-        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA"})
+        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA"}, token=TOKEN)
         check(
             "disabled mode returns 503 and never emits detections",
             status == 503 and body.get("success") is False and "disabled" in body.get("error", ""),
@@ -243,6 +278,28 @@ def main():
         httpd.shutdown()
         httpd.server_close()
         os.environ.pop("ONETEAM_TORCHVISION_MODE", None)
+
+    # The deployment default must fail closed: with no token configured the
+    # worker serves no inference at all — not even to a caller that somehow
+    # guesses the right one.
+    os.environ.pop("ONETEAM_VISION_TOKEN", None)
+    httpd, port = start_server(stub_ok)
+    try:
+        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA"}, token="anything")
+        check(
+            "a worker with no configured token serves no inference (503)",
+            status == 503 and body.get("success") is False,
+            json.dumps(body)[:300],
+        )
+        status, body = call(port, "/detect", {"image": "data:image/jpeg;base64,AAAA"})
+        check(
+            "a worker with no configured token refuses unauthenticated calls too",
+            status == 503 and body.get("success") is False,
+            json.dumps(body)[:300],
+        )
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
 
     # _worker_scripts_dir must find the TorchVision adapter from this layout.
     server._inference = None

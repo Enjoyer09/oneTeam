@@ -21,6 +21,7 @@
  */
 
 import { handleToday } from './today';
+import { clock } from '@oneteam/types';
 import { portalApi } from '../../services/portalApi';
 import type { BotContext, SessionData, SubmissionRecord, TaskRecord } from '../types';
 
@@ -78,7 +79,7 @@ function task(id: string, title: string): TaskRecord {
     reference_image_url: null,
     priority: 'HIGH' as TaskRecord['priority'],
     status: 'PUBLISHED' as TaskRecord['status'],
-    deadline: new Date().toISOString(),
+    deadline: clock.now().toISOString(),
   };
 }
 
@@ -97,12 +98,7 @@ function submission(status: SubmissionRecord['status'], submittedAt: string): Su
 
 /** A timestamp that renders as "today" / "yesterday" in Asia/Baku. */
 function bakuOffsetIso(daysAgo: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - daysAgo);
-  // Noon UTC lands on the same calendar day in Baku (UTC+4), so the day math is
-  // unambiguous regardless of when the suite runs.
-  d.setUTCHours(12, 0, 0, 0);
-  return d.toISOString();
+  return new Date(clock.now().getTime() - daysAgo * 86_400_000).toISOString();
 }
 
 async function run() {
@@ -110,6 +106,9 @@ async function run() {
 
   const originalGetTasks = portalApi.getTasksForStore.bind(portalApi);
   const originalGetSubs = portalApi.getSubmissionsByChatId.bind(portalApi);
+  const originalNow = clock.now;
+  // 00:30 in Baku, still the previous UTC day. Never depend on the host timezone.
+  clock.now = () => new Date('2026-10-21T20:30:00Z');
 
   try {
     // -----------------------------------------------------------------------
@@ -170,13 +169,32 @@ async function run() {
         submission('approved', bakuOffsetIso(0)), // today
         submission('pending_review', bakuOffsetIso(0)), // today
         submission('approved', bakuOffsetIso(3)), // three days ago
+        submission('rejected', '2026-10-21T19:59:59Z'), // yesterday in Baku
       ];
       const { ctx, captured } = makeCtx({ storeId: 'store-1', storeName: 'Mağaza 1' });
       await handleToday(ctx);
       check(
         "today's submissions are counted, older ones excluded",
-        captured.replies.some((r) => /Bu gün göndərilən:\*?\s*2/.test(r)),
+        captured.replies.some((r) => /Son 20 qeyddə bu gün:\*?\s*2/.test(r)) &&
+          !captured.replies.some((r) => /İmtina edilən/.test(r)),
         `replies: ${JSON.stringify(captured.replies)}`,
+      );
+    }
+
+    {
+      let requestedLimit: number | undefined;
+      (portalApi as any).getSubmissionsByChatId = async (_chatId: number, limit: number) => {
+        requestedLimit = limit;
+        return Array.from({ length: 20 }, () => submission('approved', bakuOffsetIso(0)));
+      };
+      const { ctx, captured } = makeCtx({ storeId: 'store-1', storeName: 'Mağaza 1' });
+      await handleToday(ctx);
+      check(
+        'a full page is labelled as a limited count, with a link to the audit history',
+        requestedLimit === 20 &&
+          captured.replies.some(
+            (r) => /Son 20 qeyddə bu gün:\*?\s*20/.test(r) && /Dəqiq ümumi say/.test(r),
+          ),
       );
     }
 
@@ -202,6 +220,7 @@ async function run() {
       );
     }
   } finally {
+    clock.now = originalNow;
     (portalApi as any).getTasksForStore = originalGetTasks;
     (portalApi as any).getSubmissionsByChatId = originalGetSubs;
   }

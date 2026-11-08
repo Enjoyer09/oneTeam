@@ -78,7 +78,11 @@ export async function handleMyStatus(ctx: BotContext) {
     // Markdown link would push the whole image into the message body and produce
     // a link Telegram cannot open. The photo is visible to the supervisor in the
     // panel, which is where a review happens anyway.
-    if (sub.photo_url && /^https?:\/\//i.test(sub.photo_url)) {
+    // Only http(s) photos can be linked, and only when the URL is link-shaped:
+    // a `)` or whitespace inside a Markdown link URL breaks the whole message,
+    // and the URL is not bot-authored. The photo stays visible to the supervisor
+    // in the panel either way.
+    if (sub.photo_url && /^https?:\/\/[^\s()]+$/i.test(sub.photo_url)) {
       statusText += `   🖼 [Fotoşəkilə bax](${sub.photo_url})\n`;
     }
 

@@ -57,6 +57,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { Client } from 'pg';
+import { serviceToken } from './helpers/service-token';
 
 /**
  * Refuses to run in production.
@@ -84,7 +85,7 @@ const PORT = Number(process.env.ONETEAM_TEST_BOT_PORT || 3111);
 const API_BASE = `http://127.0.0.1:${PORT}`;
 const DATABASE_URL =
   process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres';
-const TOKEN = process.env.ONETEAM_TEST_ADMIN_TOKEN || 'oneteam-user:usr-admin-001';
+const TOKEN = process.env.ONETEAM_TEST_ADMIN_TOKEN || serviceToken('usr-admin-001');
 
 const REPO_ROOT = process.cwd();
 const API_ENTRY = path.join(REPO_ROOT, 'apps/api/dist/main.js');

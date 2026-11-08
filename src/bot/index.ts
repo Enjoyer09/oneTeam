@@ -20,6 +20,43 @@ export function createBot(token?: string): Bot<BotContext> {
 
   const bot = new Bot<BotContext>(botToken);
 
+  // PRIVATE CHATS ONLY
+  //
+  // Everything this bot stores is keyed by chat id: the session, the Telegram
+  // binding (`users.telegram_chat_id`), the notification drain. In a group all
+  // of that collapses into the group's chat id, so the first member to send a
+  // store code enrols THE GROUP — binding everyone in it to one store and
+  // letting each member's checklist answers land in one shared flow. A group
+  // also makes the store code visible to whoever else is in it, and a store
+  // code here is an enrolment credential.
+  //
+  // So non-private updates are dropped before the session middleware ever sees
+  // them (no session is created for a group). The one-time notice per chat is
+  // for the admin who adds the bot to a group and taps a button expecting an
+  // answer — silence would read as "the bot is broken".
+  const noticedChats = new Set<number>();
+  bot.use(async (ctx, next) => {
+    if (!ctx.chat || ctx.chat.type === 'private') {
+      await next();
+      return;
+    }
+
+    const chatId = ctx.chat.id;
+    const wantsAnAnswer = ctx.callbackQuery !== undefined || /^\/\w+/.test(ctx.message?.text ?? '');
+    if (wantsAnAnswer && !noticedChats.has(chatId) && noticedChats.size < 1000) {
+      noticedChats.add(chatId);
+      try {
+        await ctx.reply(
+          'ℹ️ Bu bot yalnız şəxsi söhbətlərdə işləyir. ' +
+            'Zəhmət olmasa mənə şəxsi yazın — /start yazaraq davam edin.',
+        );
+      } catch {
+        // A group that forbids the bot speaking is not an error worth logging.
+      }
+    }
+    // Not calling next() is the drop.
+  });
+
   // Session middleware — backed by the API, not by this process's memory.
   //
   // The default store is a `Map` inside this process, and this process is

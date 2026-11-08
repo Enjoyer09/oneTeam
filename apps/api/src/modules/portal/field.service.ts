@@ -1248,7 +1248,7 @@ export class FieldService {
         `🤖 AI (${engineLabel}) — bal ${score}/100, əminlik ${confidencePct}. ` +
         (payload.aiSummary?.trim() || 'Xülasə verilmədi.');
 
-      db.updateEvidence(result.evidence.id, {
+      await db.updateEvidence(result.evidence.id, {
         aiScore: score,
         aiSummary: composedSummary,
         aiDetections: (payload.aiDetections as DetectionItem[] | undefined) ?? [],

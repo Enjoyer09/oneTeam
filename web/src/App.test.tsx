@@ -20,6 +20,7 @@ vi.mock('./lib/portalApi', () => ({
     getProducts: vi.fn(),
     getShelfPositions: vi.fn(),
     getShelfMetrics: vi.fn(),
+    createTask: vi.fn(),
   },
 }));
 beforeEach(() => {
@@ -60,6 +61,29 @@ describe('portal failure states', () => {
     expect(await screen.findByText('Məlumat yüklənə bilmədi')).toBeTruthy();
     expect(screen.queryByText(/Hələ planogram tapşırığı yoxdur/)).toBeNull();
   });
+  it('surfaces a failed write as an assertive error toast, not a success-styled one', async () => {
+    vi.mocked(portalService.getStores).mockResolvedValue([{ id: 'a', name: 'Mağaza A' }] as never);
+    vi.mocked(portalService.createTask).mockRejectedValue(new Error('offline'));
+    render(<App />);
+    await waitFor(() => expect(portalService.getTasks).toHaveBeenCalled());
+    fireEvent.click(screen.getAllByRole('button', { name: /Yeni Təlimat Yarat/ })[0]);
+    fireEvent.change(await screen.findByLabelText('Tapşırığın Başlığı *'), {
+      target: { value: 'Yoxlama' },
+    });
+    fireEvent.change(screen.getByLabelText('Düzülüş Təlimatı və Facing Qaydaları *'), {
+      target: { value: 'Rəfi yoxlayın' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Mağaza A' }));
+    const form = screen.getByLabelText('Tapşırığın Başlığı *').closest('form');
+    if (!form) throw new Error('Form missing');
+    fireEvent.submit(form);
+    const toast = await screen.findByRole('alert');
+    expect(toast.textContent).toContain('Əməliyyat alınmadı — offline');
+    expect(toast.getAttribute('aria-live')).toBe('assertive');
+    expect(toast.querySelector('.bg-bad')).toBeTruthy();
+    expect(toast.querySelector('.bg-ok')).toBeNull();
+  });
+
   it('loads tasks even when the independent product request fails', async () => {
     vi.mocked(portalService.getProducts).mockRejectedValue(new Error('offline'));
     render(<App />);

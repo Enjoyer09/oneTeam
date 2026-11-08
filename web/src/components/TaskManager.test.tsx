@@ -88,6 +88,62 @@ it('publishes checklist and before/after requirement with the selected recipient
   );
 });
 
+it('sends a date-only deadline as end of day Baku, not UTC midnight', async () => {
+  const { create, submit } = setup();
+  fireEvent.click(screen.getByRole('button', { name: 'Mağaza A' }));
+  fireEvent.change(screen.getByLabelText('Yoxlama üçün Son Tarix *'), {
+    target: { value: '2026-11-15' },
+  });
+  submit();
+  // 23:59 in Baku (UTC+4) is 19:59Z. UTC midnight would expire the task at
+  // 04:00 local — before the business day it was meant to cover.
+  await waitFor(() =>
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ deadline: '2026-11-15T19:59:00.000Z' }),
+    ),
+  );
+});
+
+it('shows and saves an edited deadline as Baku wall-clock', async () => {
+  const update = vi.fn().mockResolvedValue(1);
+  render(
+    <TaskManager
+      tasks={[
+        {
+          id: 'task-a',
+          title: 'Rəf yoxlaması',
+          description: 'Yoxla',
+          reference_image_url: null,
+          priority: 'high',
+          status: 'published',
+          deadline: '2026-10-21T12:00:00Z',
+          created_at: '2026-10-14T12:00:00Z',
+          store_id: 'a',
+        } as Task,
+      ]}
+      stores={stores}
+      isCreateModalOpen={false}
+      setIsCreateModalOpen={vi.fn()}
+      onCreateTask={vi.fn()}
+      onUpdateTask={update}
+      canEdit
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: '"Rəf yoxlaması" tapşırığını redaktə et' }));
+  const input = screen.getByLabelText('Son Tarix (bu mağaza üçün) *') as HTMLInputElement;
+  // 12:00Z is 16:00 in Baku — the input renders Baku time, not the browser's.
+  expect(input.value).toBe('2026-10-21T16:00');
+  fireEvent.change(input, { target: { value: '2026-10-22T18:30' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Yadda saxla' }));
+  // 18:30 Baku wall-clock is 14:30Z — the server never guesses a timezone.
+  await waitFor(() =>
+    expect(update).toHaveBeenCalledWith(
+      'task-a',
+      expect.objectContaining({ deadline: '2026-10-22T14:30:00.000Z' }),
+    ),
+  );
+});
+
 it('restores an unfinished task after the panel remounts', async () => {
   setup();
   fireEvent.click(screen.getByRole('button', { name: 'Mağaza A' }));

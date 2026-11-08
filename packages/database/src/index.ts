@@ -764,11 +764,29 @@ export class EnterpriseDatabase {
    * Adds an evidence record and persists it.
    *
    * Replaces a direct `db.evidences.push(...)` in the evidence service.
+   *
+   * The write is AWAITED, but a failure is logged rather than thrown: a field
+   * worker's photo must not be refused for a database hiccup — it is already
+   * captured, and the audit trail is worth more than the round trip. Awaiting
+   * is still necessary, though, because `persist()` is fire-and-forget and the
+   * HTTP response used to be able to leave before the insert did — a restart
+   * in that window told the worker their audit was filed while the row never
+   * landed. Awaiting means the response is sent only once the write has
+   * either landed or definitively failed (and been logged).
    */
-  public createEvidence(evidence: InMemoryEvidence): InMemoryEvidence {
+  public async createEvidence(evidence: InMemoryEvidence): Promise<InMemoryEvidence> {
     this.evidences.push(evidence);
-    if (this.pool)
-      this.persist((pool) => pg.insertEvidence(pool, evidence), `evidence ${evidence.id}`);
+    if (this.pool) {
+      await this.enqueue(
+        (pool) => pg.insertEvidence(pool, evidence),
+        `evidence ${evidence.id}`,
+      ).catch((error) => {
+        console.error(
+          `⛔ [oneTeam DB] Failed to persist evidence ${evidence.id} (kept in memory): ` +
+            (error instanceof Error ? error.message : String(error)),
+        );
+      });
+    }
     return evidence;
   }
 
@@ -2050,8 +2068,15 @@ export class EnterpriseDatabase {
    * Only review fields are writable. The photo, coordinates and checklist
    * answers belong to the field worker who submitted them; letting a reviewer
    * overwrite those would make the audit trail editable by the auditor.
+   *
+   * The write is awaited for the same reason as `createEvidence`: a review
+   * decision that the response confirmed but the database never received is a
+   * decision that silently reverts on the next restart. A failed write is
+   * logged and the in-memory patch is kept — the task's own state transition
+   * has already happened by the time a review lands, and rolling back only
+   * the feedback would leave the two disagreeing more than they already do.
    */
-  public updateEvidence(
+  public async updateEvidence(
     evidenceId: string,
     patch: {
       reviewerFeedback?: string;
@@ -2059,7 +2084,7 @@ export class EnterpriseDatabase {
       aiSummary?: string | null;
       aiDetections?: DetectionItem[];
     },
-  ): InMemoryEvidence | null {
+  ): Promise<InMemoryEvidence | null> {
     const evidence = this.evidences.find((e) => e.id === evidenceId);
     if (!evidence) return null;
 
@@ -2070,10 +2095,15 @@ export class EnterpriseDatabase {
     evidence.updatedAt = clock.now();
 
     if (this.pool) {
-      this.persist(
+      await this.enqueue(
         (pool) => pg.updateEvidenceRow(pool, evidence),
         `evidence ${evidence.id} review`,
-      );
+      ).catch((error) => {
+        console.error(
+          `⛔ [oneTeam DB] Failed to persist review on evidence ${evidence.id} (kept in memory): ` +
+            (error instanceof Error ? error.message : String(error)),
+        );
+      });
     }
     return evidence;
   }
@@ -2547,7 +2577,17 @@ export class EnterpriseDatabase {
     return task;
   }
 
-  public updateTaskState(taskId: string, newState: TaskState): InMemoryStoreTask | null {
+  /**
+   * The write is awaited (log-only on failure) so the API's response for a
+   * submission cannot leave before the task's SUBMITTED state reaches the
+   * database — the same window `createEvidence` closes for the evidence row.
+   * The evidence insert was queued first, so FIFO ordering still guarantees
+   * the parent lands before this update.
+   */
+  public async updateTaskState(
+    taskId: string,
+    newState: TaskState,
+  ): Promise<InMemoryStoreTask | null> {
     const task = this.getTask(taskId);
     if (!task) return null;
 
@@ -2562,8 +2602,17 @@ export class EnterpriseDatabase {
       task.reviewedAt = clock.now();
     }
 
-    if (this.pool)
-      this.persist((pool) => pg.updateStoreTaskRow(pool, task), `task ${task.id} state`);
+    if (this.pool) {
+      await this.enqueue(
+        (pool) => pg.updateStoreTaskRow(pool, task),
+        `task ${task.id} state`,
+      ).catch((error) => {
+        console.error(
+          `⛔ [oneTeam DB] Failed to persist task ${task.id} state ${newState} (kept in memory): ` +
+            (error instanceof Error ? error.message : String(error)),
+        );
+      });
+    }
 
     return task;
   }

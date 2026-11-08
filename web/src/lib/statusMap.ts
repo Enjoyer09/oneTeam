@@ -39,6 +39,19 @@ const MAP: Record<string, { family: string; emoji: string; label: string }> = {
 export const STATUS_VALUES: string[] = Object.keys(MAP);
 
 /**
+ * Ailə → tam utility class-ları. LITERAL saxlanılır: Tailwind skaneri `bg-${family}-50`
+ * kimi interpolasiyanı görə bilmir və production build-də həmin class-ları kəsirdi —
+ * chip-lər rəngsiz qalırdı. Statik xəritə ilə hər class skanerə görünür.
+ */
+const FAMILY_CLASSES: Record<string, string> = {
+  emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  amber: 'bg-amber-50 text-amber-700 border-amber-200',
+  rose: 'bg-rose-50 text-rose-700 border-rose-200',
+  orange: 'bg-orange-50 text-orange-700 border-orange-200',
+  slate: 'bg-slate-50 text-slate-700 border-slate-200',
+};
+
+/**
  * Naməlum dəyər heç vaxt crash etmir: neutral slate ailəsi + xam dəyər etiket
  * kimi. (Bilinməyən status ekranı göstərməyə dayandırmamalıdır — data ilə UI
  * arasında yarış yoxdur, dürüst göstərmək var.)
@@ -50,6 +63,6 @@ export function statusChip(value: string): StatusChip {
     family,
     emoji,
     label,
-    classes: `${STATUS_CHIP_SHAPE} bg-${family}-50 text-${family}-700 border border-${family}-200`,
+    classes: `${STATUS_CHIP_SHAPE} border ${FAMILY_CLASSES[family] ?? FAMILY_CLASSES.slate}`,
   };
 }
