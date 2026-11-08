@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from 'tailwindcss';
 import autoprefixer from 'autoprefixer';
 import path from 'path';
-import { signServiceCredential } from '../packages/types/src/service-credential';
+import { mintDevServiceCredential } from './scripts/dev-service-credential';
 
 export default defineConfig(({ mode }) => {
   // Server-side only: read the repo-root .env so the dev proxy can mint the
@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => {
   // mid-session). The caller's own panel key always wins, matching nginx.
   const edgeAuthorization = (): string | null => {
     if (signingSecret && serviceUserId) {
-      return 'Bearer ' + signServiceCredential(serviceUserId, signingSecret);
+      return 'Bearer ' + mintDevServiceCredential(serviceUserId, signingSecret);
     }
     return staticToken ? 'Bearer ' + staticToken : null;
   };
