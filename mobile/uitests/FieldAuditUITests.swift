@@ -163,29 +163,25 @@ final class FieldAuditUITests: XCTestCase {
     }
     allowLocationWhenAsked()
 
-    let enabled = NSPredicate(format: "isEnabled == true")
-    expectation(for: enabled, evaluatedWith: submitButton())
-
-    // THE HANDLER RUNS WHEN THE WAIT COMPLETES, NOT ONLY WHEN IT FAILS, and
-    // `error` is nil when the expectation was fulfilled. The first version of
-    // this helper called XCTFail unconditionally inside it, so it failed the
-    // test even when the button HAD become enabled — which is what CI reported
-    // on 2026-09-20: the message read "Sign in never became enabled" while
-    // quoting the status line ("📍 Lokasiya alındı") that proved the opposite.
-    //
-    // That is the defect this repository keeps finding in other forms: a check
-    // that reports a verdict its own evidence contradicts, sending the reader
-    // to the app instead of to the test. Guarding on the error makes the
-    // failure mean exactly one thing — the wait timed out — and the message
-    // now carries both facts that decide it.
-    waitForExpectations(timeout: 30) { error in
-      guard error != nil else { return }
-      let storeCode = self.storeCodeInput().value as? String ?? "<none>"
-      XCTFail(
-        "Sign in did not become enabled within 30s. Location status was "
-          + "\"\(self.gpsStatus().label)\"; the store code field was \"\(storeCode)\".",
-        file: file, line: line)
+    // POLL, DO NOT waitForExpectations. With continueAfterFailure = false an
+    // expectation timeout interrupts the test BEFORE the completion handler
+    // runs, so the XCTFail that used to live inside it never reached the CI
+    // log — measured on 2026-11-08: only the bare "Asynchronous wait failed"
+    // appeared, without the status line that decides the cause. An
+    // XCTAssertTrue failure message does reach it (scripts/dev/test-ios.sh
+    // greps XCTAssert), so the wait is a loop and the verdict is one assert
+    // that means exactly one thing — the button never became enabled — and
+    // carries both facts that decide why.
+    let deadline = Date().addingTimeInterval(30)
+    while Date() < deadline && !submitButton().isEnabled {
+      usleep(300_000)
     }
+    let storeCode = storeCodeInput().value as? String ?? "<none>"
+    XCTAssertTrue(
+      submitButton().isEnabled,
+      "Sign in did not become enabled within 30s. Location status was "
+        + "\"\(gpsStatus().label)\"; the store code field was \"\(storeCode)\".",
+      file: file, line: line)
   }
 
   // --- Tests ----------------------------------------------------------------
