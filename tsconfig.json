@@ -17,6 +17,7 @@
     "baseUrl": ".",
     "paths": {
       "@oneteam/types": ["packages/types/src"],
+      "@oneteam/types/dist/service-credential": ["packages/types/src/service-credential.ts"],
       "@oneteam/database": ["packages/database/src"]
     }
   },
