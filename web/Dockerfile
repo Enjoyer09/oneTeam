@@ -95,6 +95,11 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # the nginx map leaves the Authorization header absent when it is unset, which
 # is the normal, fully configured state.
 ENV API_UPSTREAM=http://api:3001
+# Defined-but-empty ON PURPOSE. The envsubst hook only substitutes variables
+# that exist in the environment; an unset PORTAL_TOKEN would leave the literal
+# ${PORTAL_TOKEN} in nginx.conf and nginx crash-loops on the unknown variable.
+# Empty substitutes to `map ""` — no fallback header, the normal locked state.
+ENV PORTAL_TOKEN=""
 ENV NGINX_ENVSUBST_FILTER=^(API_UPSTREAM|PORTAL_TOKEN)$
 
 COPY nginx.conf /etc/nginx/templates/default.conf.template
