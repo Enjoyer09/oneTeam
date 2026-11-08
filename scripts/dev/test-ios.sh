@@ -96,14 +96,52 @@ echo "Testlər işləyir. Bu 5-15 dəqiqə çəkə bilər..."
 echo "Log: $LOG"
 echo ""
 
-xcodebuild \
-  -workspace ios/oneTeamFieldAudit.xcworkspace \
-  -scheme oneTeamFieldAudit \
-  -configuration Debug \
-  -destination "$DESTINATION" \
-  -derivedDataPath ios/build \
-  test > "$LOG" 2>&1
-STATUS=$?
+XCODEBUILD_COMMON=(
+  -workspace ios/oneTeamFieldAudit.xcworkspace
+  -scheme oneTeamFieldAudit
+  -configuration Debug
+  -destination "$DESTINATION"
+  -derivedDataPath ios/build
+)
+
+if [ "${ONETEAM_UI_TEST_GRANT_LOCATION:-0}" = "1" ]; then
+  # CI rejimi: lokasiya icazəsini tətbiq QURAŞDIRILANDAN SONRA simctl ilə ver.
+  #
+  # NİYƏ: UI testin özünün sistem pəncərəsindəki "Allow" düyməsini tapması
+  # iOS versiyasından asılıdır və CI-da (iOS 26) etibarlı işləmir — bəzən
+  # icazə verilmir, bəzən düymə heç tapılmır. Nəticə etibarlı olaraq
+  # "location status" xətası ilə ölçülür (2026-11-08). `simctl privacy grant`
+  # isə yalnız tətbiq quraşdırıldıqdan sonra işləyir (TCC sətri o zaman yaranır),
+  # ona görə əvvəl build-for-testing + install edirik. Pəncərə ümumiyyətlə
+  # çıxmır, test deterministik olur.
+  UDID="${DESTINATION#id=}"
+  BUNDLE_ID="az.oneteam.cocacola.fieldaudit"
+  PRODUCTS="ios/build/Build/Products"
+
+  xcodebuild "${XCODEBUILD_COMMON[@]}" build-for-testing > "$LOG" 2>&1
+  STATUS=$?
+
+  if [ "$STATUS" -eq 0 ]; then
+    APP="$PRODUCTS/Debug-iphonesimulator/oneTeamFieldAudit.app"
+    XCTESTRUN=$(find "$PRODUCTS" -maxdepth 1 -name "*.xctestrun" | head -1)
+    if [ -z "$XCTESTRUN" ] || [ ! -d "$APP" ]; then
+      echo "build-for-testing məhsulları tapılmadı (.app və ya .xctestrun). $LOG faylına bax."
+      STATUS=70
+    else
+      xcrun simctl install "$UDID" "$APP"
+      xcrun simctl privacy "$UDID" grant location "$BUNDLE_ID"
+      xcrun simctl location "$UDID" set 40.4093,49.8671
+      # -xctestrun is self-contained: xcodebuild rejects it alongside
+      # -workspace/-scheme, so this call carries only the destination.
+      xcodebuild -destination "$DESTINATION" -derivedDataPath ios/build \
+        -xctestrun "$XCTESTRUN" test-without-building >> "$LOG" 2>&1
+      STATUS=$?
+    fi
+  fi
+else
+  xcodebuild "${XCODEBUILD_COMMON[@]}" test > "$LOG" 2>&1
+  STATUS=$?
+fi
 
 if [ "$METRO_WAS_RUNNING" = "0" ]; then
   kill "$METRO_PID" 2>/dev/null

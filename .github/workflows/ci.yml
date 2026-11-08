@@ -325,21 +325,17 @@ jobs:
           echo "destination=id=$UDID" >> "$GITHUB_OUTPUT"
 
       - name: Run the UI tests
-        run: |
-          # Give the simulator a location RIGHT BEFORE the tests, on the
-          # fully-booted device. The login screen asks expo-location for a real
-          # fix and correctly refuses to enable Sign in without one, so a
-          # simulator with no location would fail the UI tests on a rule that
-          # is working. 40.4093,49.8671 is the demo store's position.
-          #
-          # `simctl privacy ... grant location` is deliberately NOT used: it
-          # exits 0 but writes no TCC row for an app that is not installed yet,
-          # and the app is installed by `xcodebuild test` afterwards. The UI test
-          # dismisses the prompt instead — see `allowLocationWhenAsked`.
-          xcrun simctl location "${ONETEAM_UI_TEST_DESTINATION#id=}" set 40.4093,49.8671
-          bash scripts/dev/test-ios.sh
+        run: bash scripts/dev/test-ios.sh
         env:
           ONETEAM_UI_TEST_DESTINATION: ${{ steps.sim.outputs.destination }}
+          # Grant the location permission with simctl AFTER the app is
+          # installed, instead of tapping the system prompt from the test.
+          # The prompt's button labels are iOS-version-dependent and proved
+          # unreliable on the iOS 26 runner (measured 2026-11-08: permission
+          # ended up denied). The script installs the app, grants, sets the
+          # demo store's location (40.4093,49.8671), then runs the tests — so
+          # no prompt ever appears and the fixture is deterministic.
+          ONETEAM_UI_TEST_GRANT_LOCATION: "1"
 
   # ---------------------------------------------------------------------------
   # Job 5 — dependency audit. NON-BLOCKING on purpose.
