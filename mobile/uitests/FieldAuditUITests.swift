@@ -24,26 +24,28 @@
 // button was enabled by a timer, and the assertion below ("disabled, then
 // enabled") was really asserting that a timer fires.
 //
-// The screen now asks `expo-location` for a fix. Two consequences for this
-// file, both of them honest rather than convenient:
+// The screen now asks `expo-location` for a fix — but only when the worker
+// taps "Lokasiyanı təsdiqlə" (`login.retryLocationButton`). Nothing is asked
+// on mount. Three consequences for this file, all of them honest rather than
+// convenient:
 //
 //   * The simulator needs a location. CI sets one before the tests run
 //     (`xcrun simctl location <udid> set 40.4093,49.8671` in the "Pick a
 //     simulator" step). Without it no fix ever arrives and the sign-in button
 //     correctly stays off — a failure of the fixture, not of the app.
-//   * The first launch shows the iOS location prompt. `allowLocationWhenAsked`
-//     dismisses it the way a worker would. `xcrun simctl privacy ... grant`
-//     does NOT work here: measured on 2026-09-20, it exits 0 but writes no TCC
-//     row for an app that is not installed yet, and the app is installed by
-//     `xcodebuild test` long after the simulator is prepared.
-//
-// "Disabled until a fix exists" is still a rule, but it is no longer asserted
-// unconditionally here: on a fast machine the fix can arrive before the first
-// query, which would make the assertion a coin flip rather than a check. The
-// rule is proven unconditionally and deterministically in the headless suite
-// (`mobile/src/tests/mobile-test-runner.ts`, "no fix means no sign-in"), where
-// the absence of a fix is an input rather than a race. What remains here is the
-// part only the real UI can show: the status line and the button agree.
+//   * The tap is what raises the iOS location prompt, so the tests tap the
+//     button before `allowLocationWhenAsked` dismisses the prompt the way a
+//     worker would. `xcrun simctl privacy ... grant` does NOT work here:
+//     measured on 2026-09-20, it exits 0 but writes no TCC row for an app that
+//     is not installed yet, and the app is installed by `xcodebuild test` long
+//     after the simulator is prepared.
+//   * "Disabled until a fix exists" IS asserted unconditionally again: before
+//     the tap no fix can exist, so the assertion is deterministic, not the
+//     coin flip it was while the screen acquired a fix on mount. The headless
+//     suite (`mobile/src/tests/mobile-test-runner.ts`, "no fix means no
+//     sign-in") proves the same rule with the absence of a fix as an input;
+//     what remains here is the part only the real UI can show: the status
+//     line and the button agree.
 //
 // A `testID` IS NOT ENOUGH
 // ------------------------
@@ -147,10 +149,18 @@ final class FieldAuditUITests: XCTestCase {
     XCTFail("login.storeCodeInput never appeared. Screen was:\n\(shown)", file: file, line: line)
   }
 
-  /// Waits for the sign-in button to become enabled, granting location if the
-  /// platform asks. Fails with the status line in the message, because "still
-  /// looking for a fix" and "the fix was refused" need different fixes.
+  /// Asks for a location fix the way the worker does, grants the permission if
+  /// the platform asks, and waits for the sign-in button to become enabled.
+  /// Fails with the status line in the message, because "still looking for a
+  /// fix" and "the fix was refused" need different fixes.
   private func waitForSignInToEnable(file: StaticString = #filePath, line: UInt = #line) {
+    // The screen asks the platform for a fix only after this tap — on mount
+    // it does nothing, so without it the prompt never appears and the button
+    // stays disabled for the whole wait.
+    let retry = app.buttons["login.retryLocationButton"]
+    if retry.waitForExistence(timeout: 5) {
+      retry.tap()
+    }
     allowLocationWhenAsked()
 
     let enabled = NSPredicate(format: "isEnabled == true")
@@ -198,19 +208,16 @@ final class FieldAuditUITests: XCTestCase {
   func testSignInFollowsTheLocationStatus() throws {
     waitForLoginScreen()
 
-    // Sound rather than convenient: the assertion is only meaningful while no
-    // fix exists, and whether one exists yet depends on how fast the device is.
-    // Asserting it unconditionally would make this a race, and a race that
-    // passes tells you nothing about the rule.
+    // No fix can exist yet: the screen only asks the platform after the tap
+    // inside waitForSignInToEnable, so "disabled before the grant" is
+    // deterministic here, not a race.
     let statusBeforeGrant = gpsStatus().label
-    if !statusBeforeGrant.contains("alındı") {
-      XCTAssertFalse(submitButton().isEnabled,
-        "Sign in must be disabled while the location line reads \"\(statusBeforeGrant)\"")
-    }
+    XCTAssertFalse(submitButton().isEnabled,
+      "Sign in must be disabled while the location line reads \"\(statusBeforeGrant)\"")
 
     waitForSignInToEnable()
 
-    XCTAssertTrue(gpsStatus().label.contains("alındı"),
+    XCTAssertTrue(gpsStatus().label.contains("təsdiqləndi"),
       "The location line must report the fix that enabled Sign in, got: \"\(gpsStatus().label)\"")
   }
 
