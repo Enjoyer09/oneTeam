@@ -76,8 +76,18 @@ fi
 # səbəb görünmür. Paketi bir dəfə soruşub cavabı gözləmək bunu aradan qaldırır.
 echo ""
 echo "JS paketi hazırlanır (soyuq Metro üçün 1-2 dəqiqə çəkə bilər)..."
-curl -s --max-time 600 -o /dev/null \
-  "http://127.0.0.1:8081/index.bundle?platform=ios&dev=true&hot=false"
+# -f vacibdir: Metro uğursuz paketi HTTP 500 ilə qaytarır, -f olmadan isə
+# curl 0 ilə çıxır və "Paket hazırdır" ölü paketin üstündə yazılır — xəta
+# yalnız 8 dəqiqə sonra "giriş ekranı yoxdur" kimi üzə çıxır.
+if ! curl -fsS --max-time 600 -o /dev/null \
+  "http://127.0.0.1:8081/index.bundle?platform=ios&dev=true&hot=false"; then
+  echo "JS paketi qurulmadı. Metro log-u (son 40 sətir — $METRO_LOG):"
+  tail -40 "$METRO_LOG" 2>/dev/null || true
+  if [ "$METRO_WAS_RUNNING" = "0" ]; then
+    kill "$METRO_PID" 2>/dev/null
+  fi
+  exit 1
+fi
 echo "Paket hazırdır."
 
 # --- 3. Testlər -------------------------------------------------------------

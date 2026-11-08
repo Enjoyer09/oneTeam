@@ -9,7 +9,7 @@
  * and falls back to the legacy shape only when no secret exists.
  */
 import 'dotenv/config';
-import { signServiceCredential } from '@oneteam/types';
+import { signServiceCredential } from '@oneteam/types/dist/service-credential';
 
 export function serviceToken(userId: string): string {
   const secret = (process.env.ONETEAM_SERVICE_SIGNING_SECRET || '').trim();

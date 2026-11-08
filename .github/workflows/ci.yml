@@ -249,6 +249,20 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      # The app imports `@oneteam/types` at RUNTIME (clock/log in
+      # offlineQueue, SmartCameraOverlay, CameraAuditScreen), and Metro
+      # resolves it through the root workspace symlink to
+      # packages/types/dist. `mobile` is not a workspace member, so the
+      # mobile-only install below provides neither the symlink nor the
+      # build. Measured 2026-11-08: without these two steps Metro dies with
+      # "Unable to resolve '@oneteam/types'" and every UI test fails with
+      # "login.storeCodeInput never appeared".
+      - name: Install root dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build workspace packages
+        run: npm run build:packages
+
       - name: Install mobile dependencies
         run: cd mobile && npm ci --no-audit --no-fund
 

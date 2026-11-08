@@ -7,7 +7,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Request } from 'express';
-import { UserRole, verifyServiceCredential } from '@oneteam/types';
+import { UserRole } from '@oneteam/types';
+import { verifyServiceCredential } from '@oneteam/types/dist/service-credential';
 import { AuthenticatedPrincipal, PrincipalSource } from './authenticated-principal';
 import { db, isDeviceToken, isPanelToken, matchesPanelBootstrapKey } from '@oneteam/database';
 

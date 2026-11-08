@@ -53,7 +53,7 @@
 
 import dotenv from 'dotenv';
 import type { FieldFlowPayload } from '@oneteam/types';
-import { isServiceCredential, signServiceCredential } from '@oneteam/types';
+import { isServiceCredential, signServiceCredential } from '@oneteam/types/dist/service-credential';
 import { StoreRecord, TaskRecord, SubmissionRecord, PendingNotification } from '../bot/types';
 
 dotenv.config();

@@ -53,7 +53,7 @@ echo "ok"
 
 # Mint the signed edge credential the portal smoke test and bot suites send.
 # Requires the packages build above; one hour outlives the whole run.
-ONETEAM_API_TOKEN="$(node -e "const {signServiceCredential}=require('./packages/types/dist/index.js'); console.log(signServiceCredential('usr-admin-001', process.env.ONETEAM_SERVICE_SIGNING_SECRET, 3600))")"
+ONETEAM_API_TOKEN="$(node -e "const {signServiceCredential}=require('./packages/types/dist/service-credential.js'); console.log(signServiceCredential('usr-admin-001', process.env.ONETEAM_SERVICE_SIGNING_SECRET, 3600))")"
 export ONETEAM_API_TOKEN
 
 say "Postgres container"
