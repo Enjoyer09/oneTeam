@@ -304,7 +304,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
 
   const inputClass =
     'w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] ' +
-    'focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45';
+    'focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)] focus:border-primary-500/45';
   const labelClass = 'block text-xs font-bold text-ink-2 mb-1';
 
   return (
@@ -335,8 +335,8 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
               className="h-[38px] w-full rounded-[11px] border border-hair bg-[var(--g-panel)]
                          pl-9 pr-9 text-[12px] text-ink placeholder:text-muted
                          transition-colors duration-150
-                         focus:border-coke/45 focus:bg-[var(--g-card)] focus:outline-none
-                         focus-visible:outline-none focus:ring-2 focus:ring-[var(--coke-ring)]"
+                         focus:border-primary-500/45 focus:bg-[var(--g-card)] focus:outline-none
+                         focus-visible:outline-none focus:ring-2 focus:ring-[var(--primary-ring)]"
             />
             {searchTerm && (
               <button
@@ -355,9 +355,9 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
             <button
               type="button"
               onClick={openCreate}
-              className="flex h-[38px] flex-none items-center gap-1.5 rounded-[11px] bg-coke px-3.5
+              className="flex h-[38px] flex-none items-center gap-1.5 rounded-[11px] bg-primary px-3.5
                          text-[12px] font-extrabold text-white transition-opacity hover:opacity-90
-                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--coke-ring)]"
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-ring)]"
             >
               <Plus className="h-4 w-4" strokeWidth={2.4} />
               <span>Yeni mağaza</span>
@@ -434,7 +434,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
 
                       <td>
                         <div className="flex items-center gap-2">
-                          <StoreIcon className="h-4 w-4 flex-none text-coke" strokeWidth={1.9} />
+                          <StoreIcon className="h-4 w-4 flex-none text-primary" strokeWidth={1.9} />
                           <span className="text-[12px] font-bold tracking-[-.01em] text-ink">
                             {store.name}
                           </span>
@@ -723,7 +723,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
                       void fillFromCurrentPosition();
                     }}
                     disabled={locating}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-hair bg-[var(--g-card)] px-3 py-2 text-[11px] font-bold text-ink-2 transition hover:border-coke/45 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-hair bg-[var(--g-card)] px-3 py-2 text-[11px] font-bold text-ink-2 transition hover:border-primary-500/45 disabled:opacity-50"
                   >
                     <MapPin className="h-3.5 w-3.5" />
                     {locating ? 'Mövqe götürülür…' : 'Cari mövqeyimi götür'}
@@ -752,7 +752,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
                     type="checkbox"
                     checked={form.is_active}
                     onChange={(e) => set('is_active', e.target.checked)}
-                    className="h-4 w-4 accent-[var(--coke)]"
+                    className="h-4 w-4 accent-[var(--primary)]"
                   />
                   <span className="text-xs font-bold text-ink-2">
                     Aktiv — sahə işçilərinə göndərilir
@@ -780,7 +780,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
                   <button
                     type="submit"
                     disabled={saving}
-                    className="rounded-[11px] bg-coke px-4 py-2 text-xs font-extrabold text-white
+                    className="rounded-[11px] bg-primary px-4 py-2 text-xs font-extrabold text-white
                                transition-opacity hover:opacity-90 disabled:opacity-50"
                   >
                     {saving ? 'Yazılır…' : editing === 'new' ? 'Mağazanı yarat' : 'Yadda saxla'}

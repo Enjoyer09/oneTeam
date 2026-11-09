@@ -13,6 +13,7 @@ export default {
           red: '#F40009',
           dark: '#111827',
         },
+        /* Brend qırmızısı — yalnız loqo/nişan detalı */
         coke: {
           DEFAULT: '#F40009',
           50: '#fff1f1',
@@ -27,8 +28,42 @@ export default {
           900: '#7A0005',
         },
 
-        /* ── Şüşə dizayn sistemi: hamısı CSS dəyişənlərinə bağlıdır,
-              ona görə işıq/tünd tema avtomatik işləyir. ── */
+        /* Əsas aksent — bənövşəyi. DEFAULT tema dəyişəninə bağlıdır (işıq/tünd
+           avtomatik keçir); rəqəmli pillələr statikdir ki, /opacity modifierləri
+           (bg-primary-500/12) düzgün işləsin. */
+        primary: {
+          DEFAULT: 'var(--primary)',
+          50: '#f5f3ff',
+          100: '#ede9fe',
+          200: '#ddd6fe',
+          300: '#c4b5fd',
+          400: '#a78bfa',
+          500: '#8b5cf6',
+          600: '#7c3aed',
+          700: '#6d28d9',
+          800: '#5b21b6',
+          900: '#4c1d95',
+        },
+        /* İkinci aksent — sarı */
+        accent: {
+          DEFAULT: 'var(--accent)',
+          50: '#fffbeb',
+          100: '#fef3c7',
+          200: '#fde68a',
+          300: '#fcd34d',
+          400: '#fbbf24',
+          500: '#f59e0b',
+          600: '#d97706',
+          700: '#b45309',
+          800: '#92400e',
+          900: '#78350f',
+        },
+        surface: 'var(--g-card)',
+        'surface-2': 'var(--g-panel)',
+        page: 'var(--bg)',
+
+        /* Mətn/status/səth rəngləri CSS dəyişənlərinə bağlıdır — işıq/tünd
+           tema avtomatik işləyir. */
         ink: 'var(--ink)',
         'ink-2': 'var(--ink-2)',
         muted: 'var(--muted)',
@@ -41,12 +76,12 @@ export default {
         info: 'var(--info)',
       },
 
-      /* Prototipdəki kölgə reseptləri — düz kartların "yastı" görünməsinin həlli */
+      /* Soft UI kölgələri — yumşaq, inset işıq xətti yoxdur */
       boxShadow: {
-        g1: 'var(--sh-1), inset 0 1px 0 var(--spec)',
-        g2: 'var(--sh-2), inset 0 1px 0 var(--spec)',
-        g3: 'var(--sh-3), inset 0 1px 0 var(--spec)',
-        gwin: 'var(--sh-win), inset 0 1px 0 var(--spec)',
+        g1: 'var(--sh-1)',
+        g2: 'var(--sh-2)',
+        g3: 'var(--sh-3)',
+        gwin: 'var(--sh-win)',
         subtle: 'var(--sh-1)',
       },
 
@@ -73,10 +108,10 @@ export default {
       },
 
       borderRadius: {
-        win: '22px',
-        card: '18px',
-        in: '13px',
-        ctl: '11px',
+        win: '24px',
+        card: '20px',
+        in: '14px',
+        ctl: '12px',
       },
 
       fontFamily: {

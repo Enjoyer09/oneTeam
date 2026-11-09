@@ -637,13 +637,6 @@ export function App() {
   if (auth.phase === 'checking') {
     return (
       <div className="relative flex h-screen items-center justify-center text-ink">
-        <div className="bg-scene" aria-hidden="true">
-          <i />
-          <i />
-          <i />
-          <i />
-          <b />
-        </div>
         <p className="relative z-10 text-[12px] text-muted">Giriş vəziyyəti yoxlanılır…</p>
       </div>
     );
@@ -678,23 +671,14 @@ export function App() {
   const openWarning = !auth.status.required;
 
   return (
-    <div className="relative flex h-screen overflow-hidden text-ink">
-      {/* Şüşənin içindən görünən rəngli fon */}
-      <div className="bg-scene" aria-hidden="true">
-        <i />
-        <i />
-        <i />
-        <i />
-        <b />
-      </div>
-
+    <div className="relative flex h-screen flex-col overflow-hidden text-ink">
       {/* Telefon: çekmece açıq olanda fonun üstünə yumşaq pərdə */}
       {drawerOpen && (
         <button
           type="button"
           aria-label="Menyunu bağla"
           onClick={() => setDrawerOpen(false)}
-          className="fixed inset-0 z-30 bg-[rgba(10,16,32,.34)] backdrop-blur-[2px]
+          className="fixed inset-0 z-30 bg-[rgba(15,18,32,.4)]
                      animate-[viewIn_250ms_cubic-bezier(.22,1,.36,1)_both] md:hidden"
         />
       )}
@@ -723,7 +707,7 @@ export function App() {
         <PanelUsersModal onClose={() => setUsersOpen(false)} onChanged={() => void checkAuth()} />
       )}
 
-      {/* Yan panel */}
+      {/* Mobil naviqasiya çekmecesi (masaüstündə üst pill bar işləyir) */}
       <Sidebar
         activeTab={activeTab}
         setActiveTab={handleTabChange}
@@ -740,6 +724,8 @@ export function App() {
       >
         <Header
           activeTab={activeTab}
+          onNavigate={handleTabChange}
+          pendingCount={metrics.pendingReviews}
           onOpenCreateTask={handleOpenCreateTask}
           onOpenDrawer={() => setDrawerOpen(true)}
           drawerOpen={drawerOpen}
@@ -752,10 +738,10 @@ export function App() {
 
         {/* Açıq panel xəbərdarlığı — vəziyyəti gizlətmək onu təhlükəli edir */}
         {openWarning && (
-          <div className="relative z-20 flex flex-shrink-0 items-start gap-2.5 border-b border-[rgba(200,60,60,.24)] bg-[rgba(200,60,60,.08)] px-4 py-2.5 sm:px-5">
-            <span className="mt-[3px] h-2 w-2 flex-shrink-0 rounded-full bg-[#b23b3b]" />
+          <div className="relative z-20 flex flex-shrink-0 items-start gap-2.5 border-b border-[var(--bad-bd)] bg-[var(--bad-bg)] px-4 py-2.5 sm:px-5">
+            <span className="mt-[3px] h-2 w-2 flex-shrink-0 rounded-full bg-[var(--bad-dot)]" />
             <p className="text-[11.5px] leading-relaxed text-ink">
-              <b className="font-extrabold text-[#b23b3b]">Panel açıqdır.</b> Hələ heç bir giriş
+              <b className="font-extrabold text-[var(--bad)]">Panel açıqdır.</b> Hələ heç bir giriş
               açarı yoxdur, ona görə bu səhifəni aça bilən hər kəs məlumatları görür və dəyişə
               bilər.{' '}
               <button
@@ -782,9 +768,8 @@ export function App() {
                 <DashboardOverview
                   phase={activePhase}
                   metrics={metrics}
-                  recentSubmissions={submissions.slice(0, 6)}
+                  submissions={submissions}
                   tasks={tasks}
-                  submissionCount={submissions.length}
                   loadedAt={lastLoadedAt}
                   onRetry={() => {
                     dispatchPhase({ type: 'retry' });

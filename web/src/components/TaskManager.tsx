@@ -643,7 +643,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <h3 className="font-bold text-sm sm:text-base text-ink">Mövcud tapşırıqlar</h3>
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-red-100 text-coke-700 border border-red-200">
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-red-100 text-primary-700 border border-red-200">
               Tapşırıq idarəetməsi
             </span>
           </div>
@@ -657,12 +657,12 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
             onClick={() => setIsBulkModalOpen(true)}
             className="flex-1 sm:flex-initial flex items-center justify-center space-x-1.5 btn-strong text-white px-3.5 py-2.5 rounded-xl text-xs font-extrabold shadow-sm transition-all cursor-pointer whitespace-nowrap"
           >
-            <Send className="w-3.5 h-3.5 text-coke-400" />
+            <Send className="w-3.5 h-3.5 text-primary-400" />
             <span>Kütləvi Təlimat Göndər</span>
           </button>
           <button
             onClick={() => setIsCreateModalOpen(true)}
-            className="flex-1 sm:flex-initial flex items-center justify-center space-x-1.5 btn-coke text-white px-3.5 py-2.5 rounded-xl text-xs font-extrabold shadow-sm shadow-coke-500/20 transition-all cursor-pointer whitespace-nowrap"
+            className="flex-1 sm:flex-initial flex items-center justify-center space-x-1.5 btn-primary text-white px-3.5 py-2.5 rounded-xl text-xs font-extrabold shadow-sm shadow-primary-500/20 transition-all cursor-pointer whitespace-nowrap"
           >
             <PlusCircle className="w-3.5 h-3.5" />
             <span>Yeni Təlimat Yarat</span>
@@ -678,7 +678,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
               type="button"
               onClick={() => setQueueFilter(filter.id)}
               aria-pressed={queueFilter === filter.id}
-              className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold ${queueFilter === filter.id ? 'bg-coke text-white' : 'bg-[var(--g-panel)] text-ink-2 hover:text-ink'}`}
+              className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold ${queueFilter === filter.id ? 'bg-primary text-white' : 'bg-[var(--g-panel)] text-ink-2 hover:text-ink'}`}
             >
               {filter.label}
             </button>
@@ -843,7 +843,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                           }}
                           aria-label={`"${task.title}" tapşırığını sil`}
                           title="Sil"
-                          className="rounded-lg p-1.5 text-muted transition-colors hover:bg-[rgba(200,60,60,.08)] hover:text-[#b23b3b] cursor-pointer"
+                          className="rounded-lg p-1.5 text-muted transition-colors hover:bg-[var(--bad-bg)] hover:text-[var(--bad)] cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -873,13 +873,13 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
               {/* Modal Header */}
               <div className="p-5 border-b border-hair flex items-center justify-between bg-[var(--g-panel)]">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-xl bg-coke-500 flex items-center justify-center text-white shadow-md shadow-[0_3px_10px_-3px_var(--coke-ring)]">
+                  <div className="w-10 h-10 rounded-xl bg-primary-500 flex items-center justify-center text-white shadow-md shadow-[0_3px_10px_-3px_var(--primary-ring)]">
                     <Send className="w-5 h-5" />
                   </div>
                   <div>
                     <h3 className="font-extrabold text-sm sm:text-base text-ink flex items-center gap-2">
                       Tapşırığı bir neçə mağazaya göndər
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-coke-600 text-white font-bold">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary-600 text-white font-bold">
                         Bulk Dispatcher
                       </span>
                     </h3>
@@ -903,7 +903,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 <div className="p-4 bg-[var(--g-panel)] rounded-xl border border-hair space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-extrabold text-ink flex items-center gap-1.5 uppercase tracking-wider">
-                      <Filter className="w-3.5 h-3.5 text-coke-500" />
+                      <Filter className="w-3.5 h-3.5 text-primary-500" />
                       1. Hədəf Mağaza Seqmentasiyası
                     </span>
                     <span className="text-[11px] font-bold text-muted">Şəbəkə üzrə qaydalar</span>
@@ -925,7 +925,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                           setBulkChain(e.target.value);
                           if (bulkError) setBulkError(null);
                         }}
-                        className="w-full px-3 py-2 border border-hair rounded-lg text-xs bg-[var(--g-card)] text-ink font-semibold focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
+                        className="w-full px-3 py-2 border border-hair rounded-lg text-xs bg-[var(--g-card)] text-ink font-semibold focus:ring-2 focus:ring-[var(--primary-ring)] focus:border-primary-500/45"
                       >
                         <option value="all">Bütün Şəbəkələr (All)</option>
                         {chainOptions.map((chain) => (
@@ -951,7 +951,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                           setBulkFormat(e.target.value);
                           if (bulkError) setBulkError(null);
                         }}
-                        className="w-full px-3 py-2 border border-hair rounded-lg text-xs bg-[var(--g-card)] text-ink font-semibold focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
+                        className="w-full px-3 py-2 border border-hair rounded-lg text-xs bg-[var(--g-card)] text-ink font-semibold focus:ring-2 focus:ring-[var(--primary-ring)] focus:border-primary-500/45"
                       >
                         <option value="all">Bütün Formatlar</option>
                         {formatOptions.map((format) => (
@@ -977,7 +977,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                           setBulkRegion(e.target.value);
                           if (bulkError) setBulkError(null);
                         }}
-                        className="w-full px-3 py-2 border border-hair rounded-lg text-xs bg-[var(--g-card)] text-ink font-semibold focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
+                        className="w-full px-3 py-2 border border-hair rounded-lg text-xs bg-[var(--g-card)] text-ink font-semibold focus:ring-2 focus:ring-[var(--primary-ring)] focus:border-primary-500/45"
                       >
                         <option value="all">Bütün Regionlar</option>
                         {regionOptions.map((region) => (
@@ -1034,7 +1034,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                         setBulkTitle(e.target.value);
                         if (bulkError) setBulkError(null);
                       }}
-                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
+                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)] focus:border-primary-500/45"
                     />
                   </div>
                   <div>
@@ -1047,7 +1047,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                         setBulkDescription(e.target.value);
                         if (bulkError) setBulkError(null);
                       }}
-                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
+                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)] focus:border-primary-500/45"
                     />
                   </div>
                   <label className="flex items-center gap-2.5 cursor-pointer">
@@ -1055,7 +1055,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       type="checkbox"
                       checked={bulkRequiresBeforeAfter}
                       onChange={(e) => setBulkRequiresBeforeAfter(e.target.checked)}
-                      className="w-4 h-4 rounded border-hair accent-[var(--coke-500)] cursor-pointer"
+                      className="w-4 h-4 rounded border-hair accent-[var(--primary)] cursor-pointer"
                     />
                     <span className="text-xs font-semibold text-ink-2">
                       Before &amp; After fotosu tələb olunsun
@@ -1076,7 +1076,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       id="bulk-priority"
                       value={bulkPriority}
                       onChange={(e) => setBulkPriority(e.target.value as TaskPriority)}
-                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs bg-[var(--g-card)] text-ink focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45 font-semibold"
+                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs bg-[var(--g-card)] text-ink focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)] focus:border-primary-500/45 font-semibold"
                     >
                       <option value="urgent">🔴 Təcili (Urgent)</option>
                       <option value="high">🟠 Yüksək (High)</option>
@@ -1098,14 +1098,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       required
                       value={bulkDeadline}
                       onChange={(e) => setBulkDeadline(e.target.value)}
-                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs bg-[var(--g-card)] text-ink focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45 font-semibold"
+                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs bg-[var(--g-card)] text-ink focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)] focus:border-primary-500/45 font-semibold"
                     />
                   </div>
                 </div>
 
                 {bulkError && (
-                  <div className="flex items-start gap-2.5 rounded-xl border border-[rgba(200,60,60,.28)] bg-[rgba(200,60,60,.08)] px-3.5 py-2.5">
-                    <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[#b23b3b] mt-[1px]" />
+                  <div className="flex items-start gap-2.5 rounded-xl border border-[var(--bad-bd)] bg-[var(--bad-bg)] px-3.5 py-2.5">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[var(--bad)] mt-[1px]" />
                     <p className="text-[11.5px] leading-relaxed text-ink">{bulkError}</p>
                   </div>
                 )}
@@ -1131,7 +1131,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       disabled={isBulkSubmitting || matchedStores.length === 0}
                       className="px-5 py-2.5 rounded-xl btn-strong text-white text-xs font-extrabold shadow-md flex items-center space-x-2 cursor-pointer transition-all disabled:opacity-50"
                     >
-                      <Send className="w-3.5 h-3.5 text-coke-400" />
+                      <Send className="w-3.5 h-3.5 text-primary-400" />
                       <span>
                         {isBulkSubmitting
                           ? 'Göndərilir...'
@@ -1189,7 +1189,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   </p>
                   <button
                     type="button"
-                    className="font-semibold text-coke"
+                    className="font-semibold text-primary"
                     onClick={() => {
                       setTitle('');
                       setDescription('');
@@ -1220,7 +1220,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       setTitle(e.target.value);
                       if (createError) setCreateError(null);
                     }}
-                    className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45 bg-[var(--g-card)]"
+                    className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)] focus:border-primary-500/45 bg-[var(--g-card)]"
                   />
                 </div>
 
@@ -1242,7 +1242,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       setDescription(e.target.value);
                       if (createError) setCreateError(null);
                     }}
-                    className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45 bg-[var(--g-card)]"
+                    className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)] focus:border-primary-500/45 bg-[var(--g-card)]"
                   />
                 </div>
 
@@ -1258,7 +1258,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       id="task-priority"
                       value={priority}
                       onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
+                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)] focus:border-primary-500/45"
                     >
                       <option value="low">Aşağı</option>
                       <option value="medium">Orta</option>
@@ -1280,7 +1280,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       required
                       value={deadline}
                       onChange={(e) => setDeadline(e.target.value)}
-                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
+                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)] focus:border-primary-500/45"
                     />
                   </div>
                 </div>
@@ -1292,7 +1292,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center gap-1.5 text-[11px] font-extrabold text-coke hover:opacity-80 transition-opacity cursor-pointer"
+                      className="flex items-center gap-1.5 text-[11px] font-extrabold text-primary hover:opacity-80 transition-opacity cursor-pointer"
                     >
                       <Upload className="w-3.5 h-3.5" />
                       <span>Kompüterdən Şəkil Seç</span>
@@ -1317,7 +1317,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                           setReferenceImageUrl(e.target.value);
                           if (createError) setCreateError(null);
                         }}
-                        className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45 truncate"
+                        className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)] focus:border-primary-500/45 truncate"
                       />
                     </div>
                     {referenceImageUrl && (
@@ -1349,7 +1349,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       type="checkbox"
                       checked={requiresBeforeAfter}
                       onChange={(event) => setRequiresBeforeAfter(event.target.checked)}
-                      className="h-4 w-4 accent-[var(--coke-500)]"
+                      className="h-4 w-4 accent-[var(--primary)]"
                     />
                     Əvvəl və sonra fotosu tələb olunsun
                   </label>
@@ -1365,7 +1365,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                           { id: `q${Date.now()}`, label: '', type: 'boolean' },
                         ])
                       }
-                      className="text-sm font-semibold text-coke"
+                      className="text-sm font-semibold text-primary"
                     >
                       + Sual əlavə et
                     </button>
@@ -1472,7 +1472,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       className="flex items-center space-x-1.5 cursor-pointer p-1 rounded hover:bg-[var(--g-card)] text-xs font-bold text-ink"
                     >
                       {stores.length > 0 && selectedStoreIds.length === stores.length ? (
-                        <CheckSquare className="w-3.5 h-3.5 text-coke-500" />
+                        <CheckSquare className="w-3.5 h-3.5 text-primary-500" />
                       ) : (
                         <Square className="w-3.5 h-3.5 text-muted" />
                       )}
@@ -1490,7 +1490,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                           className="flex items-center space-x-1.5 cursor-pointer p-1 rounded hover:bg-[var(--g-card)] text-xs text-ink-2"
                         >
                           {isChecked ? (
-                            <CheckSquare className="w-3.5 h-3.5 text-coke-500" />
+                            <CheckSquare className="w-3.5 h-3.5 text-primary-500" />
                           ) : (
                             <Square className="w-3.5 h-3.5 text-muted" />
                           )}
@@ -1536,8 +1536,8 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   )}
                 </div>
                 {createError && (
-                  <div className="flex items-start gap-2.5 rounded-xl border border-[rgba(200,60,60,.28)] bg-[rgba(200,60,60,.08)] px-3.5 py-2.5">
-                    <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[#b23b3b] mt-[1px]" />
+                  <div className="flex items-start gap-2.5 rounded-xl border border-[var(--bad-bd)] bg-[var(--bad-bg)] px-3.5 py-2.5">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[var(--bad)] mt-[1px]" />
                     <p className="text-[11.5px] leading-relaxed text-ink">{createError}</p>
                   </div>
                 )}
@@ -1554,7 +1554,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-5 py-1.5 rounded-lg btn-coke text-white text-xs font-bold transition-all cursor-pointer"
+                    className="px-5 py-1.5 rounded-lg btn-primary text-white text-xs font-bold transition-all cursor-pointer"
                   >
                     {isSubmitting ? 'Saxlanılır...' : `${selectedStoreIds.length} mağazaya dərc et`}
                   </button>
@@ -1580,7 +1580,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
             >
               <div className="p-5 border-b border-hair flex items-center justify-between bg-[var(--g-panel)]">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-xl bg-coke-500 flex items-center justify-center text-white shadow-md shadow-[0_3px_10px_-3px_var(--coke-ring)]">
+                  <div className="w-10 h-10 rounded-xl bg-primary-500 flex items-center justify-center text-white shadow-md shadow-[0_3px_10px_-3px_var(--primary-ring)]">
                     <Pencil className="w-5 h-5" />
                   </div>
                   <div>
@@ -1611,8 +1611,8 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   fields do not.
                 */}
                 {(editingTask.sibling_task_count ?? 1) > 1 && (
-                  <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5">
-                    <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-600 mt-[1px]" />
+                  <div className="flex items-start gap-2.5 rounded-xl border border-[var(--warn-bd)] bg-[var(--warn-bg)] px-3.5 py-2.5">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[var(--warn)] mt-[1px]" />
                     <p className="text-[11.5px] leading-relaxed text-ink">
                       Bu təlimat <b>{editingTask.sibling_task_count} mağazaya</b> göndərilib.
                       Başlıq, təsvir, prioritet, çeklist və foto tələbi <b>hamısında</b> dəyişəcək.
@@ -1633,7 +1633,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                     type="text"
                     value={editValues.title}
                     onChange={(e) => setEditValues({ ...editValues, title: e.target.value })}
-                    className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
+                    className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)] focus:border-primary-500/45"
                   />
                 </div>
 
@@ -1649,7 +1649,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                     rows={3}
                     value={editValues.description}
                     onChange={(e) => setEditValues({ ...editValues, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45 resize-none"
+                    className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)] focus:border-primary-500/45 resize-none"
                   />
                 </div>
 
@@ -1667,7 +1667,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       onChange={(e) =>
                         setEditValues({ ...editValues, priority: e.target.value as TaskPriority })
                       }
-                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)]"
+                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)]"
                     >
                       <option value="low">Aşağı</option>
                       <option value="medium">Orta</option>
@@ -1687,7 +1687,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       type="datetime-local"
                       value={editValues.deadline}
                       onChange={(e) => setEditValues({ ...editValues, deadline: e.target.value })}
-                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
+                      className="w-full px-3 py-2 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)] focus:border-primary-500/45"
                     />
                   </div>
                 </div>
@@ -1702,7 +1702,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                         requires_before_after_photo: e.target.checked,
                       })
                     }
-                    className="w-4 h-4 rounded border-hair accent-[var(--coke-500)] cursor-pointer"
+                    className="w-4 h-4 rounded border-hair accent-[var(--primary)] cursor-pointer"
                   />
                   <span className="text-xs font-semibold text-ink-2">
                     Before &amp; After fotosu tələb olunsun
@@ -1725,7 +1725,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                           ],
                         })
                       }
-                      className="text-[11px] font-bold text-coke-600 hover:underline cursor-pointer"
+                      className="text-[11px] font-bold text-primary-600 hover:underline cursor-pointer"
                     >
                       + Sual əlavə et
                     </button>
@@ -1754,7 +1754,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                                 next[index] = { ...next[index], label: e.target.value };
                                 setEditValues({ ...editValues, checklist_schema: next });
                               }}
-                              className="flex-1 px-3 py-1.5 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)]"
+                              className="flex-1 px-3 py-1.5 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)]"
                             />
                             <select
                               value={item.type}
@@ -1771,7 +1771,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                                 };
                                 setEditValues({ ...editValues, checklist_schema: next });
                               }}
-                              className="flex-shrink-0 px-2 py-1.5 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] cursor-pointer"
+                              className="flex-shrink-0 px-2 py-1.5 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)] cursor-pointer"
                             >
                               {CHECKLIST_TYPES.map((t) => (
                                 <option key={t.value} value={t.value}>
@@ -1790,7 +1790,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                                   ),
                                 })
                               }
-                              className="p-1.5 rounded-lg text-muted hover:text-[#b23b3b] hover:bg-[rgba(200,60,60,.08)] cursor-pointer"
+                              className="p-1.5 rounded-lg text-muted hover:text-[var(--bad)] hover:bg-[var(--bad-bg)] cursor-pointer"
                             >
                               <X className="w-3.5 h-3.5" />
                             </button>
@@ -1808,7 +1808,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                                 };
                                 setEditValues({ ...editValues, checklist_schema: next });
                               }}
-                              className="w-full ml-7 px-3 py-1.5 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)]"
+                              className="w-full ml-7 px-3 py-1.5 border border-hair rounded-lg text-xs text-ink bg-[var(--g-card)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)]"
                               style={{ width: 'calc(100% - 1.75rem)' }}
                             />
                           )}
@@ -1819,8 +1819,8 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 </div>
 
                 {editError && (
-                  <div className="flex items-start gap-2.5 rounded-xl border border-[rgba(200,60,60,.28)] bg-[rgba(200,60,60,.08)] px-3.5 py-2.5">
-                    <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[#b23b3b] mt-[1px]" />
+                  <div className="flex items-start gap-2.5 rounded-xl border border-[var(--bad-bd)] bg-[var(--bad-bg)] px-3.5 py-2.5">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[var(--bad)] mt-[1px]" />
                     <p className="text-[11.5px] leading-relaxed text-ink">{editError}</p>
                   </div>
                 )}
@@ -1836,7 +1836,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   <button
                     type="submit"
                     disabled={isSavingEdit}
-                    className="px-5 py-1.5 rounded-lg btn-coke text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+                    className="px-5 py-1.5 rounded-lg btn-primary text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
                   >
                     {isSavingEdit && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     {isSavingEdit ? 'Saxlanılır...' : 'Yadda saxla'}
@@ -1863,7 +1863,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
             >
               <div className="p-5 border-b border-hair flex items-center justify-between bg-[var(--g-panel)]">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-xl bg-[rgba(200,60,60,.14)] flex items-center justify-center text-[#b23b3b]">
+                  <div className="w-10 h-10 rounded-xl bg-[var(--bad-bg)] flex items-center justify-center text-[var(--bad)]">
                     <Trash2 className="w-5 h-5" />
                   </div>
                   <div>
@@ -1896,8 +1896,8 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   card can be a refresh behind.
                 */}
                 {(deletingTask.evidence_count ?? 0) > 0 && (
-                  <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5">
-                    <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-600 mt-[1px]" />
+                  <div className="flex items-start gap-2.5 rounded-xl border border-[var(--warn-bd)] bg-[var(--warn-bg)] px-3.5 py-2.5">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[var(--warn)] mt-[1px]" />
                     <p className="text-[11.5px] leading-relaxed text-ink">
                       Bu tapşırığa <b>{deletingTask.evidence_count} audit göndərişi</b> var. Silinmə
                       rədd olunacaq — silinsəydi, həmin fotolar və çeklist cavabları da silinərdi.
@@ -1906,8 +1906,8 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 )}
 
                 {deleteError && (
-                  <div className="flex items-start gap-2.5 rounded-xl border border-[rgba(200,60,60,.28)] bg-[rgba(200,60,60,.08)] px-3.5 py-2.5">
-                    <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[#b23b3b] mt-[1px]" />
+                  <div className="flex items-start gap-2.5 rounded-xl border border-[var(--bad-bd)] bg-[var(--bad-bg)] px-3.5 py-2.5">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[var(--bad)] mt-[1px]" />
                     <p className="text-[11.5px] leading-relaxed text-ink">{deleteError}</p>
                   </div>
                 )}
@@ -1924,7 +1924,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                     type="button"
                     onClick={() => void submitDelete()}
                     disabled={isDeleting}
-                    className="px-5 py-1.5 rounded-lg bg-[#b23b3b] text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+                    className="px-5 py-1.5 rounded-lg bg-[#be123c] text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
                   >
                     {isDeleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     {isDeleting ? 'Silinir...' : 'Bəli, sil'}

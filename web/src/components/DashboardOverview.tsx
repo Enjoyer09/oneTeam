@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Store,
   ClipboardCheck,
@@ -17,32 +17,62 @@ import { taskIsOverdue } from '../lib/taskQueue';
 interface DashboardOverviewProps {
   phase: LoadPhase;
   metrics: DashboardMetrics;
-  recentSubmissions: Submission[];
+  submissions: Submission[];
   tasks: Task[];
-  submissionCount: number;
   loadedAt: Date | null;
   onRetry: () => void;
   onOpenSubmissionReview: (submission: Submission) => void;
   onNavigateTab: (tab: TabType, filter?: SubmissionStatus | 'all') => void;
 }
 
+const DAY_MS = 86_400_000;
+
 export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   phase,
   metrics,
-  recentSubmissions,
+  submissions,
   tasks,
-  submissionCount,
   loadedAt,
   onRetry,
   onOpenSubmissionReview,
   onNavigateTab,
 }) => {
-  // İlk paint heç vaxt sıfır KPI + "%100 uyğunluq" göstərməməlidir — bu,
-  // yüklənənə qədər YALAN rəqəmdir. Yüklənmə → skelet, uğursuzluq → xəta.
+  const [range, setRange] = useState<7 | 30>(7);
+
+  // Audit axını — real göndərişlərdən hesablanan gündəlik sayğac. Uydurma
+  // trend yoxdur: hər sütun həmin gün daxil olan fotoların sayıdır.
+  const days = useMemo(() => {
+    const now = Date.now();
+    const buckets = Array.from({ length: range }, (_, i) => {
+      const d = new Date(now - (range - 1 - i) * DAY_MS);
+      return {
+        key: d.toISOString().slice(0, 10),
+        label: d.toLocaleDateString('az-AZ', { day: '2-digit', month: '2-digit' }),
+        weekday: d.toLocaleDateString('az-AZ', { weekday: 'short' }),
+        count: 0,
+      };
+    });
+    const index = new Map(buckets.map((b, i) => [b.key, i]));
+    for (const s of submissions) {
+      const i = index.get((s.submitted_at ?? '').slice(0, 10));
+      if (i !== undefined) buckets[i].count += 1;
+    }
+    return buckets;
+  }, [submissions, range]);
+
+  const maxCount = Math.max(1, ...days.map((d) => d.count));
+  const rangeTotal = days.reduce((sum, d) => sum + d.count, 0);
+
+  const approved = submissions.filter((s) => s.status === 'approved').length;
+  const pending = submissions.filter((s) => s.status === 'pending_review').length;
+  const rejected = submissions.filter((s) => s.status === 'rejected').length;
+  const total = submissions.length;
+  const rate = metrics.complianceRate;
+  const overdueTasks = tasks.filter((task) => taskIsOverdue(task));
+
+  // İlk paint heç vaxt sıfır KPI + "%100 uyğunluq" göstərməməlidir.
   if (phase === 'loading') return <DashboardSkeleton />;
   if (phase === 'error') return <DashboardLoadError onRetry={onRetry} />;
-
-  const overdueTasks = tasks.filter((task) => taskIsOverdue(task));
 
   const kpiCards = [
     {
@@ -50,9 +80,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       value: metrics.totalStores,
       subtitle: 'Aktiv retail nöqtələri',
       icon: Store,
-      tint: 'rgba(91,91,234,.14)',
-      ink: '#4b4bd8',
-      acc: 'rgba(91,91,234,.20)',
+      bg: 'var(--primary-soft)',
+      fg: 'var(--primary)',
+      chip: null,
       action: () => onNavigateTab('stores'),
     },
     {
@@ -60,9 +90,12 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       value: metrics.activeTasks,
       subtitle: 'Cari yoxlama təlimatları',
       icon: ClipboardCheck,
-      tint: 'var(--coke-soft)',
-      ink: 'var(--coke)',
-      acc: 'rgba(244,0,9,.18)',
+      bg: 'var(--accent-soft)',
+      fg: 'var(--accent-ink)',
+      chip:
+        overdueTasks.length > 0 ? (
+          <span className="delta-chip delta-bad">{overdueTasks.length} gecikmiş</span>
+        ) : null,
       action: () => onNavigateTab('tasks'),
     },
     {
@@ -70,31 +103,36 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       value: metrics.pendingReviews,
       subtitle: 'Təsdiq tələb edən rəf fotoları',
       icon: Clock,
-      tint: 'var(--warn-bg)',
-      ink: 'var(--warn)',
-      acc: 'rgba(245,158,11,.22)',
-      highlight: metrics.pendingReviews > 0,
+      bg: 'var(--cyan-soft)',
+      fg: 'var(--cyan)',
+      chip:
+        metrics.pendingReviews > 0 ? (
+          <span className="delta-chip delta-warn">qərar gözləyir</span>
+        ) : null,
       action: () => onNavigateTab('review', 'pending_review'),
     },
     {
       title: 'Rəf uyğunluğu',
-      value: submissionCount === 0 ? '—' : `${metrics.complianceRate}%`,
-      subtitle:
-        submissionCount === 0
-          ? 'Hələ audit yoxdur'
-          : `${submissionCount} göndərişdən təsdiqlənən pay`,
+      value: total === 0 ? '—' : `${rate}%`,
+      subtitle: total === 0 ? 'Hələ audit yoxdur' : `${total} göndərişdən təsdiqlənən pay`,
       icon: TrendingUp,
-      tint: 'var(--ok-bg)',
-      ink: 'var(--ok)',
-      acc: 'rgba(16,185,129,.20)',
+      bg: 'var(--ok-bg)',
+      fg: 'var(--ok)',
+      chip:
+        total > 0 ? (
+          <span className={`delta-chip ${rate >= 80 ? '' : 'delta-warn'}`}>{approved} təsdiq</span>
+        ) : null,
       action: () => onNavigateTab('review', 'approved'),
     },
   ];
 
-  // §10.4 canonical badge — ailə/etiket xəritəsi `lib/statusMap` (§11) saxlayır.
   const statusBadge = (status: Submission['status']) => <StatusBadge value={status} />;
-
   const scoreTone = (score: number) => (score >= 80 ? 'st-ok' : score >= 60 ? 'st-warn' : 'st-bad');
+
+  const R = 52;
+  const C = 2 * Math.PI * R;
+  const frac = total === 0 ? 0 : Math.min(1, Math.max(0, rate / 100));
+  const recentSubmissions = submissions.slice(0, 6);
 
   return (
     <div className="stagger-g flex flex-col gap-4 sm:gap-5">
@@ -111,8 +149,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </p>
         )}
       </div>
-      {/* ── Əsas göstəricilər ─────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-3.5">
+
+      {/* ── Əsas göstəricilər ── */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         {kpiCards.map((kpi, idx) => {
           const Icon = kpi.icon;
           return (
@@ -127,93 +166,174 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   kpi.action();
                 }
               }}
-              className={[
-                'glass-card glass-lift relative overflow-hidden rounded-card p-3.5 lg:p-4 cursor-pointer select-none text-left transition-all',
-                'focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] hover:border-coke/40',
-                kpi.highlight ? 'ring-2 ring-[var(--warn-bd)]' : '',
-              ].join(' ')}
+              className="glass-card glass-lift rounded-card p-4 lg:p-5 cursor-pointer select-none text-left
+                         focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)]"
               title={`${kpi.title} bölməsinə keç`}
             >
-              {/* Küncdəki rəngli işıq ləkəsi */}
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute -bottom-16 -right-12 h-[150px] w-[150px] rounded-full"
-                style={{ background: `radial-gradient(circle, ${kpi.acc}, transparent 70%)` }}
-              />
-
-              <div className="relative flex items-start justify-between gap-2">
-                <span className="text-xs font-extrabold uppercase tracking-[.05em] text-muted leading-tight">
-                  {kpi.title}
-                </span>
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-[12px] font-bold text-muted leading-tight">{kpi.title}</span>
                 <span
-                  className="grid h-[30px] w-[30px] flex-none place-items-center rounded-[9px]"
-                  style={{ backgroundColor: kpi.tint, color: kpi.ink }}
+                  className="grid h-10 w-10 flex-none place-items-center rounded-[14px]"
+                  style={{ backgroundColor: kpi.bg, color: kpi.fg }}
                 >
-                  <Icon className="w-4 h-4" strokeWidth={2} />
+                  <Icon className="w-5 h-5" strokeWidth={2} />
                 </span>
               </div>
-
-              <div className="relative mt-2.5">
-                <div className="text-[26px] lg:text-[30px] font-extrabold leading-none tracking-[-.045em] text-ink tabular-nums">
+              <div className="mt-3 flex flex-wrap items-end gap-2">
+                <span className="text-[30px] lg:text-[34px] font-extrabold leading-none tracking-[-.04em] text-ink tabular-nums">
                   {kpi.value}
-                </div>
-                <p className="mt-1 text-[11px] text-muted leading-snug">{kpi.subtitle}</p>
+                </span>
+                {kpi.chip}
               </div>
+              <p className="mt-2 text-[11.5px] text-muted leading-snug">{kpi.subtitle}</p>
             </div>
           );
         })}
       </div>
 
-      <section className="grid gap-3 md:grid-cols-2" aria-label="İndi görüləcək işlər">
-        <button
-          type="button"
-          onClick={() => onNavigateTab('review', 'pending_review')}
-          className="glass-card rounded-card p-4 text-left hover:border-amber-400 focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)]"
-        >
-          <span className="text-xs font-bold uppercase tracking-wide text-muted">
-            Audit qərarları
-          </span>
-          <span className="mt-1 block text-2xl font-extrabold text-ink">
-            {metrics.pendingReviews}
-          </span>
-          <span className="text-sm text-ink-2">
-            {metrics.pendingReviews
-              ? 'Sübutları yoxla və qərar ver →'
-              : 'Hazırda gözləyən audit yoxdur'}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => onNavigateTab('tasks')}
-          className="glass-card rounded-card p-4 text-left hover:border-rose-400 focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)]"
-        >
-          <span className="text-xs font-bold uppercase tracking-wide text-muted">
-            Gecikən tapşırıqlar
-          </span>
-          <span className="mt-1 block text-2xl font-extrabold text-ink">{overdueTasks.length}</span>
-          <span className="text-sm text-ink-2">
-            {overdueTasks.length
-              ? `${overdueTasks[0].title} və digərləri →`
-              : 'Gecikən aktiv tapşırıq yoxdur'}
-          </span>
-        </button>
+      {/* ── Axın qrafiki + uyğunluq halqası ── */}
+      <section className="grid gap-4 lg:grid-cols-3" aria-label="Audit statistikası">
+        <div className="glass-card rounded-card p-5 lg:col-span-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-[14px] font-extrabold tracking-[-.02em] text-ink">Audit axını</h3>
+            <div className="seg" role="group" aria-label="Zaman aralığı">
+              <button
+                type="button"
+                className="seg-item"
+                aria-pressed={range === 7}
+                onClick={() => setRange(7)}
+              >
+                7 gün
+              </button>
+              <button
+                type="button"
+                className="seg-item"
+                aria-pressed={range === 30}
+                onClick={() => setRange(30)}
+              >
+                30 gün
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-end gap-2">
+            <span className="text-[28px] font-extrabold leading-none tracking-[-.03em] text-ink tabular-nums">
+              {rangeTotal}
+            </span>
+            <span className="delta-chip delta-neutral mb-0.5">göndəriş</span>
+          </div>
+
+          <div className="mt-5">
+            <div className="flex items-end gap-1.5 h-[160px]">
+              {days.map((d) => (
+                <div
+                  key={d.key}
+                  className="flex h-full min-w-0 flex-1 flex-col items-center justify-end"
+                  title={`${d.label}: ${d.count} göndəriş`}
+                >
+                  {d.count > 0 && (
+                    <span className="mb-1 rounded-full border border-hair bg-[var(--g-card)] px-1.5 py-[1px] text-[9.5px] font-extrabold text-ink shadow-subtle tabular-nums">
+                      {d.count}
+                    </span>
+                  )}
+                  <div
+                    className="w-full max-w-[28px] rounded-full transition-[height] duration-300 ease-out"
+                    style={{
+                      height: `${(d.count / maxCount) * 100}%`,
+                      minHeight: d.count > 0 ? '10px' : '4px',
+                      backgroundColor: d.count > 0 ? 'var(--primary)' : 'var(--g-panel)',
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="mt-2 flex gap-1.5">
+              {days.map((d, i) => {
+                const show = range === 7 || i % 5 === 0 || i === days.length - 1;
+                return (
+                  <span
+                    key={d.key}
+                    className="flex-1 truncate text-center text-[9px] text-muted"
+                  >
+                    {show ? (range === 7 ? d.weekday : d.label) : ''}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="glass-card flex flex-col rounded-card p-5">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-[14px] font-extrabold tracking-[-.02em] text-ink">Uyğunluq</h3>
+            <span className="chip-g">canlı</span>
+          </div>
+
+          <div className="relative mx-auto my-5 h-[150px] w-[150px]">
+            <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
+              <circle
+                cx="60"
+                cy="60"
+                r={R}
+                fill="none"
+                stroke="var(--g-panel)"
+                strokeWidth="12"
+              />
+              <circle
+                cx="60"
+                cy="60"
+                r={R}
+                fill="none"
+                stroke="var(--ok-dot)"
+                strokeWidth="12"
+                strokeLinecap="round"
+                strokeDasharray={`${frac * C} ${C}`}
+              />
+            </svg>
+            <div className="absolute inset-0 grid place-items-center">
+              <div className="text-center">
+                <div className="text-[30px] font-extrabold leading-none tracking-[-.03em] text-ink tabular-nums">
+                  {total === 0 ? '—' : `${rate}%`}
+                </div>
+                <div className="mt-1 text-[10px] text-muted">təsdiq payı</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-2.5">
+            {[
+              { label: 'Təsdiqləndi', count: approved, dot: 'var(--ok-dot)' },
+              { label: 'Gözləyir', count: pending, dot: 'var(--warn-dot)' },
+              { label: 'İmtina edildi', count: rejected, dot: 'var(--bad-dot)' },
+            ].map((row) => (
+              <div key={row.label} className="flex items-center gap-2 text-[12px]">
+                <span
+                  className="h-2.5 w-2.5 flex-none rounded-full"
+                  style={{ backgroundColor: row.dot }}
+                />
+                <span className="flex-1 text-ink-2">{row.label}</span>
+                <span className="font-extrabold text-ink tabular-nums">{row.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </section>
 
-      {/* ── Son göndərişlər ───────────────────────────────────────────────── */}
+      {/* ── Son göndərişlər ── */}
       <div className="glass-card overflow-hidden rounded-card">
-        <div className="flex items-start justify-between gap-3 p-4 pb-3">
+        <div className="flex items-start justify-between gap-3 p-5 pb-3">
           <div className="min-w-0">
-            <h3 className="text-[13.5px] font-extrabold tracking-[-.02em] text-ink">
+            <h3 className="text-[14px] font-extrabold tracking-[-.02em] text-ink">
               Son Göndərilən Rəf Yoxlamaları
             </h3>
-            <p className="mt-0.5 text-[11px] text-muted">
+            <p className="mt-0.5 text-[11.5px] text-muted">
               Telegram Bot və Mobil tətbiqdən daxil olan audit axını
             </p>
           </div>
           <button
             type="button"
             onClick={() => onNavigateTab('review')}
-            className="flex flex-none items-center gap-1 text-[11.5px] font-extrabold text-coke
+            className="flex flex-none items-center gap-1 text-[12px] font-extrabold text-primary
                        transition-opacity hover:opacity-75"
           >
             <span className="hidden sm:inline">Bütün fotolara bax</span>
@@ -223,7 +343,6 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         </div>
 
         {recentSubmissions.length === 0 ? (
-          /* Boş vəziyyət — istifadəçi nə gözlədiyini və nə edəcəyini bilir */
           <div className="flex flex-col items-center gap-2.5 px-6 py-12 text-center">
             <span
               className="grid h-12 w-12 place-items-center rounded-[14px]"
@@ -237,7 +356,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             </p>
           </div>
         ) : (
-          <div className="reflow-scroll overflow-x-auto px-2 pb-2.5 sm:px-3">
+          <div className="reflow-scroll overflow-x-auto px-3 pb-3">
             <table className="tbl-g reflow reflow-dash lg:min-w-[860px]">
               <thead>
                 <tr>
@@ -267,7 +386,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                           type="button"
                           onClick={() => onOpenSubmissionReview(sub)}
                           aria-label="Rəf fotosunu müqayisə et"
-                          className="h-11 w-11 overflow-hidden rounded-[10px] border border-hair
+                          className="h-11 w-11 overflow-hidden rounded-[12px] border border-hair
                                      transition-transform duration-150 hover:scale-[1.06] active:scale-95"
                         >
                           <img
@@ -278,37 +397,30 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                           />
                         </button>
                       </td>
-
                       <td>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <p className="text-[12px] font-bold leading-tight tracking-[-.015em] text-ink">
-                            {sub.task?.title || 'Rəf Auditi'}
-                          </p>
-                        </div>
+                        <p className="text-[12.5px] font-bold leading-tight tracking-[-.015em] text-ink">
+                          {sub.task?.title || 'Rəf Auditi'}
+                        </p>
                         <span className="mt-0.5 block text-[11px] capitalize text-muted">
                           {sub.task?.priority} prioritet
                         </span>
                       </td>
-
                       <td>
-                        <b className="block text-[12px] font-bold tracking-[-.01em] text-ink">
+                        <b className="block text-[12.5px] font-bold tracking-[-.01em] text-ink">
                           {sub.store?.name || 'Mağaza'}
                         </b>
                         <span className="mt-0.5 block font-mono text-[11px] text-muted">
                           {sub.store?.store_code}
                         </span>
                       </td>
-
                       <td className="text-ink-2">
                         {sub.submitter_name || sub.metadata?.telegram_username || 'Merchandiser'}
                       </td>
-
                       <td className="font-mono text-[11px] text-muted">{dateStr}</td>
-
                       <td>
                         {sub.ai_score !== undefined && sub.ai_score !== null ? (
                           <span
-                            className={`grid h-[34px] w-[34px] place-items-center rounded-[11px] border
+                            className={`grid h-[34px] w-[34px] place-items-center rounded-[12px] border
                                         text-[12.5px] font-extrabold tracking-[-.02em] tabular-nums
                                         ${scoreTone(sub.ai_score)}`}
                           >
@@ -318,9 +430,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                           <span className="text-[11px] text-muted">—</span>
                         )}
                       </td>
-
                       <td>{statusBadge(sub.status)}</td>
-
                       <td className="text-right">
                         <button
                           type="button"
@@ -349,14 +459,14 @@ function DashboardSkeleton() {
       <span role="status" className="sr-only">
         Göstəricilər yüklənir…
       </span>
-      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-3.5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="glass-card animate-pulse rounded-card p-3.5 lg:p-4">
+          <div key={i} className="glass-card animate-pulse rounded-card p-4 lg:p-5">
             <div className="flex items-start justify-between gap-2">
               <div className="h-3 w-24 rounded-md bg-muted/25" />
-              <div className="h-[30px] w-[30px] rounded-[9px] bg-muted/20" />
+              <div className="h-10 w-10 rounded-[14px] bg-muted/20" />
             </div>
-            <div className="mt-3 h-7 w-16 rounded-md bg-muted/30" />
+            <div className="mt-3 h-8 w-16 rounded-md bg-muted/30" />
             <div className="mt-2 h-3 w-32 rounded-md bg-muted/20" />
           </div>
         ))}
@@ -378,7 +488,7 @@ function DashboardLoadError({ onRetry }: { onRetry: () => void }) {
       <button
         type="button"
         onClick={onRetry}
-        className="btn-coke mt-1 whitespace-nowrap rounded-xl px-3.5 py-2.5 text-xs font-extrabold text-white transition-all"
+        className="btn-primary mt-1 whitespace-nowrap rounded-xl px-3.5 py-2.5 text-xs font-extrabold text-white transition-all"
       >
         Yenidən yoxla
       </button>

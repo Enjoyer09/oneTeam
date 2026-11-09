@@ -59,25 +59,17 @@ export const PanelLogin: React.FC<PanelLoginProps> = ({ status, onSignedIn }) =>
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 text-ink">
-      <div className="bg-scene" aria-hidden="true">
-        <i />
-        <i />
-        <i />
-        <i />
-        <b />
-      </div>
-
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-page px-4 text-ink">
       <div className="relative z-10 w-full max-w-[420px]">
         {/* `submit` is async and calls `preventDefault` itself, so the event has
             to be forwarded; `void` only detaches the promise React ignores. */}
         <form
           onSubmit={(event) => void submit(event)}
-          className="glass-panel rounded-[20px] p-6 sm:p-7"
+          className="glass-card rounded-card p-6 sm:p-7"
         >
           <div className="mb-5 flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[rgba(10,16,32,.06)]">
-              <KeyRound className="h-[18px] w-[18px] text-ink" strokeWidth={2} />
+            <span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[var(--primary-soft)]">
+              <KeyRound className="h-[18px] w-[18px] text-primary" strokeWidth={2} />
             </span>
             <div className="min-w-0">
               <h1 className="text-[16px] font-extrabold tracking-[-.03em] leading-tight">
@@ -92,10 +84,10 @@ export const PanelLogin: React.FC<PanelLoginProps> = ({ status, onSignedIn }) =>
           {/* A configured bootstrap key that is being refused. Shown above the
               form because nothing typed here will work until it is fixed. */}
           {status.bootstrapProblem && (
-            <div className="mb-4 flex gap-2.5 rounded-[12px] border border-[rgba(200,60,60,.28)] bg-[rgba(200,60,60,.07)] p-3">
-              <ShieldAlert className="mt-px h-4 w-4 flex-shrink-0 text-[#b23b3b]" strokeWidth={2} />
+            <div className="mb-4 flex gap-2.5 rounded-[12px] border border-[var(--bad-bd)] bg-[var(--bad-bg)] p-3">
+              <ShieldAlert className="mt-px h-4 w-4 flex-shrink-0 text-[var(--bad)]" strokeWidth={2} />
               <div className="text-[11.5px] leading-relaxed">
-                <b className="block font-bold text-[#b23b3b]">Bootstrap açarı qəbul edilmir</b>
+                <b className="block font-bold text-[var(--bad)]">Bootstrap açarı qəbul edilmir</b>
                 <span className="text-ink">{status.bootstrapProblem}</span>
               </div>
             </div>
@@ -115,13 +107,13 @@ export const PanelLogin: React.FC<PanelLoginProps> = ({ status, onSignedIn }) =>
             autoComplete="off"
             spellCheck={false}
             placeholder="otp_..."
-            className="w-full rounded-[12px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.72)]
+            className="w-full rounded-[12px] border border-hair bg-[var(--modal-field)]
                        px-3 py-2.5 font-mono text-[13px] text-ink outline-none
-                       focus:border-[rgba(10,16,32,.34)]"
+                       focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
           />
 
           {error && (
-            <p className="mt-3 text-[11.5px] leading-relaxed text-[#b23b3b]" role="alert">
+            <p className="mt-3 text-[11.5px] leading-relaxed text-[var(--bad)]" role="alert">
               {error}
             </p>
           )}
@@ -142,7 +134,7 @@ export const PanelLogin: React.FC<PanelLoginProps> = ({ status, onSignedIn }) =>
           {/* The first-run path, said in full. The operator should not have to
               work out why nothing they type is accepted. */}
           {!status.bootstrapProblem && status.liveKeys === 0 && status.bootstrapConfigured && (
-            <div className="mt-4 flex gap-2.5 rounded-[12px] bg-[rgba(10,16,32,.05)] p-3">
+            <div className="mt-4 flex gap-2.5 rounded-[12px] bg-[var(--g-panel)] p-3">
               <ShieldCheck className="mt-px h-4 w-4 flex-shrink-0 text-muted" strokeWidth={2} />
               <p className="text-[11.5px] leading-relaxed text-muted">
                 Hələ şəxsi açar yaradılmayıb. <b className="font-bold text-ink">Bootstrap açarı</b>{' '}

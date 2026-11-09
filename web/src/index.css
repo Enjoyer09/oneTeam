@@ -3,75 +3,92 @@
 @tailwind utilities;
 
 /* ============================================================================
-   oneTeam — Şüşə (Glass) Dizayn Sistemi
-   Prototip: ui-glass/oneTeam-Glass-Prototype.html
-   İzah:     ui-glass/GLASS-DESIGN-RATIONALE.md
+   oneTeam — "Soft" Dizayn Sistemi
+   Referens: fitonist SaaS dashboard (Desktop/saas.webp)
    ----------------------------------------------------------------------------
-   QAT İYERARXİYASI (aşağı = daha şəffaf).  Kritik qayda: mətn daşıyan səth
-   heç vaxt 62%-dən daha şəffaf olmamalıdır, əks halda arxa fondakı rəngli
-   ləkələr kontrastı gözlənilməz edir.
+   Köhnə "Şüşə" (glassmorphism) sisteminin əvəzi. Eyni class və dəyişən adları
+   saxlanılıb ki, bütün ekranlar davranışı dəyişmədən yeni görünüşü alsın.
+   Fərq: bulanıq şəffaf qatlar və rəngli ləkələr YOXDUR — açıq boz fonda ağ,
+   yumşaq radiuslu kartlar; bənövşəyi əsas + sarı ikinci aksent; yaşıl delta
+   çipləri. Coca-Cola qırmızısı yalnız brend detalı kimi qalır (--coke).
    ============================================================================ */
 
 :root {
   color-scheme: light;
 
-  /* brend — yalnız aksent */
+  /* brend — yalnız loqo/nişan detalı */
   --coke: #f40009;
   --coke-600: #d2000a;
   --coke-soft: rgba(244, 0, 9, 0.1);
   --coke-ring: rgba(244, 0, 9, 0.3);
 
+  /* əsas aksent — bənövşəyi */
+  --primary: #7c3aed;
+  --primary-600: #7c3aed;
+  --primary-700: #6d28d9;
+  --primary-soft: rgba(124, 58, 237, 0.1);
+  --primary-ring: rgba(124, 58, 237, 0.32);
+  --primary-bd: rgba(124, 58, 237, 0.28);
+
+  /* ikinci aksent — sarı */
+  --accent: #f5b90f;
+  --accent-soft: rgba(245, 185, 15, 0.18);
+  --accent-ink: #8a5a06;
+
+  /* üçüncü — cyan (qram/diaqram detalları) */
+  --cyan: #0891b2;
+  --cyan-soft: rgba(8, 145, 178, 0.12);
+
   /* mətn */
-  --ink: #0a1020;
-  --ink-2: #33425e;
-  --muted: #5d6c86;
-  --faint: #8d9ab0;
+  --ink: #171b2e;
+  --ink-2: #3f4557;
+  --muted: #5f6779;
+  --faint: #98a0b3;
   --text-body: 15px;
   --text-secondary: 14px;
   --space-unit: 4px;
 
-  /* status — həmişə rəng + nöqtə + mətn (yalnız rəngə güvənmirik) */
-  --ok: #046b45;
-  --ok-bg: rgba(16, 185, 129, 0.15);
-  --ok-dot: #0aa06a;
-  --ok-bd: rgba(16, 185, 129, 0.3);
-  --warn: #7f4803;
-  --warn-bg: rgba(245, 158, 11, 0.17);
-  --warn-dot: #e08b06;
+  /* status — həmişə rəng + nöqtə + mətn */
+  --ok: #15803d;
+  --ok-bg: rgba(34, 197, 94, 0.14);
+  --ok-dot: #22c55e;
+  --ok-bd: rgba(34, 197, 94, 0.3);
+  --warn: #8a5a06;
+  --warn-bg: rgba(245, 158, 11, 0.16);
+  --warn-dot: #f59e0b;
   --warn-bd: rgba(245, 158, 11, 0.32);
-  --bad: #9b0d31;
-  --bad-bg: rgba(244, 63, 94, 0.14);
-  --bad-dot: #e5325a;
+  --bad: #be123c;
+  --bad-bg: rgba(244, 63, 94, 0.12);
+  --bad-dot: #f43f5e;
   --bad-bd: rgba(244, 63, 94, 0.28);
-  --info: #322c9e;
-  --info-bg: rgba(99, 102, 241, 0.14);
-  --info-dot: #5b5bea;
-  --info-bd: rgba(99, 102, 241, 0.28);
+  --info: #0369a1;
+  --info-bg: rgba(14, 165, 233, 0.12);
+  --info-dot: #0ea5e9;
+  --info-bd: rgba(14, 165, 233, 0.28);
 
-  /* ŞÜŞƏ QATLARI */
-  --g-chrome: rgba(255, 255, 255, 0.34); /* ən nazik: başlıq zolağı, tab bar */
-  --g-panel: rgba(255, 255, 255, 0.46); /* panellər, rellər */
-  --g-card: rgba(255, 255, 255, 0.62); /* məzmun kartları */
-  --g-pop: rgba(255, 255, 255, 0.8); /* popover, modal, menyu */
-  --g-side: rgba(251, 252, 254, 0.56); /* yan panel */
-  --g-solid: rgba(255, 255, 255, 0.94); /* backdrop-filter dəstəyi olmayanda */
-  --modal-surface: rgba(248, 250, 255, 0.92);
-  --modal-field: rgba(255, 255, 255, 0.84);
-  --modal-edge: rgba(255, 255, 255, 0.82);
+  /* SƏTHLƏR — düz, şəffaf deyil */
+  --bg: #eceef3;
+  --g-chrome: var(--bg); /* top bar fonla eyni */
+  --g-panel: #f3f4f7; /* iç-içə panellər, inputlar, seqment fonu */
+  --g-card: #ffffff; /* məzmun kartları */
+  --g-pop: #ffffff; /* popover, modal, menyu */
+  --g-side: #ffffff; /* mobil çekmece */
+  --g-solid: #ffffff;
+  --modal-surface: #ffffff;
+  --modal-field: #f6f7f9;
+  --modal-edge: rgba(23, 27, 46, 0.08);
 
-  --hair: rgba(10, 16, 32, 0.085);
-  --hair-2: rgba(10, 16, 32, 0.05);
-  --spec: rgba(255, 255, 255, 0.72); /* üst kənar işıq xətti */
+  --hair: rgba(23, 27, 46, 0.08);
+  --hair-2: rgba(23, 27, 46, 0.05);
+  --spec: rgba(255, 255, 255, 0.7);
 
-  --blur: saturate(180%) blur(26px);
-  --blur-lg: saturate(190%) blur(44px);
+  /* kölgələr — yumşaq, nazik; kartlar əsasən kənar xətti ilə ayrılır */
+  --sh-1: 0 1px 2px rgba(23, 27, 46, 0.05);
+  --sh-2: 0 10px 30px -14px rgba(23, 27, 46, 0.14);
+  --sh-3: 0 28px 70px -28px rgba(23, 27, 46, 0.28);
+  --sh-win: 0 40px 90px -36px rgba(23, 27, 46, 0.35);
 
-  --sh-1: 0 1px 2px rgba(10, 16, 32, 0.05), 0 1px 3px rgba(10, 16, 32, 0.05);
-  --sh-2: 0 10px 26px -14px rgba(10, 16, 32, 0.22), 0 2px 8px -4px rgba(10, 16, 32, 0.1);
-  --sh-3: 0 32px 72px -26px rgba(10, 16, 32, 0.34), 0 12px 30px -16px rgba(10, 16, 32, 0.18);
-  --sh-win: 0 44px 96px -34px rgba(10, 16, 32, 0.44), 0 0 0 0.5px rgba(10, 16, 32, 0.1);
-
-  /* hərəkət — Apple-ın standart əyriləri */
+  /* hərəkət */
   --e-out: cubic-bezier(0.22, 1, 0.36, 1);
   --e-apple: cubic-bezier(0.32, 0.72, 0, 1);
   --e-spring: cubic-bezier(0.34, 1.28, 0.64, 1);
@@ -88,46 +105,61 @@
 html[data-theme='dark'] {
   color-scheme: dark;
 
-  --ink: #f2f5fa;
-  --ink-2: #c3ccdc;
-  --muted: #98a4ba;
-  --faint: #75839b;
+  --ink: #f1f3f9;
+  --ink-2: #c6ccdb;
+  --muted: #9aa3b7;
+  --faint: #6e7789;
 
-  --ok: #5fdcae;
-  --ok-bg: rgba(16, 185, 129, 0.2);
-  --ok-dot: #34d399;
-  --ok-bd: rgba(52, 211, 153, 0.3);
-  --warn: #f7c46a;
-  --warn-bg: rgba(245, 158, 11, 0.2);
+  --primary: #a78bfa;
+  --primary-600: #8b5cf6;
+  --primary-700: #7c3aed;
+  --primary-soft: rgba(167, 139, 250, 0.16);
+  --primary-ring: rgba(167, 139, 250, 0.4);
+  --primary-bd: rgba(167, 139, 250, 0.35);
+
+  --accent: #fbbf24;
+  --accent-soft: rgba(251, 191, 36, 0.16);
+  --accent-ink: #fcd34d;
+
+  --cyan: #22d3ee;
+  --cyan-soft: rgba(34, 211, 238, 0.14);
+
+  --ok: #4ade80;
+  --ok-bg: rgba(74, 222, 128, 0.14);
+  --ok-dot: #4ade80;
+  --ok-bd: rgba(74, 222, 128, 0.3);
+  --warn: #fbbf24;
+  --warn-bg: rgba(251, 191, 36, 0.14);
   --warn-dot: #fbbf24;
   --warn-bd: rgba(251, 191, 36, 0.3);
-  --bad: #ff8ea8;
-  --bad-bg: rgba(244, 63, 94, 0.2);
+  --bad: #fb7185;
+  --bad-bg: rgba(251, 113, 133, 0.14);
   --bad-dot: #fb7185;
   --bad-bd: rgba(251, 113, 133, 0.3);
-  --info: #b3b6ff;
-  --info-bg: rgba(99, 102, 241, 0.22);
-  --info-dot: #a5b4fc;
-  --info-bd: rgba(165, 180, 252, 0.3);
+  --info: #38bdf8;
+  --info-bg: rgba(56, 189, 248, 0.14);
+  --info-dot: #38bdf8;
+  --info-bd: rgba(56, 189, 248, 0.3);
 
-  --g-chrome: rgba(28, 32, 40, 0.42);
-  --g-panel: rgba(26, 30, 38, 0.5);
-  --g-card: rgba(30, 35, 44, 0.6);
-  --g-pop: rgba(34, 39, 49, 0.82);
-  --g-side: rgba(20, 23, 30, 0.58);
-  --g-solid: rgba(24, 27, 34, 0.96);
-  --modal-surface: rgba(28, 34, 45, 0.94);
-  --modal-field: rgba(17, 24, 35, 0.84);
-  --modal-edge: rgba(255, 255, 255, 0.18);
+  --bg: #0e1016;
+  --g-chrome: var(--bg);
+  --g-panel: #1d212c;
+  --g-card: #161922;
+  --g-pop: #1a1e28;
+  --g-side: #161922;
+  --g-solid: #161922;
+  --modal-surface: #1a1e28;
+  --modal-field: #12151d;
+  --modal-edge: rgba(255, 255, 255, 0.1);
 
-  --hair: rgba(255, 255, 255, 0.105);
-  --hair-2: rgba(255, 255, 255, 0.06);
-  --spec: rgba(255, 255, 255, 0.14);
+  --hair: rgba(255, 255, 255, 0.09);
+  --hair-2: rgba(255, 255, 255, 0.05);
+  --spec: rgba(255, 255, 255, 0.12);
 
-  --sh-1: 0 1px 2px rgba(0, 0, 0, 0.34);
-  --sh-2: 0 10px 26px -14px rgba(0, 0, 0, 0.6), 0 2px 8px -4px rgba(0, 0, 0, 0.4);
-  --sh-3: 0 32px 72px -26px rgba(0, 0, 0, 0.72), 0 12px 30px -16px rgba(0, 0, 0, 0.5);
-  --sh-win: 0 44px 96px -34px rgba(0, 0, 0, 0.8), 0 0 0 0.5px rgba(255, 255, 255, 0.09);
+  --sh-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --sh-2: 0 10px 30px -14px rgba(0, 0, 0, 0.6);
+  --sh-3: 0 28px 70px -28px rgba(0, 0, 0, 0.7);
+  --sh-win: 0 40px 90px -36px rgba(0, 0, 0, 0.8);
 }
 
 /* ============================================================================
@@ -148,7 +180,7 @@ html[data-theme='dark'] {
   }
 
   body {
-    background-color: #e9edf4;
+    background-color: var(--bg);
     color: var(--ink);
     font-family: var(--f);
     font-size: var(--text-body);
@@ -160,10 +192,6 @@ html[data-theme='dark'] {
     transition:
       background-color var(--t-3) var(--e-out),
       color var(--t-2) var(--e-out);
-  }
-
-  html[data-theme='dark'] body {
-    background-color: #0a0c11;
   }
 
   img,
@@ -178,26 +206,22 @@ html[data-theme='dark'] {
     max-width: 100%;
   }
 
-  /* Klaviatura istifadəçisi həmişə harada olduğunu görür — siçan istifadəçisini narahat etmir */
   :focus-visible {
-    outline: 2px solid var(--coke);
+    outline: 2px solid var(--primary);
     outline-offset: 2px;
-    border-radius: 6px;
+    border-radius: 8px;
   }
 
   ::selection {
-    background: rgba(244, 0, 9, 0.18);
+    background: var(--primary-soft);
   }
 
-  /* Şəkil yüklənməzsə (şəbəkə, silinmiş fayl, 404) brauzerin "sınıq şəkil"
-     ikonkası əvəzinə neytral tutucu göstərilir. Qlobal handler main.tsx-dədir. */
   img[data-img-fallback] {
     object-fit: contain !important;
     padding: 12%;
     background-color: var(--g-panel);
   }
 
-  /* Hərəkət azaldılması — sistem parametrinə hörmət */
   @media (prefers-reduced-motion: reduce) {
     *,
     ::before,
@@ -211,8 +235,7 @@ html[data-theme='dark'] {
 }
 
 /* ============================================================================
-   2. MƏKAN FONU — şüşənin "içindən göründüyü" şey.
-      Şüşə effekti yalnız arxada real məzmun olduqda oxunur.
+   2. FON — düz, sakit. Köhnə rəngli ləkələr silindi.
    ============================================================================ */
 @layer components {
   .bg-scene {
@@ -221,61 +244,11 @@ html[data-theme='dark'] {
     z-index: 0;
     overflow: hidden;
     pointer-events: none;
-  }
-  .bg-scene i {
-    position: absolute;
-    display: block;
-    border-radius: 50%;
-    filter: blur(54px);
-    opacity: 0.68;
-    transition: opacity var(--t-3) var(--e-out);
-  }
-  .bg-scene i:nth-child(1) {
-    width: 46vw;
-    height: 46vw;
-    left: -8vw;
-    top: -10vw;
-    background: radial-gradient(circle at 35% 35%, #ff9a9e, #ffcfd2 60%, transparent 72%);
-  }
-  .bg-scene i:nth-child(2) {
-    width: 40vw;
-    height: 40vw;
-    right: -6vw;
-    top: 6vh;
-    background: radial-gradient(circle at 40% 40%, #a5c8ff, #cfe0ff 58%, transparent 72%);
-  }
-  .bg-scene i:nth-child(3) {
-    width: 38vw;
-    height: 38vw;
-    left: 18vw;
-    bottom: -14vw;
-    background: radial-gradient(circle at 45% 45%, #b8f0dd, #d9f7ee 58%, transparent 72%);
-  }
-  .bg-scene i:nth-child(4) {
-    width: 30vw;
-    height: 30vw;
-    right: 12vw;
-    bottom: -8vw;
-    background: radial-gradient(circle at 45% 45%, #ffe6a8, #fff3d1 58%, transparent 72%);
-  }
-  .bg-scene b {
-    position: absolute;
-    inset: 0;
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 40%),
-      radial-gradient(120% 90% at 50% 0%, rgba(255, 255, 255, 0.42), transparent 60%);
-  }
-  html[data-theme='dark'] .bg-scene i {
-    opacity: 0.3;
-  }
-  html[data-theme='dark'] .bg-scene b {
-    background:
-      linear-gradient(180deg, rgba(0, 0, 0, 0.3), transparent 40%),
-      radial-gradient(120% 90% at 50% 0%, rgba(90, 110, 160, 0.2), transparent 60%);
+    background-color: var(--bg);
   }
 
   /* ==========================================================================
-     3. ŞÜŞƏ RECEPTİ — dörd qat
+     3. SƏTH RESEPTLƏRİ — düz kartlar, nazik kənar, yumşaq kölgə
      ========================================================================== */
   .glass-chrome,
   .glass-panel,
@@ -283,46 +256,35 @@ html[data-theme='dark'] {
   .glass-pop,
   .glass-side {
     border: 1px solid var(--hair);
-    -webkit-backdrop-filter: var(--blur);
-    backdrop-filter: var(--blur);
-    box-shadow:
-      var(--sh-1),
-      inset 0 1px 0 var(--spec);
+    box-shadow: var(--sh-1);
     transition:
       background-color var(--t-2) var(--e-out),
+      border-color var(--t-2) var(--e-out),
       box-shadow var(--t-2) var(--e-out);
   }
 
   .glass-chrome {
     background-color: var(--g-chrome);
-  } /* 34% */
+    border-color: transparent;
+    box-shadow: none;
+  }
   .glass-panel {
     background-color: var(--g-panel);
-  } /* 46% */
+    border-color: transparent;
+    box-shadow: none;
+  }
   .glass-card {
     background-color: var(--g-card);
-    background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.24), transparent 48%);
-    border-color: color-mix(in srgb, var(--hair) 55%, var(--spec));
-    -webkit-backdrop-filter: saturate(160%) blur(22px);
-    backdrop-filter: saturate(160%) blur(22px);
-    box-shadow:
-      var(--sh-2),
-      inset 0 1px 0 var(--spec);
-  } /* 62% ← mətn daşıyan minimum */
+  }
   .glass-side {
     background-color: var(--g-side);
-  } /* yan panel */
-
+  }
   .glass-pop {
-    background-color: var(--g-pop); /* 80% */
-    -webkit-backdrop-filter: var(--blur-lg);
-    backdrop-filter: var(--blur-lg);
-    box-shadow:
-      var(--sh-3),
-      inset 0 1px 0 var(--spec);
+    background-color: var(--g-pop);
+    box-shadow: var(--sh-3);
   }
 
-  /* Modal səthi: arxa səhnənin rəngini buraxır, mətn sahəsini isə oxunaqlı saxlayır. */
+  /* Modal səthi */
   .glass-pop[role='dialog'] {
     position: relative;
     display: flex;
@@ -330,42 +292,14 @@ html[data-theme='dark'] {
     max-height: calc(100dvh - 40px);
     min-height: 0;
     border: 1px solid var(--modal-edge);
-    border-radius: 26px;
-    background:
-      linear-gradient(145deg, rgba(255, 255, 255, 0.18), transparent 42%), var(--modal-surface);
-    -webkit-backdrop-filter: saturate(190%) blur(38px);
-    backdrop-filter: saturate(190%) blur(38px);
-    box-shadow:
-      0 48px 110px -42px rgba(11, 22, 42, 0.58),
-      0 14px 36px -22px rgba(11, 22, 42, 0.32),
-      inset 0 1px 0 var(--spec);
+    border-radius: 24px;
+    background: var(--modal-surface);
+    box-shadow: var(--sh-win);
     animation: modal-arrive 250ms var(--e-out) both;
-  }
-  .glass-pop[role='dialog']::before {
-    content: '';
-    position: absolute;
-    z-index: 4;
-    top: 0;
-    left: 25px;
-    right: 25px;
-    height: 3px;
-    border-radius: 0 0 999px 999px;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(244, 0, 9, 0.8),
-      rgba(255, 255, 255, 0.9),
-      transparent
-    );
-    pointer-events: none;
   }
   .glass-pop[role='dialog'] > :first-child:not(form) {
     flex: none;
-    background: linear-gradient(
-      115deg,
-      color-mix(in srgb, var(--g-card) 82%, transparent),
-      color-mix(in srgb, var(--g-panel) 58%, transparent)
-    );
+    background: var(--g-panel);
     border-bottom-color: var(--hair);
   }
   .glass-pop[role='dialog'] > :first-child h3,
@@ -389,12 +323,11 @@ html[data-theme='dark'] {
     border-radius: 13px;
     color: var(--ink-2);
     background: var(--g-card);
-    box-shadow: inset 0 1px 0 var(--spec);
   }
   .glass-pop[role='dialog'] button[aria-label='Bağla']:hover,
   .glass-pop[role='dialog'] button[aria-label='Pəncərəni bağla']:hover {
     color: var(--ink);
-    background: var(--g-solid);
+    background: var(--g-panel);
   }
   .glass-pop[role='dialog'] > form {
     flex: 1 1 auto;
@@ -411,9 +344,7 @@ html[data-theme='dark'] {
     margin: 0 -20px -20px;
     padding: 16px 20px calc(16px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--hair);
-    background: color-mix(in srgb, var(--modal-surface) 90%, transparent);
-    -webkit-backdrop-filter: blur(22px);
-    backdrop-filter: blur(22px);
+    background: var(--modal-surface);
   }
   .glass-pop[role='dialog'] label {
     font-size: 13px;
@@ -422,15 +353,14 @@ html[data-theme='dark'] {
     :is(input:not([type='checkbox']):not([type='radio']):not([type='file']), select, textarea) {
     min-height: 42px;
     border-color: var(--hair);
-    border-radius: 11px;
+    border-radius: 12px;
     background-color: var(--modal-field);
     color: var(--ink);
     font-size: 14px;
-    box-shadow: inset 0 1px 2px rgba(10, 16, 32, 0.035);
   }
   .glass-pop[role='dialog'] :is(input, select, textarea):focus-visible {
-    border-color: var(--coke-600);
-    box-shadow: 0 0 0 3px var(--coke-soft);
+    border-color: var(--primary-600);
+    box-shadow: 0 0 0 3px var(--primary-soft);
     outline: none;
   }
   .glass-pop[role='dialog'] form button[type='submit'] {
@@ -460,18 +390,18 @@ html[data-theme='dark'] {
     }
   }
 
-  /* Hərəkətli kart — hover-də qalxır */
+  /* Hərəkətli kart */
   .glass-lift {
     transition:
       transform var(--t-2) var(--e-out),
       box-shadow var(--t-2) var(--e-out),
-      background-color var(--t-2) var(--e-out);
+      background-color var(--t-2) var(--e-out),
+      border-color var(--t-2) var(--e-out);
   }
   .glass-lift:hover {
     transform: translateY(-2px);
-    box-shadow:
-      var(--sh-2),
-      inset 0 1px 0 var(--spec);
+    box-shadow: var(--sh-2);
+    border-color: var(--primary-bd);
   }
   .glass-lift:active {
     transform: translateY(0) scale(0.995);
@@ -484,30 +414,26 @@ html[data-theme='dark'] {
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    height: 34px;
-    padding: 0 13px;
-    border-radius: 11px;
-    font-size: 12px;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 12px;
+    font-size: 12.5px;
     font-weight: 700;
     letter-spacing: -0.01em;
     white-space: nowrap;
     border: 1px solid var(--hair);
     background-color: var(--g-card);
     color: var(--ink);
-    -webkit-backdrop-filter: var(--blur);
-    backdrop-filter: var(--blur);
-    box-shadow:
-      var(--sh-1),
-      inset 0 1px 0 var(--spec);
+    box-shadow: var(--sh-1);
     transition:
       transform var(--t-1) var(--e-out),
       box-shadow var(--t-2) var(--e-out),
-      background-color var(--t-2);
+      background-color var(--t-2),
+      border-color var(--t-2);
   }
   .btn-g:hover {
-    box-shadow:
-      var(--sh-2),
-      inset 0 1px 0 var(--spec);
+    background-color: var(--g-panel);
+    box-shadow: var(--sh-2);
   }
   .btn-g:active {
     transform: scale(0.97);
@@ -517,19 +443,17 @@ html[data-theme='dark'] {
     pointer-events: none;
   }
 
-  .btn-g-primary {
-    background-image: linear-gradient(180deg, #f40009, #c40008);
-    background-color: #c40008;
+  .btn-g-primary,
+  .btn-primary {
+    background-color: var(--primary-600);
     color: #fff;
-    border-color: rgba(0, 0, 0, 0.1);
-    box-shadow:
-      0 4px 14px -6px var(--coke-ring),
-      inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    border-color: transparent;
+    box-shadow: 0 6px 16px -8px var(--primary-ring);
   }
-  .btn-g-primary:hover {
-    box-shadow:
-      0 8px 22px -8px var(--coke-ring),
-      inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  .btn-g-primary:hover,
+  .btn-primary:hover {
+    background-color: var(--primary-700);
+    box-shadow: 0 8px 22px -8px var(--primary-ring);
   }
 
   .btn-g-ghost {
@@ -543,19 +467,16 @@ html[data-theme='dark'] {
   }
 
   .btn-g-danger {
-    background-image: linear-gradient(180deg, #e5325a, #cc2b4f);
-    background-color: #cc2b4f;
+    background-color: #be123c;
     color: #fff;
-    border-color: rgba(0, 0, 0, 0.1);
-    box-shadow:
-      0 4px 14px -6px rgba(229, 50, 90, 0.35),
-      inset 0 1px 0 rgba(255, 255, 255, 0.26);
+    border-color: transparent;
+    box-shadow: 0 6px 16px -8px rgba(190, 18, 60, 0.4);
   }
 
   .iconbtn-g {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
     display: grid;
     place-items: center;
     color: var(--ink-2);
@@ -566,7 +487,7 @@ html[data-theme='dark'] {
       transform var(--t-1);
   }
   .iconbtn-g:hover {
-    background-color: var(--g-card);
+    background-color: var(--g-panel);
     border-color: var(--hair);
     color: var(--ink);
   }
@@ -574,54 +495,29 @@ html[data-theme='dark'] {
     transform: scale(0.94);
   }
 
-  /* ── Rəngli düymələr ──────────────────────────────────────────────────────
-     Mövcud ölçü/boşluq sinifləri ilə birlikdə işləyir: yalnız fon, kənar və
-     kölgəni təyin edir, ona görə komponentlərdə yerləşdirmə dəyişmir. */
-  .btn-coke,
+  /* ── Rəngli düymələr ── */
   .btn-strong,
   .btn-ok,
   .btn-danger {
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(0, 0, 0, 0.08);
     color: #fff;
     transition:
       transform var(--t-1) var(--e-out),
       box-shadow var(--t-2) var(--e-out),
       background-color var(--t-2) var(--e-out);
   }
-  .btn-coke:active,
   .btn-strong:active,
   .btn-ok:active,
   .btn-danger:active {
     transform: scale(0.97);
   }
 
-  .btn-coke {
-    /* Coca-Cola qırmızısı (#F40009) ağ mətnlə 4.33:1 təzad verir — WCAG AA
-       həddi 4.5:1. Ona görə dolğu bir pillə dərinləşdiririk: brend rəngi üst
-       kənarda qalır (marka tanınırlığı saxlanır), mətnin dayandığı sahə isə
-       oxunaqlı olur (≈6.3:1). */
-    background-image: linear-gradient(180deg, #f40009, #c40008);
-    background-color: #c40008;
-    box-shadow:
-      0 4px 14px -6px var(--coke-ring),
-      inset 0 1px 0 rgba(255, 255, 255, 0.28);
-  }
-  .btn-coke:hover {
-    box-shadow:
-      0 8px 22px -8px var(--coke-ring),
-      inset 0 1px 0 rgba(255, 255, 255, 0.28);
-  }
-
   .btn-strong {
     background-color: var(--ink);
-    box-shadow:
-      var(--sh-1),
-      inset 0 1px 0 var(--spec);
+    box-shadow: var(--sh-1);
   }
   .btn-strong:hover {
-    box-shadow:
-      var(--sh-2),
-      inset 0 1px 0 var(--spec);
+    box-shadow: var(--sh-2);
   }
   html[data-theme='dark'] .btn-strong {
     background-color: #e8edf6;
@@ -630,32 +526,29 @@ html[data-theme='dark'] {
   }
 
   .btn-ok {
-    /* #0aa06a üzərində ağ mətn 3.36:1 — AA-dan aşağı. Dərinləşdirilmiş yaşıl
-       ≈5.4:1 verir. */
-    background-image: linear-gradient(180deg, #0a8458, #067a51);
-    background-color: #067a51;
-    box-shadow:
-      0 4px 14px -6px rgba(16, 185, 129, 0.38),
-      inset 0 1px 0 rgba(255, 255, 255, 0.26);
+    /* ağ mətn üçün ≥4.5:1 — green-700 */
+    background-color: #15803d;
+    box-shadow: 0 6px 16px -8px rgba(21, 128, 61, 0.4);
+  }
+  .btn-ok:hover {
+    background-color: #166534;
   }
 
   .btn-danger {
-    /* #e5325a üzərində ağ mətn 4.25:1 — AA-dan aşağı. ≈5.2:1 üçün dərinləşdirildi. */
-    background-image: linear-gradient(180deg, #e5325a, #cc2b4f);
-    background-color: #cc2b4f;
-    box-shadow:
-      0 4px 14px -6px rgba(229, 50, 90, 0.38),
-      inset 0 1px 0 rgba(255, 255, 255, 0.26);
+    /* ağ mətn üçün ≥4.5:1 — rose-700 */
+    background-color: #be123c;
+    box-shadow: 0 6px 16px -8px rgba(190, 18, 60, 0.4);
+  }
+  .btn-danger:hover {
+    background-color: #9f1239;
   }
 
-  /* Modal pərdəsi — sərt qara yerinə yumşaq, bulanıq */
+  /* Modal pərdəsi — sadə tünd şəffaf */
   .modal-veil {
-    background: radial-gradient(ellipse at 50% 20%, rgba(35, 50, 76, 0.3), rgba(10, 16, 32, 0.56));
-    -webkit-backdrop-filter: blur(10px) saturate(115%);
-    backdrop-filter: blur(10px) saturate(115%);
+    background: rgba(15, 18, 32, 0.45);
   }
   html[data-theme='dark'] .modal-veil {
-    background: rgba(2, 5, 12, 0.7);
+    background: rgba(0, 0, 0, 0.62);
   }
 
   @media (max-width: 640px) {
@@ -689,11 +582,7 @@ html[data-theme='dark'] {
     }
   }
 
-  /* ── Foto üzərindəki nişanlar ─────────────────────────────────────────────
-     Şəkil üzərində rəngli fon + ağ mətn ETİBARSIZDIR: amber üzərində ağ mətn
-     2.2:1 verir, üstəlik fon şəklin özü olduğu üçün nəticə gözlənilməzdir.
-     Həll: neytral tünd pərdə (hər hansı şəklin üzərində ≥9:1) + status rəngini
-     daşıyan NÖQTƏ. Rəng qalır, oxunaqlıq zəmanətli olur. */
+  /* ── Foto üzərindəki nişanlar — tünd fon + status nöqtəsi ── */
   .pill-photo {
     display: inline-flex;
     align-items: center;
@@ -705,9 +594,7 @@ html[data-theme='dark'] {
     letter-spacing: -0.005em;
     white-space: nowrap;
     color: #fff;
-    background-color: rgba(10, 16, 32, 0.78);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
+    background-color: rgba(10, 16, 32, 0.82);
     border: 1px solid rgba(255, 255, 255, 0.16);
   }
   .pill-photo .dot {
@@ -731,7 +618,6 @@ html[data-theme='dark'] {
 
   /* ==========================================================================
      5. ÇİPLƏR VƏ STATUS NİŞANLARI
-     Status heç vaxt yalnız rənglə bildirilmir — nöqtə + mətn də var.
      ========================================================================== */
   .chip-g {
     display: inline-flex;
@@ -761,6 +647,73 @@ html[data-theme='dark'] {
     color: var(--bad);
     background-color: var(--bad-bg);
     border-color: var(--bad-bd);
+  }
+
+  /* Delta çipi — referensdəki yaşıl ↗% nişanı */
+  .delta-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    color: var(--ok);
+    background-color: var(--ok-bg);
+    border: 1px solid var(--ok-bd);
+  }
+  .delta-chip.delta-warn {
+    color: var(--warn);
+    background-color: var(--warn-bg);
+    border-color: var(--warn-bd);
+  }
+  .delta-chip.delta-bad {
+    color: var(--bad);
+    background-color: var(--bad-bg);
+    border-color: var(--bad-bd);
+  }
+  .delta-chip.delta-neutral {
+    color: var(--muted);
+    background-color: var(--g-panel);
+    border-color: var(--hair);
+  }
+
+  /* Seqment idarəsi — Today/Week/Month üslubu */
+  .seg {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 999px;
+    background-color: var(--g-panel);
+    border: 1px solid var(--hair-2);
+  }
+  .seg-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--muted);
+    white-space: nowrap;
+    transition:
+      background-color var(--t-1) var(--e-out),
+      color var(--t-1) var(--e-out),
+      box-shadow var(--t-1) var(--e-out);
+  }
+  .seg-item:hover {
+    color: var(--ink);
+  }
+  .seg-item[aria-pressed='true'],
+  .seg-item.seg-active {
+    background-color: var(--g-card);
+    color: var(--ink);
+    box-shadow: var(--sh-1);
   }
 
   .st-g {
@@ -815,7 +768,7 @@ html[data-theme='dark'] {
   }
 
   /* ==========================================================================
-     6. CƏDVƏL — şüşə üzərində oxunaqlı
+     6. CƏDVƏL
      ========================================================================== */
   .tbl-g {
     width: 100%;
@@ -823,23 +776,21 @@ html[data-theme='dark'] {
     border-spacing: 0;
   }
   .tbl-g thead th {
-    font-size: 10px;
+    font-size: 10.5px;
     font-weight: 800;
-    letter-spacing: 0.07em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    /* --faint deyil, --muted: 10px böyük hərfli başlıq normal mətndir və
-       4.5:1 təzad tələb edir. --faint (2.68:1) yalnız dekorativ işlər üçündür. */
     color: var(--muted);
     text-align: left;
-    padding: 10px 12px;
+    padding: 12px 14px;
     white-space: nowrap;
     border-bottom: 1px solid var(--hair);
   }
   .tbl-g tbody td {
-    padding: 11px 12px;
+    padding: 12px 14px;
     border-top: 1px solid var(--hair-2);
     vertical-align: middle;
-    font-size: 12px;
+    font-size: 12.5px;
     color: var(--ink-2);
   }
   .tbl-g tbody tr:first-child td {
@@ -853,7 +804,7 @@ html[data-theme='dark'] {
   }
 
   /* ==========================================================================
-     7. GÖRÜNÜŞ KEÇİDİ — "smooth" mexanizmi
+     7. GÖRÜNÜŞ KEÇİDİ
      ========================================================================== */
   .view-g {
     animation: viewIn var(--t-2) var(--e-out) both;
@@ -908,10 +859,8 @@ html[data-theme='dark'] {
   }
 
   /* ==========================================================================
-     7b. TELEFON: cədvəl eyni <tr> üzərində karta çevrilir.
-         Markup təkrarlanmır — sütunlar CSS grid sahələrinə bağlanır.
-         Üfüqi sürüşmə tamamilə aradan qalxır.
-         ========================================================================== */
+     7b. TELEFON: cədvəl karta çevrilir
+     ========================================================================== */
   @media (max-width: 767px) {
     .reflow thead {
       display: none;
@@ -925,10 +874,10 @@ html[data-theme='dark'] {
     .reflow tbody tr {
       display: grid;
       gap: 8px 10px;
-      padding: 12px;
+      padding: 14px;
       border: 1px solid var(--hair);
-      border-radius: 13px;
-      background-color: var(--g-panel);
+      border-radius: 16px;
+      background-color: var(--g-card);
       margin-bottom: 10px;
     }
     .reflow tbody tr:last-child {
@@ -939,12 +888,10 @@ html[data-theme='dark'] {
       border: 0;
       min-width: 0;
     }
-    /* Sürüşən konteyner telefonda sürüşmə tələb etmir */
     .reflow-scroll {
       overflow: visible !important;
     }
 
-    /* İcmal ekranı: 8 sütun → 4 sətir */
     .reflow-dash tbody tr {
       grid-template-columns: 46px minmax(0, 1fr) auto;
       grid-template-areas:
@@ -983,7 +930,6 @@ html[data-theme='dark'] {
       align-self: center;
     }
 
-    /* Mağazalar ekranı: 6 sütun → 4 sətir */
     .reflow-stores tbody tr {
       grid-template-columns: auto minmax(0, 1fr) auto;
       grid-template-areas:
@@ -1015,24 +961,7 @@ html[data-theme='dark'] {
 }
 
 /* ============================================================================
-   8. ZƏİF TARAYICI DƏSTƏYİ — backdrop-filter yoxdursa şüşə qatı qatılaşır.
-      Beləliklə kontrast heç vaxt pozulmur, sadəcə "şüşəlik" itir.
-   ============================================================================ */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .glass-chrome,
-  .glass-panel,
-  .glass-card,
-  .glass-pop,
-  .glass-side,
-  .btn-g {
-    background-color: var(--g-solid) !important;
-    -webkit-backdrop-filter: none !important;
-    backdrop-filter: none !important;
-  }
-}
-
-/* ============================================================================
-   9. SCROLLBAR — şüşə üzərində yumşaq
+   8. SCROLLBAR
    ============================================================================ */
 ::-webkit-scrollbar {
   width: 8px;
@@ -1042,13 +971,13 @@ html[data-theme='dark'] {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background-color: rgba(10, 16, 32, 0.18);
+  background-color: rgba(23, 27, 46, 0.18);
   border-radius: 9999px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(10, 16, 32, 0.3);
+  background-color: rgba(23, 27, 46, 0.3);
   background-clip: content-box;
 }
 html[data-theme='dark'] ::-webkit-scrollbar-thumb {

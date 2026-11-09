@@ -284,7 +284,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
           className="glass-pop modal-admin w-full max-w-[820px] rounded-[18px] p-5 text-ink sm:p-6"
         >
           <div className="mb-4 flex items-start gap-3">
-            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[11px] bg-[rgba(10,16,32,.06)]">
+            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[11px] bg-[var(--primary-soft)] text-primary">
               <ShieldCheck className="h-4 w-4" strokeWidth={2} />
             </span>
             <div className="min-w-0 flex-1">
@@ -308,9 +308,9 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
           </div>
 
           {error && (
-            <div className="mb-4 flex gap-2.5 rounded-[12px] border border-[rgba(200,60,60,.28)] bg-[rgba(200,60,60,.07)] p-3">
+            <div className="mb-4 flex gap-2.5 rounded-[12px] border border-[var(--bad-bd)] bg-[var(--bad-bg)] p-3">
               <AlertTriangle
-                className="mt-px h-4 w-4 flex-shrink-0 text-[#b23b3b]"
+                className="mt-px h-4 w-4 flex-shrink-0 text-[var(--bad)]"
                 strokeWidth={2}
               />
               <p className="text-[11.5px] leading-relaxed text-ink">{error}</p>
@@ -318,16 +318,16 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
           )}
 
           {notice && !error && (
-            <div className="mb-4 flex gap-2.5 rounded-[12px] border border-[rgba(30,140,90,.28)] bg-[rgba(30,140,90,.07)] p-3">
-              <Check className="mt-px h-4 w-4 flex-shrink-0 text-[#1c7a4f]" strokeWidth={2.2} />
+            <div className="mb-4 flex gap-2.5 rounded-[12px] border border-[var(--ok-bd)] bg-[var(--ok-bg)] p-3">
+              <Check className="mt-px h-4 w-4 flex-shrink-0 text-[var(--ok)]" strokeWidth={2.2} />
               <p className="text-[11.5px] leading-relaxed text-ink">{notice}</p>
             </div>
           )}
 
           {/* The one and only sighting of a key minted from this screen. */}
           {freshKey && (
-            <div className="mb-4 rounded-[14px] border border-[rgba(30,140,90,.32)] bg-[rgba(30,140,90,.07)] p-3.5">
-              <b className="block text-[12px] font-extrabold text-[#1c7a4f]">
+            <div className="mb-4 rounded-[14px] border border-[var(--ok-bd)] bg-[var(--ok-bg)] p-3.5">
+              <b className="block text-[12px] font-extrabold text-[var(--ok)]">
                 {freshKey.forWhom} üçün açar yaradıldı — indi köçürün
               </b>
               <p className="mt-1 text-[11.5px] leading-relaxed text-ink">
@@ -335,7 +335,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                 yalnız onun barmaq izi saxlanılır. Açarı həmin adama ötürün.
               </p>
               <div className="mt-2.5 flex items-center gap-2">
-                <code className="min-w-0 flex-1 truncate rounded-[10px] bg-[rgba(255,255,255,.8)] px-3 py-2 font-mono text-[12px]">
+                <code className="min-w-0 flex-1 truncate rounded-[10px] bg-[var(--modal-field)] px-3 py-2 font-mono text-[12px]">
                   {freshKey.token}
                 </code>
                 <button
@@ -355,7 +355,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
           )}
 
           {/* Add a person */}
-          <div className="mb-4 rounded-[14px] bg-[rgba(10,16,32,.04)] p-3.5">
+          <div className="mb-4 rounded-[14px] bg-[var(--g-panel)] p-3.5">
             {!adding ? (
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">
@@ -386,7 +386,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                       value={draft.fullName}
                       onChange={(event) => setDraft({ ...draft, fullName: event.target.value })}
                       placeholder="Məsələn: Aysel Hüseynova"
-                      className="w-full rounded-[11px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.72)] px-3 py-2 text-[12.5px] text-ink outline-none"
+                      className="w-full rounded-[11px] border border-hair bg-[var(--modal-field)] px-3 py-2 text-[12.5px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
                     />
                   </label>
                   <label className="block">
@@ -397,7 +397,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                       value={draft.email}
                       onChange={(event) => setDraft({ ...draft, email: event.target.value })}
                       placeholder="aysel@coke.oneteam.az"
-                      className="w-full rounded-[11px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.72)] px-3 py-2 text-[12.5px] text-ink outline-none"
+                      className="w-full rounded-[11px] border border-hair bg-[var(--modal-field)] px-3 py-2 text-[12.5px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
                     />
                   </label>
                   <label className="block">
@@ -408,7 +408,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                       value={draft.phone}
                       onChange={(event) => setDraft({ ...draft, phone: event.target.value })}
                       placeholder="+99450..."
-                      className="w-full rounded-[11px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.72)] px-3 py-2 text-[12.5px] text-ink outline-none"
+                      className="w-full rounded-[11px] border border-hair bg-[var(--modal-field)] px-3 py-2 text-[12.5px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
                     />
                   </label>
                   <label className="block">
@@ -418,7 +418,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                     <select
                       value={draft.role}
                       onChange={(event) => setDraft({ ...draft, role: event.target.value })}
-                      className="w-full rounded-[11px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.72)] px-3 py-2 text-[12.5px] text-ink outline-none"
+                      className="w-full rounded-[11px] border border-hair bg-[var(--modal-field)] px-3 py-2 text-[12.5px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
                     >
                       {roles.map((role) => (
                         <option key={role} value={role}>
@@ -476,7 +476,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
           </div>
 
           {loading && users.length === 0 ? (
-            <p className="rounded-[12px] bg-[rgba(10,16,32,.04)] p-3 text-[11.5px] text-muted">
+            <p className="rounded-[12px] bg-[var(--g-panel)] p-3 text-[11.5px] text-muted">
               Yüklənir…
             </p>
           ) : (
@@ -484,7 +484,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
               {users.map((user) => (
                 <div
                   key={user.id}
-                  className="rounded-[12px] border border-[rgba(10,16,32,.08)] bg-[rgba(255,255,255,.5)] p-3"
+                  className="rounded-[12px] border border-hair bg-[var(--g-card)] p-3"
                 >
                   {editing === user.id ? (
                     <div>
@@ -494,7 +494,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                           onChange={(event) =>
                             setEditDraft({ ...editDraft, fullName: event.target.value })
                           }
-                          className="rounded-[10px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.8)] px-2.5 py-1.5 text-[12px] text-ink outline-none"
+                          className="rounded-[10px] border border-hair bg-[var(--modal-field)] px-2.5 py-1.5 text-[12px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
                         />
                         <select
                           value={editDraft.role}
@@ -505,7 +505,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                           title={
                             user.isSelf ? 'Öz rolunuzu özünüz dəyişə bilməzsiniz' : 'Rolu dəyiş'
                           }
-                          className="rounded-[10px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.8)] px-2.5 py-1.5 text-[12px] text-ink outline-none disabled:opacity-50"
+                          className="rounded-[10px] border border-hair bg-[var(--modal-field)] px-2.5 py-1.5 text-[12px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)] disabled:opacity-50"
                         >
                           {roles.map((role) => (
                             <option key={role} value={role}>
@@ -519,7 +519,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                             setEditDraft({ ...editDraft, phone: event.target.value })
                           }
                           placeholder="Telefon"
-                          className="rounded-[10px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.8)] px-2.5 py-1.5 text-[12px] text-ink outline-none"
+                          className="rounded-[10px] border border-hair bg-[var(--modal-field)] px-2.5 py-1.5 text-[12px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
                         />
                       </div>
                       {ROLE_HELP[editDraft.role] && (
@@ -545,16 +545,16 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <b className="text-[12.5px] font-extrabold">{user.fullName}</b>
-                          <span className="rounded-full bg-[rgba(10,16,32,.07)] px-2 py-0.5 text-[10px] font-bold text-ink">
+                          <span className="rounded-full bg-[var(--g-panel)] px-2 py-0.5 text-[10px] font-bold text-ink">
                             {ROLE_LABEL[user.role] ?? user.role}
                           </span>
                           {user.isSelf && (
-                            <span className="rounded-full bg-[rgba(30,140,90,.14)] px-2 py-0.5 text-[10px] font-bold text-[#1c7a4f]">
+                            <span className="rounded-full bg-[var(--ok-bg)] px-2 py-0.5 text-[10px] font-bold text-[var(--ok)]">
                               siz
                             </span>
                           )}
                           {user.joinedVia && (
-                            <span className="rounded-full bg-[rgba(10,16,32,.05)] px-2 py-0.5 text-[10px] text-muted">
+                            <span className="rounded-full bg-[var(--g-panel)] px-2 py-0.5 text-[10px] text-muted">
                               {user.joinedVia === 'telegram'
                                 ? 'Telegram ilə qoşulub'
                                 : 'Telefon ilə qoşulub'}
@@ -568,7 +568,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                           {user.submissions !== null ? ` · ${user.submissions} təqdimat` : ''}
                         </p>
                         {!user.deletable && user.blockedBy && (
-                          <p className="mt-0.5 text-[11px] text-[#b23b3b]">
+                          <p className="mt-0.5 text-[11px] text-[var(--bad)]">
                             {BLOCK_REASON[user.blockedBy]}
                           </p>
                         )}
@@ -657,7 +657,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
             className="glass-pop my-auto w-full max-w-md overflow-hidden rounded-[18px]"
           >
             <div className="flex items-start gap-3 p-5">
-              <span className="grid h-9 w-9 flex-none place-items-center rounded-[11px] bg-[rgba(200,60,60,.09)] text-[#b23b3b]">
+              <span className="grid h-9 w-9 flex-none place-items-center rounded-[11px] bg-[var(--bad-bg)] text-[var(--bad)]">
                 <AlertTriangle className="h-4 w-4" strokeWidth={2} />
               </span>
               <div className="min-w-0">
@@ -671,14 +671,14 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                 {deleteError && (
                   <p
                     role="alert"
-                    className="mt-3 rounded-lg border border-[rgba(200,60,60,.28)] bg-[rgba(200,60,60,.07)] px-3 py-2 text-[11.5px] font-bold text-[#b23b3b]"
+                    className="mt-3 rounded-lg border border-[var(--bad-bd)] bg-[var(--bad-bg)] px-3 py-2 text-[11.5px] font-bold text-[var(--bad)]"
                   >
                     {deleteError}
                   </p>
                 )}
               </div>
             </div>
-            <div className="flex items-center justify-end gap-2.5 border-t border-[rgba(10,16,32,.08)] p-4">
+            <div className="flex items-center justify-end gap-2.5 border-t border-hair p-4">
               <button
                 type="button"
                 onClick={closeDeleteConfirm}
@@ -691,7 +691,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                 type="button"
                 onClick={() => void handleConfirmDelete()}
                 disabled={deleting}
-                className="rounded-[11px] bg-[#b23b3b] px-4 py-2 text-xs font-extrabold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                className="rounded-[11px] bg-[#be123c] px-4 py-2 text-xs font-extrabold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
               >
                 {deleting ? 'Silinir…' : 'Bəli, sil'}
               </button>

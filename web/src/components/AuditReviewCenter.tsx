@@ -263,7 +263,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
             placeholder="Mağaza və ya tapşırıq axtar..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-[var(--g-panel)] border border-hair rounded-lg text-xs text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)] focus:border-coke/45"
+            className="w-full pl-9 pr-4 py-2 bg-[var(--g-panel)] border border-hair rounded-lg text-xs text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)] focus:border-primary-500/45"
           />
         </div>
       </div>
@@ -285,7 +285,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
               setFilterStatus('all');
               setSearchQuery('');
             }}
-            className="mt-2 text-sm font-bold text-coke"
+            className="mt-2 text-sm font-bold text-primary"
           >
             Filtrləri təmizlə
           </button>
@@ -297,7 +297,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
               key={sub.id}
               type="button"
               onClick={() => setSelectedSubmission(sub)}
-              className="glass-card flex w-full items-center gap-3 rounded-card p-3 text-left transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[var(--coke-ring)]"
+              className="glass-card flex w-full items-center gap-3 rounded-card p-3 text-left transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)]"
             >
               <img
                 src={sub.photo_url}
@@ -339,7 +339,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                   })}
                 </span>
               </span>
-              <span className="hidden text-sm font-bold text-coke sm:inline">Sübutu aç →</span>
+              <span className="hidden text-sm font-bold text-primary sm:inline">Sübutu aç →</span>
             </button>
           ))}
         </div>
@@ -447,7 +447,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                       <div>
                         <div className="flex items-center gap-2">
                           <h4 className="font-extrabold text-xs sm:text-sm text-ink flex items-center gap-1.5">
-                            <Bot className="w-4 h-4 text-coke-500" />
+                            <Bot className="w-4 h-4 text-primary-500" />
                             Avtomatik foto təhlili
                           </h4>
                           <span className="text-xs px-2 py-1 rounded-full font-bold bg-[var(--g-card)] text-ink-2 border border-hair">
@@ -510,7 +510,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                 <div className="bg-[var(--g-card)] p-4 rounded-xl border border-hair flex flex-col">
                   <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-hair-2">
                     <div className="flex items-center space-x-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-coke-500"></span>
+                      <span className="w-2.5 h-2.5 rounded-full bg-primary-500"></span>
                       <h4 className="font-bold text-xs uppercase tracking-wider text-ink-2">
                         Mağazadan Yüklənən Rəf Fotosu
                       </h4>
@@ -536,7 +536,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                             onClick={() => setActivePhotoView('after')}
                             className={`px-2 py-1 rounded text-[11px] font-extrabold transition-all cursor-pointer ${
                               activePhotoView === 'after'
-                                ? 'bg-coke-600 text-white'
+                                ? 'bg-primary-600 text-white'
                                 : 'text-ink-2 hover:text-ink'
                             }`}
                           >
@@ -551,12 +551,12 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                           onClick={() => setShowBoundingBoxes(!showBoundingBoxes)}
                           className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
                             showBoundingBoxes
-                              ? 'bg-coke-50 text-coke-600 border border-coke-200'
+                              ? 'bg-primary-50 text-primary-600 border border-primary-200'
                               : 'bg-[var(--g-panel)] text-muted hover:bg-[var(--g-card)]'
                           }`}
                         >
                           {showBoundingBoxes ? (
-                            <Eye className="w-3.5 h-3.5 text-coke-500" />
+                            <Eye className="w-3.5 h-3.5 text-primary-500" />
                           ) : (
                             <EyeOff className="w-3.5 h-3.5" />
                           )}

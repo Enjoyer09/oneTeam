@@ -141,7 +141,7 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
         className="glass-pop modal-admin w-full max-w-[720px] rounded-[18px] p-5 text-ink sm:p-6"
       >
         <div className="mb-4 flex items-start gap-3">
-          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[11px] bg-[rgba(10,16,32,.06)]">
+          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[11px] bg-[var(--primary-soft)] text-primary">
             <KeyRound className="h-4 w-4" strokeWidth={2} />
           </span>
           <div className="min-w-0 flex-1">
@@ -163,16 +163,16 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
         </div>
 
         {error && (
-          <div className="mb-4 flex gap-2.5 rounded-[12px] border border-[rgba(200,60,60,.28)] bg-[rgba(200,60,60,.07)] p-3">
-            <AlertTriangle className="mt-px h-4 w-4 flex-shrink-0 text-[#b23b3b]" strokeWidth={2} />
+          <div className="mb-4 flex gap-2.5 rounded-[12px] border border-[var(--bad-bd)] bg-[var(--bad-bg)] p-3">
+            <AlertTriangle className="mt-px h-4 w-4 flex-shrink-0 text-[var(--bad)]" strokeWidth={2} />
             <p className="text-[11.5px] leading-relaxed text-ink">{error}</p>
           </div>
         )}
 
         {/* The one and only sighting of a new key. */}
         {freshKey && (
-          <div className="mb-4 rounded-[14px] border border-[rgba(30,140,90,.32)] bg-[rgba(30,140,90,.07)] p-3.5">
-            <b className="block text-[12px] font-extrabold text-[#1c7a4f]">
+          <div className="mb-4 rounded-[14px] border border-[var(--ok-bd)] bg-[var(--ok-bg)] p-3.5">
+            <b className="block text-[12px] font-extrabold text-[var(--ok)]">
               Açar yaradıldı — indi köçürün
             </b>
             <p className="mt-1 text-[11.5px] leading-relaxed text-ink">
@@ -180,7 +180,7 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
               yalnız onun şifrələnmiş barmaq izi saxlanılır.
             </p>
             <div className="mt-2.5 flex items-center gap-2">
-              <code className="min-w-0 flex-1 truncate rounded-[10px] bg-[rgba(255,255,255,.8)] px-3 py-2 font-mono text-[12px]">
+              <code className="min-w-0 flex-1 truncate rounded-[10px] bg-[var(--modal-field)] px-3 py-2 font-mono text-[12px]">
                 {freshKey.token}
               </code>
               <button
@@ -204,7 +204,7 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
         )}
 
         {/* Mint */}
-        <div className="mb-4 rounded-[14px] bg-[rgba(10,16,32,.04)] p-3.5">
+        <div className="mb-4 rounded-[14px] bg-[var(--g-panel)] p-3.5">
           <label
             htmlFor="panel-key-user"
             className="mb-1.5 block text-[11px] font-bold uppercase tracking-[.06em] text-muted"
@@ -216,8 +216,9 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
               id="panel-key-user"
               value={selectedUser}
               onChange={(event) => setSelectedUser(event.target.value)}
-              className="min-w-0 flex-1 rounded-[11px] border border-[rgba(10,16,32,.14)] bg-[rgba(255,255,255,.72)]
-                         px-3 py-2 text-[12.5px] text-ink outline-none"
+              className="min-w-0 flex-1 rounded-[11px] border border-hair bg-[var(--modal-field)]
+                         px-3 py-2 text-[12.5px] text-ink outline-none
+                         focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
             >
               {users.map((user) => (
                 <option key={user.id} value={user.id}>
@@ -258,7 +259,7 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
         </div>
 
         {liveKeys.length === 0 ? (
-          <p className="rounded-[12px] bg-[rgba(10,16,32,.04)] p-3 text-[11.5px] text-muted">
+          <p className="rounded-[12px] bg-[var(--g-panel)] p-3 text-[11.5px] text-muted">
             Hələ aktiv açar yoxdur. Yuxarıdan yaradın — ilk açar yaradılan kimi panel giriş tələb
             etməyə başlayacaq.
           </p>
@@ -276,11 +277,11 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
               </thead>
               <tbody>
                 {liveKeys.map((row) => (
-                  <tr key={row.hashPrefix} className="border-t border-[rgba(10,16,32,.08)]">
+                  <tr key={row.hashPrefix} className="border-t border-hair">
                     <td className="py-2 pr-3">
                       <span className="font-bold">{row.userName ?? row.userId}</span>
                       {row.current && (
-                        <span className="ml-1.5 rounded-full bg-[rgba(30,140,90,.14)] px-1.5 py-0.5 text-[10px] font-bold text-[#1c7a4f]">
+                        <span className="ml-1.5 rounded-full bg-[var(--ok-bg)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--ok)]">
                           bu cihaz
                         </span>
                       )}
@@ -316,7 +317,7 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
 
         {/* Per-person revocation — what "they left" means */}
         {users.filter((user) => user.liveKeys > 0).length > 0 && (
-          <div className="mt-4 rounded-[12px] bg-[rgba(10,16,32,.04)] p-3">
+          <div className="mt-4 rounded-[12px] bg-[var(--g-panel)] p-3">
             <b className="block text-[11.5px] font-extrabold">Bir adamın bütün açarlarını kəsmək</b>
             <p className="mt-0.5 text-[11px] text-muted">
               İşdən çıxanda istifadə olunur. Ləğv edilmiş açar silinmir — nə vaxt kəsildiyi qeyd
