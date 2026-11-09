@@ -251,10 +251,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               {days.map((d, i) => {
                 const show = range === 7 || i % 5 === 0 || i === days.length - 1;
                 return (
-                  <span
-                    key={d.key}
-                    className="flex-1 truncate text-center text-[9px] text-muted"
-                  >
+                  <span key={d.key} className="flex-1 truncate text-center text-[9px] text-muted">
                     {show ? (range === 7 ? d.weekday : d.label) : ''}
                   </span>
                 );
@@ -271,14 +268,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
           <div className="relative mx-auto my-5 h-[150px] w-[150px]">
             <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
-              <circle
-                cx="60"
-                cy="60"
-                r={R}
-                fill="none"
-                stroke="var(--g-panel)"
-                strokeWidth="12"
-              />
+              <circle cx="60" cy="60" r={R} fill="none" stroke="var(--g-panel)" strokeWidth="12" />
               <circle
                 cx="60"
                 cy="60"

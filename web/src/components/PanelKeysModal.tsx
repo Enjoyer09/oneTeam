@@ -164,7 +164,10 @@ export const PanelKeysModal: React.FC<PanelKeysModalProps> = ({ onClose, onChang
 
         {error && (
           <div className="mb-4 flex gap-2.5 rounded-[12px] border border-[var(--bad-bd)] bg-[var(--bad-bg)] p-3">
-            <AlertTriangle className="mt-px h-4 w-4 flex-shrink-0 text-[var(--bad)]" strokeWidth={2} />
+            <AlertTriangle
+              className="mt-px h-4 w-4 flex-shrink-0 text-[var(--bad)]"
+              strokeWidth={2}
+            />
             <p className="text-[11.5px] leading-relaxed text-ink">{error}</p>
           </div>
         )}

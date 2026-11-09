@@ -377,7 +377,10 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
                     <tr key={slot.id}>
                       <td>
                         <div className="flex items-center gap-2">
-                          <LayoutGrid className="h-4 w-4 flex-none text-primary" strokeWidth={1.9} />
+                          <LayoutGrid
+                            className="h-4 w-4 flex-none text-primary"
+                            strokeWidth={1.9}
+                          />
                           <span className="text-[12px] font-bold tracking-[-.01em] text-ink">
                             {slot.section}
                           </span>

@@ -85,7 +85,10 @@ export const PanelLogin: React.FC<PanelLoginProps> = ({ status, onSignedIn }) =>
               form because nothing typed here will work until it is fixed. */}
           {status.bootstrapProblem && (
             <div className="mb-4 flex gap-2.5 rounded-[12px] border border-[var(--bad-bd)] bg-[var(--bad-bg)] p-3">
-              <ShieldAlert className="mt-px h-4 w-4 flex-shrink-0 text-[var(--bad)]" strokeWidth={2} />
+              <ShieldAlert
+                className="mt-px h-4 w-4 flex-shrink-0 text-[var(--bad)]"
+                strokeWidth={2}
+              />
               <div className="text-[11.5px] leading-relaxed">
                 <b className="block font-bold text-[var(--bad)]">Bootstrap açarı qəbul edilmir</b>
                 <span className="text-ink">{status.bootstrapProblem}</span>
