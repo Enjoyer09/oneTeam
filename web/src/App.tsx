@@ -637,7 +637,7 @@ export function App() {
   if (auth.phase === 'checking') {
     return (
       <div className="relative flex h-screen items-center justify-center text-ink">
-        <p className="relative z-10 text-[12px] text-muted">Giriş vəziyyəti yoxlanılır…</p>
+        <p className="relative z-10 text-[14px] text-muted">Giriş vəziyyəti yoxlanılır…</p>
       </div>
     );
   }
@@ -691,7 +691,7 @@ export function App() {
           aria-live={toast.kind === 'error' ? 'assertive' : 'polite'}
           className="glass-pop fixed bottom-4 right-4 z-[60] flex items-center gap-2.5
                      max-w-[calc(100vw-2rem)] rounded-[14px] px-4 py-3
-                     text-[12px] font-bold text-ink animate-toastIn"
+                     text-[14px] font-bold text-ink animate-toastIn"
         >
           <span
             className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${toast.kind === 'error' ? 'bg-bad' : 'bg-ok'}`}
@@ -740,7 +740,7 @@ export function App() {
         {openWarning && (
           <div className="relative z-20 flex flex-shrink-0 items-start gap-2.5 border-b border-[var(--bad-bd)] bg-[var(--bad-bg)] px-4 py-2.5 sm:px-5">
             <span className="mt-[3px] h-2 w-2 flex-shrink-0 rounded-full bg-[var(--bad-dot)]" />
-            <p className="text-[11.5px] leading-relaxed text-ink">
+            <p className="text-[13.5px] leading-relaxed text-ink">
               <b className="font-extrabold text-[var(--bad)]">Panel açıqdır.</b> Hələ heç bir giriş
               açarı yoxdur, ona görə bu səhifəni aça bilən hər kəs məlumatları görür və dəyişə
               bilər.{' '}

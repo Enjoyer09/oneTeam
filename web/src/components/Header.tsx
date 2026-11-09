@@ -112,7 +112,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header
       className={[
-        'glass-chrome relative z-20 flex items-center gap-3 flex-shrink-0 h-[68px] px-3 sm:px-5 lg:px-6',
+        'glass-chrome relative z-20 flex items-center gap-3 flex-shrink-0 h-[72px] px-3 sm:px-5 lg:px-6',
         'transition-shadow duration-250 ease-out',
         scrolled ? 'shadow-[0_6px_20px_-14px_rgba(23,27,46,.28)]' : '',
       ].join(' ')}
@@ -144,8 +144,8 @@ export const Header: React.FC<HeaderProps> = ({
           />
         </div>
         <div className="hidden sm:flex items-center gap-1.5 leading-tight">
-          <span className="font-extrabold text-[16px] tracking-[-.03em] text-ink">oneTeam</span>
-          <span className="text-[9px] uppercase font-extrabold tracking-[.07em] px-1.5 py-[2px] rounded-md bg-coke/10 text-coke border border-coke/25">
+          <span className="font-extrabold text-[17px] tracking-[-.03em] text-ink">oneTeam</span>
+          <span className="text-[11px] uppercase font-extrabold tracking-[.07em] px-1.5 py-[2px] rounded-md bg-coke/10 text-coke border border-coke/25">
             Coca-Cola
           </span>
         </div>
@@ -169,7 +169,7 @@ export const Header: React.FC<HeaderProps> = ({
                 {item.label}
                 {badge !== null && (
                   <span
-                    className="text-[10px] px-1.5 py-[1px] rounded-full font-extrabold border text-warn"
+                    className="text-[12px] px-1.5 py-[1px] rounded-full font-extrabold border text-warn"
                     style={{ backgroundColor: 'var(--warn-bg)', borderColor: 'var(--warn-bd)' }}
                   >
                     {badge}
@@ -185,7 +185,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto md:ml-0">
         {/* Bakı saatı */}
         <div
-          className="hidden xl:flex items-center gap-1.5 h-[36px] px-3 rounded-[12px] glass-panel text-[11.5px] text-muted"
+          className="hidden 2xl:flex items-center gap-1.5 h-[36px] px-3 rounded-[12px] glass-panel text-[13.5px] text-muted"
           title="Bakı vaxtı ilə cari saat"
         >
           <Clock className="w-3.5 h-3.5 text-muted" strokeWidth={1.9} />
@@ -238,7 +238,7 @@ export const Header: React.FC<HeaderProps> = ({
           }
         >
           <span
-            className="grid w-7 h-7 place-items-center rounded-full bg-primary-500/15 text-primary font-extrabold text-[10px] flex-shrink-0"
+            className="grid w-7 h-7 place-items-center rounded-full bg-primary-500/15 text-primary font-extrabold text-[12px] flex-shrink-0"
             aria-hidden="true"
           >
             {signedIn && identity?.fullName ? (
@@ -248,10 +248,10 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </span>
           <span className="min-w-0 leading-tight">
-            <span className="block max-w-[150px] truncate text-[11.5px] font-bold text-ink">
+            <span className="block max-w-[150px] truncate text-[13.5px] font-bold text-ink">
               {identity?.fullName ?? 'Kimlik bilinmir'}
             </span>
-            <span className="block text-[10px] text-muted truncate">
+            <span className="block text-[12px] text-muted truncate">
               {signedIn
                 ? (ROLE_LABEL[identity?.role ?? ''] ?? identity?.role ?? '')
                 : 'Açıq panel — giriş yoxdur'}

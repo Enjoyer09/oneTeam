@@ -229,8 +229,8 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
       {/* ── Başlıq + axtarış ──────────────────────────────────────────────── */}
       <div className="glass-card flex flex-col gap-3.5 rounded-card p-4 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
-          <h3 className="text-[13.5px] font-extrabold tracking-[-.02em] text-ink">Rəf Xəritəsi</h3>
-          <p className="mt-0.5 text-[11px] text-muted">
+          <h3 className="text-[15.5px] font-extrabold tracking-[-.02em] text-ink">Rəf Xəritəsi</h3>
+          <p className="mt-0.5 text-[13px] text-muted">
             Bölmə / səviyyə / mövqe — planogram müqayisəsinin bazası, mövqeyə təyin olunmuş SKU ilə
           </p>
         </div>
@@ -248,7 +248,7 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="h-[38px] w-full rounded-[11px] border border-hair bg-[var(--g-panel)]
-                         pl-9 pr-9 text-[12px] text-ink placeholder:text-muted
+                         pl-9 pr-9 text-[14px] text-ink placeholder:text-muted
                          transition-colors duration-150
                          focus:border-primary-500/45 focus:bg-[var(--g-card)] focus:outline-none
                          focus-visible:outline-none focus:ring-2 focus:ring-[var(--primary-ring)]"
@@ -271,7 +271,7 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
               type="button"
               onClick={openCreate}
               className="flex h-[38px] flex-none items-center gap-1.5 rounded-[11px] bg-primary px-3.5
-                         text-[12px] font-extrabold text-white transition-opacity hover:opacity-90
+                         text-[14px] font-extrabold text-white transition-opacity hover:opacity-90
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-ring)]"
             >
               <Plus className="h-4 w-4" strokeWidth={2.4} />
@@ -314,7 +314,7 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
       {countError && (
         <p
           role="alert"
-          className="rounded-lg border px-3 py-2 text-[11.5px] font-bold"
+          className="rounded-lg border px-3 py-2 text-[13.5px] font-bold"
           style={{
             borderColor: 'var(--bad-dot)',
             color: 'var(--bad)',
@@ -335,10 +335,10 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
             >
               <Inbox className="h-6 w-6" strokeWidth={1.7} />
             </span>
-            <h4 className="text-[13px] font-extrabold text-ink">
+            <h4 className="text-[15px] font-extrabold text-ink">
               {query ? 'Uyğun mövqe tapılmadı' : 'Hələ rəf xəritəsi qurulmayıb'}
             </h4>
-            <p className="max-w-[40ch] text-[11.5px] text-muted">
+            <p className="max-w-[40ch] text-[13.5px] text-muted">
               {query
                 ? 'Bölmə adını qısaltmağı və ya səviyyə/mövqe ədədi ilə axtarmağı sınayın.'
                 : 'Yuxarıdaki "Yeni mövqe" düyməsi ilə ilk bölmə / səviyyə / mövqeyi əlavə edin.'}
@@ -381,7 +381,7 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
                             className="h-4 w-4 flex-none text-primary"
                             strokeWidth={1.9}
                           />
-                          <span className="text-[12px] font-bold tracking-[-.01em] text-ink">
+                          <span className="text-[14px] font-bold tracking-[-.01em] text-ink">
                             {slot.section}
                           </span>
                         </div>
@@ -394,7 +394,7 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
                         <span className="chip-g">{slot.position}</span>
                       </td>
 
-                      <td className="text-[11.5px] text-ink-2">
+                      <td className="text-[13.5px] text-ink-2">
                         {assigned ? assigned : <span className="text-muted italic">boş mövqe</span>}
                       </td>
 
@@ -426,7 +426,7 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
                                 }
                               }}
                               className="w-[62px] rounded-lg border border-hair bg-[var(--g-card)]
-                                         px-2 py-1 text-[11.5px] font-mono text-ink
+                                         px-2 py-1 text-[13.5px] font-mono text-ink
                                          focus:border-primary-500/45 focus:outline-none
                                          focus:ring-2 focus:ring-[var(--primary-ring)]"
                             />
@@ -447,7 +447,7 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
                         )}
                       </td>
 
-                      <td className="text-[11.5px] text-muted">
+                      <td className="text-[13.5px] text-muted">
                         {slot.created_at ? slot.created_at.slice(0, 10) : '—'}
                       </td>
 
@@ -488,7 +488,7 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
       </div>
 
       {filtered.length > 0 && (
-        <p className="px-1 text-[11px] text-muted">
+        <p className="px-1 text-[13px] text-muted">
           {query
             ? `${filtered.length} / ${shelfPositions.length} mövqe göstərilir`
             : `${shelfPositions.length} mövqe`}
@@ -541,7 +541,7 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
                     onChange={(e) => set('section', e.target.value)}
                     className={inputClass}
                   />
-                  <p className="mt-1 text-[11px] text-muted">
+                  <p className="mt-1 text-[13px] text-muted">
                     Fiziki bölmənin adı (məsələn "Kola rəfi", "Vitrin A"). Bu addan eyni səviyyə /
                     mövqe ikinci dəfə istifadə olunarsa API rədd edəcək.
                   </p>
@@ -604,7 +604,7 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
                         </option>
                       ))}
                   </select>
-                  <p className="mt-1 text-[11px] text-muted">
+                  <p className="mt-1 text-[13px] text-muted">
                     Təyin olunmuş məhsul kataloqdan silinə bilməz — əvvəlcə buradan çıxarın.
                   </p>
                 </div>
@@ -612,7 +612,7 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
                 {formError && (
                   <p
                     role="alert"
-                    className="rounded-lg border px-3 py-2 text-[11.5px] font-bold"
+                    className="rounded-lg border px-3 py-2 text-[13.5px] font-bold"
                     style={{
                       borderColor: 'var(--bad-dot)',
                       color: 'var(--bad)',
@@ -663,10 +663,10 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
                   <AlertTriangle className="h-4 w-4" strokeWidth={2} />
                 </span>
                 <div className="min-w-0">
-                  <h3 className="text-[13px] font-extrabold text-ink">
+                  <h3 className="text-[15px] font-extrabold text-ink">
                     "{slotLabel(pendingDelete)}" silinsin?
                   </h3>
-                  <p className="mt-1 text-[11.5px] text-muted">
+                  <p className="mt-1 text-[13.5px] text-muted">
                     {pendingDelete.product_id
                       ? 'Bu mövqeyə təyin olunmuş məhsul silinməyəcək — yalnız xəritədən çıxacaq.'
                       : 'Mövqe xəritədən çıxacaq. Bu əməliyyat geri qaytarılmır.'}
@@ -675,7 +675,7 @@ export const ShelfMap: React.FC<ShelfMapProps> = ({
                   {deleteError && (
                     <p
                       role="alert"
-                      className="mt-3 rounded-lg border px-3 py-2 text-[11.5px] font-bold"
+                      className="mt-3 rounded-lg border px-3 py-2 text-[13.5px] font-bold"
                       style={{
                         borderColor: 'var(--bad-dot)',
                         color: 'var(--bad)',
@@ -721,10 +721,10 @@ const MetricTile: React.FC<{ label: string; value: string; hint: string }> = ({
     className="min-w-[140px] flex-1 rounded-[11px] border border-hair p-3"
     style={{ backgroundColor: 'var(--g-panel)' }}
   >
-    <div className="text-[10.5px] font-bold uppercase tracking-[.06em] text-muted">{label}</div>
-    <div className="mt-1 font-mono text-[17px] font-extrabold tracking-[-.02em] text-ink">
+    <div className="text-[12.5px] font-bold uppercase tracking-[.06em] text-muted">{label}</div>
+    <div className="mt-1 font-mono text-[18px] font-extrabold tracking-[-.02em] text-ink">
       {value}
     </div>
-    <div className="mt-0.5 text-[10.5px] text-muted">{hint}</div>
+    <div className="mt-0.5 text-[12.5px] text-muted">{hint}</div>
   </div>
 );

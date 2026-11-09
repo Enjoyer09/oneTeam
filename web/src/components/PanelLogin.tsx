@@ -72,10 +72,10 @@ export const PanelLogin: React.FC<PanelLoginProps> = ({ status, onSignedIn }) =>
               <KeyRound className="h-[18px] w-[18px] text-primary" strokeWidth={2} />
             </span>
             <div className="min-w-0">
-              <h1 className="text-[16px] font-extrabold tracking-[-.03em] leading-tight">
+              <h1 className="text-[17px] font-extrabold tracking-[-.03em] leading-tight">
                 oneTeam Supervayzer Paneli
               </h1>
-              <p className="mt-0.5 text-[11px] text-muted">
+              <p className="mt-0.5 text-[13px] text-muted">
                 Davam etmək üçün şəxsi giriş açarınızı daxil edin
               </p>
             </div>
@@ -89,7 +89,7 @@ export const PanelLogin: React.FC<PanelLoginProps> = ({ status, onSignedIn }) =>
                 className="mt-px h-4 w-4 flex-shrink-0 text-[var(--bad)]"
                 strokeWidth={2}
               />
-              <div className="text-[11.5px] leading-relaxed">
+              <div className="text-[13.5px] leading-relaxed">
                 <b className="block font-bold text-[var(--bad)]">Bootstrap açarı qəbul edilmir</b>
                 <span className="text-ink">{status.bootstrapProblem}</span>
               </div>
@@ -98,7 +98,7 @@ export const PanelLogin: React.FC<PanelLoginProps> = ({ status, onSignedIn }) =>
 
           <label
             htmlFor="panel-key"
-            className="mb-1.5 block text-[11px] font-bold uppercase tracking-[.06em] text-muted"
+            className="mb-1.5 block text-[13px] font-bold uppercase tracking-[.06em] text-muted"
           >
             Giriş açarı
           </label>
@@ -111,12 +111,12 @@ export const PanelLogin: React.FC<PanelLoginProps> = ({ status, onSignedIn }) =>
             spellCheck={false}
             placeholder="otp_..."
             className="w-full rounded-[12px] border border-hair bg-[var(--modal-field)]
-                       px-3 py-2.5 font-mono text-[13px] text-ink outline-none
+                       px-3 py-2.5 font-mono text-[15px] text-ink outline-none
                        focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
           />
 
           {error && (
-            <p className="mt-3 text-[11.5px] leading-relaxed text-[var(--bad)]" role="alert">
+            <p className="mt-3 text-[13.5px] leading-relaxed text-[var(--bad)]" role="alert">
               {error}
             </p>
           )}
@@ -139,7 +139,7 @@ export const PanelLogin: React.FC<PanelLoginProps> = ({ status, onSignedIn }) =>
           {!status.bootstrapProblem && status.liveKeys === 0 && status.bootstrapConfigured && (
             <div className="mt-4 flex gap-2.5 rounded-[12px] bg-[var(--g-panel)] p-3">
               <ShieldCheck className="mt-px h-4 w-4 flex-shrink-0 text-muted" strokeWidth={2} />
-              <p className="text-[11.5px] leading-relaxed text-muted">
+              <p className="text-[13.5px] leading-relaxed text-muted">
                 Hələ şəxsi açar yaradılmayıb. <b className="font-bold text-ink">Bootstrap açarı</b>{' '}
                 ilə daxil olun, sonra «Giriş açarları» bölməsindən özünüzə şəxsi açar yaradın və
                 bootstrap açarını serverdən silin.
@@ -148,7 +148,7 @@ export const PanelLogin: React.FC<PanelLoginProps> = ({ status, onSignedIn }) =>
           )}
         </form>
 
-        <p className="mt-3 px-1 text-center text-[11px] leading-relaxed text-muted">
+        <p className="mt-3 px-1 text-center text-[13px] leading-relaxed text-muted">
           {status.detail}
         </p>
       </div>

@@ -288,10 +288,10 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
               <ShieldCheck className="h-4 w-4" strokeWidth={2} />
             </span>
             <div className="min-w-0 flex-1">
-              <h2 className="text-[15px] font-extrabold tracking-[-.03em]">
+              <h2 className="text-[17px] font-extrabold tracking-[-.03em]">
                 İstifadəçilər və rollar
               </h2>
-              <p className="mt-0.5 text-[11px] text-muted">
+              <p className="mt-0.5 text-[13px] text-muted">
                 Kim sistemdədir, nə edə bilər, və kimə açar verilə bilər.
               </p>
             </div>
@@ -313,29 +313,29 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                 className="mt-px h-4 w-4 flex-shrink-0 text-[var(--bad)]"
                 strokeWidth={2}
               />
-              <p className="text-[11.5px] leading-relaxed text-ink">{error}</p>
+              <p className="text-[13.5px] leading-relaxed text-ink">{error}</p>
             </div>
           )}
 
           {notice && !error && (
             <div className="mb-4 flex gap-2.5 rounded-[12px] border border-[var(--ok-bd)] bg-[var(--ok-bg)] p-3">
               <Check className="mt-px h-4 w-4 flex-shrink-0 text-[var(--ok)]" strokeWidth={2.2} />
-              <p className="text-[11.5px] leading-relaxed text-ink">{notice}</p>
+              <p className="text-[13.5px] leading-relaxed text-ink">{notice}</p>
             </div>
           )}
 
           {/* The one and only sighting of a key minted from this screen. */}
           {freshKey && (
             <div className="mb-4 rounded-[14px] border border-[var(--ok-bd)] bg-[var(--ok-bg)] p-3.5">
-              <b className="block text-[12px] font-extrabold text-[var(--ok)]">
+              <b className="block text-[14px] font-extrabold text-[var(--ok)]">
                 {freshKey.forWhom} üçün açar yaradıldı — indi köçürün
               </b>
-              <p className="mt-1 text-[11.5px] leading-relaxed text-ink">
+              <p className="mt-1 text-[13.5px] leading-relaxed text-ink">
                 Bu açar <b className="font-bold">bir daha göstərilməyəcək</b>. Verilənlər bazasında
                 yalnız onun barmaq izi saxlanılır. Açarı həmin adama ötürün.
               </p>
               <div className="mt-2.5 flex items-center gap-2">
-                <code className="min-w-0 flex-1 truncate rounded-[10px] bg-[var(--modal-field)] px-3 py-2 font-mono text-[12px]">
+                <code className="min-w-0 flex-1 truncate rounded-[10px] bg-[var(--modal-field)] px-3 py-2 font-mono text-[14px]">
                   {freshKey.token}
                 </code>
                 <button
@@ -359,8 +359,8 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
             {!adding ? (
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <b className="block text-[12px] font-extrabold">Yeni adam əlavə et</b>
-                  <p className="mt-0.5 text-[11px] text-muted">
+                  <b className="block text-[14px] font-extrabold">Yeni adam əlavə et</b>
+                  <p className="mt-0.5 text-[13px] text-muted">
                     Sahə işçiləri bot və ya telefondan özləri qeydiyyatdan keçir — onları burada
                     yaratmaq lazım deyil. Bu forma supervayzer və administrator üçündür.
                   </p>
@@ -376,7 +376,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
               </div>
             ) : (
               <div>
-                <b className="mb-2 block text-[12px] font-extrabold">Yeni adam</b>
+                <b className="mb-2 block text-[14px] font-extrabold">Yeni adam</b>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <label className="block">
                     <span className="mb-1 block text-xs font-bold uppercase tracking-[.06em] text-muted">
@@ -386,7 +386,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                       value={draft.fullName}
                       onChange={(event) => setDraft({ ...draft, fullName: event.target.value })}
                       placeholder="Məsələn: Aysel Hüseynova"
-                      className="w-full rounded-[11px] border border-hair bg-[var(--modal-field)] px-3 py-2 text-[12.5px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
+                      className="w-full rounded-[11px] border border-hair bg-[var(--modal-field)] px-3 py-2 text-[14.5px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
                     />
                   </label>
                   <label className="block">
@@ -397,7 +397,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                       value={draft.email}
                       onChange={(event) => setDraft({ ...draft, email: event.target.value })}
                       placeholder="aysel@coke.oneteam.az"
-                      className="w-full rounded-[11px] border border-hair bg-[var(--modal-field)] px-3 py-2 text-[12.5px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
+                      className="w-full rounded-[11px] border border-hair bg-[var(--modal-field)] px-3 py-2 text-[14.5px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
                     />
                   </label>
                   <label className="block">
@@ -408,7 +408,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                       value={draft.phone}
                       onChange={(event) => setDraft({ ...draft, phone: event.target.value })}
                       placeholder="+99450..."
-                      className="w-full rounded-[11px] border border-hair bg-[var(--modal-field)] px-3 py-2 text-[12.5px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
+                      className="w-full rounded-[11px] border border-hair bg-[var(--modal-field)] px-3 py-2 text-[14.5px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
                     />
                   </label>
                   <label className="block">
@@ -418,7 +418,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                     <select
                       value={draft.role}
                       onChange={(event) => setDraft({ ...draft, role: event.target.value })}
-                      className="w-full rounded-[11px] border border-hair bg-[var(--modal-field)] px-3 py-2 text-[12.5px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
+                      className="w-full rounded-[11px] border border-hair bg-[var(--modal-field)] px-3 py-2 text-[14.5px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
                     >
                       {roles.map((role) => (
                         <option key={role} value={role}>
@@ -429,7 +429,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                   </label>
                 </div>
                 {ROLE_HELP[draft.role] && (
-                  <p className="mt-2 text-[11px] text-muted">{ROLE_HELP[draft.role]}</p>
+                  <p className="mt-2 text-[13px] text-muted">{ROLE_HELP[draft.role]}</p>
                 )}
                 <div className="mt-2.5 flex gap-2">
                   <button
@@ -462,7 +462,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
 
           {/* The list */}
           <div className="mb-1.5 flex items-center justify-between">
-            <h3 className="text-[12px] font-extrabold tracking-[-.02em]">
+            <h3 className="text-[14px] font-extrabold tracking-[-.02em]">
               İstifadəçilər ({users.length})
             </h3>
             <button type="button" onClick={() => void load()} className="btn-g" disabled={loading}>
@@ -476,7 +476,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
           </div>
 
           {loading && users.length === 0 ? (
-            <p className="rounded-[12px] bg-[var(--g-panel)] p-3 text-[11.5px] text-muted">
+            <p className="rounded-[12px] bg-[var(--g-panel)] p-3 text-[13.5px] text-muted">
               Yüklənir…
             </p>
           ) : (
@@ -494,7 +494,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                           onChange={(event) =>
                             setEditDraft({ ...editDraft, fullName: event.target.value })
                           }
-                          className="rounded-[10px] border border-hair bg-[var(--modal-field)] px-2.5 py-1.5 text-[12px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
+                          className="rounded-[10px] border border-hair bg-[var(--modal-field)] px-2.5 py-1.5 text-[14px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
                         />
                         <select
                           value={editDraft.role}
@@ -505,7 +505,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                           title={
                             user.isSelf ? 'Öz rolunuzu özünüz dəyişə bilməzsiniz' : 'Rolu dəyiş'
                           }
-                          className="rounded-[10px] border border-hair bg-[var(--modal-field)] px-2.5 py-1.5 text-[12px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)] disabled:opacity-50"
+                          className="rounded-[10px] border border-hair bg-[var(--modal-field)] px-2.5 py-1.5 text-[14px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)] disabled:opacity-50"
                         >
                           {roles.map((role) => (
                             <option key={role} value={role}>
@@ -519,11 +519,11 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                             setEditDraft({ ...editDraft, phone: event.target.value })
                           }
                           placeholder="Telefon"
-                          className="rounded-[10px] border border-hair bg-[var(--modal-field)] px-2.5 py-1.5 text-[12px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
+                          className="rounded-[10px] border border-hair bg-[var(--modal-field)] px-2.5 py-1.5 text-[14px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
                         />
                       </div>
                       {ROLE_HELP[editDraft.role] && (
-                        <p className="mt-1.5 text-[11px] text-muted">{ROLE_HELP[editDraft.role]}</p>
+                        <p className="mt-1.5 text-[13px] text-muted">{ROLE_HELP[editDraft.role]}</p>
                       )}
                       <div className="mt-2 flex gap-2">
                         <button
@@ -544,31 +544,31 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <b className="text-[12.5px] font-extrabold">{user.fullName}</b>
-                          <span className="rounded-full bg-[var(--g-panel)] px-2 py-0.5 text-[10px] font-bold text-ink">
+                          <b className="text-[14.5px] font-extrabold">{user.fullName}</b>
+                          <span className="rounded-full bg-[var(--g-panel)] px-2 py-0.5 text-[12px] font-bold text-ink">
                             {ROLE_LABEL[user.role] ?? user.role}
                           </span>
                           {user.isSelf && (
-                            <span className="rounded-full bg-[var(--ok-bg)] px-2 py-0.5 text-[10px] font-bold text-[var(--ok)]">
+                            <span className="rounded-full bg-[var(--ok-bg)] px-2 py-0.5 text-[12px] font-bold text-[var(--ok)]">
                               siz
                             </span>
                           )}
                           {user.joinedVia && (
-                            <span className="rounded-full bg-[var(--g-panel)] px-2 py-0.5 text-[10px] text-muted">
+                            <span className="rounded-full bg-[var(--g-panel)] px-2 py-0.5 text-[12px] text-muted">
                               {user.joinedVia === 'telegram'
                                 ? 'Telegram ilə qoşulub'
                                 : 'Telefon ilə qoşulub'}
                             </span>
                           )}
                         </div>
-                        <p className="mt-0.5 text-[11px] text-muted">
+                        <p className="mt-0.5 text-[13px] text-muted">
                           {user.email ?? 'E-poçt yoxdur'}
                           {user.phone ? ` · ${user.phone}` : ''}
                           {` · ${user.liveKeys} aktiv açar`}
                           {user.submissions !== null ? ` · ${user.submissions} təqdimat` : ''}
                         </p>
                         {!user.deletable && user.blockedBy && (
-                          <p className="mt-0.5 text-[11px] text-[var(--bad)]">
+                          <p className="mt-0.5 text-[13px] text-[var(--bad)]">
                             {BLOCK_REASON[user.blockedBy]}
                           </p>
                         )}
@@ -638,7 +638,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
             </div>
           )}
 
-          <p className="mt-3 text-[11px] leading-relaxed text-muted">
+          <p className="mt-3 text-[13px] leading-relaxed text-muted">
             Hesab silindikdə onun bütün açarları da silinir və keçmiş əməliyyatları audit jurnalında
             adsız qalır. Audit təqdimatı olan şəxs silinmir — ona görə də silmək əvəzinə açarlarını
             kəsmək tövsiyə olunur.
@@ -661,17 +661,17 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                 <AlertTriangle className="h-4 w-4" strokeWidth={2} />
               </span>
               <div className="min-w-0">
-                <h3 className="text-[13px] font-extrabold text-ink">
+                <h3 className="text-[15px] font-extrabold text-ink">
                   "{pendingDelete.fullName}" silinsin?
                 </h3>
-                <p className="mt-1 text-[11.5px] leading-relaxed text-muted">
+                <p className="mt-1 text-[13.5px] leading-relaxed text-muted">
                   Hesab və onun bütün aktiv açarları silinir; keçmiş əməliyyatları audit jurnalında
                   adsız qalır. Bu əməliyyat geri qaytarılmır.
                 </p>
                 {deleteError && (
                   <p
                     role="alert"
-                    className="mt-3 rounded-lg border border-[var(--bad-bd)] bg-[var(--bad-bg)] px-3 py-2 text-[11.5px] font-bold text-[var(--bad)]"
+                    className="mt-3 rounded-lg border border-[var(--bad-bd)] bg-[var(--bad-bg)] px-3 py-2 text-[13.5px] font-bold text-[var(--bad)]"
                   >
                     {deleteError}
                   </p>

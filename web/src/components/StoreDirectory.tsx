@@ -312,10 +312,10 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
       {/* ── Başlıq + axtarış ──────────────────────────────────────────────── */}
       <div className="glass-card flex flex-col gap-3.5 rounded-card p-4 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
-          <h3 className="text-[13.5px] font-extrabold tracking-[-.02em] text-ink">
+          <h3 className="text-[15.5px] font-extrabold tracking-[-.02em] text-ink">
             Tərəfdaş Mağazalar Şəbəkəsi
           </h3>
-          <p className="mt-0.5 text-[11px] text-muted">
+          <p className="mt-0.5 text-[13px] text-muted">
             Coca-Cola vitrin və rəflərinin monitorinq edildiyi retail nöqtələri
           </p>
         </div>
@@ -333,7 +333,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="h-[38px] w-full rounded-[11px] border border-hair bg-[var(--g-panel)]
-                         pl-9 pr-9 text-[12px] text-ink placeholder:text-muted
+                         pl-9 pr-9 text-[14px] text-ink placeholder:text-muted
                          transition-colors duration-150
                          focus:border-primary-500/45 focus:bg-[var(--g-card)] focus:outline-none
                          focus-visible:outline-none focus:ring-2 focus:ring-[var(--primary-ring)]"
@@ -356,7 +356,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
               type="button"
               onClick={openCreate}
               className="flex h-[38px] flex-none items-center gap-1.5 rounded-[11px] bg-primary px-3.5
-                         text-[12px] font-extrabold text-white transition-opacity hover:opacity-90
+                         text-[14px] font-extrabold text-white transition-opacity hover:opacity-90
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-ring)]"
             >
               <Plus className="h-4 w-4" strokeWidth={2.4} />
@@ -376,10 +376,10 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
             >
               <Inbox className="h-6 w-6" strokeWidth={1.7} />
             </span>
-            <h4 className="text-[13px] font-extrabold text-ink">
+            <h4 className="text-[15px] font-extrabold text-ink">
               {query ? 'Uyğun mağaza tapılmadı' : 'Hələ mağaza qeydiyyatda deyil'}
             </h4>
-            <p className="max-w-[40ch] text-[11.5px] text-muted">
+            <p className="max-w-[40ch] text-[13.5px] text-muted">
               {query
                 ? 'Axtarış sözünü qısaltmağı və ya filial kodunu yoxlamağı sınayın.'
                 : 'Yuxarıdaki "Yeni mağaza" düyməsi ilə ilk retail nöqtəsini əlavə edin.'}
@@ -435,7 +435,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
                       <td>
                         <div className="flex items-center gap-2">
                           <StoreIcon className="h-4 w-4 flex-none text-primary" strokeWidth={1.9} />
-                          <span className="text-[12px] font-bold tracking-[-.01em] text-ink">
+                          <span className="text-[14px] font-bold tracking-[-.01em] text-ink">
                             {store.name}
                           </span>
                         </div>
@@ -448,7 +448,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
                         </div>
                       </td>
 
-                      <td className="text-[11.5px] text-ink-2">
+                      <td className="text-[13.5px] text-ink-2">
                         {STORE_FORMAT_LABELS[store.store_format ?? ''] ?? store.store_format ?? '—'}
                       </td>
 
@@ -477,7 +477,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
                               />
                             </span>
                             <span
-                              className="font-mono text-[11.5px] font-bold tabular-nums"
+                              className="font-mono text-[13.5px] font-bold tabular-nums"
                               style={{ color: tone.text }}
                             >
                               {compliancePercent}%
@@ -542,7 +542,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
 
       {/* Nəticə sayı — istifadəçi filtrasiyanın işlədiyini görür */}
       {filteredStores.length > 0 && (
-        <p className="px-1 text-[11px] text-muted">
+        <p className="px-1 text-[13px] text-muted">
           {query
             ? `${filteredStores.length} / ${stores.length} mağaza göstərilir`
             : `${stores.length} mağaza`}
@@ -596,7 +596,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
                       onChange={(e) => set('store_code', e.target.value.toUpperCase())}
                       className={`${inputClass} font-mono`}
                     />
-                    <p className="mt-1 text-[11px] text-muted">
+                    <p className="mt-1 text-[13px] text-muted">
                       Boşluq olmaz; böyük hərflərlə yazılır.
                     </p>
                   </div>
@@ -723,7 +723,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
                       void fillFromCurrentPosition();
                     }}
                     disabled={locating}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-hair bg-[var(--g-card)] px-3 py-2 text-[11px] font-bold text-ink-2 transition hover:border-primary-500/45 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-hair bg-[var(--g-card)] px-3 py-2 text-[13px] font-bold text-ink-2 transition hover:border-primary-500/45 disabled:opacity-50"
                   >
                     <MapPin className="h-3.5 w-3.5" />
                     {locating ? 'Mövqe götürülür…' : 'Cari mövqeyimi götür'}
@@ -732,7 +732,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
                   {geoStatus && (
                     <p
                       role={geoStatus.kind === 'error' ? 'alert' : 'status'}
-                      className="min-w-0 flex-1 text-[11px] leading-relaxed"
+                      className="min-w-0 flex-1 text-[13px] leading-relaxed"
                       style={{
                         color: geoStatus.kind === 'error' ? 'var(--bad)' : 'var(--ok)',
                       }}
@@ -742,7 +742,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
                   )}
                 </div>
 
-                <p className="rounded-lg border border-hair bg-[var(--g-panel)] px-3 py-2 text-[11px] text-muted">
+                <p className="rounded-lg border border-hair bg-[var(--g-panel)] px-3 py-2 text-[13px] text-muted">
                   Koordinatı Google Maps-də mağazanın üzərinə sağ klikləyib kopyalayın. Səhv onluq
                   nöqtə geofence-i söndürür və həmin mağazadan heç bir foto qəbul olunmaz.
                 </p>
@@ -762,7 +762,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
                 {formError && (
                   <p
                     role="alert"
-                    className="rounded-lg border px-3 py-2 text-[11.5px] font-bold"
+                    className="rounded-lg border px-3 py-2 text-[13.5px] font-bold"
                     style={{
                       borderColor: 'var(--bad-dot)',
                       color: 'var(--bad)',
@@ -813,14 +813,14 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
                   <AlertTriangle className="h-4 w-4" strokeWidth={2} />
                 </span>
                 <div className="min-w-0">
-                  <h3 className="text-[13px] font-extrabold text-ink">
+                  <h3 className="text-[15px] font-extrabold text-ink">
                     "{pendingDelete.name}" silinsin?
                   </h3>
-                  <p className="mt-1 text-[11.5px] text-muted">
+                  <p className="mt-1 text-[13.5px] text-muted">
                     Mağaza kodu <span className="font-mono">{pendingDelete.store_code}</span>. Bu
                     əməliyyat geri qaytarılmır.
                   </p>
-                  <p className="mt-1.5 text-[11.5px] text-muted">
+                  <p className="mt-1.5 text-[13.5px] text-muted">
                     Mağazanın tapşırıqları varsa, silinmə yerinə onu <b>deaktiv</b> etmək düzgün
                     seçimdir — beləcə tarixçə qalır, yeni iş göndərilmir.
                   </p>
@@ -828,7 +828,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
                   {deleteError && (
                     <p
                       role="alert"
-                      className="mt-3 rounded-lg border px-3 py-2 text-[11.5px] font-bold"
+                      className="mt-3 rounded-lg border px-3 py-2 text-[13.5px] font-bold"
                       style={{
                         borderColor: 'var(--bad-dot)',
                         color: 'var(--bad)',

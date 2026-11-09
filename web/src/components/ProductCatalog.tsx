@@ -152,10 +152,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {/* ── Başlıq + axtarış ──────────────────────────────────────────────── */}
       <div className="glass-card flex flex-col gap-3.5 rounded-card p-4 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
-          <h3 className="text-[13.5px] font-extrabold tracking-[-.02em] text-ink">
+          <h3 className="text-[15.5px] font-extrabold tracking-[-.02em] text-ink">
             Məhsul Kataloqu (SKU)
           </h3>
-          <p className="mt-0.5 text-[11px] text-muted">
+          <p className="mt-0.5 text-[13px] text-muted">
             Barkoda uyğun məhsulun adı, ölçüsü və variantı
           </p>
         </div>
@@ -173,7 +173,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="h-[38px] w-full rounded-[11px] border border-hair bg-[var(--g-panel)]
-                         pl-9 pr-9 text-[12px] text-ink placeholder:text-muted
+                         pl-9 pr-9 text-[14px] text-ink placeholder:text-muted
                          transition-colors duration-150
                          focus:border-primary-500/45 focus:bg-[var(--g-card)] focus:outline-none
                          focus-visible:outline-none focus:ring-2 focus:ring-[var(--primary-ring)]"
@@ -196,7 +196,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               type="button"
               onClick={openCreate}
               className="flex h-[38px] flex-none items-center gap-1.5 rounded-[11px] bg-primary px-3.5
-                         text-[12px] font-extrabold text-white transition-opacity hover:opacity-90
+                         text-[14px] font-extrabold text-white transition-opacity hover:opacity-90
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-ring)]"
             >
               <Plus className="h-4 w-4" strokeWidth={2.4} />
@@ -216,10 +216,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             >
               <Inbox className="h-6 w-6" strokeWidth={1.7} />
             </span>
-            <h4 className="text-[13px] font-extrabold text-ink">
+            <h4 className="text-[15px] font-extrabold text-ink">
               {query ? 'Uyğun məhsul tapılmadı' : 'Hələ məhsul qeydiyyatda deyil'}
             </h4>
-            <p className="max-w-[40ch] text-[11.5px] text-muted">
+            <p className="max-w-[40ch] text-[13.5px] text-muted">
               {query
                 ? 'Barkodu tam yazmağı və ya axtarış sözünü qısaltmağı sınayın.'
                 : 'Yuxarıdaki "Yeni məhsul" düyməsi ilə ilk SKU-nu əlavə edin.'}
@@ -260,15 +260,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     <td>
                       <div className="flex items-center gap-2">
                         <Barcode className="h-4 w-4 flex-none text-primary" strokeWidth={1.9} />
-                        <span className="text-[12px] font-bold tracking-[-.01em] text-ink">
+                        <span className="text-[14px] font-bold tracking-[-.01em] text-ink">
                           {product.name}
                         </span>
                       </div>
                     </td>
 
-                    <td className="text-[11.5px] text-ink-2">{product.size ?? '—'}</td>
-                    <td className="text-[11.5px] text-ink-2">{product.variant ?? '—'}</td>
-                    <td className="text-[11.5px] text-muted">
+                    <td className="text-[13.5px] text-ink-2">{product.size ?? '—'}</td>
+                    <td className="text-[13.5px] text-ink-2">{product.variant ?? '—'}</td>
+                    <td className="text-[13.5px] text-muted">
                       {product.created_at ? product.created_at.slice(0, 10) : '—'}
                     </td>
 
@@ -308,7 +308,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       </div>
 
       {filtered.length > 0 && (
-        <p className="px-1 text-[11px] text-muted">
+        <p className="px-1 text-[13px] text-muted">
           {query
             ? `${filtered.length} / ${products.length} məhsul göstərilir`
             : `${products.length} məhsul`}
@@ -364,7 +364,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     onChange={(e) => set('barcode', e.target.value.replace(/\D/g, ''))}
                     className={`${inputClass} font-mono`}
                   />
-                  <p className="mt-1 text-[11px] text-muted">
+                  <p className="mt-1 text-[13px] text-muted">
                     Yalnız rəqəm, 8–14 xana. Köhnə barkodu dəyişmək digər məhsulunki ilə toşuşarsa
                     API rədd edəcək.
                   </p>
@@ -418,7 +418,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 {formError && (
                   <p
                     role="alert"
-                    className="rounded-lg border px-3 py-2 text-[11.5px] font-bold"
+                    className="rounded-lg border px-3 py-2 text-[13.5px] font-bold"
                     style={{
                       borderColor: 'var(--bad-dot)',
                       color: 'var(--bad)',
@@ -469,10 +469,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   <AlertTriangle className="h-4 w-4" strokeWidth={2} />
                 </span>
                 <div className="min-w-0">
-                  <h3 className="text-[13px] font-extrabold text-ink">
+                  <h3 className="text-[15px] font-extrabold text-ink">
                     "{pendingDelete.name}" silinsin?
                   </h3>
-                  <p className="mt-1 text-[11.5px] text-muted">
+                  <p className="mt-1 text-[13.5px] text-muted">
                     Barkod <span className="font-mono">{pendingDelete.barcode}</span>. Bu əməliyyat
                     geri qaytarılmır.
                   </p>
@@ -480,7 +480,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   {deleteError && (
                     <p
                       role="alert"
-                      className="mt-3 rounded-lg border px-3 py-2 text-[11.5px] font-bold"
+                      className="mt-3 rounded-lg border px-3 py-2 text-[13.5px] font-bold"
                       style={{
                         borderColor: 'var(--bad-dot)',
                         color: 'var(--bad)',

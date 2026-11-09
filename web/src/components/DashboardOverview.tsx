@@ -171,7 +171,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               title={`${kpi.title} bölməsinə keç`}
             >
               <div className="flex items-start justify-between gap-2">
-                <span className="text-[12px] font-bold text-muted leading-tight">{kpi.title}</span>
+                <span className="text-[14px] font-bold text-muted leading-tight">{kpi.title}</span>
                 <span
                   className="grid h-10 w-10 flex-none place-items-center rounded-[14px]"
                   style={{ backgroundColor: kpi.bg, color: kpi.fg }}
@@ -185,7 +185,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 </span>
                 {kpi.chip}
               </div>
-              <p className="mt-2 text-[11.5px] text-muted leading-snug">{kpi.subtitle}</p>
+              <p className="mt-2 text-[13.5px] text-muted leading-snug">{kpi.subtitle}</p>
             </div>
           );
         })}
@@ -195,7 +195,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       <section className="grid gap-4 lg:grid-cols-3" aria-label="Audit statistikası">
         <div className="glass-card rounded-card p-5 lg:col-span-2">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-[14px] font-extrabold tracking-[-.02em] text-ink">Audit axını</h3>
+            <h3 className="text-[16px] font-extrabold tracking-[-.02em] text-ink">Audit axını</h3>
             <div className="seg" role="group" aria-label="Zaman aralığı">
               <button
                 type="button"
@@ -232,7 +232,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   title={`${d.label}: ${d.count} göndəriş`}
                 >
                   {d.count > 0 && (
-                    <span className="mb-1 rounded-full border border-hair bg-[var(--g-card)] px-1.5 py-[1px] text-[9.5px] font-extrabold text-ink shadow-subtle tabular-nums">
+                    <span className="mb-1 rounded-full border border-hair bg-[var(--g-card)] px-1.5 py-[1px] text-[11.5px] font-extrabold text-ink shadow-subtle tabular-nums">
                       {d.count}
                     </span>
                   )}
@@ -251,7 +251,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               {days.map((d, i) => {
                 const show = range === 7 || i % 5 === 0 || i === days.length - 1;
                 return (
-                  <span key={d.key} className="flex-1 truncate text-center text-[9px] text-muted">
+                  <span key={d.key} className="flex-1 truncate text-center text-[11px] text-muted">
                     {show ? (range === 7 ? d.weekday : d.label) : ''}
                   </span>
                 );
@@ -262,7 +262,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
         <div className="glass-card flex flex-col rounded-card p-5">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="text-[14px] font-extrabold tracking-[-.02em] text-ink">Uyğunluq</h3>
+            <h3 className="text-[16px] font-extrabold tracking-[-.02em] text-ink">Uyğunluq</h3>
             <span className="chip-g">canlı</span>
           </div>
 
@@ -285,7 +285,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 <div className="text-[30px] font-extrabold leading-none tracking-[-.03em] text-ink tabular-nums">
                   {total === 0 ? '—' : `${rate}%`}
                 </div>
-                <div className="mt-1 text-[10px] text-muted">təsdiq payı</div>
+                <div className="mt-1 text-[12px] text-muted">təsdiq payı</div>
               </div>
             </div>
           </div>
@@ -296,7 +296,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               { label: 'Gözləyir', count: pending, dot: 'var(--warn-dot)' },
               { label: 'İmtina edildi', count: rejected, dot: 'var(--bad-dot)' },
             ].map((row) => (
-              <div key={row.label} className="flex items-center gap-2 text-[12px]">
+              <div key={row.label} className="flex items-center gap-2 text-[14px]">
                 <span
                   className="h-2.5 w-2.5 flex-none rounded-full"
                   style={{ backgroundColor: row.dot }}
@@ -313,17 +313,17 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       <div className="glass-card overflow-hidden rounded-card">
         <div className="flex items-start justify-between gap-3 p-5 pb-3">
           <div className="min-w-0">
-            <h3 className="text-[14px] font-extrabold tracking-[-.02em] text-ink">
+            <h3 className="text-[16px] font-extrabold tracking-[-.02em] text-ink">
               Son Göndərilən Rəf Yoxlamaları
             </h3>
-            <p className="mt-0.5 text-[11.5px] text-muted">
+            <p className="mt-0.5 text-[13.5px] text-muted">
               Telegram Bot və Mobil tətbiqdən daxil olan audit axını
             </p>
           </div>
           <button
             type="button"
             onClick={() => onNavigateTab('review')}
-            className="flex flex-none items-center gap-1 text-[12px] font-extrabold text-primary
+            className="flex flex-none items-center gap-1 text-[14px] font-extrabold text-primary
                        transition-opacity hover:opacity-75"
           >
             <span className="hidden sm:inline">Bütün fotolara bax</span>
@@ -340,8 +340,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             >
               <Inbox className="w-6 h-6" strokeWidth={1.7} />
             </span>
-            <h4 className="text-[13px] font-extrabold text-ink">Hələ heç bir audit gəlməyib</h4>
-            <p className="max-w-[38ch] text-[11.5px] text-muted">
+            <h4 className="text-[15px] font-extrabold text-ink">Hələ heç bir audit gəlməyib</h4>
+            <p className="max-w-[38ch] text-[13.5px] text-muted">
               Sahə heyəti foto göndərən kimi yoxlamalar avtomatik burada görünəcək.
             </p>
           </div>
@@ -388,36 +388,36 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                         </button>
                       </td>
                       <td>
-                        <p className="text-[12.5px] font-bold leading-tight tracking-[-.015em] text-ink">
+                        <p className="text-[14.5px] font-bold leading-tight tracking-[-.015em] text-ink">
                           {sub.task?.title || 'Rəf Auditi'}
                         </p>
-                        <span className="mt-0.5 block text-[11px] capitalize text-muted">
+                        <span className="mt-0.5 block text-[13px] capitalize text-muted">
                           {sub.task?.priority} prioritet
                         </span>
                       </td>
                       <td>
-                        <b className="block text-[12.5px] font-bold tracking-[-.01em] text-ink">
+                        <b className="block text-[14.5px] font-bold tracking-[-.01em] text-ink">
                           {sub.store?.name || 'Mağaza'}
                         </b>
-                        <span className="mt-0.5 block font-mono text-[11px] text-muted">
+                        <span className="mt-0.5 block font-mono text-[13px] text-muted">
                           {sub.store?.store_code}
                         </span>
                       </td>
                       <td className="text-ink-2">
                         {sub.submitter_name || sub.metadata?.telegram_username || 'Merchandiser'}
                       </td>
-                      <td className="font-mono text-[11px] text-muted">{dateStr}</td>
+                      <td className="font-mono text-[13px] text-muted">{dateStr}</td>
                       <td>
                         {sub.ai_score !== undefined && sub.ai_score !== null ? (
                           <span
                             className={`grid h-[34px] w-[34px] place-items-center rounded-[12px] border
-                                        text-[12.5px] font-extrabold tracking-[-.02em] tabular-nums
+                                        text-[14.5px] font-extrabold tracking-[-.02em] tabular-nums
                                         ${scoreTone(sub.ai_score)}`}
                           >
                             {sub.ai_score}
                           </span>
                         ) : (
-                          <span className="text-[11px] text-muted">—</span>
+                          <span className="text-[13px] text-muted">—</span>
                         )}
                       </td>
                       <td>{statusBadge(sub.status)}</td>
@@ -474,7 +474,7 @@ function DashboardLoadError({ onRetry }: { onRetry: () => void }) {
     >
       <AlertTriangle className="h-6 w-6 text-[var(--warn)]" strokeWidth={2} />
       <p className="text-sm font-extrabold text-ink">Məlumat yüklənə bilmədi</p>
-      <p className="text-[13px] text-muted">Bağlantını yoxlayın və yenidən cəhd edin.</p>
+      <p className="text-[15px] text-muted">Bağlantını yoxlayın və yenidən cəhd edin.</p>
       <button
         type="button"
         onClick={onRetry}

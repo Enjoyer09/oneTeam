@@ -643,7 +643,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <h3 className="font-bold text-sm sm:text-base text-ink">Mövcud tapşırıqlar</h3>
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-red-100 text-primary-700 border border-red-200">
+            <span className="px-2 py-0.5 rounded-md text-[12px] font-extrabold bg-red-100 text-primary-700 border border-red-200">
               Tapşırıq idarəetməsi
             </span>
           </div>
@@ -781,19 +781,19 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                         does — a plain audit with no checklist and no
                         before/after pair. */}
                       {task.kind === 'AUDIT' && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[12px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200">
                           <Layers className="w-3 h-3 text-slate-500" />
                           Ümumi audit
                         </span>
                       )}
                       {task.requires_before_after_photo && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[12px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200">
                           <Camera className="w-3 h-3 text-indigo-500" />
                           Əvvəl / sonra foto
                         </span>
                       )}
                       {task.checklist_schema && task.checklist_schema.length > 0 && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[12px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
                           <CheckSquare className="w-3 h-3 text-blue-500" />
                           {task.checklist_schema.length} Çeklist Sualı
                         </span>
@@ -812,7 +812,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 </div>
 
                 <div className="px-3 py-2 sm:px-4 flex items-center justify-between gap-2 text-xs text-muted sm:border-l border-hair-2">
-                  <span className="flex min-w-0 items-center gap-1 font-medium text-[11px]">
+                  <span className="flex min-w-0 items-center gap-1 font-medium text-[13px]">
                     <StoreIcon className="w-3.5 h-3.5 flex-shrink-0 text-muted" />
                     <span className="truncate">
                       {assignedStoreNames.length
@@ -879,7 +879,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   <div>
                     <h3 className="font-extrabold text-sm sm:text-base text-ink flex items-center gap-2">
                       Tapşırığı bir neçə mağazaya göndər
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary-600 text-white font-bold">
+                      <span className="text-[12px] px-2 py-0.5 rounded-full bg-primary-600 text-white font-bold">
                         Bulk Dispatcher
                       </span>
                     </h3>
@@ -906,7 +906,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       <Filter className="w-3.5 h-3.5 text-primary-500" />
                       1. Hədəf Mağaza Seqmentasiyası
                     </span>
-                    <span className="text-[11px] font-bold text-muted">Şəbəkə üzrə qaydalar</span>
+                    <span className="text-[13px] font-bold text-muted">Şəbəkə üzrə qaydalar</span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -914,7 +914,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                     <div>
                       <label
                         htmlFor="bulk-chain"
-                        className="block text-[11px] font-bold text-ink-2 mb-1"
+                        className="block text-[13px] font-bold text-ink-2 mb-1"
                       >
                         Şəbəkə (Chain):
                       </label>
@@ -940,7 +940,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                     <div>
                       <label
                         htmlFor="bulk-format"
-                        className="block text-[11px] font-bold text-ink-2 mb-1"
+                        className="block text-[13px] font-bold text-ink-2 mb-1"
                       >
                         Format (Store Format):
                       </label>
@@ -966,7 +966,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                     <div>
                       <label
                         htmlFor="bulk-region"
-                        className="block text-[11px] font-bold text-ink-2 mb-1"
+                        className="block text-[13px] font-bold text-ink-2 mb-1"
                       >
                         Region / Şəhər:
                       </label>
@@ -996,7 +996,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                         <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
                         🎯 Hədəf: {matchedStores.length} mağaza seçildi
                       </span>
-                      <span className="text-[11px] text-muted font-medium">
+                      <span className="text-[13px] text-muted font-medium">
                         (Aktiv filtrlərə uyğun)
                       </span>
                     </div>
@@ -1006,7 +1006,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       {matchedStores.map((s) => (
                         <span
                           key={s.id}
-                          className="px-2 py-0.5 rounded text-[10px] font-bold bg-[var(--g-card)] text-ink-2 border border-hair"
+                          className="px-2 py-0.5 rounded text-[12px] font-bold bg-[var(--g-card)] text-ink-2 border border-hair"
                         >
                           {s.name.split(' - ')[0]} ({s.store_code})
                         </span>
@@ -1106,13 +1106,13 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 {bulkError && (
                   <div className="flex items-start gap-2.5 rounded-xl border border-[var(--bad-bd)] bg-[var(--bad-bg)] px-3.5 py-2.5">
                     <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[var(--bad)] mt-[1px]" />
-                    <p className="text-[11.5px] leading-relaxed text-ink">{bulkError}</p>
+                    <p className="text-[13.5px] leading-relaxed text-ink">{bulkError}</p>
                   </div>
                 )}
 
                 {/* Modal Actions */}
                 <div className="pt-4 border-t border-hair flex items-center justify-between">
-                  <div className="text-[11px] text-muted">
+                  <div className="text-[13px] text-muted">
                     Təlimat avtomatik olaraq{' '}
                     <span className="font-bold text-ink">Telegram Bot</span> və{' '}
                     <span className="font-bold text-ink">Mobil Tətbiqə</span> bildiriş göndərəcək.
@@ -1292,7 +1292,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center gap-1.5 text-[11px] font-extrabold text-primary hover:opacity-80 transition-opacity cursor-pointer"
+                      className="flex items-center gap-1.5 text-[13px] font-extrabold text-primary hover:opacity-80 transition-opacity cursor-pointer"
                     >
                       <Upload className="w-3.5 h-3.5" />
                       <span>Kompüterdən Şəkil Seç</span>
@@ -1333,7 +1333,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                       </div>
                     )}
                   </div>
-                  <p className="text-[11px] text-muted mt-1">
+                  <p className="text-[13px] text-muted mt-1">
                     Kompüterinizdən birbaşa şəkil seçə və ya URL daxil edə bilərsiniz (PNG, JPG,
                     WebP).
                   </p>
@@ -1538,7 +1538,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 {createError && (
                   <div className="flex items-start gap-2.5 rounded-xl border border-[var(--bad-bd)] bg-[var(--bad-bg)] px-3.5 py-2.5">
                     <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[var(--bad)] mt-[1px]" />
-                    <p className="text-[11.5px] leading-relaxed text-ink">{createError}</p>
+                    <p className="text-[13.5px] leading-relaxed text-ink">{createError}</p>
                   </div>
                 )}
 
@@ -1613,7 +1613,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 {(editingTask.sibling_task_count ?? 1) > 1 && (
                   <div className="flex items-start gap-2.5 rounded-xl border border-[var(--warn-bd)] bg-[var(--warn-bg)] px-3.5 py-2.5">
                     <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[var(--warn)] mt-[1px]" />
-                    <p className="text-[11.5px] leading-relaxed text-ink">
+                    <p className="text-[13.5px] leading-relaxed text-ink">
                       Bu təlimat <b>{editingTask.sibling_task_count} mağazaya</b> göndərilib.
                       Başlıq, təsvir, prioritet, çeklist və foto tələbi <b>hamısında</b> dəyişəcək.
                       Yalnız son tarix bu mağazaya aiddir.
@@ -1624,7 +1624,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 <div>
                   <label
                     htmlFor="task-edit-title"
-                    className="block text-[11px] font-bold text-ink-2 mb-1.5"
+                    className="block text-[13px] font-bold text-ink-2 mb-1.5"
                   >
                     Tapşırıq Başlığı *
                   </label>
@@ -1640,7 +1640,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 <div>
                   <label
                     htmlFor="task-edit-instructions"
-                    className="block text-[11px] font-bold text-ink-2 mb-1.5"
+                    className="block text-[13px] font-bold text-ink-2 mb-1.5"
                   >
                     Təlimat
                   </label>
@@ -1657,7 +1657,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   <div>
                     <label
                       htmlFor="task-edit-priority"
-                      className="block text-[11px] font-bold text-ink-2 mb-1.5"
+                      className="block text-[13px] font-bold text-ink-2 mb-1.5"
                     >
                       Prioritet
                     </label>
@@ -1678,7 +1678,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                   <div>
                     <label
                       htmlFor="task-edit-deadline"
-                      className="block text-[11px] font-bold text-ink-2 mb-1.5"
+                      className="block text-[13px] font-bold text-ink-2 mb-1.5"
                     >
                       Son Tarix (bu mağaza üçün) *
                     </label>
@@ -1711,7 +1711,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[11px] font-bold text-ink-2">
+                    <span className="text-[13px] font-bold text-ink-2">
                       Çeklist sualları ({editValues.checklist_schema.length})
                     </span>
                     <button
@@ -1725,13 +1725,13 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                           ],
                         })
                       }
-                      className="text-[11px] font-bold text-primary-600 hover:underline cursor-pointer"
+                      className="text-[13px] font-bold text-primary-600 hover:underline cursor-pointer"
                     >
                       + Sual əlavə et
                     </button>
                   </div>
                   {editValues.checklist_schema.length === 0 ? (
-                    <p className="text-[11px] text-muted italic">
+                    <p className="text-[13px] text-muted italic">
                       Çeklist yoxdur — bu tapşırıq ümumi audit kimi göndəriləcək.
                     </p>
                   ) : (
@@ -1742,7 +1742,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                           className="rounded-lg border border-hair bg-[var(--g-card)] p-2 space-y-1.5"
                         >
                           <div className="flex items-center gap-2">
-                            <span className="w-5 flex-shrink-0 text-[11px] font-bold text-muted">
+                            <span className="w-5 flex-shrink-0 text-[13px] font-bold text-muted">
                               {index + 1}
                             </span>
                             <input
@@ -1821,7 +1821,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 {editError && (
                   <div className="flex items-start gap-2.5 rounded-xl border border-[var(--bad-bd)] bg-[var(--bad-bg)] px-3.5 py-2.5">
                     <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[var(--bad)] mt-[1px]" />
-                    <p className="text-[11.5px] leading-relaxed text-ink">{editError}</p>
+                    <p className="text-[13.5px] leading-relaxed text-ink">{editError}</p>
                   </div>
                 )}
 
@@ -1898,7 +1898,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 {(deletingTask.evidence_count ?? 0) > 0 && (
                   <div className="flex items-start gap-2.5 rounded-xl border border-[var(--warn-bd)] bg-[var(--warn-bg)] px-3.5 py-2.5">
                     <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[var(--warn)] mt-[1px]" />
-                    <p className="text-[11.5px] leading-relaxed text-ink">
+                    <p className="text-[13.5px] leading-relaxed text-ink">
                       Bu tapşırığa <b>{deletingTask.evidence_count} audit göndərişi</b> var. Silinmə
                       rədd olunacaq — silinsəydi, həmin fotolar və çeklist cavabları da silinərdi.
                     </p>
@@ -1908,7 +1908,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                 {deleteError && (
                   <div className="flex items-start gap-2.5 rounded-xl border border-[var(--bad-bd)] bg-[var(--bad-bg)] px-3.5 py-2.5">
                     <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[var(--bad)] mt-[1px]" />
-                    <p className="text-[11.5px] leading-relaxed text-ink">{deleteError}</p>
+                    <p className="text-[13.5px] leading-relaxed text-ink">{deleteError}</p>
                   </div>
                 )}
 

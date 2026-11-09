@@ -129,21 +129,21 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
     const scenario = sub.metadata?.scenario;
     if (scenario === 'scenario_a_compliant') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[12px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
           ⭐ Ssenari A: İdeal (95%)
         </span>
       );
     }
     if (scenario === 'scenario_b_gap') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[12px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300">
           ⚠️ Ssenari B: 2 Boşluq/Gap (70%)
         </span>
       );
     }
     if (scenario === 'scenario_c_missing_sprite') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[12px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300">
           ❌ Ssenari C: Çatışmayan Sprite (55%)
         </span>
       );
@@ -375,7 +375,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                       <StoreIcon className="w-3.5 h-3.5 text-muted" />
                       {selectedSubmission.store?.name} ({selectedSubmission.store?.store_code})
                     </span>
-                    <span className="flex items-center gap-1 text-[11px]">
+                    <span className="flex items-center gap-1 text-[13px]">
                       <Calendar className="w-3.5 h-3.5 text-muted" />
                       {new Date(selectedSubmission.submitted_at).toLocaleString('az-AZ', {
                         timeZone: 'Asia/Baku',
@@ -404,7 +404,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                     <p className="font-extrabold text-xs text-rose-800">
                       Saxta / simulyasiya edilmiş GPS mövqeyi
                     </p>
-                    <p className="text-[11px] text-rose-700 mt-0.5 leading-relaxed">
+                    <p className="text-[13px] text-rose-700 mt-0.5 leading-relaxed">
                       Cihaz bu mövqeyi mock kimi işarələdi. Audit avtomatik təsdiqlənmir və yoxlama
                       üçün saxlanılır — təsdiqləsəniz, bu, anti-fraud bloku üzərində şüurlu override
                       kimi qeydə alınır.
@@ -424,7 +424,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                   <span className="text-lg leading-none mt-0.5">📍</span>
                   <div>
                     <p className="font-extrabold text-xs text-amber-800">Lokasiya götürülmədi</p>
-                    <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                    <p className="text-[13px] text-amber-700 mt-0.5 leading-relaxed">
                       Bu audit Telegram kanalından gəlib və işçi lokasiyanı paylaşmayıb (düymə
                       "lokasiya olmadan davam et" idi) — mağaza içindəki GPS işləməyə bilər. API
                       mağazanın öz koordinatını istifadə etdiyi üçün coğrafiya yoxlaması keçdi,
@@ -442,7 +442,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                     <div className="flex items-center space-x-3.5">
                       <div className="w-14 h-14 rounded-xl flex flex-col items-center justify-center font-extrabold text-ink bg-[var(--g-card)] border border-hair flex-shrink-0">
                         <span className="text-sm leading-none">{selectedSubmission.ai_score}%</span>
-                        <span className="text-[10px] tracking-wide opacity-90">Uyğunluq</span>
+                        <span className="text-[12px] tracking-wide opacity-90">Uyğunluq</span>
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
@@ -488,7 +488,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                         Rəf üçün nümunə düzülüş
                       </h4>
                     </div>
-                    <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                    <span className="text-[12px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
                       Referans Nümunə
                     </span>
                   </div>
@@ -499,8 +499,8 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                   />
 
                   <div className="mt-3 p-2.5 bg-[var(--g-panel)] rounded-lg border border-hair-2 text-xs text-ink-2">
-                    <p className="font-bold text-ink mb-0.5 text-[11px]">Rəf Təlimatı:</p>
-                    <p className="line-clamp-3 text-[11px] leading-relaxed">
+                    <p className="font-bold text-ink mb-0.5 text-[13px]">Rəf Təlimatı:</p>
+                    <p className="line-clamp-3 text-[13px] leading-relaxed">
                       {selectedSubmission.task?.description}
                     </p>
                   </div>
@@ -523,7 +523,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                           <button
                             aria-pressed={activePhotoView === 'before'}
                             onClick={() => setActivePhotoView('before')}
-                            className={`px-2 py-1 rounded text-[11px] font-extrabold transition-all cursor-pointer ${
+                            className={`px-2 py-1 rounded text-[13px] font-extrabold transition-all cursor-pointer ${
                               activePhotoView === 'before'
                                 ? 'bg-slate-900 text-white'
                                 : 'text-ink-2 hover:text-ink'
@@ -534,7 +534,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                           <button
                             aria-pressed={activePhotoView === 'after'}
                             onClick={() => setActivePhotoView('after')}
-                            className={`px-2 py-1 rounded text-[11px] font-extrabold transition-all cursor-pointer ${
+                            className={`px-2 py-1 rounded text-[13px] font-extrabold transition-all cursor-pointer ${
                               activePhotoView === 'after'
                                 ? 'bg-primary-600 text-white'
                                 : 'text-ink-2 hover:text-ink'
@@ -549,7 +549,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                       {activePhotoView === 'after' && bottleDetections.length > 0 && (
                         <button
                           onClick={() => setShowBoundingBoxes(!showBoundingBoxes)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                          className={`px-2.5 py-1 rounded-lg text-[13px] font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
                             showBoundingBoxes
                               ? 'bg-primary-50 text-primary-600 border border-primary-200'
                               : 'bg-[var(--g-panel)] text-muted hover:bg-[var(--g-card)]'
@@ -585,24 +585,24 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                   />
 
                   {bottleDetections.length > 0 && (
-                    <div className="mt-2.5 pt-2 border-t border-hair-2 flex items-center justify-between flex-wrap gap-2 text-[11px] text-ink-2">
+                    <div className="mt-2.5 pt-2 border-t border-hair-2 flex items-center justify-between flex-wrap gap-2 text-[13px] text-ink-2">
                       <span className="font-bold text-ink-2">Modelin gördüyü:</span>
                       <span>Butulka ({bottleDetections.length}) · marka təsdiqlənməyib</span>
                     </div>
                   )}
                   {hiddenLegacyBoxes > 0 && (
-                    <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+                    <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
                       {hiddenLegacyBoxes} köhnə SKU işarəsi gizlədildi: həmin marka etiketləri model
                       tərəfindən təsdiqlənməmişdi.
                     </p>
                   )}
 
-                  <div className="mt-2.5 p-2.5 bg-[var(--g-panel)] rounded-lg border border-hair-2 text-[11px] text-ink-2 flex items-center justify-between">
+                  <div className="mt-2.5 p-2.5 bg-[var(--g-panel)] rounded-lg border border-hair-2 text-[13px] text-ink-2 flex items-center justify-between">
                     <div>
                       <span className="font-bold text-ink">Göndərən:</span>{' '}
                       {selectedSubmission.submitter_name || 'Sahə Merchandiser-i'}
                     </div>
-                    <div className="font-mono text-muted text-[11px]">
+                    <div className="font-mono text-muted text-[13px]">
                       Telegram ID: {selectedSubmission.metadata?.telegram_user_id || 'N/A'}
                     </div>
                   </div>
@@ -621,7 +621,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                         }{' '}
                         sual təsdiqlənib)
                       </span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                      <span className="text-[12px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">
                         Yoxlama siyahısı
                       </span>
                     </div>
@@ -631,7 +631,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                           key={idx}
                           className="p-2.5 bg-[var(--g-card)] rounded-lg border border-blue-100"
                         >
-                          <span className="block text-[11px] text-muted font-medium truncate mb-1">
+                          <span className="block text-[13px] text-muted font-medium truncate mb-1">
                             {ans.question || ans.questionId}
                           </span>
                           <span className="text-xs font-extrabold text-ink flex items-center gap-1">
@@ -682,7 +682,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                     }`}
                   />
                   {rejectError && (
-                    <p className="text-[11px] font-bold text-rose-700">{rejectError}</p>
+                    <p className="text-[13px] font-bold text-rose-700">{rejectError}</p>
                   )}
                 </div>
               )}
@@ -691,7 +691,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
               <div className="p-4 bg-[var(--g-card)] border-t border-hair flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div className="flex items-center space-x-1.5 text-xs text-muted">
                   <Sparkles className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-                  <span className="text-[11px]">
+                  <span className="text-[13px]">
                     Supervayzer qərarı mağazanın audit statusunu dərhal yeniləyəcək.
                   </span>
                 </div>

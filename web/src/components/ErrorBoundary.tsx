@@ -49,10 +49,10 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
           >
             <AlertTriangle className="w-6 h-6" strokeWidth={1.9} />
           </span>
-          <h1 className="text-[15px] font-extrabold tracking-[-.02em] text-ink">
+          <h1 className="text-[17px] font-extrabold tracking-[-.02em] text-ink">
             Gözlənilməz xəta baş verdi
           </h1>
-          <p className="max-w-[42ch] text-[12px] leading-relaxed text-muted">
+          <p className="max-w-[42ch] text-[14px] leading-relaxed text-muted">
             Tətbiqdə gözlənilməz bir problem yarandı. Səhifəni yenidən yükləməklə davam edə
             bilərsiniz. Problem təkrarlanarsa, dəstək komandası ilə əlaqə saxlayın.
           </p>

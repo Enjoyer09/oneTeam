@@ -129,6 +129,17 @@ export default {
         mono: ['ui-monospace', 'SFMono-Regular', '"SF Mono"', 'Menlo', 'monospace'],
       },
 
+      fontSize: {
+        xs: ['13px', '18px'],
+        sm: ['15px', '22px'],
+        base: ['16px', '24px'],
+        lg: ['18px', '26px'],
+        xl: ['20px', '28px'],
+        '2xl': ['24px', '32px'],
+        '3xl': ['30px', '36px'],
+        '4xl': ['36px', '40px'],
+      },
+
       keyframes: {
         viewIn: {
           from: { opacity: '0', transform: 'translateY(7px)' },
