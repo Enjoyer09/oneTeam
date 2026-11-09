@@ -634,7 +634,9 @@ export class EnrollmentController {
       );
     }
 
-    db.logAuditEvent({
+    // Awaited: the response below says the device joined, so the audit row
+    // must be committed before that claim leaves the server.
+    await db.logAuditEventDurable({
       entityType: 'user',
       entityId: userId,
       action: 'DEVICE_ENROLLED',

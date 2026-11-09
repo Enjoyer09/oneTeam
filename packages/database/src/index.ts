@@ -63,6 +63,17 @@ function assignDefined<T extends object>(target: T, changes: Partial<T>): void {
   }
 }
 
+/** Shape of an immutable audit-trail event. */
+export type AuditEventParams = {
+  entityType: string;
+  entityId: string;
+  action: string;
+  fromState?: string;
+  toState?: string;
+  actorId?: string;
+  payload?: Record<string, unknown> | null;
+};
+
 export class EnterpriseDatabase {
   /**
    * Seeded rows carry no timestamps; a stored one always does. The cast states
@@ -696,18 +707,53 @@ export class EnterpriseDatabase {
   }
 
   /**
-   * Records immutable audit trail event
+   * Records an immutable audit trail event without waiting for the insert.
+   *
+   * Fine for callers whose response does not claim the event happened. Where it
+   * does (device enrolment), use `logAuditEventDurable` instead — this variant
+   * can return, and let the HTTP response leave, before the row lands.
    */
-  public logAuditEvent(params: {
-    entityType: string;
-    entityId: string;
-    action: string;
-    fromState?: string;
-    toState?: string;
-    actorId?: string;
-    payload?: Record<string, unknown> | null;
-  }): InMemoryAuditLog {
-    const entry: InMemoryAuditLog = {
+  public logAuditEvent(params: AuditEventParams): InMemoryAuditLog {
+    const entry = this.buildAuditEntry(params);
+    this.auditLogs.push(entry);
+    if (this.pool) this.persist((pool) => pg.insertAuditLog(pool, entry), `audit ${entry.id}`);
+    return entry;
+  }
+
+  /**
+   * Records an audit event and waits for the insert to commit.
+   *
+   * WHY THIS EXISTS ALONGSIDE THE FIRE-AND-FORGET VARIANT
+   * ----------------------------------------------------
+   * `logAuditEvent` queues the insert and returns. An enrolment response built
+   * on it could leave before the audit row landed: a reader querying the trail
+   * right after the HTTP call saw nothing, and a restart in that window lost
+   * the record of a credential being issued. Awaiting means the response is
+   * sent only once the row has landed or definitively failed.
+   *
+   * A failed insert is logged, not thrown: the enrolment itself has already
+   * succeeded and the token handed out — it must not be retroactively refused
+   * for a database hiccup. The same trade `createEvidence` makes; the
+   * in-memory entry is kept either way.
+   */
+  public async logAuditEventDurable(params: AuditEventParams): Promise<InMemoryAuditLog> {
+    const entry = this.buildAuditEntry(params);
+    this.auditLogs.push(entry);
+    if (this.pool) {
+      await this.enqueue((pool) => pg.insertAuditLog(pool, entry), `audit ${entry.id}`).catch(
+        (error) => {
+          console.error(
+            `⛔ [oneTeam DB] Failed to persist audit ${entry.id} (kept in memory): ` +
+              (error instanceof Error ? error.message : String(error)),
+          );
+        },
+      );
+    }
+    return entry;
+  }
+
+  private buildAuditEntry(params: AuditEventParams): InMemoryAuditLog {
+    return {
       id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
       entityType: params.entityType,
       entityId: params.entityId,
@@ -718,9 +764,6 @@ export class EnterpriseDatabase {
       payload: params.payload,
       createdAt: clock.now(),
     };
-    this.auditLogs.push(entry);
-    if (this.pool) this.persist((pool) => pg.insertAuditLog(pool, entry), `audit ${entry.id}`);
-    return entry;
   }
 
   /**
