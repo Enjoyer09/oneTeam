@@ -14,7 +14,7 @@
     "web:build": "node ./web/node_modules/typescript/bin/tsc --project web/tsconfig.json && node ./web/node_modules/vite/bin/vite.js build web",
     "web:check": "node ./web/node_modules/typescript/bin/tsc --project web/tsconfig.json",
     "web:dev": "node ./web/node_modules/vite/bin/vite.js web",
-    "web:test": "VITE_API_BASE_URL=$ONETEAM_API_URL ONETEAM_API_TOKEN=oneteam-user:usr-admin-001 node ./node_modules/tsx/dist/cli.mjs web/src/smoke-test.ts",
+    "web:test": "VITE_API_BASE_URL=$ONETEAM_API_URL ONETEAM_API_TOKEN=${ONETEAM_API_TOKEN:-oneteam-user:usr-admin-001} node ./node_modules/tsx/dist/cli.mjs web/src/smoke-test.ts",
     "mobile:test": "node ./node_modules/tsx/dist/cli.mjs mobile/src/tests/mobile-test-runner.ts",
     "test:credentials": "node ./node_modules/tsx/dist/cli.mjs --import ./scripts/test-credential.mjs mobile/src/services/credentialStore.test.ts",
     "test:queue": "node ./node_modules/tsx/dist/cli.mjs --import ./scripts/test-credential.mjs mobile/src/services/offlineQueue.test.ts",

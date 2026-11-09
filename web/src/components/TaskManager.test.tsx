@@ -216,3 +216,46 @@ it('excludes stores without a region from a regional bulk preview', () => {
   expect(screen.getByText('Şimal (N)')).toBeTruthy();
   expect(screen.queryByText('Naməlum (U)')).toBeNull();
 });
+
+function renderWithDeleteButton(task: Partial<Task>) {
+  render(
+    <TaskManager
+      tasks={[
+        {
+          id: 'task-a',
+          title: 'Rəf yoxlaması',
+          description: 'Yoxla',
+          reference_image_url: null,
+          priority: 'high',
+          status: 'published',
+          deadline: '2026-10-21T12:00:00Z',
+          created_at: '2026-10-14T12:00:00Z',
+          store_id: 'a',
+          ...task,
+        } as Task,
+      ]}
+      stores={stores}
+      isCreateModalOpen={false}
+      setIsCreateModalOpen={vi.fn()}
+      onCreateTask={vi.fn()}
+      onDeleteTask={vi.fn().mockResolvedValue(undefined)}
+      canEdit
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: '"Rəf yoxlaması" tapşırığını sil' }));
+  return screen.getByRole('dialog', { name: 'Tapşırığı sil' });
+}
+
+it('delete confirmation does not promise the shared template is removed', () => {
+  const dialog = renderWithDeleteButton({ sibling_task_count: 1 });
+  // The briefing template is retained by design even after its last store task
+  // is deleted, so the dialog must only promise the store record goes.
+  expect(dialog.textContent).toContain('Bu mağaza üçün yaradılmış qeyd bazadan çıxacaq');
+  expect(dialog.textContent).not.toContain('təlimatı və bu mağaza');
+  expect(dialog.textContent).not.toContain('qüvvədə qalır');
+});
+
+it('delete confirmation says the briefing stays for the other stores', () => {
+  const dialog = renderWithDeleteButton({ sibling_task_count: 3 });
+  expect(dialog.textContent).toContain('Təlimat digər 2 mağazada qüvvədə qalır');
+});

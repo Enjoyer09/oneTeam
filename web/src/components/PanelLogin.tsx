@@ -14,7 +14,13 @@
  */
 import React, { useState } from 'react';
 import { KeyRound, LogIn, ShieldAlert, ShieldCheck, Loader2 } from 'lucide-react';
-import { fetchIdentity, storeKey, PanelAuthError, type PanelAuthStatus } from '../lib/panelAuth';
+import {
+  fetchIdentity,
+  storeKey,
+  clearStoredKey,
+  PanelAuthError,
+  type PanelAuthStatus,
+} from '../lib/panelAuth';
 
 interface PanelLoginProps {
   /** What the API said about whether a key is needed, and what is wrong if anything. */
@@ -46,6 +52,10 @@ export const PanelLogin: React.FC<PanelLoginProps> = ({ status, onSignedIn }) =>
       await fetchIdentity();
       onSignedIn();
     } catch (caught) {
+      // The candidate was stored only so the probe request could carry it. It
+      // was not accepted, so it must not linger in localStorage — the typed
+      // value stays in the field for a retry.
+      clearStoredKey();
       const message =
         caught instanceof PanelAuthError && caught.status === 401
           ? 'Bu açar qəbul edilmədi. Yadda saxlayın ki, açar yalnız yaradıldığı anda göstərilir — ' +

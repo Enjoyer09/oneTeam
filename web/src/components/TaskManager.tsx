@@ -1883,9 +1883,23 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
               <div className="p-5 space-y-3.5">
                 <p className="text-xs leading-relaxed text-ink">
-                  <b>{deletingTask.title}</b> tapşırığı silinəcək. Tapşırığın təlimatı və bu mağaza
-                  üçün yaradılmış qeyd bazadan çıxacaq.
+                  <b>{deletingTask.title}</b> tapşırığı silinəcək. Bu mağaza üçün yaradılmış qeyd
+                  bazadan çıxacaq.
                 </p>
+
+                {/*
+                  The briefing (template) is shared by every store it was
+                  dispatched to and is retained even after its last store task
+                  is deleted — so this must not promise the template goes too.
+                  When siblings remain, say plainly that only this store's
+                  record is removed.
+                */}
+                {(deletingTask.sibling_task_count ?? 1) > 1 && (
+                  <p className="text-xs leading-relaxed text-muted">
+                    Təlimat digər <b>{(deletingTask.sibling_task_count ?? 1) - 1} mağazada</b>{' '}
+                    qüvvədə qalır — bu silinmə yalnız bu mağazanın qeydini çıxarır.
+                  </p>
+                )}
 
                 {/*
                   The API refuses this with 409 TASK_HAS_EVIDENCE, because

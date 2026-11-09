@@ -124,6 +124,9 @@ describe('PanelLogin', () => {
 
     expect(await screen.findByText(/Bu açar qəbul edilmədi/)).toBeInTheDocument();
     expect(onSignedIn).not.toHaveBeenCalled();
+    // The candidate was stored only so the probe could carry it; a rejected
+    // key must not linger in localStorage afterwards.
+    expect(localStorage.getItem('oneteam-panel-key')).toBeNull();
   });
 
   it('shows the bootstrap problem when the API says nothing will work', async () => {
