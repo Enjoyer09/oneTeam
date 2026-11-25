@@ -68,13 +68,13 @@ def _manifest_for(checkpoint: str) -> tuple[dict, Path]:
     classes = manifest.get("classes")
     supported_classes = {
         "bottle",
-        "coca_cola_classic",
-        "coca_cola_zero",
-        "fanta",
+        "classic_soda",
+        "zero_soda",
+        "orange_soda",
         "other_product",
         "price",
         "product",
-        "sprite",
+        "lemon_soda",
         "unknown",
     }
     if (
@@ -230,7 +230,7 @@ def run_inference(
         if label_id <= 0 or label_id >= len(categories) or score < conf_thresh:
             continue
         class_name = categories[label_id]
-        if class_name not in {"bottle", "coca_cola_classic", "coca_cola_zero", "fanta", "sprite"}:
+        if class_name not in {"bottle", "classic_soda", "zero_soda", "orange_soda", "lemon_soda"}:
             continue
         try:
             detection = _make_detection(box, float(score), width, height, len(detections) + 1)

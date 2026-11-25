@@ -31,7 +31,7 @@ const CANONICAL: Array<[string, string, string, string]> = [
   ['archived', 'slate', '—', 'Arxivlənmiş'],
   ['scenario_a_compliant', 'emerald', '⭐', 'Ssenari A'],
   ['scenario_b_gap', 'amber', '⚠️', 'Ssenari B'],
-  ['scenario_c_missing_sprite', 'rose', '❌', 'Ssenari C'],
+  ['scenario_c_missing_sku', 'rose', '❌', 'Ssenari C'],
 ];
 
 for (const [value, family, emoji, label] of CANONICAL) {

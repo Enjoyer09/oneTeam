@@ -12,7 +12,7 @@ colour, so the added margin is invisible and the mark keeps its true aspect
 ratio.
 
 The background colour is SAMPLED from the source rather than assumed. The first
-draft of `app.json` used `#F40009` (Coca-Cola red) for the splash background,
+draft of `app.json` used `#F40009` (oneTeam Retail red) for the splash background,
 which would have put a grey-backed wordmark on a red field and produced a
 visible rectangle behind it. Measuring cost one command.
 

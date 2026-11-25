@@ -2,13 +2,13 @@
 
 ## Nəticə
 
-İstifadəçinin otaq fotosunda bitki və yanğınsöndürən “Sprite”/“Coca-Cola” kimi görünürdü. Səbəb modelin bu markaları tanıması deyildi. `yolo11n.pt` ümumi COCO obyektlərini aşkarlayırdı; ayrıca kod istənilən tapılan qutunu rənginə və ekrandakı sırasına əsasən dörd içki SKU-sundan birinə çevirirdi. Heç nə tapılmayanda isə uydurma rəf və qutular yaradırdı. Sonrakı qat həmin etiketləri real məhsul sübutu kimi qiymətləndirə bilirdi.
+İstifadəçinin otaq fotosunda bitki və yanğınsöndürən “Lemon Soda”/“oneTeam Retail” kimi görünürdü. Səbəb modelin bu markaları tanıması deyildi. `yolo11n.pt` ümumi COCO obyektlərini aşkarlayırdı; ayrıca kod istənilən tapılan qutunu rənginə və ekrandakı sırasına əsasən dörd içki SKU-sundan birinə çevirirdi. Heç nə tapılmayanda isə uydurma rəf və qutular yaradırdı. Sonrakı qat həmin etiketləri real məhsul sübutu kimi qiymətləndirə bilirdi.
 
 İstifadəçinin verdiyi 906×1020 ekran görüntüsünü eyni `yolo11n.pt`, `conf=0.25` ilə lokal yoxladım: yalnız `refrigerator` (0.365) və `book` (0.252) sinifləri çıxdı, `bottle` çıxmadı. Görüntü panel işarələrini də ehtiva edir və orijinal audit fotosu deyil; buna görə bu nəticə həmin konkret screenshot üçün təkrarlanan diaqnostikadır, istehsal dəqiqliyinin ölçüsü deyil. İstehsal konfiqurasiyası Railway-də `hybrid`, `yolo11n.pt`, `conf=0.25` olaraq yoxlandı.
 
 ## Kök səbəblər və təsir
 
-1. **Saxta SKU təsnifatı:** `scripts/yolo_inference.py` hər COCO qutusunu marka kimi işarələyirdi. Yaşıl səhnə parçası Sprite, qırmızı parça Coca-Cola ola bilirdi; rəng uyğun gəlməyəndə sıraya görə marka seçilirdi.
+1. **Saxta SKU təsnifatı:** `scripts/yolo_inference.py` hər COCO qutusunu marka kimi işarələyirdi. Yaşıl səhnə parçası Lemon Soda, qırmızı parça oneTeam Retail ola bilirdi; rəng uyğun gəlməyəndə sıraya görə marka seçilirdi.
 2. **Saxta nəticə:** şəkil oxunmayanda qara test şəkli, deteksiya olmayanda sintetik butulkalar/boşluqlar yaradılırdı. `synthetic_fallback` işarəsi olsa belə, bu nəticələr sistemə inandırıcı görünürdü.
 3. **Yanlış əminlik:** obyekt qutusunun confidence dəyəri SKU və planogram qərarının confidence dəyəri kimi işlədilirdi. Bunlar fərqli ehtimallardır.
 4. **Kontekst itkisi:** LLM üçün tələblər hesablanırdı, amma prompta ötürülmürdü; model konkret planogramı görmürdü. İçki rəfi olub-olmaması ayrıca təsdiqlənmirdi.
@@ -24,7 +24,7 @@
 
 ## Yoxlama və sərhəd
 
-Lokal regresiya testləri Python worker, YOLO/LLM/hibrid provayderləri, bot və admin panel üçün keçirildi. İstifadəçinin screenshotunda yeni worker 0 butulka qaytardı. `shelf-01.jpg` sous butulkalarında 11, `shelf-02.jpg` konserv rəfində isə 1 **markası təsdiqlənməmiş** butulka qutusu qaytardı. Sonuncu səhv ümumi COCO detektorunun hələ də obyekt səviyyəsində yanıldığını göstərir. Bu dəyişiklik Sprite/Coca-Cola tanıma qabiliyyəti yaratmır; yalnız əsassız marka və avtomatik qərar iddiasını dayandırır.
+Lokal regresiya testləri Python worker, YOLO/LLM/hibrid provayderləri, bot və admin panel üçün keçirildi. İstifadəçinin screenshotunda yeni worker 0 butulka qaytardı. `shelf-01.jpg` sous butulkalarında 11, `shelf-02.jpg` konserv rəfində isə 1 **markası təsdiqlənməmiş** butulka qutusu qaytardı. Sonuncu səhv ümumi COCO detektorunun hələ də obyekt səviyyəsində yanıldığını göstərir. Bu dəyişiklik Lemon Soda/oneTeam Retail tanıma qabiliyyəti yaratmır; yalnız əsassız marka və avtomatik qərar iddiasını dayandırır.
 
 ## Əsl SKU modelinə keçid meyarı
 

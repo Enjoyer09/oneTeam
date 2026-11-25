@@ -110,7 +110,7 @@ function productBody(overrides: Record<string, unknown> = {}) {
   const digits = RUN.replace(/\D/g, '').padStart(6, '0');
   const fallback = `48${digits}0000000`.slice(0, 13);
   const base: Record<string, unknown> = {
-    name: 'Test Cola 0.5L',
+    name: 'Test Beverage 0.5L',
     size: '0.5 L',
     variant: 'Zero',
     ...overrides,
@@ -210,7 +210,7 @@ async function main(): Promise<void> {
       check(
         'and the stored attributes are the ones submitted',
         row !== null &&
-          row.name === 'Test Cola 0.5L' &&
+          row.name === 'Test Beverage 0.5L' &&
           row.size === '0.5 L' &&
           row.variant === 'Zero',
         row && { name: row.name, size: row.size, variant: row.variant },
@@ -290,16 +290,16 @@ async function main(): Promise<void> {
 
     const patched = await call('PATCH', `/api/portal/products/${productId}`, {
       token,
-      body: { name: 'Test Cola 1L', size: '1 L' },
+      body: { name: 'Test Beverage 1L', size: '1 L' },
     });
     check('PATCH answers 200 with the updated product', patched.status === 200, patched.body);
-    check('and the response carries the new name', patched.body?.data?.name === 'Test Cola 1L');
+    check('and the response carries the new name', patched.body?.data?.name === 'Test Beverage 1L');
 
     if (db) {
       const row = await rowInDatabase(barcode);
       check(
         'and THE ROW IN POSTGRESQL has the new name too',
-        row !== null && row.name === 'Test Cola 1L' && row.size === '1 L',
+        row !== null && row.name === 'Test Beverage 1L' && row.size === '1 L',
         row && { name: row.name, size: row.size },
       );
     }
@@ -331,12 +331,12 @@ async function main(): Promise<void> {
     // the cleared fields.
     const nameOnly = await call('PATCH', `/api/portal/products/${productId}`, {
       token,
-      body: { name: 'Test Cola Zero' },
+      body: { name: 'Test Beverage Zero' },
     });
     check(
       'a later name-only PATCH leaves the cleared fields null',
       nameOnly.status === 200 &&
-        nameOnly.body?.data?.name === 'Test Cola Zero' &&
+        nameOnly.body?.data?.name === 'Test Beverage Zero' &&
         nameOnly.body?.data?.size === null &&
         nameOnly.body?.data?.variant === null,
       nameOnly.body?.data,

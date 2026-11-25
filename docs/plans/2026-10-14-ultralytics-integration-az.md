@@ -2,7 +2,7 @@
 
 ## Qərar
 
-YOLO26-nı istehsala dərhal keçirməyək. Əvvəlcə Ultralytics lisenziyasını və kommersiya istifadəsini hüquqi cəhətdən dəqiqləşdirək, öz SKU şəkillərimizi hüquqları aydın olan datasetdə toplayıb etiketləyək, sonra YOLO11n və YOLO26n-i eyni ayrılmış test dəstində müqayisə edək. Model adı dəyişmək öz-özünə Coca-Cola/Sprite tanıma yaratmır.
+YOLO26-nı istehsala dərhal keçirməyək. Əvvəlcə Ultralytics lisenziyasını və kommersiya istifadəsini hüquqi cəhətdən dəqiqləşdirək, öz SKU şəkillərimizi hüquqları aydın olan datasetdə toplayıb etiketləyək, sonra YOLO11n və YOLO26n-i eyni ayrılmış test dəstində müqayisə edək. Model adı dəyişmək öz-özünə oneTeam Retail/Lemon Soda tanıma yaratmır.
 
 ## Cari irəliləyiş
 
@@ -43,7 +43,7 @@ Worker cache-i xüsusilə vacibdir: hazırkı server bir prosesi saxlayır, amma
 
 İlk real dataset yalnız hüquqları aydın olan OneTeam/mağaza fotolarından yaradılsın. Hər fotoda çəkiliş icazəsi, mağaza/cihaz/vaxt metadatası ayrıca saxlanılsın. Dataset və şəxsi/kommersiya məlumatı olan fotolar Ultralytics Platform-a hüquqi və məxfilik yoxlaması olmadan yüklənməsin.
 
-İlkin sinif taksonomiyası məhsulun qablaşdırma variantını ayırmalıdır: `coca_cola_classic_pet_500ml`, `coca_cola_zero_pet_500ml`, `sprite_pet_500ml`, `fanta_pet_500ml`, uyğun banka/SKU variantları, `competitor_beverage` və `unknown_beverage`. Etiket yalnız qablaşdırmada görünən məhsul dəlili ilə qoyulsun; səhnənin rəngi, rəf yeri və qonşu məhsul etiket sayılmasın. Qismən görünən, bulanıq və tanınmayan məhsul “unknown” kimi etiketlənsin və SKU kimi auto-count edilməsin.
+İlkin sinif taksonomiyası məhsulun qablaşdırma variantını ayırmalıdır: `classic_soda_pet_500ml`, `zero_soda_pet_500ml`, `lemon_soda_pet_500ml`, `orange_soda_pet_500ml`, uyğun banka/SKU variantları, `competitor_beverage` və `unknown_beverage`. Etiket yalnız qablaşdırmada görünən məhsul dəlili ilə qoyulsun; səhnənin rəngi, rəf yeri və qonşu məhsul etiket sayılmasın. Qismən görünən, bulanıq və tanınmayan məhsul “unknown” kimi etiketlənsin və SKU kimi auto-count edilməsin.
 
 Train/validation/test bölünməsi şəkil səviyyəsində təsadüfi deyil, mağaza və çəkiliş sessiyası səviyyəsində ayrılsın. Beləliklə eyni mağazanın eyni şəraitdə çəkilmiş kadrları train və test-ə düşüb nəticəni süni şişirtməz. Test dəstində içki rəfi olmayan otaqlar, yanğınsöndürən, bitki, elektronika, reklam, başqa marka, banka və boş vitrin nümunələri də olsun.
 

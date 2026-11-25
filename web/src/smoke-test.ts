@@ -179,7 +179,7 @@ async function runWebSmokeTest() {
     console.log('       They are covered by `npm run test:core` and `npm run test:phase2`.');
   } else {
     const created = await portalService.createTask({
-      title: 'Smoke test — Coca-Cola Zero 1L end-cap auditi',
+      title: 'Smoke test — Zero Beverage 1L end-cap auditi',
       description: 'Avtomatik smoke test tərəfindən yaradılmış yoxlama tapşırığı.',
       reference_image_url: 'https://images.unsplash.com/photo-1554866585-cd94860890b7',
       priority: 'urgent',

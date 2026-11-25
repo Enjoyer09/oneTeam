@@ -33,7 +33,7 @@ const MAP: Record<string, { family: string; emoji: string; label: string }> = {
   archived: { family: 'slate', emoji: '—', label: 'Arxivlənmiş' },
   scenario_a_compliant: { family: 'emerald', emoji: '⭐', label: 'Ssenari A' },
   scenario_b_gap: { family: 'amber', emoji: '⚠️', label: 'Ssenari B' },
-  scenario_c_missing_sprite: { family: 'rose', emoji: '❌', label: 'Ssenari C' },
+  scenario_c_missing_sku: { family: 'rose', emoji: '❌', label: 'Ssenari C' },
 };
 
 export const STATUS_VALUES: string[] = Object.keys(MAP);

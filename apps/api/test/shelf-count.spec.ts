@@ -67,7 +67,7 @@ const MERCH_TOKEN = process.env.ONETEAM_TEST_MERCH_TOKEN || serviceToken('usr-me
 /** Unique per run, so two runs against one database do not collide. */
 const RUN = Date.now().toString(36).toUpperCase();
 
-const SECTION_COLA = `Sayğac cola ${RUN}`;
+const SECTION_BEVERAGE = `Sayğac beverage ${RUN}`;
 const SECTION_EMPTY = `Sayğac boş ${RUN}`;
 
 /** Rounding every percentage the API reports, mirrored for the checks. */
@@ -212,12 +212,12 @@ async function main(): Promise<void> {
 
     const productA = await call('POST', '/api/portal/products', {
       token,
-      body: { barcode: barcodeFor('11'), name: `Sayğac Cola A ${RUN}`, size: '0.5 L' },
+      body: { barcode: barcodeFor('11'), name: `Sayğac Beverage A ${RUN}`, size: '0.5 L' },
     });
     check('product A fixture is created (201)', productA.status === 201, productA.body);
     const productB = await call('POST', '/api/portal/products', {
       token,
-      body: { barcode: barcodeFor('22'), name: `Sayğac Cola B ${RUN}`, size: '1 L' },
+      body: { barcode: barcodeFor('22'), name: `Sayğac Beverage B ${RUN}`, size: '1 L' },
     });
     check('product B fixture is created (201)', productB.status === 201, productB.body);
     const productAId: string | null = productA.body?.data?.id ?? null;
@@ -238,11 +238,11 @@ async function main(): Promise<void> {
 
     const slotA = await call('POST', '/api/portal/shelf-positions', {
       token,
-      body: slotBody(SECTION_COLA, 1, productAId),
+      body: slotBody(SECTION_BEVERAGE, 1, productAId),
     });
     const slotB = await call('POST', '/api/portal/shelf-positions', {
       token,
-      body: slotBody(SECTION_COLA, 2, productBId),
+      body: slotBody(SECTION_BEVERAGE, 2, productBId),
     });
     const slotE = await call('POST', '/api/portal/shelf-positions', {
       token,
@@ -253,7 +253,7 @@ async function main(): Promise<void> {
     // denominator could pass every check below (the suite pins rule #2).
     const slotU = await call('POST', '/api/portal/shelf-positions', {
       token,
-      body: slotBody(SECTION_COLA, 3, productAId),
+      body: slotBody(SECTION_BEVERAGE, 3, productAId),
     });
     check('slot A (assigned) created (201)', slotA.status === 201, slotA.body);
     check('slot B (assigned) created (201)', slotB.status === 201, slotB.body);
@@ -458,19 +458,19 @@ async function main(): Promise<void> {
     );
 
     const sections: any[] = Array.isArray(data.sections) ? data.sections : [];
-    const cola = sections.find((s) => s.section === SECTION_COLA);
+    const beverage = sections.find((s) => s.section === SECTION_BEVERAGE);
     check(
       'the fixture section appears in the sections list',
-      !!cola,
+      !!beverage,
       sections.map((s) => s.section),
     );
 
-    if (cola) {
-      check('and it reports the three assigned slots', cola.assigned === 3, cola);
-      check('with one present slot (B is counted 0)', cola.present === 1, cola);
-      check('and 4 units total', cola.units === 4, cola);
+    if (beverage) {
+      check('and it reports the three assigned slots', beverage.assigned === 3, beverage);
+      check('with one present slot (B is counted 0)', beverage.present === 1, beverage);
+      check('and 4 units total', beverage.units === 4, beverage);
 
-      const products: any[] = Array.isArray(cola.products) ? cola.products : [];
+      const products: any[] = Array.isArray(beverage.products) ? beverage.products : [];
       const entryA = products.find((p) => p.product_id === productAId);
       const entryB = products.find((p) => p.product_id === productBId);
       check('both counted products are listed', !!entryA && !!entryB, products);

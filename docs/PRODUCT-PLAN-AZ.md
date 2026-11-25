@@ -313,7 +313,7 @@ olan** mobil müştəri üçün), audit yazırdı, `[DISPATCH COMPLETE]` loglay�
 `{ telegram: true, pushNotification: true }` qaytarırdı. **Prosesdən bayt çıxmırdı.** Massivlər hər
 deploy-da sıfırlanırdı. Çat id kimi **platforma istifadəçi id-si** işlədilirdi
 (`task.assignedUserId || '998877665'`). Mətn isə tapşırıqdan asılı olmayaraq hardcode idi
-("Coca-Cola Classic, Zero Sugar və Fanta"). **İki mövcud dəst bu uydurmanı təsdiqləyirdi və
+("Classic Beverage, Zero Sugar və Orange Soda"). **İki mövcud dəst bu uydurmanı təsdiqləyirdi və
 yaşıl keçirdi** (`phase2.spec.ts` → `telegram === 2`; `integration.spec.ts` → `telegram === true`).
 
 **Nə quruldu — outbox naxışı.** API Telegram-la danışmır: `TELEGRAM_BOT_TOKEN` tək servisdədir və
@@ -546,7 +546,7 @@ idi (iOS app ikonunda alpha kanalı **qadağandır**), skriptin düzəlişindən
 
 **Yazılanlar:**
 
-- **`mobile/app.json`** — `bundleIdentifier: az.oneteam.cocacola.fieldaudit`; `ios.supportsTablet:
+- **`mobile/app.json`** — `bundleIdentifier: az.oneteam.retail.fieldaudit`; `ios.supportsTablet:
 **false**` (planda belədir, faylda `true` idi); `plugins`: `expo-camera`, `expo-location`,
   **`expo-secure-store`** (əvvəl **yox idi**), `expo-splash-screen`. Kamera/lokasiya icazə mətnləri
   saxlanıldı.
@@ -564,7 +564,7 @@ idi (iOS app ikonunda alpha kanalı **qadağandır**), skriptin düzəlişindən
 kvadrat kətan üzərində maskalayır, ona görə uzanmış mənbə ya rədd olunur, ya da **markanın üzərindən
 kəsilir**. Həll loqonu dartmaq deyil: **ölçülmüş** fon rəngində kvadrat kətan düzəltməkdir. Altı kənar
 nöqtəsi ölçüldü → hamısı `rgb(240,240,240)`, kanal fərqi **0**. İlk yazdığım `app.json` splash fonu
-`#F40009` (Coca-Cola qırmızısı) idi — boz fonlu loqonu qırmızı sahəyə qoyub **görünən düzbucaqlı**
+`#F40009` (oneTeam Retail qırmızısı) idi — boz fonlu loqonu qırmızı sahəyə qoyub **görünən düzbucaqlı**
 yaradardı. Ölçmə bir əmrlə bunun qarşısını aldı.
 
 **SDK versiyaları təxmin edilmədi.** npm-də `react-native`-in ən sonu **0.87.1**-dir, SDK 57 isə
@@ -951,14 +951,14 @@ məhdudiyyətidir — bahaI-nin Terminal-ında və CI-də belə qoruyucu yoxdur.
 
 ### MƏRHƏLƏ 4 — YOLO + OpenRouter AI hibrid (Həftə 6–7)
 
-| #   | İş paketi                                                                                                                                                                                               | Qəbul meyarı                                                                                           | Müddət  | Vəziyyət |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------- | -------- |
-| 4.1 | **OpenRouter client:** `packages/ai/openrouter.ts` — `fetch` + `Authorization: Bearer ${OPENROUTER_KEY}`, `HTTP-Referer`, `X-Title`. Rate-limit: token bucket (20 RPM / 1000 RPD), exponential backoff. | 100 paralel sorğu → heç biri 429 qaytarmır; 429 gələndə 60 saniyə gözləyir.                            | 1 gün   | ⏳       |
-| 4.2 | **Vision prompt template:** JSON schema (`zod`) — `planogramScore(0-100)`, `missingSKUs[]`, `extraItems[]`, `anomalies[]`, `confidence(0-1)`. Prompt: "Sən Coca-Cola rəf auditçisisən. JSON qaytar."    | Schema validasiyası uğurlu; JSON parse xətası < 0.1%.                                                  | 1 gün   | ⏳       |
-| 4.3 | **YOLO pre-filter:** `yolov8n.pt` (COCO) → `bottle`, `cup`, `wine glass` klassları → bounding box → crop → base64 → OpenRouter. Yalnız **ROI** göndərilir → token xərci ~70% azalır.                    | 100 test şəkli → ortalama 1.2s / şəkil; token < 1500/sorğu.                                            | 1 gün   | ⏳       |
-| 4.4 | **Worker pipeline:** `apps/api/src/workers/ai-worker.ts` — BullMQ queue (`ai:analyze`), concurrency 2, retry 3, dead-letter. Giriş: `evidenceId`, Çıxış: `aiResult` (JSON) + `planogramScore` yazılır.  | 50 evidence yaradılır → queue dolar → worker bitirir → `/api/portal/evidence/:id` `aiResult` göstərir. | 1.5 gün | ⏳       |
-| 4.5 | **Fallback və dürüstlük:** Model 429 / 5xx / timeout → `aiResult: {fallback: true, reason, yoloOnlyScore}`; **heç vaxt "yumşaldılmış" nəticə yazılmır**.                                                | Rate-limit halında `fallback: true` gəlir; supervayzer "AI yoxlanmadı" görür.                          | 0.5 gün | ⏳       |
-| 4.6 | **Məxfilik / Data Processing Addendum:** OpenRouter-a göndərilən şəkillər **heç bir şəkildə** model təliminə istifadə edilmir (OpenRouter Terms §3.2). `X-OpenRouter-User-Id` göndərilmir.              | Sənəddə qeyd edilir; operator imzalayır.                                                               | 0.5 gün | ⏳       |
+| #   | İş paketi                                                                                                                                                                                                 | Qəbul meyarı                                                                                           | Müddət  | Vəziyyət |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------- | -------- |
+| 4.1 | **OpenRouter client:** `packages/ai/openrouter.ts` — `fetch` + `Authorization: Bearer ${OPENROUTER_KEY}`, `HTTP-Referer`, `X-Title`. Rate-limit: token bucket (20 RPM / 1000 RPD), exponential backoff.   | 100 paralel sorğu → heç biri 429 qaytarmır; 429 gələndə 60 saniyə gözləyir.                            | 1 gün   | ⏳       |
+| 4.2 | **Vision prompt template:** JSON schema (`zod`) — `planogramScore(0-100)`, `missingSKUs[]`, `extraItems[]`, `anomalies[]`, `confidence(0-1)`. Prompt: "Sən oneTeam Retail rəf auditçisisən. JSON qaytar." | Schema validasiyası uğurlu; JSON parse xətası < 0.1%.                                                  | 1 gün   | ⏳       |
+| 4.3 | **YOLO pre-filter:** `yolov8n.pt` (COCO) → `bottle`, `cup`, `wine glass` klassları → bounding box → crop → base64 → OpenRouter. Yalnız **ROI** göndərilir → token xərci ~70% azalır.                      | 100 test şəkli → ortalama 1.2s / şəkil; token < 1500/sorğu.                                            | 1 gün   | ⏳       |
+| 4.4 | **Worker pipeline:** `apps/api/src/workers/ai-worker.ts` — BullMQ queue (`ai:analyze`), concurrency 2, retry 3, dead-letter. Giriş: `evidenceId`, Çıxış: `aiResult` (JSON) + `planogramScore` yazılır.    | 50 evidence yaradılır → queue dolar → worker bitirir → `/api/portal/evidence/:id` `aiResult` göstərir. | 1.5 gün | ⏳       |
+| 4.5 | **Fallback və dürüstlük:** Model 429 / 5xx / timeout → `aiResult: {fallback: true, reason, yoloOnlyScore}`; **heç vaxt "yumşaldılmış" nəticə yazılmır**.                                                  | Rate-limit halında `fallback: true` gəlir; supervayzer "AI yoxlanmadı" görür.                          | 0.5 gün | ⏳       |
+| 4.6 | **Məxfilik / Data Processing Addendum:** OpenRouter-a göndərilən şəkillər **heç bir şəkildə** model təliminə istifadə edilmir (OpenRouter Terms §3.2). `X-OpenRouter-User-Id` göndərilmir.                | Sənəddə qeyd edilir; operator imzalayır.                                                               | 0.5 gün | ⏳       |
 
 **Mərhələ 4 nəticəsi:** Hər yüklənən audit şəkli **avtomatik** YOLO + Vision LLM ilə qiymətləndirilir, skor və anomaliya paneldə görünür.
 

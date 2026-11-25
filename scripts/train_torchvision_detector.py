@@ -35,13 +35,13 @@ ARCHITECTURE = "fasterrcnn_mobilenet_v3_large_fpn"
 MAX_DETECTIONS_PER_IMAGE = 500
 SUPPORTED_CLASSES = {
     "bottle",
-    "coca_cola_classic",
-    "coca_cola_zero",
-    "fanta",
+    "classic_soda",
+    "zero_soda",
+    "orange_soda",
     "other_product",
     "price",
     "product",
-    "sprite",
+    "lemon_soda",
     "unknown",
 }
 

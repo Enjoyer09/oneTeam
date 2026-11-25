@@ -5,7 +5,7 @@
 > **Nə üçündür:** Yoxlamanı şəkillə birlikdə nəzarətçiyə göndərmək — telefonda,
 > bir neçə toxunuşla, heç bir əmr yazmadan.
 
-Bu bot Coca-Cola FMCG rəf monitorinq platformasının saha hissəsidir. Aşağıdakı
+Bu bot oneTeam Retail FMCG rəf monitorinq platformasının saha hissəsidir. Aşağıdakı
 addımları bir dəfə oxuyun — sonra hər şey menyudan gedəcək.
 
 ---

@@ -48,7 +48,7 @@ const RULES = [
 
   // ── 4. Düymələr ───────────────────────────────────────────────────────────
   ['bg-slate-900 hover:bg-slate-800', 'btn-strong'],
-  ['bg-coke-500 hover:bg-coke-600', 'btn-coke'],
+  ['bg-brand-500 hover:bg-brand-600', 'btn-brand'],
   ['bg-rose-600 hover:bg-rose-700', 'btn-danger'],
   ['bg-emerald-600 hover:bg-emerald-700', 'btn-ok'],
 
@@ -84,10 +84,10 @@ const RULES = [
   ['text-slate-300', 'text-faint'],
 
   // ── 9. Fokus halqası ──────────────────────────────────────────────────────
-  ['focus:ring-coke-500/20 focus:border-coke-500', 'focus:ring-[var(--coke-ring)] focus:border-coke/45'],
+  ['focus:ring-brand-500/20 focus:border-brand-500', 'focus:ring-[var(--brand-ring)] focus:border-brand/45'],
 
   // ── 10. Hover aksent ──────────────────────────────────────────────────────
-  ['hover:bg-coke-500 hover:text-white', 'hover:bg-[var(--coke-soft)] hover:text-coke'],
+  ['hover:bg-brand-500 hover:text-white', 'hover:bg-[var(--brand-soft)] hover:text-brand'],
 ];
 
 let grandTotal = 0;

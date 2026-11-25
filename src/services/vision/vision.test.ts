@@ -40,7 +40,7 @@ function check(label: string, condition: boolean, detail = ''): void {
 const INPUT: VisionInput = {
   photoUrl: 'https://example.test/audits/str-1/task-1_1700000000.jpg',
   taskTitle: 'Raf yoxlaması',
-  taskDescription: 'Coca-Cola soyuducusu',
+  taskDescription: 'oneTeam Retail soyuducusu',
 };
 
 function analysis(over: Partial<VisionAnalysis>): VisionAnalysis {
@@ -186,7 +186,7 @@ async function main(): Promise<void> {
           complianceScore: 82,
           confidence: 0.85,
           isBeverageShelf: true,
-          detectedCounts: { coca_cola_classic: 3 },
+          detectedCounts: { classic_soda: 3 },
           missingItems: [],
           summary: 'ok',
         };
@@ -225,7 +225,7 @@ async function main(): Promise<void> {
           complianceScore: 96,
           confidence: 0.99,
           isBeverageShelf: false,
-          detectedCounts: { sprite: 5 },
+          detectedCounts: { lemon_soda: 5 },
           missingItems: [],
           summary: 'wrong scene',
         };
@@ -450,7 +450,7 @@ async function main(): Promise<void> {
       analysis.confidence === 0 &&
         analysis.needsHumanReview &&
         analysis.detections.length === 1 &&
-        analysis.detectedCounts.coca_cola_classic === undefined,
+        analysis.detectedCounts.classic_soda === undefined,
       JSON.stringify(analysis),
     );
 
@@ -459,7 +459,7 @@ async function main(): Promise<void> {
     stub = {
       body: JSON.stringify({
         success: true,
-        detections: [{ ...box, sku: 'sprite', objectClass: undefined }],
+        detections: [{ ...box, sku: 'lemon_soda', objectClass: undefined }],
         synthetic_fallback: false,
       }),
     };

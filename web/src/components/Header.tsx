@@ -133,7 +133,7 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Brend */}
       <div className="flex items-center gap-2.5 flex-shrink-0">
-        <div className="w-9 h-9 rounded-[12px] bg-coke flex items-center justify-center flex-shrink-0 overflow-hidden">
+        <div className="w-9 h-9 rounded-[12px] bg-brand flex items-center justify-center flex-shrink-0 overflow-hidden">
           <img
             src="/logo.jpg"
             alt=""
@@ -145,8 +145,8 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
         <div className="hidden sm:flex items-center gap-1.5 leading-tight">
           <span className="font-extrabold text-[17px] tracking-[-.03em] text-ink">oneTeam</span>
-          <span className="text-[11px] uppercase font-extrabold tracking-[.07em] px-1.5 py-[2px] rounded-md bg-coke/10 text-coke border border-coke/25">
-            Coca-Cola
+          <span className="text-[11px] uppercase font-extrabold tracking-[.07em] px-1.5 py-[2px] rounded-md bg-brand/10 text-brand border border-brand/25">
+            oneTeam Retail
           </span>
         </div>
       </div>

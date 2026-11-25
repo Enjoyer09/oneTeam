@@ -9,13 +9,11 @@ export default {
   theme: {
     extend: {
       colors: {
+        /* Brend qırmızısı — yalnız loqo/nişan detalı */
         brand: {
+          DEFAULT: '#F40009',
           red: '#F40009',
           dark: '#111827',
-        },
-        /* Brend qırmızısı — yalnız loqo/nişan detalı */
-        coke: {
-          DEFAULT: '#F40009',
           50: '#fff1f1',
           100: '#ffdfdf',
           200: '#ffc5c5',

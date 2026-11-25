@@ -152,7 +152,7 @@ Tab in the prototype.
 Restraint is part of the design. These were **kept**, and changing them would cost users
 more than it gains:
 
-- **Coca-Cola red as accent only.** Never a large surface. `coke-500` stays reserved for one
+- **oneTeam Retail red as accent only.** Never a large surface. `brand-500` stays reserved for one
   primary action per view plus the active nav item.
 - **Azerbaijani-first copy**, formal-imperative tone, `Asia/Baku` time.
 - **Emoji in status labels** (`✅ Təsdiqləndi`). `DESIGN.md` §8 defends these as a redundant

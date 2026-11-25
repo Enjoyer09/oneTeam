@@ -311,7 +311,7 @@ function flowBody(overrides: Record<string, unknown> = {}): Record<string, unkno
     activeTaskTitle: `Rəf yoxlaması ${RUN}`,
     location: { latitude: 40.3724, longitude: 49.8372 },
     checklistQuestions: [
-      { id: 'q1', question: 'Rəfdə Coca-Cola Classic var?', type: 'boolean', required: true },
+      { id: 'q1', question: 'Rəfdə Classic Beverage var?', type: 'boolean', required: true },
       {
         id: 'q2',
         question: 'Neçə sıra düzülüb?',

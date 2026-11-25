@@ -80,7 +80,7 @@ ayaq üstə, mağaza zəminində açılır. Bu, dizayn qərarlarını sərbəst 
 
 ### Brend qırmızısı — şüurlu məhdudiyyət
 
-`coke-500` (#F40009) yalnız **iki** yerdə tam doydurulmuş halda işlənir: ekran başına
+`brand-500` (#F40009) yalnız **iki** yerdə tam doydurulmuş halda işlənir: ekran başına
 bir əsas hərəkət düyməsi, və iOS "Bu gün" ekranındaki hero kartı. Hero kartı şəffaf
 şüşəyə çevrildi (əvvəlki versiyada düz qırmızı səth idi) — belə həm brend qalır,
 həm də digər kartlarla eyni material ailəsindən olur.
@@ -261,7 +261,7 @@ withAnimation(.snappy(duration: 0.4, extraBounce: 0.06)) { screen = newScreen }
 | Tab bar | `TabView` — iOS 26-da şüşə avtomatik; 4 tab (maks. 5) |
 | Siyahı | `List` + `.listStyle(.insetGrouped)` |
 | Açar | `Toggle` + `.tint(.green)` |
-| Şüşə düymə | `.buttonStyle(.glass)` (iOS 26) / `.borderedProminent` + `.tint(.coke)` |
+| Şüşə düymə | `.buttonStyle(.glass)` (iOS 26) / `.borderedProminent` + `.tint(.brand)` |
 
 ### 6.4 Status → rəng xəritəsi (dəyişməz)
 

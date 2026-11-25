@@ -4,7 +4,7 @@
  *
  * Explicit `mockScenario` inputs use hardcoded fixtures. Production inputs run
  * the TorchVision worker; stock COCO weights can locate bottles but cannot identify
- * Coca-Cola SKUs or grade a planogram. A generic bottle must not be scored as
+ * oneTeam Retail SKUs or grade a planogram. A generic bottle must not be scored as
  * a branded product.
  *
  * It was wired into the bot's submission path until recently, which meant every
@@ -22,8 +22,8 @@ import { spawnSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 
-export type CocaColaSKU =
-  'coca_cola_classic' | 'coca_cola_zero' | 'fanta' | 'sprite' | 'out_of_stock_gap';
+export type ProductSKU =
+  'classic_soda' | 'zero_soda' | 'orange_soda' | 'lemon_soda' | 'out_of_stock_gap';
 
 export interface BoundingBox {
   /** X coordinate percentage from left (0 - 100) */
@@ -38,7 +38,7 @@ export interface BoundingBox {
 
 export interface DetectionItem {
   id: string;
-  sku: CocaColaSKU | 'unverified_bottle';
+  sku: ProductSKU | 'unverified_bottle';
   label: string;
   confidence: number;
   box: BoundingBox;
@@ -108,13 +108,13 @@ export const DEFAULT_DETECTOR_TIMEOUT_MS = 180_000;
 export type AnalysisEngine = 'torchvision-detection' | 'simulation' | 'vision-llm' | 'hybrid';
 
 export interface PlanogramRequirement {
-  sku: CocaColaSKU;
+  sku: ProductSKU;
   label: string;
   minFacings: number;
 }
 
 export interface SKUComplianceItem {
-  sku: CocaColaSKU;
+  sku: ProductSKU;
   label: string;
   required: number;
   detected: number;
@@ -125,7 +125,7 @@ export interface SKUComplianceItem {
 export interface PlanogramComplianceEvaluation {
   complianceScore: number; // 0 - 100
   autoStatus: 'approved' | 'needs_manual_review';
-  detectedCounts: Record<CocaColaSKU, number>;
+  detectedCounts: Record<ProductSKU, number>;
   skuBreakdown: SKUComplianceItem[];
   outOfStockGaps: number;
   penaltiesApplied: number;
@@ -152,27 +152,27 @@ export interface AnalysisInput {
 }
 
 export const SKU_METADATA: Record<
-  CocaColaSKU,
+  ProductSKU,
   { label: string; color: string; defaultMin: number }
 > = {
-  coca_cola_classic: {
-    label: 'Coca-Cola Classic 0.5L',
-    color: '#F40009', // Coke Red
+  classic_soda: {
+    label: 'Classic Beverage 0.5L',
+    color: '#F40009', // Brand Red
     defaultMin: 3,
   },
-  coca_cola_zero: {
-    label: 'Coca-Cola Zero Sugar 0.5L',
+  zero_soda: {
+    label: 'Zero Sugar Beverage 0.5L',
     color: '#111827', // Slate Dark / Black
     defaultMin: 2,
   },
-  fanta: {
-    label: 'Fanta Orange 0.5L',
-    color: '#FF7300', // Vibrant Fanta Orange
+  orange_soda: {
+    label: 'Orange Soda Orange 0.5L',
+    color: '#FF7300', // Vibrant Orange Soda Orange
     defaultMin: 2,
   },
-  sprite: {
-    label: 'Sprite 0.5L',
-    color: '#008B47', // Sprite Green
+  lemon_soda: {
+    label: 'Lemon Soda 0.5L',
+    color: '#008B47', // Lemon Soda Green
     defaultMin: 2,
   },
   out_of_stock_gap: {
@@ -252,7 +252,7 @@ export function torchvisionCliArgs(scriptPath: string, imageSource: string): str
 
 export class AIVisionService {
   /**
-   * Parse planogram requirements from task text or return standard Coca-Cola cooler rules.
+   * Parse planogram requirements from task text or return standard oneTeam Retail cooler rules.
    */
   public extractPlanogramRequirements(
     title = '',
@@ -268,25 +268,28 @@ export class AIVisionService {
     // If task is specifically Zero Sugar focused
     if (text.includes('zero') && !text.includes('classic')) {
       return [
-        { sku: 'coca_cola_zero', label: SKU_METADATA.coca_cola_zero.label, minFacings: 4 },
-        { sku: 'coca_cola_classic', label: SKU_METADATA.coca_cola_classic.label, minFacings: 2 },
+        { sku: 'zero_soda', label: SKU_METADATA.zero_soda.label, minFacings: 4 },
+        { sku: 'classic_soda', label: SKU_METADATA.classic_soda.label, minFacings: 2 },
       ];
     }
 
-    // If task is Fanta & Sprite focused
-    if ((text.includes('fanta') || text.includes('sprite')) && !text.includes('classic')) {
+    // If task is Orange Soda & Lemon Soda focused
+    if (
+      (text.includes('orange_soda') || text.includes('lemon_soda')) &&
+      !text.includes('classic')
+    ) {
       return [
-        { sku: 'fanta', label: SKU_METADATA.fanta.label, minFacings: 3 },
-        { sku: 'sprite', label: SKU_METADATA.sprite.label, minFacings: 3 },
+        { sku: 'orange_soda', label: SKU_METADATA.orange_soda.label, minFacings: 3 },
+        { sku: 'lemon_soda', label: SKU_METADATA.lemon_soda.label, minFacings: 3 },
       ];
     }
 
     // Default Full Cooler Planogram Rule
     return [
-      { sku: 'coca_cola_classic', label: SKU_METADATA.coca_cola_classic.label, minFacings: 3 },
-      { sku: 'coca_cola_zero', label: SKU_METADATA.coca_cola_zero.label, minFacings: 2 },
-      { sku: 'fanta', label: SKU_METADATA.fanta.label, minFacings: 2 },
-      { sku: 'sprite', label: SKU_METADATA.sprite.label, minFacings: 2 },
+      { sku: 'classic_soda', label: SKU_METADATA.classic_soda.label, minFacings: 3 },
+      { sku: 'zero_soda', label: SKU_METADATA.zero_soda.label, minFacings: 2 },
+      { sku: 'orange_soda', label: SKU_METADATA.orange_soda.label, minFacings: 2 },
+      { sku: 'lemon_soda', label: SKU_METADATA.lemon_soda.label, minFacings: 2 },
     ];
   }
 
@@ -592,7 +595,7 @@ export class AIVisionService {
 
     let idCounter = 1;
     const addDetection = (
-      sku: CocaColaSKU,
+      sku: ProductSKU,
       x: number,
       y: number,
       width: number,
@@ -624,53 +627,53 @@ export class AIVisionService {
 
     if (scenario === 'compliant') {
       // Shelf Row 1: 3x Classic, 2x Zero
-      addDetection('coca_cola_classic', 8, 18, 14, 30, 0.96, 1, 1);
-      addDetection('coca_cola_classic', 24, 18, 14, 30, 0.94, 1, 2);
-      addDetection('coca_cola_classic', 40, 18, 14, 30, 0.97, 1, 3);
-      addDetection('coca_cola_zero', 58, 18, 14, 30, 0.93, 1, 4);
-      addDetection('coca_cola_zero', 74, 18, 14, 30, 0.95, 1, 5);
+      addDetection('classic_soda', 8, 18, 14, 30, 0.96, 1, 1);
+      addDetection('classic_soda', 24, 18, 14, 30, 0.94, 1, 2);
+      addDetection('classic_soda', 40, 18, 14, 30, 0.97, 1, 3);
+      addDetection('zero_soda', 58, 18, 14, 30, 0.93, 1, 4);
+      addDetection('zero_soda', 74, 18, 14, 30, 0.95, 1, 5);
 
-      // Shelf Row 2: 2x Fanta, 2x Sprite, 1x Classic
-      addDetection('fanta', 8, 54, 15, 30, 0.92, 2, 1);
-      addDetection('fanta', 25, 54, 15, 30, 0.91, 2, 2);
-      addDetection('sprite', 44, 54, 15, 30, 0.95, 2, 3);
-      addDetection('sprite', 61, 54, 15, 30, 0.94, 2, 4);
-      addDetection('coca_cola_classic', 78, 54, 15, 30, 0.89, 2, 5);
+      // Shelf Row 2: 2x Orange Soda, 2x Lemon Soda, 1x Classic
+      addDetection('orange_soda', 8, 54, 15, 30, 0.92, 2, 1);
+      addDetection('orange_soda', 25, 54, 15, 30, 0.91, 2, 2);
+      addDetection('lemon_soda', 44, 54, 15, 30, 0.95, 2, 3);
+      addDetection('lemon_soda', 61, 54, 15, 30, 0.94, 2, 4);
+      addDetection('classic_soda', 78, 54, 15, 30, 0.89, 2, 5);
     } else if (scenario === 'minor_gap') {
       // Row 1: 3x Classic, 1x Zero, 1x GAP
-      addDetection('coca_cola_classic', 8, 18, 14, 30, 0.95, 1, 1);
-      addDetection('coca_cola_classic', 24, 18, 14, 30, 0.93, 1, 2);
-      addDetection('coca_cola_classic', 40, 18, 14, 30, 0.96, 1, 3);
-      addDetection('coca_cola_zero', 58, 18, 14, 30, 0.91, 1, 4);
+      addDetection('classic_soda', 8, 18, 14, 30, 0.95, 1, 1);
+      addDetection('classic_soda', 24, 18, 14, 30, 0.93, 1, 2);
+      addDetection('classic_soda', 40, 18, 14, 30, 0.96, 1, 3);
+      addDetection('zero_soda', 58, 18, 14, 30, 0.91, 1, 4);
       addDetection('out_of_stock_gap', 74, 18, 14, 30, 0.88, 1, 5); // 1 gap
 
-      // Row 2: 2x Fanta, 2x Sprite
-      addDetection('fanta', 10, 54, 16, 30, 0.94, 2, 1);
-      addDetection('fanta', 28, 54, 16, 30, 0.92, 2, 2);
-      addDetection('sprite', 48, 54, 16, 30, 0.9, 2, 3);
-      addDetection('sprite', 66, 54, 16, 30, 0.93, 2, 4);
+      // Row 2: 2x Orange Soda, 2x Lemon Soda
+      addDetection('orange_soda', 10, 54, 16, 30, 0.94, 2, 1);
+      addDetection('orange_soda', 28, 54, 16, 30, 0.92, 2, 2);
+      addDetection('lemon_soda', 48, 54, 16, 30, 0.9, 2, 3);
+      addDetection('lemon_soda', 66, 54, 16, 30, 0.93, 2, 4);
     } else if (scenario === 'missing_sku') {
-      // Missing Fanta facings and 1 gap
-      addDetection('coca_cola_classic', 8, 18, 15, 30, 0.95, 1, 1);
-      addDetection('coca_cola_classic', 25, 18, 15, 30, 0.92, 1, 2);
-      addDetection('coca_cola_zero', 43, 18, 15, 30, 0.91, 1, 3);
+      // Missing Orange Soda facings and 1 gap
+      addDetection('classic_soda', 8, 18, 15, 30, 0.95, 1, 1);
+      addDetection('classic_soda', 25, 18, 15, 30, 0.92, 1, 2);
+      addDetection('zero_soda', 43, 18, 15, 30, 0.91, 1, 3);
       addDetection('out_of_stock_gap', 62, 18, 15, 30, 0.87, 1, 4); // gap
 
-      // Row 2: 1x Fanta (missing 1), 2x Sprite
-      addDetection('fanta', 12, 54, 16, 30, 0.89, 2, 1);
-      addDetection('sprite', 35, 54, 16, 30, 0.91, 2, 2);
-      addDetection('sprite', 55, 54, 16, 30, 0.93, 2, 3);
+      // Row 2: 1x Orange Soda (missing 1), 2x Lemon Soda
+      addDetection('orange_soda', 12, 54, 16, 30, 0.89, 2, 1);
+      addDetection('lemon_soda', 35, 54, 16, 30, 0.91, 2, 2);
+      addDetection('lemon_soda', 55, 54, 16, 30, 0.93, 2, 3);
       addDetection('out_of_stock_gap', 75, 54, 16, 30, 0.85, 2, 4); // second gap
     } else {
       // Severe issues: multiple gaps, low facings
-      addDetection('coca_cola_classic', 10, 18, 16, 30, 0.92, 1, 1);
+      addDetection('classic_soda', 10, 18, 16, 30, 0.92, 1, 1);
       addDetection('out_of_stock_gap', 32, 18, 18, 30, 0.89, 1, 2);
       addDetection('out_of_stock_gap', 55, 18, 18, 30, 0.91, 1, 3);
-      addDetection('coca_cola_zero', 76, 18, 16, 30, 0.86, 1, 4);
+      addDetection('zero_soda', 76, 18, 16, 30, 0.86, 1, 4);
 
-      addDetection('fanta', 15, 54, 16, 30, 0.88, 2, 1);
+      addDetection('orange_soda', 15, 54, 16, 30, 0.88, 2, 1);
       addDetection('out_of_stock_gap', 40, 54, 20, 30, 0.93, 2, 2);
-      addDetection('sprite', 68, 54, 16, 30, 0.87, 2, 3);
+      addDetection('lemon_soda', 68, 54, 16, 30, 0.87, 2, 3);
     }
 
     return { detections, engine: 'simulation' };
@@ -684,11 +687,11 @@ export class AIVisionService {
     requirements: PlanogramRequirement[],
     engine: AnalysisEngine = 'simulation',
   ): PlanogramComplianceEvaluation {
-    const counts: Record<CocaColaSKU, number> = {
-      coca_cola_classic: 0,
-      coca_cola_zero: 0,
-      fanta: 0,
-      sprite: 0,
+    const counts: Record<ProductSKU, number> = {
+      classic_soda: 0,
+      zero_soda: 0,
+      orange_soda: 0,
+      lemon_soda: 0,
       out_of_stock_gap: 0,
     };
 
@@ -751,8 +754,8 @@ export class AIVisionService {
       aiSummary =
         `✅ Planogram Uyğunluğu: ${complianceScore}%. ` +
         `Rəf düzülüşü standartlara tam cavab verir. Aşkarlandı: ` +
-        `${counts.coca_cola_classic}x Classic, ${counts.coca_cola_zero}x Zero, ` +
-        `${counts.fanta}x Fanta, ${counts.sprite}x Sprite.` +
+        `${counts.classic_soda}x Classic, ${counts.zero_soda}x Zero, ` +
+        `${counts.orange_soda}x Orange Soda, ${counts.lemon_soda}x Lemon Soda.` +
         (outOfStockGaps > 0
           ? ` Xəbərdarlıq: ${outOfStockGaps} boşluq qeydə alındı.`
           : ' Boşluq yoxdur.');
@@ -760,8 +763,8 @@ export class AIVisionService {
       aiSummary =
         `⚠️ Planogram Uyğunluğu: ${complianceScore}% (Supervayzer yoxlaması tələb olunur). ` +
         `Səbəb: ${missingItems.slice(0, 2).join('; ')}. ` +
-        `Aşkarlandı: ${counts.coca_cola_classic}x Classic, ${counts.coca_cola_zero}x Zero, ` +
-        `${counts.fanta}x Fanta, ${counts.sprite}x Sprite, ${outOfStockGaps}x boşluq.`;
+        `Aşkarlandı: ${counts.classic_soda}x Classic, ${counts.zero_soda}x Zero, ` +
+        `${counts.orange_soda}x Orange Soda, ${counts.lemon_soda}x Lemon Soda, ${outOfStockGaps}x boşluq.`;
     }
 
     return {

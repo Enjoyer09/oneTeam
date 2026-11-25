@@ -2,7 +2,7 @@
   "name": "oneteam-mobile",
   "version": "1.0.0",
   "private": true,
-  "description": "oneTeam iOS Field Shelf Audit App for Coca-Cola In-Store Merchandisers",
+  "description": "oneTeam iOS Field Shelf Audit App for oneTeam Retail In-Store Merchandisers",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",

@@ -1,6 +1,6 @@
 # Generic detector fixture report (updated 2026-10-14)
 
-The earlier 2026-10-06 report called the pipeline trustworthy because local and remote transports agreed. That conclusion was wrong: transport agreement says nothing about product identity. `yolo11n.pt` uses COCO classes. It recognizes generic objects, not Coca-Cola, Sprite, Fanta, shelf facings, or empty stock positions. The removed color/position mapper assigned those names after detection, and its no-detection path invented boxes.
+The earlier 2026-10-06 report called the pipeline trustworthy because local and remote transports agreed. That conclusion was wrong: transport agreement says nothing about product identity. `yolo11n.pt` uses COCO classes. It recognizes generic objects, not oneTeam Retail, Lemon Soda, Orange Soda, shelf facings, or empty stock positions. The removed color/position mapper assigned those names after detection, and its no-detection path invented boxes.
 
 | Input                                                                    | Raw `yolo11n.pt` observation at `conf=0.25`     | Current product result                   |
 | ------------------------------------------------------------------------ | ----------------------------------------------- | ---------------------------------------- |

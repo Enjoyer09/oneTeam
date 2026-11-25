@@ -71,16 +71,16 @@ function runTestSuite() {
   );
   assert(
     defaultReqs.length === 4 &&
-      defaultReqs.some((r) => r.sku === 'coca_cola_classic') &&
-      defaultReqs.some((r) => r.sku === 'coca_cola_zero') &&
-      defaultReqs.some((r) => r.sku === 'fanta') &&
-      defaultReqs.some((r) => r.sku === 'sprite'),
-    'Test 1: Planogram Requirements Extractor extracts all 4 key Coca-Cola SKUs',
+      defaultReqs.some((r) => r.sku === 'classic_soda') &&
+      defaultReqs.some((r) => r.sku === 'zero_soda') &&
+      defaultReqs.some((r) => r.sku === 'orange_soda') &&
+      defaultReqs.some((r) => r.sku === 'lemon_soda'),
+    'Test 1: Planogram Requirements Extractor extracts all 4 key oneTeam Retail SKUs',
   );
 
   // TEST 2: Fully Compliant Shelf Evaluation (100% Match -> Auto Approved)
   const compliantResult = aiVisionService.analyzeShelfPhoto({
-    photoUrl: 'https://images.unsplash.com/photo-coke-shelf-perfect.jpg',
+    photoUrl: 'https://images.unsplash.com/photo-shelf-perfect.jpg',
     mockScenario: 'compliant',
   });
 
@@ -102,7 +102,7 @@ function runTestSuite() {
 
   // TEST 3: Out-of-stock Gap Penalty (-15% per gap)
   const gapResult = aiVisionService.analyzeShelfPhoto({
-    photoUrl: 'https://images.unsplash.com/photo-coke-shelf-gap.jpg',
+    photoUrl: 'https://images.unsplash.com/photo-shelf-gap.jpg',
     mockScenario: 'minor_gap',
   });
 
@@ -122,7 +122,7 @@ function runTestSuite() {
 
   // TEST 4: Under-facing / Missing SKU Scenario (< 80% -> Needs Manual Review)
   const missingResult = aiVisionService.analyzeShelfPhoto({
-    photoUrl: 'https://images.unsplash.com/photo-coke-shelf-missing.jpg',
+    photoUrl: 'https://images.unsplash.com/photo-shelf-missing.jpg',
     mockScenario: 'missing_sku',
   });
 

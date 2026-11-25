@@ -25,7 +25,7 @@
  */
 import type {
   AnalysisEngine,
-  CocaColaSKU,
+  ProductSKU,
   DetectionItem,
   PlanogramRequirement,
   SKUComplianceItem,
@@ -67,7 +67,7 @@ export interface VisionAnalysis {
    * engine sets it when it ran but could not decide.
    */
   needsHumanReview: boolean;
-  detectedCounts: Partial<Record<CocaColaSKU, number>>;
+  detectedCounts: Partial<Record<ProductSKU, number>>;
   skuBreakdown: SKUComplianceItem[];
   detections: DetectionItem[];
   summary: string;
@@ -112,7 +112,7 @@ export interface VisionLLMJudgement {
   confidence: VisionConfidence; // 0 - 1
   /** Absent or false cannot authorize a shelf verdict. */
   isBeverageShelf?: boolean;
-  detectedCounts: Partial<Record<CocaColaSKU, number>>;
+  detectedCounts: Partial<Record<ProductSKU, number>>;
   missingItems: string[];
   summary: string;
 }

@@ -9,7 +9,7 @@
 
 ## 1. MƏHSUL NƏDİR
 
-**oneTeam** — FMCG (Coca-Cola distribusiyası) üçün **rəf monitorinqi və planogram
+**oneTeam** — FMCG (oneTeam Retail distribusiyası) üçün **rəf monitorinqi və planogram
 uyğunluğu** platforması. İş axını belədir:
 
 1. **Supervayzer** (ofisdə, veb paneldə) mağazalara tapşırıq yaradır: "Bu rəfi belə

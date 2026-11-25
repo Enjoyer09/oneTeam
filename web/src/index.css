@@ -10,17 +10,17 @@
    saxlanılıb ki, bütün ekranlar davranışı dəyişmədən yeni görünüşü alsın.
    Fərq: bulanıq şəffaf qatlar və rəngli ləkələr YOXDUR — açıq boz fonda ağ,
    yumşaq radiuslu kartlar; bənövşəyi əsas + sarı ikinci aksent; yaşıl delta
-   çipləri. Coca-Cola qırmızısı yalnız brend detalı kimi qalır (--coke).
+   çipləri. oneTeam Retail qırmızısı yalnız brend detalı kimi qalır (--brand).
    ============================================================================ */
 
 :root {
   color-scheme: light;
 
   /* brend — yalnız loqo/nişan detalı */
-  --coke: #f40009;
-  --coke-600: #d2000a;
-  --coke-soft: rgba(244, 0, 9, 0.1);
-  --coke-ring: rgba(244, 0, 9, 0.3);
+  --brand: #f40009;
+  --brand-600: #d2000a;
+  --brand-soft: rgba(244, 0, 9, 0.1);
+  --brand-ring: rgba(244, 0, 9, 0.3);
 
   /* əsas aksent — bənövşəyi */
   --primary: #7c3aed;

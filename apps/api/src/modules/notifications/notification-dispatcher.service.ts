@@ -16,7 +16,7 @@ import { db } from '@oneteam/database';
  * arrays were emptied by every deploy, and the chat id was not a chat id — it
  * was `task.assignedUserId`, a platform user id, falling back to the literal
  * `'998877665'` when the task had no assignee at all. The message body was
- * hardcoded prose about Coca-Cola Classic, Zero Sugar and Fanta, so a task
+ * hardcoded prose about Classic Beverage, Zero Sugar and Orange Soda, so a task
  * about anything else was announced with the wrong instructions.
  *
  * WHY THE API DOES NOT TALK TO TELEGRAM

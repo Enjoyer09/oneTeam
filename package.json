@@ -1,7 +1,7 @@
 {
   "name": "oneteam-platform",
   "version": "0.1.0",
-  "description": "Retail shelf monitoring platform for FMCG (Coca-Cola distribution)",
+  "description": "Retail shelf monitoring platform for FMCG (oneTeam Retail distribution)",
   "private": true,
   "main": "dist/bot/index.js",
   "scripts": {
@@ -107,7 +107,7 @@
     "fmcg",
     "shelf-monitoring",
     "planogram",
-    "coca-cola",
+    "fmcg-retail",
     "telegram-bot",
     "supabase"
   ],

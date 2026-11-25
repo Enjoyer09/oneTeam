@@ -115,7 +115,7 @@ if [ "${ONETEAM_UI_TEST_GRANT_LOCATION:-0}" = "1" ]; then
   # ona görə əvvəl build-for-testing + install edirik. Pəncərə ümumiyyətlə
   # çıxmır, test deterministik olur.
   UDID="${DESTINATION#id=}"
-  BUNDLE_ID="az.oneteam.cocacola.fieldaudit"
+  BUNDLE_ID="az.oneteam.retail.fieldaudit"
   PRODUCTS="ios/build/Build/Products"
 
   xcodebuild "${XCODEBUILD_COMMON[@]}" build-for-testing > "$LOG" 2>&1

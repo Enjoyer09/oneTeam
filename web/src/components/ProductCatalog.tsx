@@ -378,7 +378,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     id="product-name"
                     type="text"
                     required
-                    placeholder="Coca-Cola 0.5L Şüşə"
+                    placeholder="oneTeam Retail 0.5L Şüşə"
                     value={form.name}
                     onChange={(e) => set('name', e.target.value)}
                     className={inputClass}

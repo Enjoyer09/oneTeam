@@ -61,7 +61,7 @@ const html = `<!doctype html>
 <style>
   :root{
     --ink:#0a1020; --ink-2:#33425e; --muted:#5d6c86;
-    --coke:#F40009; --ok:#046b45; --ok-bg:rgba(16,185,129,.15);
+    --brand:#F40009; --ok:#046b45; --ok-bg:rgba(16,185,129,.15);
     --g-card:rgba(255,255,255,.66); --g-panel:rgba(255,255,255,.5);
     --hair:rgba(10,16,32,.09); --spec:rgba(255,255,255,.7);
     --sh-1:0 1px 2px rgba(10,16,32,.05),0 1px 3px rgba(10,16,32,.05);
@@ -96,7 +96,7 @@ const html = `<!doctype html>
   h1{margin:8px 0 8px;font-size:30px;line-height:1.15;letter-spacing:-.035em;font-weight:800}
   .lede{margin:0;color:var(--ink-2);max-width:70ch;font-size:14.5px}
   .brand{display:inline-flex;align-items:center;gap:8px;margin-bottom:14px}
-  .mark{width:34px;height:34px;border-radius:11px;background:var(--coke);display:grid;place-items:center;color:#fff;font-weight:800;font-size:12px;box-shadow:0 3px 10px -3px rgba(244,0,9,.35)}
+  .mark{width:34px;height:34px;border-radius:11px;background:var(--brand);display:grid;place-items:center;color:#fff;font-weight:800;font-size:12px;box-shadow:0 3px 10px -3px rgba(244,0,9,.35)}
   .tag{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;padding:3px 8px;border-radius:6px;color:#8a1418;background:rgba(244,0,9,.10);border:1px solid rgba(244,0,9,.24)}
 
   .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:22px 0 0}
@@ -114,7 +114,7 @@ const html = `<!doctype html>
   ul.clean li:last-child{border-bottom:0}
   ul.clean li::before{
     content:"";position:absolute;left:6px;top:15px;width:7px;height:7px;border-radius:50%;
-    background:var(--coke);opacity:.85
+    background:var(--brand);opacity:.85
   }
   ul.clean li b{font-weight:750}
   ul.clean li em{font-style:normal;color:var(--muted)}
@@ -126,7 +126,7 @@ const html = `<!doctype html>
   .shot img{display:block;width:100%;height:auto;border-radius:11px;border:1px solid var(--hair)}
   figcaption{display:flex;gap:12px;align-items:flex-start;margin-top:13px}
   figcaption .num{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;font-weight:700;
-                  color:var(--coke);background:rgba(244,0,9,.09);border:1px solid rgba(244,0,9,.2);
+                  color:var(--brand);background:rgba(244,0,9,.09);border:1px solid rgba(244,0,9,.2);
                   padding:2px 7px;border-radius:6px;flex:none;margin-top:2px}
   figcaption b{display:block;font-size:14px;font-weight:750;letter-spacing:-.02em}
   figcaption em{display:block;font-style:normal;font-size:12.5px;color:var(--muted);margin-top:2px}
@@ -154,7 +154,7 @@ const html = `<!doctype html>
   <header class="hero glass">
     <div class="brand">
       <span class="mark">1T</span>
-      <span class="tag">Coca-Cola · Rəf Monitorinq</span>
+      <span class="tag">oneTeam Retail · Rəf Monitorinq</span>
     </div>
     <p class="eyebrow">Tətbiq hesabatı</p>
     <h1>Şüşə interfeys artıq real proqramda işləyir</h1>
@@ -196,7 +196,7 @@ const html = `<!doctype html>
       <tbody>
         <tr>
           <td><b>Başlıqdaki qırmızı düymə</b><br /><span class="pill">4.33:1 → 6.27:1</span></td>
-          <td>Ağ mətn Coca-Cola qırmızısı üzərində AA həddini (4.5:1) bir az keçmirdi.</td>
+          <td>Ağ mətn oneTeam Retail qırmızısı üzərində AA həddini (4.5:1) bir az keçmirdi.</td>
           <td>Düymənin dolğu bir pillə dərinləşdirildi. Brend rəngi üst kənarda qaldı — marka tanınırlığı dəyişmədi.</td>
         </tr>
         <tr>

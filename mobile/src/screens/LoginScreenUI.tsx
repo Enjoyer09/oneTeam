@@ -209,7 +209,7 @@ export function LoginScreenUI({ onLoginSuccess }: LoginScreenProps) {
         keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.title}>oneTeam</Text>
-        <Text style={styles.subtitle}>Coca-Cola rəf monitorinqi</Text>
+        <Text style={styles.subtitle}>oneTeam Retail rəf monitorinqi</Text>
 
         <View style={styles.card}>
           <Text style={styles.label}>Mağaza kodu</Text>

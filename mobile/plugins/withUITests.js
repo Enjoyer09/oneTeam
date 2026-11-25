@@ -23,7 +23,7 @@ const { withXcodeProject } = require('expo/config-plugins');
 const TEST_TARGET = 'oneTeamFieldAuditUITests';
 const SOURCE_NAME = 'FieldAuditUITests.swift';
 const SOURCE_DIR = 'uitests';
-const BUNDLE_ID = 'az.oneteam.cocacola.fieldaudit.uitests';
+const BUNDLE_ID = 'az.oneteam.retail.fieldaudit.uitests';
 const UI_TEST_PRODUCT_TYPE = 'com.apple.product-type.bundle.ui-testing';
 
 /** Names in a pbxproj section are stored quoted; compare unquoted. */

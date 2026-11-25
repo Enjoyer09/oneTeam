@@ -75,7 +75,7 @@ it('shows number and choice checklist answers as values, never a fabricated verd
   withAnswers.checklist_answers = [
     { questionId: 'q1', question: 'Rəf tam doludurmu?', value: true },
     { questionId: 'q2', question: 'Rəf tam doludurmu?', value: false },
-    { questionId: 'q3', question: 'Coca-Cola facing sayı', value: 12, unit: 'ədəd' },
+    { questionId: 'q3', question: 'oneTeam Retail facing sayı', value: 12, unit: 'ədəd' },
     { questionId: 'q4', question: 'Qiymət etiketi', value: 'Var, oxunaqlıdır' },
   ];
   render(
@@ -100,8 +100,8 @@ it('hides historical brand guesses from the audit photo', () => {
   old.ai_detections = [
     {
       id: 'legacy-1',
-      sku: 'sprite',
-      label: 'Sprite 0.5L',
+      sku: 'lemon_soda',
+      label: 'Lemon Soda 0.5L',
       confidence: 0.9,
       box: { x: 10, y: 10, width: 20, height: 20 },
       color: '#008B47',

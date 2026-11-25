@@ -15,8 +15,8 @@
    ============================================================ */
 :root{
   /* brand */
-  --coke-50:#fff1f1; --coke-100:#ffdfdf; --coke-200:#ffc5c5;
-  --coke-500:#F40009; --coke-600:#D80008; --coke-700:#B50007;
+  --brand-50:#fff1f1; --brand-100:#ffdfdf; --brand-200:#ffc5c5;
+  --brand-500:#F40009; --brand-600:#D80008; --brand-700:#B50007;
 
   /* ink */
   --ink:#0f172a; --ink-2:#334155; --muted:#64748b; --faint:#94a3b8;
@@ -57,7 +57,7 @@ img{display:block;max-width:100%}
 .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
 
 /* focus ring — gap #9 in the v1 audit, fixed app-wide */
-:focus-visible{outline:2px solid var(--coke-500);outline-offset:2px;border-radius:8px}
+:focus-visible{outline:2px solid var(--brand-500);outline-offset:2px;border-radius:8px}
 
 ::-webkit-scrollbar{width:8px;height:8px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -75,7 +75,7 @@ img{display:block;max-width:100%}
   border-bottom:1px solid rgba(255,255,255,.08);
 }
 .chrome .brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:-.02em}
-.chrome .mark{width:26px;height:26px;border-radius:8px;background:var(--coke-500);display:grid;place-items:center;font-size:11px;font-weight:800}
+.chrome .mark{width:26px;height:26px;border-radius:8px;background:var(--brand-500);display:grid;place-items:center;font-size:11px;font-weight:800}
 .chrome .tag{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#ff8a8f;border:1px solid rgba(244,0,9,.35);background:rgba(244,0,9,.14);padding:3px 7px;border-radius:6px}
 .chrome .spacer{flex:1}
 .chrome .group{display:flex;align-items:center;gap:8px}
@@ -84,7 +84,7 @@ img{display:block;max-width:100%}
 .seg button{padding:6px 12px;border-radius:7px;font-size:11.5px;font-weight:700;color:#a9b6cc;transition:.15s}
 .seg button:hover{color:#fff}
 .seg button.on{background:#fff;color:#0f172a}
-.seg.warm button.on{background:var(--coke-500);color:#fff}
+.seg.warm button.on{background:var(--brand-500);color:#fff}
 
 .stage{padding:26px 20px 60px;display:flex;justify-content:center}
 
@@ -111,7 +111,7 @@ img{display:block;max-width:100%}
   z-index:50;
 }
 .sb-head{padding:18px 16px;border-bottom:1px solid var(--nav-line);display:flex;align-items:center;gap:11px}
-.sb-logo{width:38px;height:38px;border-radius:11px;flex-shrink:0;background:var(--coke-500);display:grid;place-items:center;box-shadow:var(--sh-brand);overflow:hidden;font-weight:800;font-size:13px}
+.sb-logo{width:38px;height:38px;border-radius:11px;flex-shrink:0;background:var(--brand-500);display:grid;place-items:center;box-shadow:var(--sh-brand);overflow:hidden;font-weight:800;font-size:13px}
 .sb-logo img{width:100%;height:100%;object-fit:cover}
 .sb-brand{min-width:0;flex:1}
 .sb-brand h1{margin:0;font-size:15px;font-weight:800;letter-spacing:-.02em;display:flex;align-items:center;gap:6px}
@@ -127,7 +127,7 @@ img{display:block;max-width:100%}
   transition:.15s;position:relative;text-align:left;
 }
 .nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
-.nav-item.active{background:var(--coke-500);color:#fff;box-shadow:var(--sh-brand)}
+.nav-item.active{background:var(--brand-500);color:#fff;box-shadow:var(--sh-brand)}
 .nav-item .ico{width:17px;height:17px;flex-shrink:0}
 .nav-item .txt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nav-item .pill{font-size:10px;font-weight:800;padding:2px 7px;border-radius:99px;background:rgba(255,255,255,.13);color:#dbe3ef}
@@ -190,8 +190,8 @@ img{display:block;max-width:100%}
   transition:.15s;white-space:nowrap;border:1px solid transparent;
 }
 .btn:active{transform:scale(.97)}
-.btn-primary{background:var(--coke-500);color:#fff;box-shadow:var(--sh-brand)}
-.btn-primary:hover{background:var(--coke-600)}
+.btn-primary{background:var(--brand-500);color:#fff;box-shadow:var(--sh-brand)}
+.btn-primary:hover{background:var(--brand-600)}
 .btn-ok{background:#047857;color:#fff}
 .btn-ok:hover{background:#065f46}
 .btn-bad{background:#e11d48;color:#fff}
@@ -239,7 +239,7 @@ img{display:block;max-width:100%}
 .kpi-spark{margin-top:9px;height:26px}
 .kpi.attn{border-color:var(--warn-bd);box-shadow:0 0 0 3px rgba(245,158,11,.13),var(--sh-card)}
 .i-blue{background:#eff6ff;border-color:#dbeafe;color:#2563eb}
-.i-coke{background:var(--coke-50);border-color:var(--coke-200);color:var(--coke-500)}
+.i-brand{background:var(--brand-50);border-color:var(--brand-200);color:var(--brand-500)}
 .i-amber{background:var(--warn-bg);border-color:var(--warn-bd);color:var(--warn)}
 .i-emerald{background:var(--ok-bg);border-color:var(--ok-bd);color:var(--ok)}
 
@@ -384,7 +384,7 @@ tbody tr:last-child td{border-bottom:0}
 .trow{display:flex;align-items:center;gap:14px;padding:15px 18px;border-bottom:1px solid var(--line-soft);transition:background .14s}
 .trow:hover{background:#f8fafc}
 .trow:last-child{border-bottom:0}
-.trow .ti{width:40px;height:40px;border-radius:11px;background:var(--coke-50);border:1px solid var(--coke-200);display:grid;place-items:center;color:var(--coke-500);flex-shrink:0}
+.trow .ti{width:40px;height:40px;border-radius:11px;background:var(--brand-50);border:1px solid var(--brand-200);display:grid;place-items:center;color:var(--brand-500);flex-shrink:0}
 .trow .tb{flex:1;min-width:0}
 .trow .tb b{display:block;font-size:12.5px;font-weight:700;letter-spacing:-.01em}
 .trow .tb .sub{display:flex;align-items:center;gap:9px;margin-top:4px;font-size:10.5px;color:var(--muted);flex-wrap:wrap}
@@ -461,7 +461,7 @@ tbody tr:last-child td{border-bottom:0}
 .mtask .specs{display:flex;gap:12px;margin-top:9px;flex-wrap:wrap}
 .spec{font-size:9.5px;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:4px}
 .spec b{color:var(--ink);font-weight:800;font-size:11px}
-.mtask .cta{margin-top:11px;width:100%;background:var(--coke-500);color:#fff;border-radius:9px;padding:10px;font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:6px}
+.mtask .cta{margin-top:11px;width:100%;background:var(--brand-500);color:#fff;border-radius:9px;padding:10px;font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:6px}
 
 .cam{flex:1;position:relative;background:linear-gradient(170deg,#334155,#1e293b);overflow:hidden}
 .cam .shelf{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:14px;padding:0 14px}
@@ -511,7 +511,7 @@ tbody tr:last-child td{border-bottom:0}
 .ds-notes{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
 .note{background:#fff;border:1px solid var(--line);border-radius:var(--r-md);padding:17px;box-shadow:var(--sh-card)}
 .note .nh{display:flex;align-items:center;gap:9px;margin-bottom:10px}
-.note .nh .n{width:26px;height:26px;border-radius:8px;background:var(--coke-50);border:1px solid var(--coke-200);color:var(--coke-500);display:grid;place-items:center;font-size:11px;font-weight:800;flex-shrink:0}
+.note .nh .n{width:26px;height:26px;border-radius:8px;background:var(--brand-50);border:1px solid var(--brand-200);color:var(--brand-500);display:grid;place-items:center;font-size:11px;font-weight:800;flex-shrink:0}
 .note h4{margin:0;font-size:12.5px;font-weight:800;letter-spacing:-.01em}
 .note p{margin:0 0 9px;font-size:11.5px;color:var(--ink-2);line-height:1.55}
 .note .was{font-size:11px;color:var(--bad);background:var(--bad-bg);border:1px solid var(--bad-bd);border-radius:8px;padding:8px 10px;margin-bottom:7px}
@@ -638,7 +638,7 @@ pre .k{color:#ff8a8f} pre .s{color:#86efac} pre .c{color:#7c8aa5}
     <div class="sb-head" data-page-node-id="EHJtEHlcFArqgMFyQhVQG2">
       <div class="sb-logo" data-page-node-id="AKaGgAqK1SZ5KZFhxPkvuN"><img src="../logo.jpg" alt="oneTeam" onerror="this.style.display='none';this.parentNode.textContent='1T'" data-page-node-id="Q76a5hcjEn7G9i6dKWFFdk"></div>
       <div class="sb-brand" data-page-node-id="Em1QbDDngCQxVIzCJoNfVE">
-        <h1 data-page-node-id="NU2bcnkQ7ymM1eAu5PnvqW">oneTeam <span class="cc" data-page-node-id="enBFHAHASUmjRgdXJFDMzJ">Coca-Cola</span></h1>
+        <h1 data-page-node-id="NU2bcnkQ7ymM1eAu5PnvqW">oneTeam <span class="cc" data-page-node-id="enBFHAHASUmjRgdXJFDMzJ">oneTeam Retail</span></h1>
         <p data-page-node-id="YjQfHrX9vpQnAjs6anumTr">Rəf Monitorinq Portalı</p>
       </div>
     </div>
@@ -724,7 +724,7 @@ pre .k{color:#ff8a8f} pre .s{color:#86efac} pre .c{color:#7c8aa5}
               <div class="kpi" data-page-node-id="677XEPRLEQjqZxSbSGpJ0s">
                 <div class="kpi-top" data-page-node-id="yFS0NTqFv71GePqtviuQxX">
                   <div class="kpi-lbl" data-page-node-id="uxHTzRakghljGuXfejIu7t">Aktiv<br data-page-node-id="b9Iimg7WLqNMO8bPjRP9r9">Planogramlar</div>
-                  <div class="kpi-ico i-coke" data-page-node-id="2PrOLFFz4yC9jPqeADaPgW"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="HGA9YIrqNK6P4s5zilh0z7"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="kHHG18M7bTTmQ65dA7ClWU"/><path d="M3 9h18M9 21V9" data-page-node-id="Pk6G3Qw2S1uWDPSCglMiPQ"/></svg></div>
+                  <div class="kpi-ico i-brand" data-page-node-id="2PrOLFFz4yC9jPqeADaPgW"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="HGA9YIrqNK6P4s5zilh0z7"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="kHHG18M7bTTmQ65dA7ClWU"/><path d="M3 9h18M9 21V9" data-page-node-id="Pk6G3Qw2S1uWDPSCglMiPQ"/></svg></div>
                 </div>
                 <div class="kpi-val num" data-page-node-id="uV9LTH156FAFKA6zzeVWBL">3</div>
                 <div class="kpi-sub" data-page-node-id="iWWFjBJ91EsjY9mgn6Ahvz">Cari yoxlama təlimatları</div>
@@ -791,7 +791,7 @@ pre .k{color:#ff8a8f} pre .s{color:#86efac} pre .c{color:#7c8aa5}
                       <tr data-page-node-id="QMIZSwo1AkcHwYn8jdngJq">
                         <td data-page-node-id="noZ730AdCoN0vlwRUPkyzo"><div class="thumb a" data-page-node-id="kMeizCsXdKuPqJIIHR5JeM"><div class="fb" data-page-node-id="zdziPxtqaQDLxTsKVC882B"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="jGOR6e2gAkHnekWyCXTqCo"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="hTP79l1oD68TRB3Kxczf6v"/><circle cx="8.5" cy="8.5" r="1.5" data-page-node-id="rBiXt70aPGcJhDPjYDvm2K"/><path d="m21 15-5-5L5 21" data-page-node-id="2p3HlwBC4RieYJKaA2JJZR"/></svg></div></div></td>
                         <td data-page-node-id="OcAdbowknabWiPrTTowu7H">
-                          <div style="font-size:12px;font-weight:700;letter-spacing:-.01em" data-page-node-id="96fOIXCa2zjnpJNP7lJwXA">Coca-Cola 0.5L Cooler Placement Check</div>
+                          <div style="font-size:12px;font-weight:700;letter-spacing:-.01em" data-page-node-id="96fOIXCa2zjnpJNP7lJwXA">oneTeam Retail 0.5L Cooler Placement Check</div>
                           <div style="margin-top:4px" data-page-node-id="IfHfpf43UbECdELMXoeiCg"><span class="chip a" data-page-node-id="RdrCL9YxiM4g7Pb4No1W3L">Ssenari A</span></div>
                         </td>
                         <td data-page-node-id="LpT5HKNxEmW7H8Jhov036A"><div class="cell-store" data-page-node-id="f7BDKdfmkj0Ws6mKLX4UxZ"><b data-page-node-id="ADm8rpyF3gQtz0nFIr5fEI">Bravo Supermarket — 28 Mall</b><span data-page-node-id="qb01Uu2A1LQ93k5pjUya5G">BRAVO_28MAY_01</span></div></td>
@@ -804,7 +804,7 @@ pre .k{color:#ff8a8f} pre .s{color:#86efac} pre .c{color:#7c8aa5}
                       <tr data-page-node-id="H5GkXyJ6UcUkZl6tslGJmG">
                         <td data-page-node-id="BlJbwheQJtfAodmLDLGf6s"><div class="thumb b" data-page-node-id="bZgAeIMRJiOnNeumSVsvg0"><div class="fb" data-page-node-id="xrMwFQrkKbT2vSRf4ha8xi"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="OBqyLCygw29sEveprjUPCc"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="FaHPkO4iri2BWg3YWGglGv"/><circle cx="8.5" cy="8.5" r="1.5" data-page-node-id="OrFDKAskM3qz4ltAoS7Qkl"/><path d="m21 15-5-5L5 21" data-page-node-id="Z87A5vS2p8pCe8qEE8YFR2"/></svg></div></div></td>
                         <td data-page-node-id="NhCmrynmNRFR00RtAdsPAV">
-                          <div style="font-size:12px;font-weight:700;letter-spacing:-.01em" data-page-node-id="IHEYuXxqFzbolJZH7JxN2m">Coca-Cola Zero Sugar Promo Stand Display</div>
+                          <div style="font-size:12px;font-weight:700;letter-spacing:-.01em" data-page-node-id="IHEYuXxqFzbolJZH7JxN2m">Zero Sugar Beverage Promo Stand Display</div>
                           <div style="margin-top:4px" data-page-node-id="rV8tnMTCWdHhAVSHyBDZmO"><span class="chip b" data-page-node-id="GFUTrWH4bBCQcWksjA17eT">Ssenari B</span></div>
                         </td>
                         <td data-page-node-id="bC2Jgx71vBb64FquRMxiDo"><div class="cell-store" data-page-node-id="MOB9brSv9uU3LYZmdxg2bB"><b data-page-node-id="gvNDGAuqhD4QaSXJghri01">Araz Superstore — Gənclik</b><span data-page-node-id="efRHVXPbG5xMKEeLB7kGQP">ARAZ_GENJLIK_02</span></div></td>
@@ -817,7 +817,7 @@ pre .k{color:#ff8a8f} pre .s{color:#86efac} pre .c{color:#7c8aa5}
                       <tr data-page-node-id="mFTGd5phtenRyXMZeWa3vw">
                         <td data-page-node-id="CZqBcGVjGbwhIleH8H860v"><div class="thumb c" data-page-node-id="i5h2xrto7ELHxPJxOss7F0"><div class="fb" data-page-node-id="CgGqHuzGzRy6dPjW0DPwXy"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="Z66x0ygCYch0k7y6iPdUi5"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="EWuJVi0ICnINAce6nMsaZe"/><circle cx="8.5" cy="8.5" r="1.5" data-page-node-id="1rSU51uLR4JjIssHpFXhDC"/><path d="m21 15-5-5L5 21" data-page-node-id="hDrj8MyHuSA5Abo0JvSACE"/></svg></div></div></td>
                         <td data-page-node-id="nhM16WuyhHYnEGo1MmEj2j">
-                          <div style="font-size:12px;font-weight:700;letter-spacing:-.01em" data-page-node-id="lZmPYOyhhvUxGLyv6GIvuC">Fanta Orange &amp; Sprite Göz Sığası Yoxlaması</div>
+                          <div style="font-size:12px;font-weight:700;letter-spacing:-.01em" data-page-node-id="lZmPYOyhhvUxGLyv6GIvuC">Orange Soda Orange &amp; Lemon Soda Göz Sığası Yoxlaması</div>
                           <div style="margin-top:4px" data-page-node-id="CSh8hyYfVnDvbncqqAVyvb"><span class="chip c" data-page-node-id="obXCEc8eTp7Bulckj66yWn">Ssenari C</span></div>
                         </td>
                         <td data-page-node-id="avxwq8qJbMbQdKbcwfc2Ak"><div class="cell-store" data-page-node-id="iHsT2EdGF2hyyaX6rYTgIj"><b data-page-node-id="4PyJAEmM4rnh0ltv1vwx8H">Bravo Hypermarket — Təzəbazar</b><span data-page-node-id="yC0sPObbLrDtlINN2LbQOz">BRAVO_TEZEBZR_04</span></div></td>
@@ -830,7 +830,7 @@ pre .k{color:#ff8a8f} pre .s{color:#86efac} pre .c{color:#7c8aa5}
                       <tr data-page-node-id="HKu9DVeHPhzkeg1QgFlylI">
                         <td data-page-node-id="gWwuqD8o1EyjVq21Po8oUQ"><div class="thumb" data-page-node-id="VRgbwPCRsHZfWQFRCElFId"><div class="fb" data-page-node-id="7fRrmnMzdAkkXo1qWH1JMU"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="nkHY432dItmLFHYPHDtw0w"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="MFASD3WbF9CMzE4DcAMSCW"/><circle cx="8.5" cy="8.5" r="1.5" data-page-node-id="5fVp4Xtzkt9YwxSJEbCzgi"/><path d="m21 15-5-5L5 21" data-page-node-id="IOW4ipYcAYFpK22COqx79l"/></svg></div></div></td>
                         <td data-page-node-id="qwjYiW1mfhrGaEsOX0Sf12">
-                          <div style="font-size:12px;font-weight:700;letter-spacing:-.01em" data-page-node-id="ACVxxOT0AoHISmoGgd1rDq">Fanta Orange &amp; Sprite Göz Sığası Yoxlaması</div>
+                          <div style="font-size:12px;font-weight:700;letter-spacing:-.01em" data-page-node-id="ACVxxOT0AoHISmoGgd1rDq">Orange Soda Orange &amp; Lemon Soda Göz Sığası Yoxlaması</div>
                           <div style="margin-top:4px" data-page-node-id="9bceQB5QXF4eIYWzujeldt"><span class="st neutral" style="font-size:10px" data-page-node-id="CCO89dL73bCMcxCytFwA0v">Prioritet yoxdur</span></div>
                         </td>
                         <td data-page-node-id="Wo9nGZnyBHFBkEhFyJsmBK"><div class="cell-store" data-page-node-id="Ua5IEmfyuEt2rmPcz3FYMW"><b data-page-node-id="bEvo26nvNokAZb8K1WX3Hj">Bazarstore Gourmet — Port Baku</b><span data-page-node-id="zEEB2LsWOmfxX9vtpRCFON">BAZAR_PORTBAKU_03</span></div></td>
@@ -916,7 +916,7 @@ pre .k{color:#ff8a8f} pre .s{color:#86efac} pre .c{color:#7c8aa5}
                   </div>
                 </div>
                 <div class="body" data-page-node-id="N9PCvJxgIQFGg4ots6ihxc">
-                  <b data-page-node-id="tbFAWczSfPwKEVhq3rpRgK">Coca-Cola 0.5L Cooler Placement Check</b>
+                  <b data-page-node-id="tbFAWczSfPwKEVhq3rpRgK">oneTeam Retail 0.5L Cooler Placement Check</b>
                   <div class="meta" data-page-node-id="Gae1zdB7D0WcTF5pnBmt8J"><span data-page-node-id="DF2T0lCFTf9ueyMdDjS74w">Bravo — 28 Mall</span><span class="num" data-page-node-id="CwJr18vIiWH2ayqH6J0CDc">09-12 19:32</span></div>
                   <div class="foot" data-page-node-id="lshsK31SwXjz0ZDfvvECRL"><span class="st ok" data-page-node-id="bxc4dEyClqiLcJELVD7dAE"><i class="dot d-ok" data-page-node-id="xOuHDjD0PEEwADztxMT6Uo"></i>Təsdiqləndi</span><span class="chip a" data-page-node-id="RGMtg4TC5Sikf8s1BXlwR7">Ssenari A</span></div>
                 </div>
@@ -931,7 +931,7 @@ pre .k{color:#ff8a8f} pre .s{color:#86efac} pre .c{color:#7c8aa5}
                   </div>
                 </div>
                 <div class="body" data-page-node-id="0jdTiAlAZexVGZGMCHyfBU">
-                  <b data-page-node-id="ohoIkTGPUKvkDs6jool6Hx">Coca-Cola Zero Sugar Promo Stand Display</b>
+                  <b data-page-node-id="ohoIkTGPUKvkDs6jool6Hx">Zero Sugar Beverage Promo Stand Display</b>
                   <div class="meta" data-page-node-id="GxtGYDS1pgplrCIYfoBvOf"><span data-page-node-id="mfHQpM6vNa5CdATfvUUiTE">Araz — Gənclik</span><span class="num" data-page-node-id="C1HixOq3uwNl9uvtGtvCX7">09-12 19:17</span></div>
                   <div class="foot" data-page-node-id="fRCoy8WWQVnsk02fOsrMb9"><span class="st warn" data-page-node-id="XG5bwP7NLNZfthsOlcABYf"><i class="dot d-warn" data-page-node-id="WiziHguTgz5FAh3lL2LonG"></i>Gözləyir</span><span class="chip b" data-page-node-id="6pI6IQyhvqRqKXhgzb0hjm">Ssenari B</span></div>
                 </div>
@@ -946,7 +946,7 @@ pre .k{color:#ff8a8f} pre .s{color:#86efac} pre .c{color:#7c8aa5}
                   </div>
                 </div>
                 <div class="body" data-page-node-id="KashR3JXTbsaUJLj0PWB3Q">
-                  <b data-page-node-id="ju4QfyomuSDDZWZE1DYstc">Fanta Orange &amp; Sprite Göz Sığası Yoxlaması</b>
+                  <b data-page-node-id="ju4QfyomuSDDZWZE1DYstc">Orange Soda Orange &amp; Lemon Soda Göz Sığası Yoxlaması</b>
                   <div class="meta" data-page-node-id="5gQHOn4l1P6nqCBP8Wc4u1"><span data-page-node-id="AYeUwjjeuLMZcuzbVF5PxD">Bravo — Təzəbazar</span><span class="num" data-page-node-id="jakA2hTjAZX7OncYmb93GW">09-12 19:02</span></div>
                   <div class="foot" data-page-node-id="OJIQJiOHTGNuAhUAoTGA73"><span class="st warn" data-page-node-id="4G7KwEF8AAPemkiWQs4RM2"><i class="dot d-warn" data-page-node-id="HzGZJHvq6QLoQCe1EQsGvc"></i>Gözləyir</span><span class="chip c" data-page-node-id="IF7izluBWiIhmvt1mj1C4o">Ssenari C</span></div>
                 </div>
@@ -961,7 +961,7 @@ pre .k{color:#ff8a8f} pre .s{color:#86efac} pre .c{color:#7c8aa5}
                   </div>
                 </div>
                 <div class="body" data-page-node-id="pbAm0lzWLZxz12QJGgAAT7">
-                  <b data-page-node-id="tWHmMFPDLQH77KHrfV9Nxk">Fanta Orange &amp; Sprite Göz Sığası Yoxlaması</b>
+                  <b data-page-node-id="tWHmMFPDLQH77KHrfV9Nxk">Orange Soda Orange &amp; Lemon Soda Göz Sığası Yoxlaması</b>
                   <div class="meta" data-page-node-id="tTQquNq7XrdE3n8JzQ7cjp"><span data-page-node-id="WfxzYX2cRvdDD8KP5mv9ja">Bazarstore — Port Baku</span><span class="num" data-page-node-id="JbDi9oFECus6MiZGq5Es60">09-11 15:05</span></div>
                   <div class="foot" data-page-node-id="Rm2tuFsd23YF2Pg20LmRUO"><span class="st bad" data-page-node-id="urVXm9vAEVDqfTDzEgeHT4"><i class="dot d-bad" data-page-node-id="tvYoN6dtwGjWbIT3Jr7WkE"></i>İmtina edildi</span></div>
                 </div>
@@ -1023,7 +1023,7 @@ pre .k{color:#ff8a8f} pre .s{color:#86efac} pre .c{color:#7c8aa5}
               <div class="trow" data-page-node-id="qgykEjxa6Afa1B4Y3FON8K">
                 <div class="ti" data-page-node-id="gBhPAxMqjrFj3qmNkyyoLv"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="zEsSIS0TgTkYjqXgieBcWm"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="kuKTmIv485T0Kg3oIpHgp2"/><path d="M3 9h18M9 21V9" data-page-node-id="Me3X3yCcQJ6CVMEcYVcCIv"/></svg></div>
                 <div class="tb" data-page-node-id="QVHjjFJLP34DkKbmEcFCl9">
-                  <b data-page-node-id="vpEfe7EfAV1N3a4fA3fAAf">Coca-Cola 0.5L Cooler Placement Check</b>
+                  <b data-page-node-id="vpEfe7EfAV1N3a4fA3fAAf">oneTeam Retail 0.5L Cooler Placement Check</b>
                   <div class="sub" data-page-node-id="r5fAcep01LHtCenE6TekqF">
                     <span class="prio p-high" data-page-node-id="WCGWLPj6gyNbiDOKWnRO9t"><i data-page-node-id="PRmZdkgdEhSTGS8MI6CMzW"></i>Yüksək</span>
                     <span data-page-node-id="MpYeHY3fAI0nMROJ11IAdA">·</span><span data-page-node-id="x11rkI2wY0P3PJcXs65IpA">2 mağaza</span>
@@ -1041,7 +1041,7 @@ pre .k{color:#ff8a8f} pre .s{color:#86efac} pre .c{color:#7c8aa5}
               <div class="trow" data-page-node-id="sKotPupEBaYqd4plmExquc">
                 <div class="ti" data-page-node-id="69YbiTb52ZOLcBhkkBoKe7"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="WVeF2a2rSl3hCdW0NFOs4e"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="gUt4PMJyaOjBEFQm2cuSk1"/><path d="M3 9h18M9 21V9" data-page-node-id="qxCg7xBuxYe0nb8YnEfIhd"/></svg></div>
                 <div class="tb" data-page-node-id="zEy1OsFXz5LDdxw0EgkTWh">
-                  <b data-page-node-id="bVeTeajUF7tdFTkycXP5Ru">Coca-Cola Zero Sugar Promo Stand Display</b>
+                  <b data-page-node-id="bVeTeajUF7tdFTkycXP5Ru">Zero Sugar Beverage Promo Stand Display</b>
                   <div class="sub" data-page-node-id="yf1IbHGEXPZz4dfqXhOHmo">
                     <span class="prio p-urgent" data-page-node-id="ewTpHjmEdf8OoYg7XpyaPi"><i data-page-node-id="PD0NnnHaJXAfTLD7igbYR2"></i>Təcili</span>
                     <span data-page-node-id="oQKwjUtmCXXBHuOId0W2yb">·</span><span data-page-node-id="9mABuyBHxjyXVtI8l17FBR">1 mağaza</span>
@@ -1059,7 +1059,7 @@ pre .k{color:#ff8a8f} pre .s{color:#86efac} pre .c{color:#7c8aa5}
               <div class="trow" data-page-node-id="qxpv1D7hq6opjdwFrrkYo2">
                 <div class="ti" data-page-node-id="XTmv88V0VanPcXJwQ0P8tc"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="SrYUkN3hXAtUMzFtXOZw48"><rect x="3" y="3" width="18" height="18" rx="2.5" data-page-node-id="64qLskIA5YHRUPhwJRydlm"/><path d="M3 9h18M9 21V9" data-page-node-id="lutsMTx0KsVHEiuhSpy4Z6"/></svg></div>
                 <div class="tb" data-page-node-id="gTZPwLErBwTDwJZRo4GWmx">
-                  <b data-page-node-id="cVKhq5p3UBRNWX4AQEPsBI">Fanta Orange &amp; Sprite Göz Sığası Yoxlaması</b>
+                  <b data-page-node-id="cVKhq5p3UBRNWX4AQEPsBI">Orange Soda Orange &amp; Lemon Soda Göz Sığası Yoxlaması</b>
                   <div class="sub" data-page-node-id="zAJ4JIHATbGA5BUpUPfnfz">
                     <span class="prio p-medium" data-page-node-id="CD7VBysVl0YIDFgr64lWXR"><i data-page-node-id="Y9HLCoV6mborPhw51CJkYM"></i>Orta</span>
                     <span data-page-node-id="MZCyQOYPnCLPX18ZnNlf84">·</span><span data-page-node-id="Puc7cuFqRwghlOgdYnFlIc">2 mağaza</span>
@@ -1196,7 +1196,7 @@ pre .k{color:#ff8a8f} pre .s{color:#86efac} pre .c{color:#7c8aa5}
 
                       <div class="mtask" data-page-node-id="Clhqr7DjAzo8RjkTxIqOzg">
                         <div class="r1" data-page-node-id="EGJN1ipZFeWLZSb77AyZDK">
-                          <h5 data-page-node-id="9kr5CZqZ67anD9brEJtw8y">Coca-Cola 0.5L Cooler Placement Check</h5>
+                          <h5 data-page-node-id="9kr5CZqZ67anD9brEJtw8y">oneTeam Retail 0.5L Cooler Placement Check</h5>
                           <span class="prio p-high" style="font-size:10px" data-page-node-id="pQEKVnhuqhASCnUEPqMx3D"><i data-page-node-id="NsT2lMHXpltV9FKtTi3gac"></i></span>
                         </div>
                         <div class="specs" data-page-node-id="uRFidFsSuBc3On8X5WYwF0">
@@ -1212,7 +1212,7 @@ pre .k{color:#ff8a8f} pre .s{color:#86efac} pre .c{color:#7c8aa5}
 
                       <div class="mtask" data-page-node-id="oGTRReiGOyQjfHDRd12plv">
                         <div class="r1" data-page-node-id="sP7FdMkAVwL9EMuXJsBF73">
-                          <h5 data-page-node-id="W3Be3J1vLlG6zfRBlXNaz8">Fanta Orange &amp; Sprite Göz Sığası Yoxlaması</h5>
+                          <h5 data-page-node-id="W3Be3J1vLlG6zfRBlXNaz8">Orange Soda Orange &amp; Lemon Soda Göz Sığası Yoxlaması</h5>
                           <span class="prio p-medium" style="font-size:10px" data-page-node-id="yLK4svLlsfovA2JfmaC0sh"><i data-page-node-id="zBVWt4wRBglBPSO8a02T7z"></i></span>
                         </div>
                         <div class="specs" data-page-node-id="TAfy6t6NavWlZeYrforVox">
@@ -1300,13 +1300,13 @@ pre .k{color:#ff8a8f} pre .s{color:#86efac} pre .c{color:#7c8aa5}
 
                       <div class="queue-item" data-page-node-id="oWhesLEu9W41XDFWFzBQMX">
                         <div class="qi" data-page-node-id="vkM6OHdTU6t0NvCsT9JK9Z"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" data-page-node-id="rpQnOUmJPJ7F2kGGs5aVbP"><circle cx="12" cy="12" r="9" data-page-node-id="GJGvfKpJtkSKOuy3oZL9qq"/><path d="M12 7.5V12l3 2" data-page-node-id="O8rTTbuI9WE0vDoMwrXDAa"/></svg></div>
-                        <div class="qt" data-page-node-id="DMrALraThtp4FVj2xyp1G0"><b data-page-node-id="ddmNjn2hVFZt03zmyLPYWd">Coca-Cola 0.5L Cooler</b><span data-page-node-id="dL86RouypPrcN5YEXYnvXH">BRAVO_28MAY_01 · 19:32</span></div>
+                        <div class="qt" data-page-node-id="DMrALraThtp4FVj2xyp1G0"><b data-page-node-id="ddmNjn2hVFZt03zmyLPYWd">oneTeam Retail 0.5L Cooler</b><span data-page-node-id="dL86RouypPrcN5YEXYnvXH">BRAVO_28MAY_01 · 19:32</span></div>
                         <span class="st warn" style="font-size:10px" data-page-node-id="ZerI4IELGpf7Iw6TyRPyZ9">Gözləyir</span>
                       </div>
 
                       <div class="queue-item" data-page-node-id="El9N6CRgWUWE5hhFoiEsDm">
                         <div class="qi" data-page-node-id="8crX147wtoNS7zqGrIfku4"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" data-page-node-id="WoD7QywT78vKlDJlK4s6Co"><circle cx="12" cy="12" r="9" data-page-node-id="h33P9zv6PU9ORdHgkmKXN7"/><path d="M12 7.5V12l3 2" data-page-node-id="okRcF7r7o2jBfBDyXpXcto"/></svg></div>
-                        <div class="qt" data-page-node-id="8uGOJbZwamkmDWiAqvrZ9N"><b data-page-node-id="IhTl3lDMwLIs5Jaj5iOMsw">Fanta &amp; Sprite Göz Sığası</b><span data-page-node-id="zP3bFPVXeR4McVllXmsCvI">BRAVO_28MAY_01 · 18:04</span></div>
+                        <div class="qt" data-page-node-id="8uGOJbZwamkmDWiAqvrZ9N"><b data-page-node-id="IhTl3lDMwLIs5Jaj5iOMsw">Orange Soda &amp; Lemon Soda Göz Sığası</b><span data-page-node-id="zP3bFPVXeR4McVllXmsCvI">BRAVO_28MAY_01 · 18:04</span></div>
                         <span class="st warn" style="font-size:10px" data-page-node-id="soEcmTGuAhpnPoKNtUJZOA">Gözləyir</span>
                       </div>
 
@@ -1332,7 +1332,7 @@ pre .k{color:#ff8a8f} pre .s{color:#86efac} pre .c{color:#7c8aa5}
             <div class="card pad" data-page-node-id="10RzbiiHa3GLlJrGGed2NZ">
               <h3 style="margin:0 0 5px;font-size:14px;font-weight:800;letter-spacing:-.02em" data-page-node-id="e1CiGpQGigGCnrkAPUmTUk">Nə dəyişdi və niyə</h3>
               <p style="margin:0;font-size:11.5px;color:var(--muted);max-width:760px" data-page-node-id="lL3BCRxEKcFWPwdwuyN9LS">
-                Bu təklif mövcud brendi və istifadəçi vərdişlərini saxlayır — Coca-Cola qırmızısı aksent olaraq qalır,
+                Bu təklif mövcud brendi və istifadəçi vərdişlərini saxlayır — oneTeam Retail qırmızısı aksent olaraq qalır,
                 bütün mətn Azərbaycan dilindədir, status məntiqi eynidir. Dəyişikliklər struktur problemlərinə yönəlib.
               </p>
             </div>
@@ -1406,9 +1406,9 @@ pre .k{color:#ff8a8f} pre .s{color:#86efac} pre .c{color:#7c8aa5}
             </div>
 
             <div class="ds-grid" data-page-node-id="zTnYncbISmUdouZFPjvDYP">
-              <div class="sw" data-page-node-id="LlIM767UbQfyXCLx9Qrzgo"><div class="c" style="background:#F40009" data-page-node-id="gU8OmZAxfGPBGXwWKv4Thp"></div><div data-page-node-id="87u0f62TbWCD94SPCc90PA"><b data-page-node-id="JP2LAcVG8aaMYfgN8Ia8cM">coke-500</b><span data-page-node-id="M9tdevN94Wg8gEv6e4ssAY">#F40009</span></div></div>
-              <div class="sw" data-page-node-id="D4c1cBIhflPrGauvQuL1MR"><div class="c" style="background:#D80008" data-page-node-id="crS4pwy7X05bfRGUljtYnD"></div><div data-page-node-id="fGqnq7TU8O09UCSbQblg69"><b data-page-node-id="ulov4mBQVjtZXNF73QHUv1">coke-600</b><span data-page-node-id="rW1JlDrIKsjYY4uDZIVMSB">#D80008</span></div></div>
-              <div class="sw" data-page-node-id="Eqd7aEPWr4UiAfPfjQPkRP"><div class="c" style="background:#fff1f1" data-page-node-id="yoBSz5fIcR1LrQdP4GwlUr"></div><div data-page-node-id="tWtyEtV3UHEaoOrJifsnjK"><b data-page-node-id="v8V5tHtj1F2lEYgVaILl5k">coke-50</b><span data-page-node-id="05ECaxQUT5Waov7zqkjLBo">#fff1f1</span></div></div>
+              <div class="sw" data-page-node-id="LlIM767UbQfyXCLx9Qrzgo"><div class="c" style="background:#F40009" data-page-node-id="gU8OmZAxfGPBGXwWKv4Thp"></div><div data-page-node-id="87u0f62TbWCD94SPCc90PA"><b data-page-node-id="JP2LAcVG8aaMYfgN8Ia8cM">brand-500</b><span data-page-node-id="M9tdevN94Wg8gEv6e4ssAY">#F40009</span></div></div>
+              <div class="sw" data-page-node-id="D4c1cBIhflPrGauvQuL1MR"><div class="c" style="background:#D80008" data-page-node-id="crS4pwy7X05bfRGUljtYnD"></div><div data-page-node-id="fGqnq7TU8O09UCSbQblg69"><b data-page-node-id="ulov4mBQVjtZXNF73QHUv1">brand-600</b><span data-page-node-id="rW1JlDrIKsjYY4uDZIVMSB">#D80008</span></div></div>
+              <div class="sw" data-page-node-id="Eqd7aEPWr4UiAfPfjQPkRP"><div class="c" style="background:#fff1f1" data-page-node-id="yoBSz5fIcR1LrQdP4GwlUr"></div><div data-page-node-id="tWtyEtV3UHEaoOrJifsnjK"><b data-page-node-id="v8V5tHtj1F2lEYgVaILl5k">brand-50</b><span data-page-node-id="05ECaxQUT5Waov7zqkjLBo">#fff1f1</span></div></div>
               <div class="sw" data-page-node-id="6AVHsKEreo8uaWhieK70M1"><div class="c" style="background:#0f172a" data-page-node-id="E8WTxowUdLrGD1DnQQ8NB5"></div><div data-page-node-id="oCJ8cNZssOuUr1qLE2J1mj"><b data-page-node-id="1ZGJtz5rBkyFlDKjgvEeoW">ink / nav</b><span data-page-node-id="8zeCKHBmiRcbbLH6UkScxz">#0f172a</span></div></div>
               <div class="sw" data-page-node-id="sUbPvcAmZElhJGPNMFNyD2"><div class="c" style="background:#f4f6f9" data-page-node-id="7NoQVl2StbtmRvTsZK3rtE"></div><div data-page-node-id="YMBTkHfVD4dk824fzbADkn"><b data-page-node-id="ChinMZvUnDHYGrtIEvrCBF">canvas</b><span data-page-node-id="SVSksM81PIUihJZFjQTWxM">#f4f6f9</span></div></div>
               <div class="sw" data-page-node-id="xZecNYKUboLDczIN6O9WKu"><div class="c" style="background:#ffffff" data-page-node-id="e5fdZtHZmffnoKJdBTbEwi"></div><div data-page-node-id="gTlfM2LnkNrQtkaLyzpQ1x"><b data-page-node-id="THAPWzGGiXw5jTTy9YbNPn">surface</b><span data-page-node-id="mQjr15ZTbl7ATkLEt0VCL5">#ffffff</span></div></div>
@@ -1458,7 +1458,7 @@ screens: { <span class="k" data-page-node-id="EfvUh0aMQLGrkYN27sFRR8">rail</span
     <div class="modal-panel" role="dialog" aria-modal="true" aria-label="Planogram müqayisəsi" data-page-node-id="xGolMQvpysyKcceFPKYA9e">
       <div class="modal-h" data-page-node-id="B90WuI2eLwMQBeh7v9BA3y">
         <div style="flex:1;min-width:0" data-page-node-id="C9jMPSbvZuMssDj4lmLRVm">
-          <h3 data-page-node-id="JafncBOn1LM0ZY8fYjTwEZ">Coca-Cola 0.5L Cooler Placement Check</h3>
+          <h3 data-page-node-id="JafncBOn1LM0ZY8fYjTwEZ">oneTeam Retail 0.5L Cooler Placement Check</h3>
           <p data-page-node-id="QuO1Dh1bkIq5MuqrlnbJHL">Bravo Supermarket — 28 Mall · BRAVO_28MAY_01 · Göndərilib 12.09.2026 19:32</p>
         </div>
         <span class="score sc-mid" data-page-node-id="xgH1Cz1j4A0h8nV57neyfU"><s class="num" data-page-node-id="hHaeZ4QQYvpVyjs2qGsHYO">70</s></span>
@@ -1477,7 +1477,7 @@ screens: { <span class="k" data-page-node-id="EfvUh0aMQLGrkYN27sFRR8">rail</span
               <div class="grid-lines" data-page-node-id="dCPFLwcNGxHgxpFEJgmLFb"></div>
             </div>
             <div class="check" data-page-node-id="Or7BrvjxLoznLG0fSrSdIs">
-              <div class="ci" data-page-node-id="GvQZIHDSGGnVDEAbrXf9Ns"><span class="cb y" data-page-node-id="qnP3pK8Az57pQuIyaDiOCt"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="2k7RokBtXFBEyheMT2ptKA"><path d="m5 12.5 4.5 4.5L19 7" data-page-node-id="ggoacAPasoug3ftgLGHmbF"/></svg></span><span data-page-node-id="RyIzWujgthtA9WUi25Cl4L">Coca-Cola 0.5L — yuxarı sıra, 3 facing</span></div>
+              <div class="ci" data-page-node-id="GvQZIHDSGGnVDEAbrXf9Ns"><span class="cb y" data-page-node-id="qnP3pK8Az57pQuIyaDiOCt"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="2k7RokBtXFBEyheMT2ptKA"><path d="m5 12.5 4.5 4.5L19 7" data-page-node-id="ggoacAPasoug3ftgLGHmbF"/></svg></span><span data-page-node-id="RyIzWujgthtA9WUi25Cl4L">oneTeam Retail 0.5L — yuxarı sıra, 3 facing</span></div>
               <div class="ci" data-page-node-id="d1DjoCP9z9JdbLEYgS3VkH"><span class="cb y" data-page-node-id="4fggY3sDjmACldKc41IR18"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="pyqn49HQqPUiI3kDCNG1MT"><path d="m5 12.5 4.5 4.5L19 7" data-page-node-id="BzjHETlzLWf6GPRFcYlefO"/></svg></span><span data-page-node-id="MsUt0d8BeF6quhSUMxmtHa">Soyutma temperaturu ≤ 4°C</span></div>
               <div class="ci" data-page-node-id="2iekocG8CAQ0pKDmU9ZYKV"><span class="cb n" data-page-node-id="UULoeiUxZizNGeAMsmAlP4"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" data-page-node-id="RD7OPlJgShVWjD8gFGMiQO"><path d="M6 6l12 12M18 6 6 18" data-page-node-id="gjrh1xVBoOYAHBtBnIvDBP"/></svg></span><span data-page-node-id="9Wjg3bAa2zulwdyG5X0CTI">Zero Sugar ayrıca blokda — gözlənilir</span></div>
             </div>

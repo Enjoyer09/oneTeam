@@ -32,7 +32,7 @@
  * what. Free/community models additionally log prompts by default — use a paid,
  * no-log endpoint for anything but prototyping.
  */
-import { aiVisionService, SKU_METADATA, type CocaColaSKU } from '../aiVision';
+import { aiVisionService, SKU_METADATA, type ProductSKU } from '../aiVision';
 import type { VisionInput, VisionLLMClient, VisionLLMJudgement, VisionProvider } from './types';
 import { SimulationVisionProvider, TorchVisionProvider } from './engineProviders';
 import { VisionLLMProvider } from './llmProvider';
@@ -42,11 +42,11 @@ import { HybridVisionProvider, type HybridThresholds } from './hybridProvider';
 export type VisionProviderKind =
   'off' | 'simulation' | 'torchvision' | 'yolo' | 'vision-llm' | 'hybrid';
 
-const COUNTED_SKUS: CocaColaSKU[] = [
-  'coca_cola_classic',
-  'coca_cola_zero',
-  'fanta',
-  'sprite',
+const COUNTED_SKUS: ProductSKU[] = [
+  'classic_soda',
+  'zero_soda',
+  'orange_soda',
+  'lemon_soda',
   'out_of_stock_gap',
 ];
 
@@ -154,7 +154,7 @@ class HttpVisionLLMClient implements VisionLLMClient {
     const skuList = COUNTED_SKUS.map((s) => `"${s}"`).join(', ');
 
     return (
-      'You are auditing a retail cooler shelf photo against a Coca-Cola planogram.\n' +
+      'You are auditing a retail cooler shelf photo against a oneTeam Retail planogram.\n' +
       'Count the FACINGS (front-facing units) of each SKU you can see, and judge ' +
       'how well the shelf meets the planogram below.\n\n' +
       `PLANOGRAM:\n${rules}\n\n` +
@@ -186,7 +186,7 @@ function parseJudgement(raw: string): VisionLLMJudgement {
     throw new Error(`Vision-LLM returned non-JSON: ${cleaned.slice(0, 200)}`);
   }
 
-  const detectedCounts: Partial<Record<CocaColaSKU, number>> = {};
+  const detectedCounts: Partial<Record<ProductSKU, number>> = {};
   const rawCounts = (parsed.detectedCounts ?? {}) as Record<string, unknown>;
   for (const sku of COUNTED_SKUS) {
     const n = Number(rawCounts[sku]);

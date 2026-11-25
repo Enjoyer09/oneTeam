@@ -396,7 +396,7 @@ export const PanelUsersModal: React.FC<PanelUsersModalProps> = ({ onClose, onCha
                     <input
                       value={draft.email}
                       onChange={(event) => setDraft({ ...draft, email: event.target.value })}
-                      placeholder="aysel@coke.oneteam.az"
+                      placeholder="aysel@retail.oneteam.az"
                       className="w-full rounded-[11px] border border-hair bg-[var(--modal-field)] px-3 py-2 text-[14.5px] text-ink outline-none focus:border-primary-500/45 focus:ring-2 focus:ring-[var(--primary-ring)]"
                     />
                   </label>

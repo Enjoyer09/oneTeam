@@ -1214,7 +1214,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                     id="task-title"
                     type="text"
                     required
-                    placeholder="Məs: Coca-Cola Zero Sugar Promo Stand Check"
+                    placeholder="Məs: Zero Sugar Beverage Promo Stand Check"
                     value={title}
                     onChange={(e) => {
                       setTitle(e.target.value);
@@ -1236,7 +1236,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
                     id="task-instructions"
                     rows={3}
                     required
-                    placeholder="Məs: Bütün Coca-Cola 0.5L şüşələri soyuducunun 1-ci rəfində tələb olunan sayda..."
+                    placeholder="Məs: Bütün oneTeam Retail 0.5L şüşələri soyuducunun 1-ci rəfində tələb olunan sayda..."
                     value={description}
                     onChange={(e) => {
                       setDescription(e.target.value);

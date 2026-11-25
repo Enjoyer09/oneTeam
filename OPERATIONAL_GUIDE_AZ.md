@@ -1,4 +1,4 @@
-# 🔴 oneTeam (Coca-Cola FMCG) — İcraçı Əməliyyat Bələdçisi (Operational Runbook)
+# 🔴 oneTeam (oneTeam Retail FMCG) — İcraçı Əməliyyat Bələdçisi (Operational Runbook)
 
 > **Məqsəd:** Bu sənəd layihə rəhbəri (Product Owner), Kommersiya Direktoru və Pərakəndə Əməliyyat Menecerləri üçün hazırlanmışdır. Heç bir texniki proqramlaşdırma biliyi tələb etmədən platformanın bütün imkanlarını asanlıqla idarə etməyə imkan verir.
 
@@ -46,7 +46,7 @@ Arxa fonda avtomatik işə düşən modullar:
 
 ## 2. Menecer Portalı: Mağaza Seqmentasiyası və Kütləvi Tapşırıq Paylanması
 
-Coca-Cola kateqoriya menecerləri yüzlərlə mağazaya tək-tək tapşırıq vermək əvəzinə, saniyələr içində ağıllı filtrlərlə kütləvi kampaniyalar başladır.
+oneTeam Retail kateqoriya menecerləri yüzlərlə mağazaya tək-tək tapşırıq vermək əvəzinə, saniyələr içində ağıllı filtrlərlə kütləvi kampaniyalar başladır.
 
 ```
 [Menecer Paneli] ──► [Region / Şəbəkə / Format Filtrləri] ──► [Bir Transaksiyada Kütləvi Yaradılma] ──► [Canlı Bildiriş]
@@ -83,7 +83,7 @@ Sahədə çalışan işçilər heç bir mürəkkəb təlim keçmədən birbaşa 
 ### 1. Ani Bildiriş və Qəbul Etmə (Task State Machine):
 
 - Menecer kampaniyanı başlatdıqda merçendayzerin telefonuna Telegram-da səsli mesaj gəlir:
-  > _"🔔 YENİ RƏF TAPŞIRIĞI: Coca-Cola Qırmızı Qiymət Kampaniyası. Mağaza: Bravo 28 Mall. Son icra: 18:00."_
+  > _"🔔 YENİ RƏF TAPŞIRIĞI: oneTeam Retail Qırmızı Qiymət Kampaniyası. Mağaza: Bravo 28 Mall. Son icra: 18:00."_
 - Merçendayzer mesajın altındakı **`[✅ Qəbul Et]`** düyməsinə klikləyir.
 - Tapşırığın statusu avtomatik olaraq `assigned` vəziyyətindən `in_progress` vəziyyətinə keçir. Menecer panelində işçinin artıq icraya başladığı dərhal əks olunur.
 
@@ -100,7 +100,7 @@ Sahədə çalışan işçilər heç bir mürəkkəb təlim keçmədən birbaşa 
 ### 4. "Əvvəl və Sonra" (Before & After) Rəf Şəkilləri:
 
 - **Əvvəl Şəkli (Before):** Merçendayzer mağazaya girərkən rəfin ilkin dağınıq vəziyyətini çəkir.
-- **Düzəliş:** Planograma uyğun olaraq Coca-Cola Classic, Zero Sugar, Fanta və Sprite şüşələrini ön cərgəyə düzür, boşluqları doldurur.
+- **Düzəliş:** Planograma uyğun olaraq Classic Beverage, Zero Sugar, Orange Soda və Lemon Soda şüşələrini ön cərgəyə düzür, boşluqları doldurur.
 - **Sonra Şəkli (After):** İdeal qaydaya salınmış rəfin son şəklini çəkir.
 
 ### 5. Dinamik Mağaza Çeklistinin Doldurulması:
@@ -222,4 +222,4 @@ Bu testlər **real API-yə qoşulur** və **real qeydlər yaradır**, ona görə
 
 ---
 
-_oneTeam Platforması — Coca-Cola Pərakəndə İcraatında Müasir Keyfiyyət Standartı._
+_oneTeam Platforması — oneTeam Retail Pərakəndə İcraatında Müasir Keyfiyyət Standartı._

@@ -1,5 +1,5 @@
 -- ============================================================================
--- oneTeam: Shelf Monitoring Platform (Retail FMCG - Coca-Cola Distribution)
+-- oneTeam: Shelf Monitoring Platform (Retail FMCG - oneTeam Retail Distribution)
 -- Database Architecture & Initial Schema Migration
 -- File: supabase/migrations/20260912000001_init_schema.sql
 -- Compatible with: Supabase (PostgreSQL 15+)

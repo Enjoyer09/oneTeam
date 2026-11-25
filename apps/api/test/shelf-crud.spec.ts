@@ -313,7 +313,7 @@ async function main(): Promise<void> {
     const barcode = `48${digits}0000000`.slice(0, 13);
     const product = await call('POST', '/api/portal/products', {
       token,
-      body: { barcode, name: 'Shelf Map Cola', size: '0.5 L', variant: 'Zero' },
+      body: { barcode, name: 'Shelf Map Beverage', size: '0.5 L', variant: 'Zero' },
     });
     check('the product fixture is created (201)', product.status === 201, product.body);
     createdProductId = product.body?.data?.id ?? null;

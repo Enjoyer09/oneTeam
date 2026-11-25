@@ -12,8 +12,6 @@ export default {
         brand: {
           red: '#F40009',
           dark: '#111827',
-        },
-        coke: {
           50: '#fff1f1',
           100: '#ffdfdf',
           200: '#ffc5c5',

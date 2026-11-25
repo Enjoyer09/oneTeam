@@ -24,7 +24,7 @@ console.log(
   `${colors.bright}${colors.cyan}========================================================================${colors.reset}`,
 );
 console.log(
-  `${colors.bright}${colors.cyan}         oneTeam (Coca-Cola FMCG) — BİRGƏ BAŞLATMA SKRİPTİ             ${colors.reset}`,
+  `${colors.bright}${colors.cyan}         oneTeam (oneTeam Retail FMCG) — BİRGƏ BAŞLATMA SKRİPTİ             ${colors.reset}`,
 );
 console.log(
   `${colors.bright}${colors.cyan}========================================================================${colors.reset}\n`,

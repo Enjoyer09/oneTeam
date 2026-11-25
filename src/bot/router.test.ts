@@ -298,7 +298,7 @@ async function ensureAdministrator(): Promise<string[]> {
          ON CONFLICT (id) DO NOTHING`,
         [
           id,
-          id === ADMIN_USER_ID ? 'admin@coke.oneteam.az' : 'router-suite@coke.oneteam.az',
+          id === ADMIN_USER_ID ? 'admin@retail.oneteam.az' : 'router-suite@retail.oneteam.az',
           id === ADMIN_USER_ID
             ? 'Kamran Əhmədov (Head of Retail)'
             : 'Router Suite Service Identity',
@@ -768,7 +768,7 @@ async function main(): Promise<void> {
       assigned_stores: [storeId],
       // `label`, not `question`: that is what the API accepts. See #73.
       checklist_schema: [
-        { label: 'Rəfdə Coca-Cola Classic var?', type: 'boolean', required: true },
+        { label: 'Rəfdə Classic Beverage var?', type: 'boolean', required: true },
         { label: 'Neçə sıra düzülüb?', type: 'number', required: false, minValue: 0, maxValue: 10 },
       ],
     });
@@ -923,7 +923,7 @@ async function main(): Promise<void> {
     // back quietly. The contract decision itself is still open — see #73.
     check(
       'and the question text is the real question, not "undefined"',
-      texts().some((text) => text.includes('Coca-Cola Classic')) &&
+      texts().some((text) => text.includes('Classic Beverage')) &&
         !texts().some((text) => text.includes('undefined')),
       texts(),
     );

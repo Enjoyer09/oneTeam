@@ -20,7 +20,7 @@ vi.mock('../lib/panelAuth', async (importOriginal) => {
 const person: ManagedUserRow = {
   id: 'usr-merch-003',
   fullName: 'Eldar Məmmədov',
-  email: 'merchandiser@coke.oneteam.az',
+  email: 'merchandiser@retail.oneteam.az',
   role: 'MERCHANDISER',
   phone: '+994503334455',
   joinedVia: 'telegram',

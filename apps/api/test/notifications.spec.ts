@@ -504,8 +504,8 @@ async function main(): Promise<void> {
     );
 
     // The body must be built from THIS task, not from a hardcoded sentence.
-    // The code this replaced announced every task with "Coca-Cola Classic, Zero
-    // Sugar və Fanta" regardless of what the task actually asked for.
+    // The code this replaced announced every task with "Classic Beverage, Zero
+    // Sugar və Orange Soda" regardless of what the task actually asked for.
     check(
       'the body names the real store',
       typeof assigned?.body === 'string' &&
@@ -519,7 +519,7 @@ async function main(): Promise<void> {
     );
     check(
       'and says nothing about products the task never mentioned',
-      typeof assigned?.body === 'string' && !/Fanta|Zero Sugar/i.test(assigned.body),
+      typeof assigned?.body === 'string' && !/Orange Soda|Zero Sugar/i.test(assigned.body),
       assigned?.body,
     );
 

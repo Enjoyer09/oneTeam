@@ -53,7 +53,7 @@ Veb İdarəetmə Panelində (**http://localhost:5173**) **"Rəf Yoxlamaları" (R
 
 1. **⭐ Ssenari A: İdeal Uyğun Rəf (95% AI Balı — Avto-Təsdiq)**:
    - **Mağaza:** Bravo Supermarket - 28 Mall
-   - **Vəziyyət:** Bütün Coca-Cola Classic (4 facing), Zero Sugar (3 facing) və Fanta (3 facing) məhsulları ideal sayda və loqolar qabağa düzülüb. Boşluq yoxdur.
+   - **Vəziyyət:** Bütün Classic Beverage (4 facing), Zero Sugar (3 facing) və Orange Soda (3 facing) məhsulları ideal sayda və loqolar qabağa düzülüb. Boşluq yoxdur.
    - **AI Fəaliyyəti:** Süni İntellekt tərəfindən avtomatik təsdiqlənib (`⚡ AI Avtomatik Təsdiqi`).
 
 2. **⚠️ Ssenari B: Rəfdə Boşluq/Gap Aşkarlandı (70% AI Balı — Supervayzer Yoxlaması Gözləyir)**:
@@ -63,8 +63,8 @@ Veb İdarəetmə Panelində (**http://localhost:5173**) **"Rəf Yoxlamaları" (R
 
 3. **❌ Ssenari C: Çatışmayan SKU (55% AI Balı — İmtina Qutusu Hazır Doldurulub)**:
    - **Mağaza:** Rahat Gourmet - Park Bulvar
-   - **Vəziyyət:** Planogramda tələb olunan Sprite 0.5L məhsulları rəfdə ümumiyyətlə yoxdur (0/2 facing).
-   - **Supervayzer Təcrübəsi:** Müqayisə etdikdə avtomatik olaraq imtina qutusu açılır və səbəb artıq hazır yazılmış olur: _"Tələb olunan Sprite 0.5L məhsulları rəfdə tamamilə yoxdur (0/2 facing)..."_. Supervayzer bir kliklə imtina qərarını təsdiqləyə bilər.
+   - **Vəziyyət:** Planogramda tələb olunan Lemon Soda 0.5L məhsulları rəfdə ümumiyyətlə yoxdur (0/2 facing).
+   - **Supervayzer Təcrübəsi:** Müqayisə etdikdə avtomatik olaraq imtina qutusu açılır və səbəb artıq hazır yazılmış olur: _"Tələb olunan Lemon Soda 0.5L məhsulları rəfdə tamamilə yoxdur (0/2 facing)..."_. Supervayzer bir kliklə imtina qərarını təsdiqləyə bilər.
 
 ---
 

@@ -316,7 +316,7 @@ export const StoreDirectory: React.FC<StoreDirectoryProps> = ({
             Tərəfdaş Mağazalar Şəbəkəsi
           </h3>
           <p className="mt-0.5 text-[13px] text-muted">
-            Coca-Cola vitrin və rəflərinin monitorinq edildiyi retail nöqtələri
+            oneTeam Retail vitrin və rəflərinin monitorinq edildiyi retail nöqtələri
           </p>
         </div>
 

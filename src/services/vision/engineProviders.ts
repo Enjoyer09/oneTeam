@@ -106,10 +106,10 @@ export class TorchVisionProvider implements VisionProvider {
               d.objectClass === 'bottle' &&
               [
                 'unverified_bottle',
-                'coca_cola_classic',
-                'coca_cola_zero',
-                'fanta',
-                'sprite',
+                'classic_soda',
+                'zero_soda',
+                'orange_soda',
+                'lemon_soda',
               ].includes(d.sku),
           )
         : [];

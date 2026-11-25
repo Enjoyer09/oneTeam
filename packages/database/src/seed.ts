@@ -85,21 +85,21 @@ export const SEED_DATA: SeedData = {
   users: [
     {
       id: 'usr-admin-001',
-      email: 'admin@coke.oneteam.az',
+      email: 'admin@retail.oneteam.az',
       fullName: 'Kamran Əhmədov (Head of Retail)',
       role: 'ADMIN',
       phone: '+994501112233',
     },
     {
       id: 'usr-super-002',
-      email: 'supervisor@coke.oneteam.az',
+      email: 'supervisor@retail.oneteam.az',
       fullName: 'Leyla Qasımova (Baku North Supervisor)',
       role: 'SUPERVISOR',
       phone: '+994502223344',
     },
     {
       id: 'usr-merch-003',
-      email: 'merchandiser@coke.oneteam.az',
+      email: 'merchandiser@retail.oneteam.az',
       fullName: 'Eldar Məmmədov (Field Merchandiser)',
       role: 'MERCHANDISER',
       telegramChatId: '998877665',
@@ -156,7 +156,7 @@ export const SEED_DATA: SeedData = {
     id: 'cmp-sept-zero-2026',
     name: 'September Zero Visibility',
     description:
-      'Q2/Q3 Coca-Cola Zero Sugar və Fanta Zero məhsullarının supermarket vitrinlərində 100% ön sıra görünürlüyünün təmin edilməsi kampaniyası.',
+      'Q2/Q3 Zero Sugar Beverage və Orange Soda Zero məhsullarının supermarket vitrinlərində 100% ön sıra görünürlüyünün təmin edilməsi kampaniyası.',
     startDate: new Date('2026-09-01T00:00:00Z'),
     endDate: new Date('2026-09-30T23:59:59Z'),
     isActive: true,
@@ -167,7 +167,7 @@ export const SEED_DATA: SeedData = {
       campaignId: 'cmp-sept-zero-2026',
       title: 'Cooler Check (0.5L Ön Vitrin Soyuducusu Auditi)',
       description:
-        'Təlimat:\n1. Coca-Cola Classic, Zero Sugar, Sprite və Fanta 0.5L məhsulları mütləq ön vitrin soyuducusunda yerləşdirilməlidir.\n2. Bütün loqolar alıcıya doğru baxmalıdır.\n3. Hər SKU üçün minimum 3 facing təmin edilməlidir.\n4. Temperatur <= 4°C olmalıdır.',
+        'Təlimat:\n1. Classic Beverage, Zero Sugar, Lemon Soda və Orange Soda 0.5L məhsulları mütləq ön vitrin soyuducusunda yerləşdirilməlidir.\n2. Bütün loqolar alıcıya doğru baxmalıdır.\n3. Hər SKU üçün minimum 3 facing təmin edilməlidir.\n4. Temperatur <= 4°C olmalıdır.',
       referenceImageUrl:
         'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=1200&q=80',
       priority: 'HIGH',
@@ -197,10 +197,10 @@ export const SEED_DATA: SeedData = {
         },
       ],
       planogramRules: [
-        { sku: 'coca_cola_classic', label: 'Coca-Cola Classic 0.5L', minFacings: 3, shelfRow: 1 },
-        { sku: 'coca_cola_zero', label: 'Coca-Cola Zero Sugar 0.5L', minFacings: 3, shelfRow: 1 },
-        { sku: 'fanta', label: 'Fanta Orange 0.5L', minFacings: 2, shelfRow: 2 },
-        { sku: 'sprite', label: 'Sprite 0.5L', minFacings: 2, shelfRow: 2 },
+        { sku: 'classic_soda', label: 'Classic Beverage 0.5L', minFacings: 3, shelfRow: 1 },
+        { sku: 'zero_soda', label: 'Zero Sugar Beverage 0.5L', minFacings: 3, shelfRow: 1 },
+        { sku: 'orange_soda', label: 'Orange Soda Orange 0.5L', minFacings: 2, shelfRow: 2 },
+        { sku: 'lemon_soda', label: 'Lemon Soda 0.5L', minFacings: 2, shelfRow: 2 },
       ],
     },
     {
@@ -222,8 +222,8 @@ export const SEED_DATA: SeedData = {
         },
       ],
       planogramRules: [
-        { sku: 'coca_cola_zero', label: 'Coca-Cola Zero 1L', minFacings: 4, shelfRow: 2 },
-        { sku: 'coca_cola_classic', label: 'Coca-Cola Classic 1.5L', minFacings: 4, shelfRow: 3 },
+        { sku: 'zero_soda', label: 'Zero Beverage 1L', minFacings: 4, shelfRow: 2 },
+        { sku: 'classic_soda', label: 'Classic Beverage 1.5L', minFacings: 4, shelfRow: 3 },
       ],
     },
   ],

@@ -156,7 +156,7 @@ Məlumat bot və ya API vasitəsilə yaranır (Addım 6) və dərhal panelə dü
 ### 2.3. Şifrələr dəyişdirilməlidir
 
 Köhnə `docker-compose.prod.yml` faylında **sabit, hamıya məlum** bir baza şifrəsi var idi
-(`coca_cola_secret_2026`). Bu artıq düzəldildi: indi şifrə verilməzsə sistem **ümumiyyətlə
+(`oneteam_secret_2026`). Bu artıq düzəldildi: indi şifrə verilməzsə sistem **ümumiyyətlə
 işə düşmür**. Aşağıdakı addımlarda öz şifrənizi yaradacaqsınız.
 
 ### 2.4. Məlumat **Postgres bazasında** saxlanır

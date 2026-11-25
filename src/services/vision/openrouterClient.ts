@@ -25,15 +25,15 @@
  * and the auth header is not echoed.
  */
 import type { VisionInput, VisionLLMClient, VisionLLMJudgement } from './types';
-import type { CocaColaSKU } from '../aiVision';
+import type { ProductSKU } from '../aiVision';
 
 export const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 
-const COUNTED_SKUS: CocaColaSKU[] = [
-  'coca_cola_classic',
-  'coca_cola_zero',
-  'fanta',
-  'sprite',
+const COUNTED_SKUS: ProductSKU[] = [
+  'classic_soda',
+  'zero_soda',
+  'orange_soda',
+  'lemon_soda',
   'out_of_stock_gap',
 ];
 
@@ -261,7 +261,7 @@ export function parseJudgement(raw: string): VisionLLMJudgement {
     throw new Error(`OpenRouter returned non-JSON: ${cleaned.slice(0, 200)}`);
   }
 
-  const detectedCounts: Partial<Record<CocaColaSKU, number>> = {};
+  const detectedCounts: Partial<Record<ProductSKU, number>> = {};
   const rawCounts = (parsed.detectedCounts ?? {}) as Record<string, unknown>;
   for (const sku of COUNTED_SKUS) {
     const n = Number(rawCounts[sku]);
@@ -286,7 +286,7 @@ export function buildPrompt(input: VisionInput): string {
     .join('\n');
   const skuList = COUNTED_SKUS.map((s) => `"${s}"`).join(', ');
   return (
-    'You are auditing a retail cooler shelf photo against a Coca-Cola planogram.\n' +
+    'You are auditing a retail cooler shelf photo against a oneTeam Retail planogram.\n' +
     'Count the FACINGS (front-facing units) of each SKU you can see, and judge ' +
     'how well the shelf meets the planogram below.\n\n' +
     `PLANOGRAM:\n${rules || '(none supplied — judge general shelf tidiness)'}\n\n` +

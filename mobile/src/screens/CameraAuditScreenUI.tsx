@@ -403,7 +403,7 @@ export function CameraAuditScreenUI({
             barcodeScannerSettings={{
               // The set is the retail-relevant subset of `BarcodeType`. QR is
               // kept because some chains print a single QR for a multi-pack;
-              // PDF417 and Aztec are omitted because Coca-Cola FMCG shelves do
+              // PDF417 and Aztec are omitted because oneTeam Retail FMCG shelves do
               // not use them and the scanner would just keep firing on stray
               // packaging graphics. Restricting the list also reduces duplicate
               // fires on visually busy shelves.

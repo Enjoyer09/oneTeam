@@ -2,7 +2,7 @@
 
 ## Məqsəd və sərhəd
 
-Humans in the Loop-un CC0 1.0 Supermarket Shelves dataseti ilə pipeline-ı və generic rəf məhsulu lokallaşdırmasını sınadıq. Datasetdə `Product` və `Price` sinifləri var; Sprite, Coca-Cola və ya başqa SKU etiketi yoxdur. Bu nəticələr brend tanıma, mağaza performansı və production hazırlığı haqqında sübut sayılmır.
+Humans in the Loop-un CC0 1.0 Supermarket Shelves dataseti ilə pipeline-ı və generic rəf məhsulu lokallaşdırmasını sınadıq. Datasetdə `Product` və `Price` sinifləri var; Lemon Soda, oneTeam Retail və ya başqa SKU etiketi yoxdur. Bu nəticələr brend tanıma, mağaza performansı və production hazırlığı haqqında sübut sayılmır.
 
 ## Dataset hazırlığı
 
@@ -29,6 +29,6 @@ Bu, COCO mAP deyil; kiçik holdout setində class-wise precision/recall ölçüs
 
 ## Yekun
 
-Mövcud sıfırdan training yolu 31 train şəkli ilə yetərli öyrənmə vermədi. Bu dataset modeli “Coca-Cola/Sprite” kimi öyrədə bilməz. Növbəti məhsuldar addım OneTeam-in icazəli real mağaza şəkillərini SKU üzrə annotasiya etmək və daha geniş holdout toplamaqdır. Generic backbone-dan transfer learning ayrıca araşdırıla bilər, ancaq model və dataset hüquqları yoxlanmadan istifadə olunmamalıdır.
+Mövcud sıfırdan training yolu 31 train şəkli ilə yetərli öyrənmə vermədi. Bu dataset modeli “oneTeam Retail/Lemon Soda” kimi öyrədə bilməz. Növbəti məhsuldar addım OneTeam-in icazəli real mağaza şəkillərini SKU üzrə annotasiya etmək və daha geniş holdout toplamaqdır. Generic backbone-dan transfer learning ayrıca araşdırıla bilər, ancaq model və dataset hüquqları yoxlanmadan istifadə olunmamalıdır.
 
 Checkpoint və splitlər yalnız lokal ignored `datasets/hitl-supermarket/` qovluğunda saxlanır. Checkpoint SHA-256: `0b0f372997b9f7f09dee4fc6e859a97d56710296191aee769a6304fa25c7809a`.

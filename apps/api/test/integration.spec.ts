@@ -299,7 +299,7 @@ async function runTestSuite() {
       from: {
         id: 998877665,
         first_name: 'Eldar',
-        username: 'eldar_coke',
+        username: 'eldar_field',
       },
       message: {
         message_id: 888,
@@ -370,7 +370,7 @@ async function runTestSuite() {
     update_id: 9001,
     callback_query: {
       id: 'cbq-forged',
-      from: { id: 998877665, first_name: 'Eldar', username: 'eldar_coke' },
+      from: { id: 998877665, first_name: 'Eldar', username: 'eldar_field' },
       message: { message_id: 1, chat: { id: 998877665 } },
       data: `ack_task_${forgeTargetId}`,
     },

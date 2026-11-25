@@ -44,5 +44,5 @@ CREATE INDEX IF NOT EXISTS idx_submissions_ai_score ON public.submissions(ai_sco
 CREATE INDEX IF NOT EXISTS idx_submissions_ai_detections ON public.submissions USING gin(ai_detections);
 
 COMMENT ON COLUMN public.submissions.ai_score IS 'Automated AI Planogram Compliance Score (0-100)';
-COMMENT ON COLUMN public.submissions.ai_detections IS 'Detected Coca-Cola SKUs with bounding boxes, confidence, and facings';
+COMMENT ON COLUMN public.submissions.ai_detections IS 'Detected oneTeam Retail SKUs with bounding boxes, confidence, and facings';
 COMMENT ON COLUMN public.submissions.ai_summary IS 'Automated verdict and compliance notes in Azerbaijani';

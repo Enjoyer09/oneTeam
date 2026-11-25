@@ -115,7 +115,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     >
       <div className="flex items-center justify-between gap-2 px-4 pt-4 pb-3">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-[12px] bg-coke flex items-center justify-center flex-shrink-0 overflow-hidden">
+          <div className="w-9 h-9 rounded-[12px] bg-brand flex items-center justify-center flex-shrink-0 overflow-hidden">
             <img
               src="/logo.jpg"
               alt=""

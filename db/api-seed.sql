@@ -24,9 +24,9 @@
 -- Users
 -- ----------------------------------------------------------------------------
 INSERT INTO users (id, email, full_name, role, telegram_chat_id, phone) VALUES
-    ('usr-admin-001',  'admin@coke.oneteam.az',        'Kamran Əhmədov (Head of Retail)',        'ADMIN',        NULL,        '+994501112233'),
-    ('usr-super-002',  'supervisor@coke.oneteam.az',   'Leyla Qasımova (Baku North Supervisor)', 'SUPERVISOR',   NULL,        '+994502223344'),
-    ('usr-merch-003',  'merchandiser@coke.oneteam.az', 'Eldar Məmmədov (Field Merchandiser)',    'MERCHANDISER', '998877665', '+994503334455')
+    ('usr-admin-001',  'admin@retail.oneteam.az',        'Kamran Əhmədov (Head of Retail)',        'ADMIN',        NULL,        '+994501112233'),
+    ('usr-super-002',  'supervisor@retail.oneteam.az',   'Leyla Qasımova (Baku North Supervisor)', 'SUPERVISOR',   NULL,        '+994502223344'),
+    ('usr-merch-003',  'merchandiser@retail.oneteam.az', 'Eldar Məmmədov (Field Merchandiser)',    'MERCHANDISER', '998877665', '+994503334455')
 ON CONFLICT (id) DO NOTHING;
 
 -- ----------------------------------------------------------------------------
@@ -61,7 +61,7 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO campaigns (id, name, description, start_date, end_date, is_active) VALUES
     ('cmp-sept-zero-2026',
      'September Zero Visibility',
-     'Q2/Q3 Coca-Cola Zero Sugar və Fanta Zero məhsullarının supermarket vitrinlərində 100% ön sıra görünürlüyünün təmin edilməsi kampaniyası.',
+     'Q2/Q3 Zero Sugar Beverage və Orange Soda Zero məhsullarının supermarket vitrinlərində 100% ön sıra görünürlüyünün təmin edilməsi kampaniyası.',
      '2026-09-01T00:00:00Z',
      '2026-09-30T23:59:59Z',
      TRUE)
@@ -82,7 +82,7 @@ VALUES
         'cmp-sept-zero-2026',
         'Cooler Check (0.5L Ön Vitrin Soyuducusu Auditi)',
         $tpl$Təlimat:
-1. Coca-Cola Classic, Zero Sugar, Sprite və Fanta 0.5L məhsulları mütləq ön vitrin soyuducusunda yerləşdirilməlidir.
+1. Classic Beverage, Zero Sugar, Lemon Soda və Orange Soda 0.5L məhsulları mütləq ön vitrin soyuducusunda yerləşdirilməlidir.
 2. Bütün loqolar alıcıya doğru baxmalıdır.
 3. Hər SKU üçün minimum 3 facing təmin edilməlidir.
 4. Temperatur <= 4°C olmalıdır.$tpl$,
@@ -95,10 +95,10 @@ VALUES
           {"id":"q-promo-posm","question":"Promo POSM materialı mövcuddurmu?","type":"single_choice","options":["Mövcuddur və yerləşdirilib","Çatışmır","Zədələnib"],"required":true}
         ]$chk$::jsonb,
         $plg$[
-          {"sku":"coca_cola_classic","label":"Coca-Cola Classic 0.5L","minFacings":3,"shelfRow":1},
-          {"sku":"coca_cola_zero","label":"Coca-Cola Zero Sugar 0.5L","minFacings":3,"shelfRow":1},
-          {"sku":"fanta","label":"Fanta Orange 0.5L","minFacings":2,"shelfRow":2},
-          {"sku":"sprite","label":"Sprite 0.5L","minFacings":2,"shelfRow":2}
+          {"sku":"classic_soda","label":"Classic Beverage 0.5L","minFacings":3,"shelfRow":1},
+          {"sku":"zero_soda","label":"Zero Sugar Beverage 0.5L","minFacings":3,"shelfRow":1},
+          {"sku":"orange_soda","label":"Orange Soda Orange 0.5L","minFacings":2,"shelfRow":2},
+          {"sku":"lemon_soda","label":"Lemon Soda 0.5L","minFacings":2,"shelfRow":2}
         ]$plg$::jsonb
     ),
     (
@@ -116,8 +116,8 @@ VALUES
           {"id":"q-eye-clean","question":"Rəflər tam təmizlənib və tozdan təmizdirmi?","type":"boolean","required":true}
         ]$chk$::jsonb,
         $plg$[
-          {"sku":"coca_cola_zero","label":"Coca-Cola Zero 1L","minFacings":4,"shelfRow":2},
-          {"sku":"coca_cola_classic","label":"Coca-Cola Classic 1.5L","minFacings":4,"shelfRow":3}
+          {"sku":"zero_soda","label":"Zero Beverage 1L","minFacings":4,"shelfRow":2},
+          {"sku":"classic_soda","label":"Classic Beverage 1.5L","minFacings":4,"shelfRow":3}
         ]$plg$::jsonb
     )
 ON CONFLICT (id) DO NOTHING;

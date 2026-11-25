@@ -132,8 +132,8 @@ export interface Task {
   evidence_count?: number;
 }
 
-export type CocaColaSKU =
-  'coca_cola_classic' | 'coca_cola_zero' | 'fanta' | 'sprite' | 'out_of_stock_gap';
+export type ProductSKU =
+  'classic_soda' | 'zero_soda' | 'orange_soda' | 'lemon_soda' | 'out_of_stock_gap';
 
 export interface BoundingBox {
   x: number;
@@ -144,7 +144,7 @@ export interface BoundingBox {
 
 export interface DetectionItem {
   id: string;
-  sku: CocaColaSKU | 'unverified_bottle';
+  sku: ProductSKU | 'unverified_bottle';
   label: string;
   confidence: number;
   box: BoundingBox;

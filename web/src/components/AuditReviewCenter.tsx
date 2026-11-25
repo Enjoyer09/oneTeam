@@ -141,10 +141,10 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
         </span>
       );
     }
-    if (scenario === 'scenario_c_missing_sprite') {
+    if (scenario === 'scenario_c_missing_sku') {
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[12px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300">
-          ❌ Ssenari C: Çatışmayan Sprite (55%)
+          ❌ Ssenari C: Çatışmayan Lemon Soda (55%)
         </span>
       );
     }
@@ -670,7 +670,7 @@ export const AuditReviewCenter: React.FC<AuditReviewCenterProps> = ({
                   <textarea
                     id="audit-reject-reason"
                     rows={2}
-                    placeholder="Məsələn: Coca-Cola Classic 0.5L alt cərgədə 2 məhsul çatışmır və etiketlər tərsdir..."
+                    placeholder="Məsələn: Classic Beverage 0.5L alt cərgədə 2 məhsul çatışmır və etiketlər tərsdir..."
                     value={rejectFeedback}
                     onChange={(e) => {
                       setRejectFeedback(e.target.value);

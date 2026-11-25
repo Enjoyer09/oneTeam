@@ -23,7 +23,7 @@ import { clock } from '@oneteam/types';
 import {
   aiVisionService,
   SKU_METADATA,
-  type CocaColaSKU,
+  type ProductSKU,
   type PlanogramRequirement,
   type SKUComplianceItem,
 } from '../aiVision';
@@ -45,7 +45,7 @@ function requirementsFor(input: VisionInput): PlanogramRequirement[] {
  * so a card rendered from an LLM result looks like one rendered from TorchVision.
  */
 function breakdownFromCounts(
-  counts: Partial<Record<CocaColaSKU, number>>,
+  counts: Partial<Record<ProductSKU, number>>,
   requirements: PlanogramRequirement[],
 ): SKUComplianceItem[] {
   return requirements.map((req) => {

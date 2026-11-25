@@ -1,5 +1,5 @@
 -- ============================================================================
--- oneTeam: Shelf Monitoring Platform (Retail FMCG - Coca-Cola Distribution)
+-- oneTeam: Shelf Monitoring Platform (Retail FMCG - oneTeam Retail Distribution)
 -- Seed Data Script
 -- File: supabase/seed.sql
 -- ============================================================================
@@ -82,7 +82,7 @@ BEGIN
     SELECT id INTO v_store_2_id FROM public.stores WHERE store_code = 'ARAZ_GENJLIK_02';
 
     -- ------------------------------------------------------------------------
-    -- 3. SEED AUDIT TASK (Coca-Cola 0.5L Cooler Placement Check)
+    -- 3. SEED AUDIT TASK (oneTeam Retail 0.5L Cooler Placement Check)
     -- ------------------------------------------------------------------------
     INSERT INTO public.tasks (
         id,
@@ -96,9 +96,9 @@ BEGIN
     )
     VALUES (
         v_task_id,
-        'Coca-Cola 0.5L Cooler Placement Check',
+        'oneTeam Retail 0.5L Cooler Placement Check',
         E'Planogram Audit Instructions:\n' ||
-        E'1. Verify Coca-Cola Classic, Coca-Cola Zero Sugar, Sprite, and Fanta 0.5L PET bottles are placed inside the branded front cooler.\n' ||
+        E'1. Verify Classic Beverage, Zero Sugar Beverage, Lemon Soda, and Orange Soda 0.5L PET bottles are placed inside the branded front cooler.\n' ||
         E'2. Maintain eye-level positioning with all brand labels facing outward (front-facing) toward store shoppers.\n' ||
         E'3. Ensure minimum of 3 facings per SKU with zero out-of-stock gaps.\n' ||
         E'4. Confirm cooler temperature display is at or below 4°C.\n' ||

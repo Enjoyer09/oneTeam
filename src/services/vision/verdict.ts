@@ -8,7 +8,7 @@
  * plan asks for `planogramScore(0-100)`, `missingSKUs[]`, `extraItems[]`,
  * `anomalies[]`, `confidence(0-1)`; the field names used here are that list
  * renamed to the vocabulary the codebase already speaks — `sku` (matching
- * `CocaColaSKU`), and `complianceScore` matching the score every other engine
+ * `ProductSKU`), and `complianceScore` matching the score every other engine
  * produces.
  *
  * WHY A SCHEMA, WHEN THE CLIENT ALREADY PARSES BY HAND
@@ -36,29 +36,27 @@
  * `assessVerdict`.
  */
 import { z } from 'zod';
-import { SKU_METADATA, type CocaColaSKU, type PlanogramRequirement } from '../aiVision';
+import { SKU_METADATA, type ProductSKU, type PlanogramRequirement } from '../aiVision';
 
 /** The SKUs a model is allowed to name. Anything else is a hallucinated SKU. */
 const SKU_ENUM = z.enum([
-  'coca_cola_classic',
-  'coca_cola_zero',
-  'fanta',
-  'sprite',
+  'classic_soda',
+  'zero_soda',
+  'orange_soda',
+  'lemon_soda',
   'out_of_stock_gap',
 ] as const);
 
 /**
- * Compile-time guard: this enum must stay in step with `CocaColaSKU`.
+ * Compile-time guard: this enum must stay in step with `ProductSKU`.
  *
  * Without it, adding a SKU to the domain type would compile fine here and fail
  * only at runtime, when a model named the new SKU and the schema rejected it.
  * Both directions are checked, so neither adding a domain SKU nor dropping one
  * from the enum can pass unnoticed.
  */
-type _EnumCoversDomain =
-  Exclude<CocaColaSKU, z.infer<typeof SKU_ENUM>> extends never ? true : never;
-type _DomainCoversEnum =
-  Exclude<z.infer<typeof SKU_ENUM>, CocaColaSKU> extends never ? true : never;
+type _EnumCoversDomain = Exclude<ProductSKU, z.infer<typeof SKU_ENUM>> extends never ? true : never;
+type _DomainCoversEnum = Exclude<z.infer<typeof SKU_ENUM>, ProductSKU> extends never ? true : never;
 const _enumIsInStep: [_EnumCoversDomain, _DomainCoversEnum] = [true, true];
 void _enumIsInStep;
 
@@ -81,7 +79,7 @@ export const MissingSkuSchema = z.object({
  *
  * Deliberately a free string, NOT a SKU: the point of `extraItems` is catching
  * a competitor's product, which by definition is not in our catalogue. Forcing
- * it into `CocaColaSKU` would make the field useless for its only real use.
+ * it into `ProductSKU` would make the field useless for its only real use.
  */
 export const ExtraItemSchema = z.object({
   description: z.string().min(1).max(120),
@@ -266,7 +264,7 @@ export function assessVerdict(
  */
 export function buildVerdictPrompt(
   requirements: PlanogramRequirement[],
-  opts: { detectedCounts?: Partial<Record<CocaColaSKU, number>>; roiNote?: string } = {},
+  opts: { detectedCounts?: Partial<Record<ProductSKU, number>>; roiNote?: string } = {},
 ): string {
   const rules = requirements
     .map(
@@ -287,7 +285,7 @@ export function buildVerdictPrompt(
   const roi = opts.roiNote ? `\n${opts.roiNote}\n` : '';
 
   return (
-    'Sən Coca-Cola rəf auditçisisən. Yalnız JSON qaytar, mətn yazma.\n\n' +
+    'Sən oneTeam Retail rəf auditçisisən. Yalnız JSON qaytar, mətn yazma.\n\n' +
     `${roi}` +
     `PLANOGRAM (minimum facing sayı):\n${rules || '- (verilməyib — ümumi rəf tənzimi qiymətləndir)'}\n` +
     hint +

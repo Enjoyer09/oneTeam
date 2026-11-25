@@ -644,7 +644,7 @@ async function main(): Promise<void> {
     );
 
     const newName = `Suite Supervayzer ${RUN}`;
-    const newEmail = `suite-${RUN.toLowerCase()}@coke.oneteam.az`;
+    const newEmail = `suite-${RUN.toLowerCase()}@retail.oneteam.az`;
     const madeUser = await call('POST', '/api/panel/users', {
       token: adminToken,
       body: { fullName: newName, email: newEmail, role: 'SUPERVISOR', phone: '+994500000000' },

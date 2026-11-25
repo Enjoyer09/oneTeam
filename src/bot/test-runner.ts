@@ -241,7 +241,7 @@ function createMockContext(overrides: Partial<BotContext> = {}): BotContext {
       is_bot: false,
       first_name: 'Eldar',
       last_name: 'Məmmədov',
-      username: 'eldar_coke_merchandiser',
+      username: 'eldar_field_merchandiser',
     },
     message: {
       message_id: 101,
@@ -769,7 +769,8 @@ async function runTestSuite() {
   // STEP 13: Supervisor Approval
   // --------------------------------------------------------------------------
   logStep(13, 'Supervisor approves the audit with feedback');
-  const feedback = 'Əla iş! Bütün Coca-Cola 0.5L məhsulları planograma uyğun ön sırada düzülüb.';
+  const feedback =
+    'Əla iş! Bütün oneTeam Retail 0.5L məhsulları planograma uyğun ön sırada düzülüb.';
   await supervisorApi(`/api/portal/submissions/${encodeURIComponent(created.id)}/review`, {
     method: 'POST',
     body: JSON.stringify({ status: 'approved', feedback }),

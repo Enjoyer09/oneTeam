@@ -48,7 +48,7 @@ class TorchVisionInferenceTests(unittest.TestCase):
             manifest_path = Path(str(checkpoint) + ".json")
             manifest = {
                 "architecture": detector.MODEL_NAME,
-                "classes": ["__background__", "product", "price", "sprite", "unknown"],
+                "classes": ["__background__", "product", "price", "lemon_soda", "unknown"],
                 "sha256": hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
                 "dataset": {"source": "test-dataset", "license": "CC0"},
                 "deployment_approval": {

@@ -81,7 +81,7 @@ import type { SecureKeyValueStore } from './credentialStore';
  * removable as a set during an incident.
  */
 const OPTIONS: SecureStore.SecureStoreOptions = {
-  keychainService: 'az.oneteam.cocacola.fieldaudit.credentials',
+  keychainService: 'az.oneteam.retail.fieldaudit.credentials',
   keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
 };
 

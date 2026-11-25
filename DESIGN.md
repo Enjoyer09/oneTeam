@@ -1,6 +1,6 @@
 # oneTeam — Design System
 
-**Product:** oneTeam Retail Shelf Monitoring Platform (FMCG / Coca-Cola distribution)
+**Product:** oneTeam Retail Shelf Monitoring Platform (FMCG / oneTeam Retail distribution)
 **Scope:** Supervisor & Admin Web Portal (`web/`), Telegram Bot surfaces (`src/bot/`), iOS Field Client (`mobile/`)
 **Status:** Living document — describes the system **as implemented today**, plus the gaps that need closing
 **Version:** 1.1 · Last reviewed: 2026-09-12
@@ -34,7 +34,7 @@ oneTeam is a **B2B operational tool** used in stores, warehouses, and on phones 
 | Principle                             | What it means in practice                                                                                                                                                                                                                                       |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Utility first**                     | Dense information, fast scanning. KPI numbers and status are the loudest things on screen.                                                                                                                                                                      |
-| **Brand-anchored, not brand-drowned** | Coca-Cola red is an _accent and action_ color, never a surface color for large areas.                                                                                                                                                                           |
+| **Brand-anchored, not brand-drowned** | oneTeam Retail red is an _accent and action_ color, never a surface color for large areas.                                                                                                                                                                      |
 | **Status is never ambiguous**         | Pending / Approved / Rejected must be readable at a glance from color, icon, **and** label — never color alone.                                                                                                                                                 |
 | **Field-grade legibility**            | Readable content never drops below **11px**. Micro-type (10px / 9px / 8px) is confined to a narrow, explicitly enumerated set of non-interactive badges and photo overlays — see §4.2. Tappable targets ≥ 40px on mobile is a **🎯 target**, not yet met (§13). |
 | **Azerbaijani-first**                 | All UI copy is Azerbaijani. Layout must survive long Azerbaijani compounds (see §12).                                                                                                                                                                           |
@@ -45,38 +45,38 @@ oneTeam is a **B2B operational tool** used in stores, warehouses, and on phones 
 | ------------ | ------------------------------------------------------ | ------------------------------------- |
 | Logo         | `logo.jpg` (repo root) → served as `/logo.jpg`         | Sidebar brand block, favicon          |
 | Favicon      | `<link rel="icon" type="image/jpeg" href="/logo.jpg">` | `web/index.html`                      |
-| Partner mark | `Coca-Cola` text chip                                  | Sidebar brand block, next to wordmark |
+| Partner mark | `oneTeam Retail` text chip                             | Sidebar brand block, next to wordmark |
 
-The logo sits inside a 40×40 rounded container with a red (`coke-500`) background. If the image fails to load, the container degrades to a solid red tile via `onError` — keep this fallback.
+The logo sits inside a 40×40 rounded container with a red (`brand-500`) background. If the image fails to load, the container degrades to a solid red tile via `onError` — keep this fallback.
 
 ---
 
 ## 3. Color System
 
-### 3.1 Brand — Coca-Cola Red
+### 3.1 Brand — Brand Red
 
-The brand ramp is defined in `tailwind.config.js` as the `coke` scale, with two semantic aliases.
+The brand ramp is defined in `tailwind.config.js` as the `brand` scale, with two semantic aliases.
 
-| Token          | Hex           | Role                                          |
-| -------------- | ------------- | --------------------------------------------- |
-| `brand.red`    | `#F40009`     | Canonical Coca-Cola red. Alias of `coke-500`. |
-| `brand.dark`   | `#111827`     | Brand ink. Alias of Tailwind `gray-900`.      |
-| `coke-50`      | `#fff1f1`     | Tinted backgrounds (selected cards)           |
-| `coke-100`     | `#ffdfdf`     | Tinted chips                                  |
-| `coke-200`     | `#ffc5c5`     | Tinted borders                                |
-| `coke-300`     | `#ff9d9d`     | Decorative                                    |
-| `coke-400`     | `#ff6464`     | Text on dark surfaces (badge text in sidebar) |
-| **`coke-500`** | **`#F40009`** | **Primary action, active nav, brand marks**   |
-| `coke-600`     | `#D80008`     | Hover state for primary actions               |
-| `coke-700`     | `#B50007`     | Active/pressed                                |
-| `coke-800`     | `#940006`     | Dark accents                                  |
-| `coke-900`     | `#7A0005`     | Darkest                                       |
+| Token           | Hex           | Role                                                |
+| --------------- | ------------- | --------------------------------------------------- |
+| `brand.red`     | `#F40009`     | Canonical oneTeam Retail red. Alias of `brand-500`. |
+| `brand.dark`    | `#111827`     | Brand ink. Alias of Tailwind `gray-900`.            |
+| `brand-50`      | `#fff1f1`     | Tinted backgrounds (selected cards)                 |
+| `brand-100`     | `#ffdfdf`     | Tinted chips                                        |
+| `brand-200`     | `#ffc5c5`     | Tinted borders                                      |
+| `brand-300`     | `#ff9d9d`     | Decorative                                          |
+| `brand-400`     | `#ff6464`     | Text on dark surfaces (badge text in sidebar)       |
+| **`brand-500`** | **`#F40009`** | **Primary action, active nav, brand marks**         |
+| `brand-600`     | `#D80008`     | Hover state for primary actions                     |
+| `brand-700`     | `#B50007`     | Active/pressed                                      |
+| `brand-800`     | `#940006`     | Dark accents                                        |
+| `brand-900`     | `#7A0005`     | Darkest                                             |
 
 **Rules**
 
-- `coke-500` is reserved for **one primary action per view** plus the active navigation item. Do not use it for decorative borders or large fills.
-- Never place body text directly on `coke-500`; use `white` at `font-bold` or heavier.
-- Hover always steps to `coke-600`; active/pressed steps to `coke-700` (or `active:scale-95`).
+- `brand-500` is reserved for **one primary action per view** plus the active navigation item. Do not use it for decorative borders or large fills.
+- Never place body text directly on `brand-500`; use `white` at `font-bold` or heavier.
+- Hover always steps to `brand-600`; active/pressed steps to `brand-700` (or `active:scale-95`).
 
 ### 3.2 Neutrals
 
@@ -112,7 +112,7 @@ Three status families, each with a **soft** (light surface) and **solid** (overl
 
 > **Correction (v1.1).** `indigo` was previously documented as the "AI" family. That was wrong — in the
 > shipped code `indigo` appears in **three** places, all of them the Before & After evidence marker
-> (`TaskManager.tsx` L261, L445; `AuditReviewCenter.tsx` L243). The AI auto-approve action is **`coke-500`
+> (`TaskManager.tsx` L261, L445; `AuditReviewCenter.tsx` L243). The AI auto-approve action is **`brand-500`
 > (brand red)**, not indigo. See §10.15.
 
 **Choice of `-50` vs `-100`:** use `-50` surfaces for **table rows and cards** (calmer at density); use `-100` surfaces for **badges, chips, and modal headers** (needs to pop). Both are already in use — this is the rule that reconciles them.
@@ -124,7 +124,7 @@ Three status families, each with a **soft** (light surface) and **solid** (overl
 | `blue`   | "Stores" KPI, checklist item surfaces (`border-blue-100`)      |
 | `indigo` | Before & After evidence markers only — never AI (§3.3, §10.15) |
 | `orange` | High priority, gradient banner terminus                        |
-| `coke`   | "Active Tasks" KPI, primary actions                            |
+| `brand`  | "Active Tasks" KPI, primary actions                            |
 
 ### 3.5 Gradients
 
@@ -141,7 +141,7 @@ with `text-white`, `rounded-xl`, `p-4`, `shadow-sm`. Do not introduce new gradie
 | KPI                 | Icon color         | Surface         | Border               |
 | ------------------- | ------------------ | --------------- | -------------------- |
 | Tərəfdaş Mağazalar  | `text-blue-600`    | `bg-blue-50`    | `border-blue-100`    |
-| Aktiv Planogramlar  | `text-coke-500`    | `bg-red-50`     | `border-red-100`     |
+| Aktiv Planogramlar  | `text-brand-500`   | `bg-red-50`     | `border-red-100`     |
 | Yoxlama Gözləyən    | `text-amber-600`   | `bg-amber-50`   | `border-amber-100`   |
 | Planogram Uyğunluğu | `text-emerald-600` | `bg-emerald-50` | `border-emerald-100` |
 
@@ -290,14 +290,14 @@ This is the **highest-priority responsive item** in the system.
 
 ## 7. Elevation
 
-| Level      | Class                          | Usage                                                |
-| ---------- | ------------------------------ | ---------------------------------------------------- |
-| Flat       | _(none)_                       | Table rows, inline content                           |
-| Raised     | `shadow-sm`                    | Gradient alert banner, subtle lift                   |
-| Card       | `shadow-subtle` _(intended)_   | All content cards — **currently undefined, see §14** |
-| Hover      | `hover:shadow-md`              | Card hover affordance (paired with `transition-all`) |
-| Brand glow | `shadow-sm shadow-coke-500/20` | Primary buttons and active nav items                 |
-| Overlay    | `shadow-2xl`                   | Modals, drawers                                      |
+| Level      | Class                           | Usage                                                |
+| ---------- | ------------------------------- | ---------------------------------------------------- |
+| Flat       | _(none)_                        | Table rows, inline content                           |
+| Raised     | `shadow-sm`                     | Gradient alert banner, subtle lift                   |
+| Card       | `shadow-subtle` _(intended)_    | All content cards — **currently undefined, see §14** |
+| Hover      | `hover:shadow-md`               | Card hover affordance (paired with `transition-all`) |
+| Brand glow | `shadow-sm shadow-brand-500/20` | Primary buttons and active nav items                 |
+| Overlay    | `shadow-2xl`                    | Modals, drawers                                      |
 
 **Interaction rule:** every card uses `shadow-subtle … transition-all hover:shadow-md`. Hover lift is the universal "this is interactive" signal. Cards that are _not_ clickable must not gain a hover shadow.
 
@@ -317,13 +317,13 @@ This is the **highest-priority responsive item** in the system.
 
 Minimal and functional. No decorative animation.
 
-| Interaction  | Classes                            | Duration                 |
-| ------------ | ---------------------------------- | ------------------------ |
-| Card hover   | `transition-all hover:shadow-md`   | 150ms (Tailwind default) |
-| Button hover | `transition-all hover:bg-coke-600` | 150ms                    |
-| Button press | `active:scale-95`                  | 150ms                    |
-| Nav item     | `transition-all`                   | 150ms                    |
-| Toast        | auto-dismiss after **3500ms**      | —                        |
+| Interaction  | Classes                             | Duration                 |
+| ------------ | ----------------------------------- | ------------------------ |
+| Card hover   | `transition-all hover:shadow-md`    | 150ms (Tailwind default) |
+| Button hover | `transition-all hover:bg-brand-600` | 150ms                    |
+| Button press | `active:scale-95`                   | 150ms                    |
+| Nav item     | `transition-all`                    | 150ms                    |
+| Toast        | auto-dismiss after **3500ms**       | —                        |
 
 Do not add entrance animations, parallax, or scroll effects to the portal — it is an operational tool used repeatedly all day.
 
@@ -337,19 +337,19 @@ update its recipe here in the same commit.
 
 ### 10.1 Sidebar — ✅ Shipped
 
-| Property          | Spec                                                                                                                                                         |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Container         | `w-64 bg-slate-900 text-white flex flex-col flex-shrink-0 border-r border-slate-800 select-none`                                                             |
-| Brand block       | `p-5 border-b border-slate-800`, 40×40 logo tile (`rounded-xl bg-coke-500 shadow-md shadow-coke-500/20`), wordmark `font-extrabold text-base tracking-tight` |
-| Partner chip      | `text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-coke-500/25 text-coke-400 border border-coke-500/30`                                |
-| Group label       | `px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400`                                                                                    |
-| Nav list          | `flex-1 px-3 py-5 space-y-1`                                                                                                                                 |
-| Nav item          | `w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all`                                                     |
-| Nav item — active | `bg-coke-500 text-white shadow-sm shadow-coke-500/25`                                                                                                        |
-| Nav item — idle   | `text-slate-300 hover:bg-slate-800 hover:text-white`                                                                                                         |
-| Nav icon          | `w-4 h-4` — `text-white` active, `text-slate-400` idle                                                                                                       |
-| Badge (count)     | `text-[10px] px-2 py-0.5 rounded-full font-bold` · default `bg-slate-700 text-slate-200` · attention `bg-amber-500 text-white`                               |
-| Account footer    | `p-4 border-t border-slate-800 bg-slate-950/60`, 36px avatar (`rounded-full bg-slate-800 border border-slate-700`), initials `text-xs font-bold`             |
+| Property          | Spec                                                                                                                                                           |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Container         | `w-64 bg-slate-900 text-white flex flex-col flex-shrink-0 border-r border-slate-800 select-none`                                                               |
+| Brand block       | `p-5 border-b border-slate-800`, 40×40 logo tile (`rounded-xl bg-brand-500 shadow-md shadow-brand-500/20`), wordmark `font-extrabold text-base tracking-tight` |
+| Partner chip      | `text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-brand-500/25 text-brand-400 border border-brand-500/30`                               |
+| Group label       | `px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400`                                                                                      |
+| Nav list          | `flex-1 px-3 py-5 space-y-1`                                                                                                                                   |
+| Nav item          | `w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all`                                                       |
+| Nav item — active | `bg-brand-500 text-white shadow-sm shadow-brand-500/25`                                                                                                        |
+| Nav item — idle   | `text-slate-300 hover:bg-slate-800 hover:text-white`                                                                                                           |
+| Nav icon          | `w-4 h-4` — `text-white` active, `text-slate-400` idle                                                                                                         |
+| Badge (count)     | `text-[10px] px-2 py-0.5 rounded-full font-bold` · default `bg-slate-700 text-slate-200` · attention `bg-amber-500 text-white`                                 |
+| Account footer    | `p-4 border-t border-slate-800 bg-slate-950/60`, 36px avatar (`rounded-full bg-slate-800 border border-slate-700`), initials `text-xs font-bold`               |
 
 **Navigation items:** `İcmal & Statistika` · `Rəf Auditi (Yoxlama)` · `Planogram Tapşırıqları` · `Mağazalar Şəbəkəsi`.
 
@@ -361,7 +361,7 @@ update its recipe here in the same commit.
 | Title          | `text-lg font-bold text-slate-900 tracking-tight`                                                                                                                                               |
 | Subtitle       | `text-xs text-slate-500`                                                                                                                                                                        |
 | Clock chip     | `hidden md:flex items-center space-x-2 bg-slate-100 px-3.5 py-1.5 rounded-full border border-slate-200 text-xs font-medium text-slate-700`; time value `font-mono font-semibold text-slate-900` |
-| Primary action | `flex items-center space-x-2 bg-coke-500 hover:bg-coke-600 active:scale-95 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm shadow-coke-500/20 transition-all`                       |
+| Primary action | `flex items-center space-x-2 bg-brand-500 hover:bg-brand-600 active:scale-95 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm shadow-brand-500/20 transition-all`                    |
 
 Every tab has a title + subtitle pair; both are required (§12 for the copy map).
 
@@ -408,11 +408,11 @@ Shape: `px-2.5 py-0.5 rounded-full text-xs font-bold`. In `<select>` options the
 
 `inline-block text-[10px] font-extrabold px-1.5 py-0.5 rounded border`:
 
-| Scenario                    | Classes                                              | Label          |
-| --------------------------- | ---------------------------------------------------- | -------------- |
-| `scenario_a_compliant`      | `bg-emerald-100 text-emerald-800 border-emerald-200` | `⭐ Ssenari A` |
-| `scenario_b_gap`            | `bg-amber-100 text-amber-800 border-amber-200`       | `⚠️ Ssenari B` |
-| `scenario_c_missing_sprite` | `bg-rose-100 text-rose-800 border-rose-200`          | `❌ Ssenari C` |
+| Scenario                 | Classes                                              | Label          |
+| ------------------------ | ---------------------------------------------------- | -------------- |
+| `scenario_a_compliant`   | `bg-emerald-100 text-emerald-800 border-emerald-200` | `⭐ Ssenari A` |
+| `scenario_b_gap`         | `bg-amber-100 text-amber-800 border-amber-200`       | `⚠️ Ssenari B` |
+| `scenario_c_missing_sku` | `bg-rose-100 text-rose-800 border-rose-200`          | `❌ Ssenari C` |
 
 The numeric AI score appears in two shapes, both **✅ Shipped**:
 
@@ -425,13 +425,13 @@ thresholds gate the auto-approve affordance: the "Bir Kliklə AI Təsdiqi" butto
 
 ### 10.7 Buttons — ✅ Shipped
 
-| Variant            | Spec                                                                                                                                          |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Primary**        | `bg-coke-500 hover:bg-coke-600 text-white rounded-xl px-4 py-2 text-xs font-bold shadow-sm shadow-coke-500/20 transition-all active:scale-95` |
-| **Success**        | `bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-5 py-2 text-xs font-bold shadow-xs transition-all`                              |
-| **Neutral / Dark** | `bg-slate-900 text-white rounded-lg px-4 py-2 text-xs font-bold`                                                                              |
-| **Ghost / Filter** | idle `bg-white border border-slate-200 text-slate-600`; active `bg-slate-900 text-white`; `rounded-lg text-xs font-semibold`                  |
-| **Destructive**    | `bg-rose-600 hover:bg-rose-700 text-white`                                                                                                    |
+| Variant            | Spec                                                                                                                                             |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Primary**        | `bg-brand-500 hover:bg-brand-600 text-white rounded-xl px-4 py-2 text-xs font-bold shadow-sm shadow-brand-500/20 transition-all active:scale-95` |
+| **Success**        | `bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-5 py-2 text-xs font-bold shadow-xs transition-all`                                 |
+| **Neutral / Dark** | `bg-slate-900 text-white rounded-lg px-4 py-2 text-xs font-bold`                                                                                 |
+| **Ghost / Filter** | idle `bg-white border border-slate-200 text-slate-600`; active `bg-slate-900 text-white`; `rounded-lg text-xs font-semibold`                     |
+| **Destructive**    | `bg-rose-600 hover:bg-rose-700 text-white`                                                                                                       |
 
 All interactive elements carry `cursor-pointer`. Buttons are `flex items-center justify-center space-x-1.5` when icon + label, and `flex-1 sm:flex-none` inside mobile action rows.
 
@@ -450,7 +450,7 @@ Labels (`AuditReviewCenter.tsx` L151–154): `Bütün Fotolar` · `⏳ Gözləy�
 
 Wrapper `relative w-full md:w-72`. Leading icon `absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400`.
 
-Field: `w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-coke-500/20 focus:border-coke-500`
+Field: `w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500`
 
 Placeholders: `"Mağaza və ya tapşırıq axtar..."` (review center) · `"Filial adı və ya kod ilə axtar..."` (store directory).
 
@@ -548,13 +548,13 @@ the tinted body separate them.
 
 **Actions:**
 
-| Action                                 | Colour                                          | Condition                                              |
-| -------------------------------------- | ----------------------------------------------- | ------------------------------------------------------ |
-| `✅ Təsdiq Et`                         | `bg-emerald-600 hover:bg-emerald-700`           | always                                                 |
-| `❌ İmtina Et` (opens feedback drawer) | `bg-rose-50 border-rose-200 text-rose-700`      | always                                                 |
-| `⚡ Bir Kliklə AI Təsdiqi`             | **`bg-coke-500 hover:bg-coke-600`** — brand red | `ai_score >= 80` **and** `status === 'pending_review'` |
+| Action                                 | Colour                                            | Condition                                              |
+| -------------------------------------- | ------------------------------------------------- | ------------------------------------------------------ |
+| `✅ Təsdiq Et`                         | `bg-emerald-600 hover:bg-emerald-700`             | always                                                 |
+| `❌ İmtina Et` (opens feedback drawer) | `bg-rose-50 border-rose-200 text-rose-700`        | always                                                 |
+| `⚡ Bir Kliklə AI Təsdiqi`             | **`bg-brand-500 hover:bg-brand-600`** — brand red | `ai_score >= 80` **and** `status === 'pending_review'` |
 
-> **v1.1 fix:** v1.0 documented the AI auto-approve button as **indigo**. It is **brand red (`coke-500`)** in
+> **v1.1 fix:** v1.0 documented the AI auto-approve button as **indigo**. It is **brand red (`brand-500`)** in
 > the shipped code. `indigo` is reserved for the Before & After evidence marker (§3.3) and is not used for AI
 > anywhere in the portal. The AI action renders in **two** places — the summary banner and the footer — with
 > identical styling and the same guard condition.
@@ -570,22 +570,22 @@ the tinted body separate them.
 
 This is the authoritative table. If a component disagrees with it, the component is wrong.
 
-| Domain value                | Color family | Emoji | Azerbaijani label | Applies to        |
-| --------------------------- | ------------ | ----- | ----------------- | ----------------- |
-| `approved`                  | emerald      | ✅    | Təsdiqləndi       | submissions       |
-| `pending_review`            | amber        | ⏳    | Gözləyir          | submissions       |
-| `rejected`                  | rose         | ❌    | İmtina edildi     | submissions       |
-| `urgent`                    | rose         | 🔴    | Təcili            | task priority     |
-| `high`                      | orange       | 🟠    | Yüksək            | task priority     |
-| `medium`                    | amber        | 🟡    | Orta              | task priority     |
-| `low`                       | emerald      | 🟢    | Aşağı             | task priority     |
-| `draft`                     | slate        | —     | Qaralama          | task status       |
-| `published` / `active`      | emerald      | —     | Aktiv             | task status       |
-| `completed`                 | slate        | —     | Tamamlandı        | task status       |
-| `archived`                  | slate        | —     | Arxivlənmiş       | task status       |
-| `scenario_a_compliant`      | emerald      | ⭐    | Ssenari A         | AI classification |
-| `scenario_b_gap`            | amber        | ⚠️    | Ssenari B         | AI classification |
-| `scenario_c_missing_sprite` | rose         | ❌    | Ssenari C         | AI classification |
+| Domain value             | Color family | Emoji | Azerbaijani label | Applies to        |
+| ------------------------ | ------------ | ----- | ----------------- | ----------------- |
+| `approved`               | emerald      | ✅    | Təsdiqləndi       | submissions       |
+| `pending_review`         | amber        | ⏳    | Gözləyir          | submissions       |
+| `rejected`               | rose         | ❌    | İmtina edildi     | submissions       |
+| `urgent`                 | rose         | 🔴    | Təcili            | task priority     |
+| `high`                   | orange       | 🟠    | Yüksək            | task priority     |
+| `medium`                 | amber        | 🟡    | Orta              | task priority     |
+| `low`                    | emerald      | 🟢    | Aşağı             | task priority     |
+| `draft`                  | slate        | —     | Qaralama          | task status       |
+| `published` / `active`   | emerald      | —     | Aktiv             | task status       |
+| `completed`              | slate        | —     | Tamamlandı        | task status       |
+| `archived`               | slate        | —     | Arxivlənmiş       | task status       |
+| `scenario_a_compliant`   | emerald      | ⭐    | Ssenari A         | AI classification |
+| `scenario_b_gap`         | amber        | ⚠️    | Ssenari B         | AI classification |
+| `scenario_c_missing_sku` | rose         | ❌    | Ssenari C         | AI classification |
 
 **Note:** `medium`/`low` priority and `approved` share the emerald/amber families. They are distinguishable by emoji and label — always render both.
 
@@ -611,7 +611,7 @@ Measured live on 2026-09-12 at 1600×1000. `✅` = met, `⚠️` = partial, `�
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Contrast**                 | Body text ≥ 4.5:1. `slate-500` on white = 4.76:1. `slate-400` on white = 3.0:1 → **metadata only, never body copy**.               | ⚠️    | Rule is respected in the shipped type scale, but `slate-400` is used for 11px helper text in several places — audit against §4.2.                                   |
 | **Status never colour-only** | Always colour **+** emoji **+** text label (§8, §11).                                                                              | ✅    | Every status/priority chip carries an emoji prefix and an Azerbaijani label. Keep it.                                                                               |
-| **Visible focus ring**       | `focus-visible:ring-2 focus-visible:ring-coke-500 focus-visible:ring-offset-2`                                                     | 🎯    | **Zero** `focus-visible` rules exist in the compiled stylesheet (counted: `0`). Keyboard users cannot see focus anywhere.                                           |
+| **Visible focus ring**       | `focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2`                                                    | 🎯    | **Zero** `focus-visible` rules exist in the compiled stylesheet (counted: `0`). Keyboard users cannot see focus anywhere.                                           |
 | **Touch targets ≥ 40×40px**  | Applies to every tappable control on touch.                                                                                        | 🎯    | **Not met.** Measured heights: filter chip **28px** · header CTA **32px** · card CTA **32px** · sidebar nav item **36px**. Only the 44×44 table thumbnail meets it. |
 | **Semantics**                | Sidebar nav = `<nav>` + `aria-current="page"`; icon-only buttons need `aria-label`; modals need `role="dialog" aria-modal="true"`. | 🎯    | **Not met.** `aria-*` and `role=` occurrences across all six components: **0**.                                                                                     |
 | **Modal keyboard behaviour** | Escape closes, focus trapped, focus returns to trigger.                                                                            | 🎯    | **Not met.** See §10.13.                                                                                                                                            |
@@ -716,7 +716,7 @@ export default {
           red: '#F40009',
           dark: '#111827',
         },
-        coke: {
+        brand: {
           50: '#fff1f1',
           100: '#ffdfdf',
           200: '#ffc5c5',
@@ -780,16 +780,16 @@ Corrections made after a live render + measurement pass against the running port
 
 **Spec ↔ code mismatches fixed (7):**
 
-| §     | Was documented                                                        | Corrected to                                                            |
-| ----- | --------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| 10.8  | Chip label `Bütün Fətolar`; chips `font-semibold`                     | `Bütün Fotolar`; `font-bold`                                            |
-| 10.9  | Search input `bg-white`, `rounded-xl`, `px-4`                         | `bg-slate-50`, `rounded-lg`, `pl-9 pr-4`                                |
-| 10.10 | Banner CTA text `text-amber-700`                                      | `text-slate-900`                                                        |
-| 10.11 | Header cells `text-[10px]`; thumbnail 40×40                           | Header inherits `text-xs`; thumbnail `w-11 h-11` (44px)                 |
-| 10.12 | Amber/rose thresholds "not yet implemented" (50/25)                   | **Implemented**, thresholds **80 / 50**                                 |
-| 10.13 | Backdrop `bg-slate-950/60`; max height `90vh`                         | `/75` and `/80`; `max-h-[92vh]`                                         |
-| 10.14 | Toast bottom-right, `py-3`, `font-semibold`, `shadow-2xl`, 4 messages | top-right, `py-2.5`, `font-bold`, `shadow-lg`, 5 messages               |
-| 10.15 | AI auto-approve is **indigo**                                         | **`coke-500` brand red**; `indigo` = Before & After marker (§3.3, §3.4) |
+| §     | Was documented                                                        | Corrected to                                                             |
+| ----- | --------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| 10.8  | Chip label `Bütün Fətolar`; chips `font-semibold`                     | `Bütün Fotolar`; `font-bold`                                             |
+| 10.9  | Search input `bg-white`, `rounded-xl`, `px-4`                         | `bg-slate-50`, `rounded-lg`, `pl-9 pr-4`                                 |
+| 10.10 | Banner CTA text `text-amber-700`                                      | `text-slate-900`                                                         |
+| 10.11 | Header cells `text-[10px]`; thumbnail 40×40                           | Header inherits `text-xs`; thumbnail `w-11 h-11` (44px)                  |
+| 10.12 | Amber/rose thresholds "not yet implemented" (50/25)                   | **Implemented**, thresholds **80 / 50**                                  |
+| 10.13 | Backdrop `bg-slate-950/60`; max height `90vh`                         | `/75` and `/80`; `max-h-[92vh]`                                          |
+| 10.14 | Toast bottom-right, `py-3`, `font-semibold`, `shadow-2xl`, 4 messages | top-right, `py-2.5`, `font-bold`, `shadow-lg`, 5 messages                |
+| 10.15 | AI auto-approve is **indigo**                                         | **`brand-500` brand red**; `indigo` = Before & After marker (§3.3, §3.4) |
 
 **Internal contradictions resolved (2):**
 

@@ -39,8 +39,8 @@ function check(label: string, condition: boolean, detail = ''): void {
 const GOOD = {
   complianceScore: 82,
   confidence: 0.71,
-  detectedCounts: { coca_cola_classic: 6, fanta: 3 },
-  missingSKUs: [{ sku: 'sprite', shortfall: 2 }],
+  detectedCounts: { classic_soda: 6, orange_soda: 3 },
+  missingSKUs: [{ sku: 'lemon_soda', shortfall: 2 }],
   extraItems: [{ description: 'Pepsi', location: 'yuxarı rəf' }],
   anomalies: [{ kind: 'damaged', description: 'ezilmiş qab', severity: 'low' }],
   summary: 'Rəf qismən uyğundur',
@@ -54,8 +54,8 @@ console.log('shelf verdict schema\n');
   check('a well-formed verdict parses', r.ok, r.ok ? '' : r.detail);
   if (r.ok) {
     check('the score survives exactly', r.verdict.complianceScore === 82);
-    check('the SKU counts survive', r.verdict.detectedCounts.fanta === 3);
-    check('missing SKUs survive', r.verdict.missingSKUs[0]?.sku === 'sprite');
+    check('the SKU counts survive', r.verdict.detectedCounts.orange_soda === 3);
+    check('missing SKUs survive', r.verdict.missingSKUs[0]?.sku === 'lemon_soda');
     check('a complete verdict raises no warnings', r.warnings.length === 0, r.warnings.join('; '));
     check('a confident, complete verdict is accepted', assessVerdict(r).triage === 'accept');
   }
@@ -69,7 +69,9 @@ console.log('shelf verdict schema\n');
   const outOfRange = parseVerdict(JSON.stringify({ ...GOOD, confidence: 7 }));
   check('a confidence of 7 is rejected rather than clamped', !outOfRange.ok, `ok=${outOfRange.ok}`);
 
-  const noScore = parseVerdict(JSON.stringify({ confidence: 0.9, detectedCounts: { fanta: 2 } }));
+  const noScore = parseVerdict(
+    JSON.stringify({ confidence: 0.9, detectedCounts: { orange_soda: 2 } }),
+  );
   check(
     'a verdict with NO score is rejected, not defaulted to 0',
     !noScore.ok && noScore.reason === 'schema-invalid',
@@ -81,7 +83,7 @@ console.log('shelf verdict schema\n');
   const fenced = parseVerdict('```json\n' + JSON.stringify(GOOD) + '\n```');
   check('a fenced code block still parses', fenced.ok, fenced.ok ? '' : fenced.detail);
 
-  const prose = parseVerdict('Sən Coca-Cola rəf auditçisisən. Rəf çox yaxşıdır.');
+  const prose = parseVerdict('Sən oneTeam Retail rəf auditçisisən. Rəf çox yaxşıdır.');
   check(
     'prose is rejected',
     !prose.ok && prose.reason === 'not-json',
@@ -132,7 +134,7 @@ console.log('shelf verdict schema\n');
     JSON.stringify({
       ...GOOD,
       detectedCounts: { out_of_stock_gap: 4 },
-      missingSKUs: [{ sku: 'fanta', shortfall: 1 }],
+      missingSKUs: [{ sku: 'orange_soda', shortfall: 1 }],
     }),
   );
   check(
@@ -161,12 +163,12 @@ console.log('shelf verdict schema\n');
 // --- The prompt says what it must ------------------------------------------
 {
   const prompt = buildVerdictPrompt([
-    { sku: 'fanta', label: 'Fanta Orange 0.5L', minFacings: 2 },
-    { sku: 'sprite', label: 'Sprite 0.5L', minFacings: 3 },
+    { sku: 'orange_soda', label: 'Orange Soda Orange 0.5L', minFacings: 2 },
+    { sku: 'lemon_soda', label: 'Lemon Soda 0.5L', minFacings: 3 },
   ]);
   check(
     "the prompt opens with the plan's own instruction",
-    prompt.startsWith('Sən Coca-Cola rəf auditçisisən'),
+    prompt.startsWith('Sən oneTeam Retail rəf auditçisisən'),
   );
   check(
     'the prompt states the planogram minimums',
@@ -185,8 +187,8 @@ console.log('shelf verdict schema\n');
     ].every((k) => prompt.includes(k)),
   );
 
-  const hinted = buildVerdictPrompt([{ sku: 'fanta', label: 'F', minFacings: 1 }], {
-    detectedCounts: { fanta: 4 },
+  const hinted = buildVerdictPrompt([{ sku: 'orange_soda', label: 'F', minFacings: 1 }], {
+    detectedCounts: { orange_soda: 4 },
   });
   check(
     'pre-filter counts are passed as a hint, framed as "verify"',
@@ -203,7 +205,7 @@ process.exit(failed === 0 ? 0 : 1);
 // --- A hallucinated SKU is not a SKU ---------------------------------------
 {
   const invented = parseVerdict(
-    JSON.stringify({ ...GOOD, detectedCounts: { coca_cola_diet: 5, fanta: 1 } }),
+    JSON.stringify({ ...GOOD, detectedCounts: { diet_soda: 5, orange_soda: 1 } }),
   );
   check(
     'an invented SKU is rejected rather than counted as product',
