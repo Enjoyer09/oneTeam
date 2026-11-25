@@ -32,7 +32,7 @@ Dörd hissə də **bir layihə içindədir** (Railway → `oneTeam`):
 | `postgres` | Verilənlər bazası (PostgreSQL 16 + disk) | ✅ sxem və nümunə məlumat yüklənib |
 | `api`      | Backend (NestJS)                         | ✅ **bazaya yazır və oxuyur**      |
 | `web`      | Veb panel (React + nginx)                | ✅                                 |
-| `bot`      | Telegram bot                             | ✅ işləyir — **@oneTeamCCIbot**    |
+| `bot`      | Telegram bot                             | ✅ işləyir — **@oneTeamBot**    |
 
 ### Verilənlər bazası artıq həqiqətən istifadə olunur
 
@@ -512,7 +512,7 @@ Yekun gözlənti: **aylıq təxminən $5–15**. Dəqiq rəqəmi Railway panelin
 | Panel açarı      | ✅ yaradılıb, giriş ekranı qoşulub (`liveKeys: 1`)       |
 | Foto saxlancı    | ✅ Cloudflare R2 bucket `oneteam-photos` aktivdir        |
 | Ehtiyat nüsxə    | ✅ PITR aktiv + gündəlik cədvəl qurulub                  |
-| Bot              | ✅ işləyir — **@oneTeamCCIbot**                          |
+| Bot              | ✅ işləyir — **@oneTeamBot**                          |
 | Məhsul / rəf     | ✅ SKU kataloqu və rəf xəritəsi prod-da (Wave 1.4)       |
 | Vizyon işçisi    | ✅ ayrı `vision-worker` servisi — foto analizi           |
 | Prod smoke       | ✅ `npm run smoke:prod` → 19/19 yoxlama keçir            |
@@ -529,7 +529,7 @@ işlədiyi üçün bu, **aktiv sızma**dır — açarı bilən hər kəs botunuz
 3. BotFather yeni açar verəcək (`1234567890:AAH...` kimi). Kopyalayın.
 4. Railway → `oneTeam` → **`bot`** servisi → **Variables**.
 5. `TELEGRAM_BOT_TOKEN` sətrini tapın → dəyəri yeni açarla əvəz edin → **Save**.
-6. Servis özü yenidən başlayacaq. Logda `✅ connected as @oneTeamCCIbot` görməlisiniz.
+6. Servis özü yenidən başlayacaq. Logda `✅ connected as @oneTeamBot` görməlisiniz.
 
 ### ✅ 2. Panelə giriş açarı yaradın — EDİLDİ
 

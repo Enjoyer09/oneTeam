@@ -1,9 +1,7 @@
-# oneTeam — Retail Shelf Monitoring Platform (FMCG / oneTeam Retail Distribution)
-
-![oneTeam Logo](./logo.jpg)
+# oneTeam — Retail Shelf Monitoring Platform (FMCG Distribution)
 
 **oneTeam** is a retail shelf-monitoring and planogram-compliance platform for
-FMCG operations (oneTeam Retail distribution across chains such as Bravo, Araz,
+FMCG operations (retail distribution across chains such as Bravo, Araz,
 Bazarstore and Rahat). Supervisors dispatch merchandising tasks and planograms
 to stores; field merchandisers submit shelf-audit photos and telemetry from a
 Telegram bot or an iOS app; supervisors review and approve them from a web
@@ -280,4 +278,4 @@ GitHub Actions under `.github/workflows/`:
 
 ## License
 
-UNLICENSED — proprietary. See `package.json`.
+MIT — see [LICENSE](./LICENSE).
